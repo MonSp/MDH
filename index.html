@@ -6,538 +6,149 @@
 <title>Plugin Shell</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg-primary: #070b14;
-    --bg-secondary: #0d1321;
-    --bg-surface: #111927;
-    --bg-elevated: #182235;
-    --border-color: #1e2d4a;
-    --border-glow: #0a84ff40;
-    --accent-blue: #0a84ff;
-    --accent-cyan: #5ac8fa;
-    --accent-green: #30d158;
-    --accent-red: #ff453a;
-    --accent-orange: #ff9f0a;
-    --accent-purple: #bf5af2;
-    --text-primary: #e8edf5;
-    --text-secondary: #8899bb;
-    --text-muted: #556688;
-    --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+    --bg-deep: #06080e;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-muted: rgba(255, 255, 255, 0.09);
+    --accent-blue: #3399ff;
+    --accent-green: #33cc66;
+    --text-primary: #d4d8e0;
+    --text-secondary: #6b7288;
+    --text-muted: #3d4258;
+    --font-mono: 'JetBrains Mono', monospace;
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  html { font-size: 14px; }
+  html, body { height: 100%; }
   body {
     font-family: var(--font-sans);
-    background: var(--bg-primary);
+    background: var(--bg-deep);
     color: var(--text-primary);
-    min-height: 100vh;
-    overflow-x: hidden;
+    overflow: hidden;
   }
 
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background:
-      radial-gradient(ellipse 80% 60% at 20% 10%, rgba(10, 132, 255, 0.04) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 80% at 80% 90%, rgba(90, 200, 250, 0.03) 0%, transparent 60%);
-    pointer-events: none;
-    z-index: 0;
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
   }
 
-  .app { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100vh; }
-
-  .header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 24px;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-secondary);
+  .status-bar {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 36px;
+    padding: 0 16px;
+    background: rgba(10, 14, 22, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-subtle);
+    z-index: 10;
   }
-  .header-left { display: flex; align-items: center; gap: 12px; }
-  .header-logo {
-    width: 32px; height: 32px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px;
+
+  .status-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
-  .header-title { font-family: var(--font-mono); font-weight: 700; font-size: 1.15rem; }
-  .header-title span { color: var(--accent-blue); }
-  .header-badge {
-    font-family: var(--font-mono); font-size: 0.7rem;
-    padding: 3px 10px;
-    border-radius: 10px;
-    background: var(--accent-blue);
-    color: #fff;
-    font-weight: 600;
-    letter-spacing: 0.3px;
-  }
-  .header-status { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 0.75rem; }
+
   .status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
     background: var(--accent-green);
-    box-shadow: 0 0 8px var(--accent-green);
-    animation: pulse-dot 2s ease-in-out infinite;
-  }
-  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-
-  .main {
-    display: flex; flex: 1; overflow: hidden;
+    box-shadow: 0 0 6px rgba(51, 204, 102, 0.4);
+    flex-shrink: 0;
   }
 
-  .left-panel {
-    flex: 1;
-    display: flex; flex-direction: column;
-    overflow: hidden;
-    border-right: 1px solid var(--border-color);
-  }
-
-  .iframe-section {
-    flex: 1;
-    padding: 12px 20px 16px;
-    display: flex; flex-direction: column;
-    min-height: 0;
-  }
-  .iframe-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 8px;
-  }
-  .iframe-title {
-    font-family: var(--font-mono); font-size: 0.7rem;
-    color: var(--text-muted); text-transform: uppercase;
-    letter-spacing: 1px;
-  }
-  .iframe-url {
-    font-family: var(--font-mono); font-size: 0.65rem;
+  .status-label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 500;
+    letter-spacing: 1.2px;
     color: var(--text-secondary);
-    background: var(--bg-elevated);
-    padding: 2px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    max-width: 280px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .iframe-wrapper {
-    flex: 1;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid var(--border-color);
-    background: #0a0e17;
-    position: relative;
-    min-height: 0;
-  }
-  .iframe-wrapper iframe {
-    width: 100%; height: 100%;
-    border: none;
+    text-transform: uppercase;
   }
 
-  .right-panel {
-    width: 380px;
-    flex-shrink: 0;
-    display: flex; flex-direction: column;
-    background: var(--bg-secondary);
+  .status-label span {
+    color: var(--accent-blue);
   }
-  .log-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
+
+  .status-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
   }
-  .log-title {
-    font-family: var(--font-mono); font-size: 0.7rem;
-    color: var(--text-muted); text-transform: uppercase;
-    letter-spacing: 1px;
-  }
-  .log-actions { display: flex; gap: 6px; }
-  .log-btn {
-    font-family: var(--font-mono); font-size: 0.65rem;
+
+  .test-link {
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    font-weight: 500;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    text-decoration: none;
     padding: 3px 10px;
     border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-elevated);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.15s;
+    border: 1px solid transparent;
+    transition: all 0.2s;
   }
-  .log-btn:hover { background: var(--border-color); color: var(--text-primary); }
-  .log-count {
-    font-family: var(--font-mono); font-size: 0.7rem;
-    color: var(--text-secondary);
-  }
-  .log-count span { color: var(--accent-blue); font-weight: 600; }
-  .log-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 8px 0;
-    min-height: 0;
-  }
-  .log-list::-webkit-scrollbar { width: 4px; }
-  .log-list::-webkit-scrollbar-track { background: transparent; }
-  .log-list::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
 
-  .log-entry {
-    display: flex; gap: 8px;
-    padding: 5px 16px;
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    border-left: 3px solid transparent;
-    transition: background 0.15s;
-  }
-  .log-entry:hover { background: rgba(255,255,255,0.02); }
-  .log-entry.req { border-left-color: var(--accent-blue); }
-  .log-entry.req .log-type { color: var(--accent-blue); }
-  .log-entry.res { border-left-color: var(--accent-green); }
-  .log-entry.res .log-type { color: var(--accent-green); }
-  .log-entry.err { border-left-color: var(--accent-red); }
-  .log-entry.err .log-type { color: var(--accent-red); }
-  .log-entry.evt { border-left-color: var(--accent-purple); }
-  .log-entry.evt .log-type { color: var(--accent-purple); }
-  .log-entry .log-icon { width: 14px; flex-shrink: 0; margin-top: 1px; }
-  .log-entry .log-body { flex: 1; min-width: 0; }
-  .log-entry .log-line1 { display: flex; gap: 8px; align-items: baseline; }
-  .log-entry .log-type { font-weight: 600; flex-shrink: 0; }
-  .log-entry .log-cmd { color: var(--text-primary); }
-  .log-entry .log-time { color: var(--text-muted); font-size: 0.6rem; margin-left: auto; flex-shrink: 0; }
-  .log-entry .log-source {
-    font-size: 0.55rem;
-    padding: 1px 5px;
-    border-radius: 3px;
-    margin-left: 4px;
-  }
-  .log-entry .log-source.iframe { background: rgba(48,209,88,0.15); color: var(--accent-green); }
-  .log-entry .log-source.parent { background: rgba(191,90,242,0.15); color: var(--accent-purple); }
-  .log-entry .log-source.user { background: rgba(10,132,255,0.15); color: var(--accent-blue); }
-  .log-entry .log-payload {
+  .test-link:hover {
+    border-color: var(--border-muted);
     color: var(--text-secondary);
-    font-size: 0.65rem;
-    margin-top: 2px;
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .iframe-container {
+    flex: 1;
+    position: relative;
+    background: #04060a;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
-  .log-empty {
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
+
+  .iframe-container iframe {
+    width: 100%;
     height: 100%;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    gap: 8px;
-  }
-  .log-empty svg { opacity: 0.3; }
-  .log-empty span { opacity: 0.5; }
-
-  .bottom-bar {
-    display: none;  /* replaced by test-console */
+    border: none;
+    display: block;
   }
 
-  /* ── Test Console ── */
-  .test-console {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 0;
-    border-top: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-    flex-shrink: 0;
-  }
-  .tc-section {
-    padding: 10px 14px;
-    border-right: 1px solid var(--border-color);
-    display: flex; flex-direction: column; gap: 6px;
-  }
-  .tc-section:nth-child(3n) { border-right: none; }
-  .tc-section:not(:nth-last-child(-n+3)) { border-bottom: 1px solid var(--border-color); }
-  .tc-section-title {
-    font-family: var(--font-mono); font-size: 0.6rem;
-    color: var(--text-muted); text-transform: uppercase;
-    letter-spacing: 0.5px;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .tc-target-ref {
-    font-family: var(--font-mono); font-size: 0.55rem;
-    color: var(--accent-green);
-    text-transform: none;
-    letter-spacing: 0;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    max-width: 160px;
-  }
-  .tc-row {
-    display: flex; gap: 6px; align-items: center;
-  }
-  .tc-input {
-    flex: 1;
-    font-family: var(--font-mono); font-size: 0.65rem;
-    padding: 4px 8px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    min-width: 0;
-  }
-  .tc-input:focus { outline: none; border-color: var(--accent-blue); }
-  .tc-select {
-    font-family: var(--font-mono); font-size: 0.65rem;
-    padding: 4px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-elevated);
-    color: var(--text-primary);
-    cursor: pointer;
-  }
-  .tc-btn-row {
-    display: flex; gap: 4px; flex-wrap: wrap;
-  }
-  .tc-btn {
-    font-family: var(--font-mono); font-size: 0.62rem;
-    padding: 4px 10px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-elevated);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-  .tc-btn:hover { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
-  .tc-btn.primary { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
-  .tc-btn.primary:hover { background: #0a7eff; }
-  .tc-tab-list {
-    max-height: 120px; overflow-y: auto;
-    display: flex; flex-direction: column; gap: 2px;
-  }
-  .tc-tab-list::-webkit-scrollbar { width: 3px; }
-  .tc-tab-list::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
-  .tc-tab-item {
-    display: flex; align-items: center; gap: 6px;
-    padding: 3px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--bg-elevated);
-    font-family: var(--font-mono); font-size: 0.6rem;
-    color: var(--text-secondary);
-    cursor: default;
-  }
-  .tc-tab-item:hover { background: rgba(255,255,255,0.02); }
-  .tc-tab-id { color: var(--text-muted); flex-shrink: 0; }
-  .tc-tab-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tc-tab-active { color: var(--accent-green); flex-shrink: 0; }
-  .tc-tab-switch {
-    font-family: var(--font-mono); font-size: 0.55rem;
-    padding: 1px 6px;
-    border-radius: 3px;
-    border: 1px solid var(--accent-blue);
-    background: transparent;
-    color: var(--accent-blue);
-    cursor: pointer;
-  }
-  .tc-tab-switch:hover { background: var(--accent-blue); color: #fff; }
-  .tc-none { color: var(--text-muted); font-family: var(--font-mono); font-size: 0.55rem; }
-
-  /* hide unused old styles */
-  .bottom-label { display: none; }
-  .cmd-btn { display: none; }
-
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateX(-8px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
-  .log-entry { animation: slideIn 0.2s ease-out; }
-
-  @media (max-width: 1024px) {
-    .main { flex-direction: column; }
-    .right-panel { width: 100%; height: 40vh; border-top: 1px solid var(--border-color); }
+  .iframe-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(51, 153, 255, 0.15), transparent);
+    pointer-events: none;
+    z-index: 2;
   }
 </style>
 </head>
 <body>
 <div class="app">
-  <header class="header">
-    <div class="header-left">
-      <div class="header-logo">⬡</div>
-      <div class="header-title">Plugin <span>Shell</span></div>
-      <div class="header-badge">DEMO</div>
+  <div class="status-bar">
+    <div class="status-left">
+      <div class="status-dot"></div>
+      <div class="status-label">Plugin <span>Shell</span></div>
     </div>
-    <div class="header-status">
-      <span class="status-dot"></span>
-      <span id="statusText">运行中</span>
-    </div>
-  </header>
-
-  <div class="main">
-    <div class="left-panel">
-      <div class="iframe-section">
-        <div class="iframe-header">
-          <div class="iframe-title">iframe 容器</div>
-          <div class="iframe-url">company-app.html</div>
-        </div>
-        <div class="iframe-wrapper" id="iframeWrapper">
-          <iframe id="companyIframe" src="company-app.html"></iframe>
-        </div>
-      </div>
-    </div>
-
-    <div class="right-panel">
-      <div class="log-header">
-        <div class="log-title">通信日志</div>
-        <div class="log-actions">
-          <span class="log-count">共 <span id="logCount">0</span> 条</span>
-          <button class="log-btn" id="clearLogBtn">清空</button>
-        </div>
-      </div>
-      <div class="log-list" id="logList">
-        <div class="log-empty">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-          <span>等待通信...</span>
-        </div>
-      </div>
+    <div class="status-right">
+      <a href="test.html" class="test-link">测试面板</a>
     </div>
   </div>
-
-  <!-- Test Console -->
-  <div class="test-console">
-    <div class="tc-section">
-      <div class="tc-section-title">导航</div>
-      <div class="tc-row">
-        <input type="text" id="navUrl" class="tc-input" placeholder="输入 URL，如 https://example.com" value="https://example.com">
-        <button class="tc-btn primary" id="btnNavigate">前往</button>
-      </div>
-    </div>
-
-    <div class="tc-section">
-      <div class="tc-section-title">查找元素</div>
-      <div class="tc-row">
-        <input type="text" id="selInput" class="tc-input" placeholder="XPath 或 CSS 选择器" value="//button[@id='submit-btn']">
-        <select id="selType" class="tc-select">
-          <option value="xpath" selected>XPath</option>
-          <option value="css">CSS</option>
-        </select>
-        <button class="tc-btn primary" id="btnResolve">查找</button>
-      </div>
-    </div>
-
-    <div class="tc-section">
-      <div class="tc-section-title">
-        元素操作
-        <span id="targetRefDisplay" class="tc-target-ref">（未选中元素）</span>
-      </div>
-      <div class="tc-btn-row">
-        <button class="tc-btn" id="btnClick">点击</button>
-        <button class="tc-btn" id="btnHover">悬停</button>
-        <button class="tc-btn" id="btnScroll">滚动到</button>
-        <button class="tc-btn" id="btnScreenshot">截图</button>
-        <button class="tc-btn" id="btnQuery">查询状态</button>
-      </div>
-      <div class="tc-row" style="margin-top:6px;">
-        <input type="text" id="textInput" class="tc-input" placeholder="输入文本..." value="Hello World">
-        <button class="tc-btn primary" id="btnInputText">输入文本</button>
-      </div>
-    </div>
-
-    <div class="tc-section">
-      <div class="tc-section-title">标签页管理</div>
-      <div class="tc-btn-row">
-        <button class="tc-btn" id="btnGetTabs">获取标签页</button>
-        <button class="tc-btn" id="btnGetActiveTab">当前活跃</button>
-        <button class="tc-btn" id="btnClosePopup">关闭弹窗</button>
-      </div>
-      <div id="tabList" class="tc-tab-list">点击"获取标签页"加载</div>
-    </div>
-
-    <div class="tc-section">
-      <div class="tc-section-title">execute_step</div>
-      <select id="stepCmdSelect" class="tc-select" style="margin-bottom:4px;">
-        <option value="click_button">click_button</option>
-        <option value="input_text">input_text</option>
-        <option value="navigate" selected>navigate</option>
-        <option value="scroll">scroll</option>
-        <option value="wait">wait</option>
-        <option value="hover">hover</option>
-        <option value="press_key">press_key</option>
-        <option value="get_screenshot">get_screenshot</option>
-      </select>
-      <input type="text" id="stepPayload" class="tc-input" placeholder='子 payload JSON' value='{"url":"https://github.com"}'>
-      <div class="tc-row">
-        <input type="number" id="stepTimeout" class="tc-input" placeholder="超时(ms)" value="10000" style="max-width:80px;">
-        <button class="tc-btn primary" id="btnExecuteStep">执行步骤</button>
-      </div>
-    </div>
-
-    <div class="tc-section">
-      <div class="tc-section-title">execute_plan · 编排</div>
-      <textarea id="planSteps" class="tc-input" style="height:80px;font-size:0.55rem;resize:vertical;" placeholder='JSON 步骤数组'>[
-  {"command":"navigate", "payload":{"url":"https://github.com/search"}},
-  {"command":"wait", "payload":{"timeout_ms":2000}},
-  {"command":"resolve_selector", "payload":{"selector":"textarea[name='q']","selector_type":"css"}},
-  {"command":"input_text", "payload":{"text":"chromium browser automation"}},
-  {"command":"wait", "payload":{"timeout_ms":500}},
-  {"command":"press_key", "payload":{"key":"Enter"}}
-]</textarea>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-        <label style="font-size:0.55rem;color:var(--text-muted);display:flex;align-items:center;gap:4px;">
-          <input type="checkbox" id="planStopOnError" checked> 遇错停止
-        </label>
-        <input type="number" id="planTimeout" class="tc-input" placeholder="总超时(ms)" value="60000" style="max-width:70px;">
-        <button class="tc-btn primary" id="btnExecutePlan">执行计划</button>
-      </div>
-    </div>
+  <div class="iframe-container">
+    <iframe id="companyIframe" src="company-app.html"></iframe>
   </div>
 </div>
 
 <script type="module">
-import { initShell, callParentHost, getCurrentManifestVersion } from './dist/plugin-shell.js';
-
-const logList = document.getElementById('logList');
-const logCount = document.getElementById('logCount');
-const statusText = document.getElementById('statusText');
-
-const sourceLabels = { iframe: 'App→Shell', parent: 'Parent→Shell', user: '用户操作' };
-
-function addLog(entry) {
-  const empty = logList.querySelector('.log-empty');
-  if (empty) empty.remove();
-
-  const div = document.createElement('div');
-  const cssMap = { request: 'req', response: 'res', error: 'err', event: 'evt' };
-  div.className = `log-entry ${cssMap[entry.type] ?? ''}`;
-
-  const iconMap = { request: '▶', response: '◀', error: '✕', event: '⬡' };
-  const icon = iconMap[entry.type] ?? '●';
-
-  const time = new Date(entry.timestamp).toLocaleTimeString('zh-CN', { hour12: false });
-
-  let payloadStr = '';
-  if (entry.payload) {
-    try { payloadStr = JSON.stringify(entry.payload).substring(0, 120); } catch {}
-  }
-
-  const sourceTag = entry.source
-    ? `<span class="log-source ${entry.source}">${sourceLabels[entry.source] || entry.source}</span>`
-    : '';
-
-  div.innerHTML = `
-    <div class="log-icon">${icon}</div>
-    <div class="log-body">
-      <div class="log-line1">
-        <span class="log-type">${entry.type === 'request' ? 'REQ' : entry.type === 'response' ? 'RES' : entry.type === 'error' ? 'ERR' : 'EVT'}</span>
-        <span class="log-cmd">${entry.command}</span>
-        ${sourceTag}
-        <span class="log-time">${time}</span>
-      </div>
-      ${payloadStr ? `<div class="log-payload">${payloadStr}</div>` : ''}
-    </div>
-  `;
-
-  logList.appendChild(div);
-  logList.scrollTop = logList.scrollHeight;
-  logCount.textContent = logList.querySelectorAll('.log-entry').length;
-}
+import { initShell } from './dist/plugin-shell.js';
 
 const iframe = document.getElementById('companyIframe');
 const origin = window.location.origin;
@@ -546,160 +157,6 @@ initShell({
   iframe,
   appOrigin: origin,
   parentOrigin: 'chrome://ai-automation-side-panel.top-chrome',
-  onLog: addLog,
-});
-
-statusText.textContent = '运行中';
-
-// ---- test console logic ----
-
-let lastTargetRef = '';
-const targetRefDisplay = document.getElementById('targetRefDisplay');
-
-function setTargetRef(ref) {
-  lastTargetRef = ref;
-  targetRefDisplay.textContent = ref ? `当前: ${ref}` : '（未选中元素）';
-}
-
-async function doCommand(command, payload) {
-  const entry = { type: 'request', command, payload, timestamp: Date.now(), source: 'user' };
-  addLog(entry);
-  try {
-    const result = await callParentHost(command, payload);
-    addLog({ type: 'response', command, payload: result, timestamp: Date.now(), source: 'parent' });
-    return result;
-  } catch (err) {
-    addLog({ type: 'error', command, payload: { code: err.code, message: err.message }, timestamp: Date.now(), source: 'parent' });
-    throw err;
-  }
-}
-
-function forwardTrigger(command, payload) {
-  if (!iframe || !iframe.contentWindow) return;
-  addLog({ type: 'request', command, payload, timestamp: Date.now(), source: 'user' });
-  iframe.contentWindow.postMessage({ type: 'trigger_command', command, payload }, origin);
-}
-
-// Navigate
-document.getElementById('btnNavigate').addEventListener('click', () => {
-  const url = document.getElementById('navUrl').value.trim();
-  if (!url) return;
-  doCommand('navigate', { url });
-});
-
-// Resolve selector
-document.getElementById('btnResolve').addEventListener('click', async () => {
-  const selector = document.getElementById('selInput').value.trim();
-  const selectorType = document.getElementById('selType').value;
-  if (!selector) return;
-  try {
-    const r = await doCommand('resolve_selector', { selector, selector_type: selectorType });
-    if (r && r.target_ref) {
-      setTargetRef(r.target_ref);
-    }
-  } catch {}
-});
-
-// Element actions
-async function withTargetRef(fn) {
-  if (!lastTargetRef) {
-    alert('请先"查找元素"获取 target_ref');
-    return;
-  }
-  try { await fn(lastTargetRef); } catch {}
-}
-
-document.getElementById('btnClick').addEventListener('click', () =>
-  withTargetRef(ref => doCommand('click_button', { target_ref: ref })));
-document.getElementById('btnHover').addEventListener('click', () =>
-  withTargetRef(ref => doCommand('hover', { target_ref: ref })));
-document.getElementById('btnScroll').addEventListener('click', () =>
-  withTargetRef(ref => doCommand('scroll_into_view', { target_ref: ref })));
-document.getElementById('btnScreenshot').addEventListener('click', () =>
-  withTargetRef(ref => doCommand('screenshot_element', { target_ref: ref })));
-document.getElementById('btnQuery').addEventListener('click', () =>
-  withTargetRef(ref => doCommand('query_target', { target_ref: ref })));
-document.getElementById('btnInputText').addEventListener('click', () => {
-  const text = document.getElementById('textInput').value;
-  withTargetRef(ref => doCommand('input_text', { target_ref: ref, text }));
-});
-
-// Tab management
-document.getElementById('btnGetTabs').addEventListener('click', async () => {
-  try {
-    const r = await doCommand('get_tabs', {});
-    const tabs = r?.tabs ?? r ?? [];
-    const tabList = document.getElementById('tabList');
-    tabList.innerHTML = tabs.length === 0
-      ? '<span class="tc-none">无标签页</span>'
-      : tabs.map((t, i) => {
-          const isActive = t.is_active || t.isActive;
-          const style = isActive ? 'border-color:var(--accent-green);color:var(--accent-green);' : '';
-          return `<div class="tc-tab-item" style="${style}" data-tab-id="${t.id}">
-            <span class="tc-tab-id">#${t.id}</span>
-            <span class="tc-tab-title">${t.title || '-'}</span>
-            ${isActive ? '<span class="tc-tab-active">●</span>' : `<button class="tc-tab-switch" data-tab-id="${t.id}">切换</button>`}
-          </div>`;
-        }).join('');
-    tabList.querySelectorAll('.tc-tab-switch').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        doCommand('switch_tab', { tab_id: Number(btn.dataset.tabId) });
-      });
-    });
-  } catch {}
-});
-document.getElementById('btnGetActiveTab').addEventListener('click', () => {
-  doCommand('get_active_tab', {});
-});
-document.getElementById('btnClosePopup').addEventListener('click', () => {
-  doCommand('close_popup', {});
-});
-
-// ---- execute_step ----
-document.getElementById('btnExecuteStep').addEventListener('click', () => {
-  const command = document.getElementById('stepCmdSelect').value;
-  const raw = document.getElementById('stepPayload').value.trim();
-  const timeout = parseInt(document.getElementById('stepTimeout').value) || 10000;
-  let subPayload = {};
-  if (raw) {
-    try { subPayload = JSON.parse(raw); } catch {
-      alert('子 payload 不是合法的 JSON');
-      return;
-    }
-  }
-  doCommand('execute_step', { command, payload: subPayload, timeout_ms: timeout });
-});
-
-// ---- execute_plan ----
-document.getElementById('btnExecutePlan').addEventListener('click', () => {
-  const raw = document.getElementById('planSteps').value.trim();
-  const stopOnError = document.getElementById('planStopOnError').checked;
-  const planTimeout = parseInt(document.getElementById('planTimeout').value) || 60000;
-  let steps;
-  try { steps = JSON.parse(raw); } catch {
-    alert('步骤 JSON 解析失败');
-    return;
-  }
-  if (!Array.isArray(steps)) { alert('步骤必须是数组'); return; }
-  const mv = getCurrentManifestVersion();
-  if (!mv) {
-    addLog({ type: 'error', command: 'execute_plan', payload: { code: 'NO_MANIFEST', message: '尚未完成 manifest 同步，请稍后再试' }, timestamp: Date.now(), source: 'user' });
-  }
-  doCommand('execute_plan', {
-    manifest_version: mv || 'none',
-    steps,
-    stop_on_error: stopOnError,
-    config: { plan_timeout_ms: planTimeout },
-  });
-});
-
-document.getElementById('clearLogBtn').addEventListener('click', () => {
-  logList.innerHTML = `<div class="log-empty">
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-    <span>等待通信...</span>
-  </div>`;
-  logCount.textContent = '0';
 });
 </script>
 </body>
