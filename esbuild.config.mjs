@@ -2,10 +2,10 @@
 import esbuild from 'esbuild';
 
 await esbuild.build({
-  entryPoints: ['plugin-shell.ts'],
+  entryPoints: ['plugin-shell.ts', 'company-app.ts'],
   bundle: true,
   format: 'esm',
   platform: 'browser',
   target: ['es2022'],
-  outfile: 'dist/plugin-shell.js',
+  outdir: 'dist',
 });

@@ -580,6 +580,198 @@
     font-size: 0.5rem;
     color: var(--text-secondary);
   }
+
+  .settings-btn {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    border: 1px solid var(--border-dim);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .settings-btn:hover {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    background: var(--cyan-dim);
+  }
+  .settings-btn svg { width: 14px; height: 14px; }
+
+  .settings-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .settings-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .settings-panel {
+    width: 420px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-dim);
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  }
+  .settings-panel::-webkit-scrollbar {
+    width: 4px;
+  }
+  .settings-panel::-webkit-scrollbar-thumb {
+    background: var(--border-dim);
+    border-radius: 2px;
+  }
+
+  .settings-panel h3 {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .settings-panel h3 span { color: var(--cyan); }
+
+  .settings-group {
+    margin-bottom: 16px;
+  }
+  .settings-label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    letter-spacing: 0.8px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .settings-input {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-dim);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .settings-input:focus {
+    border-color: rgba(0, 229, 255, 0.35);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.05);
+  }
+  .settings-input::placeholder { color: var(--text-muted); }
+
+  .settings-textarea {
+    width: 100%;
+    min-height: 120px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-dim);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    line-height: 1.5;
+    outline: none;
+    resize: vertical;
+    transition: border-color 0.2s;
+  }
+  .settings-textarea:focus {
+    border-color: rgba(0, 229, 255, 0.35);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.05);
+  }
+  .settings-textarea::placeholder { color: var(--text-muted); }
+
+  .settings-hint {
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  .settings-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+    justify-content: flex-end;
+  }
+  .settings-btn-primary {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--cyan);
+    background: var(--cyan-dim);
+    color: var(--cyan);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .settings-btn-primary:hover {
+    background: rgba(0, 229, 255, 0.2);
+    box-shadow: 0 0 16px var(--cyan-glow);
+  }
+  .settings-btn-secondary {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border-dim);
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .settings-btn-secondary:hover {
+    border-color: var(--text-secondary);
+  }
+
+  .settings-btn-reset {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 45, 120, 0.2);
+    background: transparent;
+    color: var(--pink);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-right: auto;
+  }
+  .settings-btn-reset:hover {
+    background: var(--pink-dim);
+    border-color: rgba(255, 45, 120, 0.4);
+  }
+
+  .settings-divider {
+    border: none;
+    border-top: 1px solid var(--border-dim);
+    margin: 18px 0;
+  }
 </style>
 </head>
 <body>
@@ -591,6 +783,15 @@
     <div class="header-title">AI <span>Agent</span></div>
   </div>
   <div class="header-right">
+    <button class="settings-btn" id="settingsBtn" title="API 配置">
+      <svg viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="2.5" stroke="currentColor" stroke-width="1"/>
+        <path d="M7 1.5 L7.8 3.2 L7 4.5 L6.2 3.2 Z" stroke="currentColor" stroke-width="0.8" fill="none"/>
+        <path d="M12.5 7 L11 7.5 L10.2 6.5 L11 5.5 Z" stroke="currentColor" stroke-width="0.8" fill="none"/>
+        <path d="M1.5 7 L3 7.5 L3.8 6.5 L3 5.5 Z" stroke="currentColor" stroke-width="0.8" fill="none"/>
+        <path d="M7 12.5 L7.8 10.8 L6.2 9.5 L5.5 10.3 Z" stroke="currentColor" stroke-width="0.8" fill="none"/>
+      </svg>
+    </button>
     <span class="header-page" id="headerPage">—</span>
     <span class="header-badge online" id="headerBadge">ONLINE</span>
   </div>
@@ -653,515 +854,39 @@
   </div>
 </div>
 
-<script>
-(function() {
-  const origin = window.location.origin;
-  const chatArea = document.getElementById('chatArea');
-  const chatInput = document.getElementById('chatInput');
-  const sendBtn = document.getElementById('sendBtn');
-  const welcomeScreen = document.getElementById('welcomeScreen');
-  const headerPage = document.getElementById('headerPage');
-  const headerBadge = document.getElementById('headerBadge');
-  const statusSessions = document.getElementById('statusSessions');
-  const statusTabs = document.getElementById('statusTabs');
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-panel" id="settingsPanel">
+    <h3><span>⚙</span> API 配置</h3>
 
-  let pendingRequests = {};
-  let reqCounter = 0;
-  let lastTargetRef = '';
-  let currentManifestVersion = '';
-  let isProcessing = false;
-  let welcomeDismissed = false;
+    <div class="settings-group">
+      <label class="settings-label">BASE URL</label>
+      <input class="settings-input" type="text" id="cfgBaseUrl" placeholder="https://api.deepseek.com">
+      <div class="settings-hint">DeepSeek API 地址，默认使用官方地址</div>
+    </div>
 
-  function dismissWelcome() {
-    if (welcomeDismissed) return;
-    welcomeDismissed = true;
-    if (welcomeScreen && welcomeScreen.parentNode) {
-      welcomeScreen.remove();
-    }
-  }
+    <div class="settings-group">
+      <label class="settings-label">API KEY</label>
+      <input class="settings-input" type="password" id="cfgApiKey" placeholder="sk-...">
+      <div class="settings-hint">您的 DeepSeek API Key</div>
+    </div>
 
-  const COMMAND_PATTERNS = [
-    { regex: /^(?:打开|前往|导航[到至]?|访问|go\s+to|navigate\s+to)\s+(.+)/i, cmd: 'navigate', build: (m) => ({ url: normalizeUrl(m[1].trim()) }) },
-    { regex: /^搜索\s+(.+)/i, cmd: 'search', build: (m) => ({ query: m[1].trim() }) },
-    { regex: /^点击\s+(.+)/i, cmd: 'click_button', build: (m) => ({ button_label: m[1].trim() }) },
-    { regex: /^(?:输入|填写?|键入)\s*(.+?)\s*(?:到|在|至)\s*(.+)/i, cmd: 'fill_field', build: (m) => ({ field_name: m[2].trim(), value: m[1].trim() }) },
-    { regex: /^登录\s+(\S+)\s+(\S+)/i, cmd: 'login', build: (m) => ({ username: m[1], password: m[2] }) },
-    { regex: /^(?:向下|up|down)\s*(?:滚动|scroll)\s*(\d+)?/i, cmd: 'scroll', build: (m) => {
-      const amt = parseInt(m[1]) || 300;
-      const isUp = /up/i.test(m[0]);
-      return { y: isUp ? -amt : amt, behavior: 'smooth' };
-    }},
-    { regex: /^等待\s*(\d+)\s*(?:秒|s)/i, cmd: 'wait', build: (m) => ({ timeout_ms: parseInt(m[1]) * 1000 }) },
-    { regex: /^(?:截图|截取|screenshot)/i, cmd: 'get_screenshot', build: () => ({}) },
-    { regex: /^(?:列出|获取|显示|查看)?\s*(?:所有)?标签页/i, cmd: 'get_tabs', build: () => ({}) },
-    { regex: /^切换(?:到)?\s*(?:第)?\s*(\d+)\s*(?:个)?标签页/i, cmd: 'switch_tab', build: (m) => ({ tab_id: parseInt(m[1]) }) },
-    { regex: /^新建标签页\s*(.+)?/i, cmd: 'create_tab', build: (m) => {
-      const url = m[1] ? normalizeUrl(m[1].trim()) : undefined;
-      return { url, active: true };
-    }},
-    { regex: /^关闭标签页\s*(\d+)/i, cmd: 'close_tab', build: (m) => ({ tab_id: parseInt(m[1]) }) },
-    { regex: /^按(?:下)?键?\s*(.+)/i, cmd: 'press_key', build: (m) => ({ key: m[1].trim() }) },
-    { regex: /^运行[：:]\s*([\s\S]+)/i, cmd: 'evaluate_js', build: (m) => ({ code: m[1].trim() }) },
-    { regex: /^执行计划\s*([\s\S]+)/i, cmd: 'execute_plan', parseJson: true, build: (m, parsed) => {
-      const steps = parsed || [];
-      return { manifest_version: currentManifestVersion || 'none', steps, stop_on_error: true };
-    }},
-  ];
+    <hr class="settings-divider">
 
-  function normalizeUrl(str) {
-    if (/^https?:\/\//i.test(str)) return str;
-    if (/^[\w-]+\.\w{2,}/.test(str)) return 'https://' + str;
-    return 'https://' + str + '.com';
-  }
+    <h3><span>📝</span> Prompt 模板</h3>
+    <div class="settings-group">
+      <label class="settings-label">意图识别 Prompt</label>
+      <textarea class="settings-textarea" id="cfgPrompt" placeholder="输入意图识别的系统提示词..."></textarea>
+      <div class="settings-hint">用于指导 DeepSeek 将用户自然语言指令解析为结构化命令。可用 <code>{user_message}</code> 作为用户输入的占位符。</div>
+    </div>
 
-  function parseCommand(text) {
-    const trimmed = text.trim();
-    for (const pattern of COMMAND_PATTERNS) {
-      const match = trimmed.match(pattern.regex);
-      if (match) {
-        let parsed = null;
-        if (pattern.parseJson) {
-          try { parsed = JSON.parse(match[1]); } catch {}
-        }
-        return {
-          command: pattern.cmd,
-          payload: pattern.build(match, parsed),
-        };
-      }
-    }
-    return null;
-  }
+    <div class="settings-actions">
+      <button class="settings-btn-reset" id="settingsReset">恢复默认</button>
+      <button class="settings-btn-secondary" id="settingsCancel">取消</button>
+      <button class="settings-btn-primary" id="settingsSave">保存</button>
+    </div>
+  </div>
+</div>
 
-  function getFriendlyName(cmd) {
-    const map = {
-      navigate: '导航', search: '搜索', click_button: '点击元素',
-      fill_field: '填写字段', login: '登录', scroll: '滚动',
-      wait: '等待', get_screenshot: '截图', get_tabs: '获取标签页',
-      switch_tab: '切换标签页', create_tab: '新建标签页', close_tab: '关闭标签页',
-      press_key: '按键', evaluate_js: '执行脚本', execute_plan: '执行计划',
-      get_active_tab: '获取活跃标签页',
-    };
-    return map[cmd] || cmd;
-  }
-
-  function formatPayload(cmd, payload) {
-    if (!payload) return '';
-    switch (cmd) {
-      case 'navigate': return payload.url || '';
-      case 'search': return `"${payload.query}"`;
-      case 'click_button': return payload.button_label || payload.selector || payload.target_ref || '';
-      case 'fill_field': return `${payload.value} → ${payload.field_name}`;
-      case 'login': return `${payload.username} / ***`;
-      case 'scroll': return `y=${payload.y || 0}`;
-      case 'wait': return `${(payload.timeout_ms || 0) / 1000}s`;
-      case 'get_screenshot': return '全页面';
-      case 'switch_tab': return `标签页 #${payload.tab_id}`;
-      case 'press_key': return payload.key;
-      default: return JSON.stringify(payload).substring(0, 60);
-    }
-  }
-
-  window.addEventListener('message', (event) => {
-    if (event.origin !== origin) return;
-    const msg = event.data;
-    if (!msg) return;
-    if (msg.type === 'response') {
-      handleResponse(msg);
-    } else if (msg.type === 'event') {
-      if (msg.command === 'manifest_push' || msg.command === 'manifest_update') {
-        currentManifestVersion = msg.payload?.manifest_version || msg.manifest_version || '';
-        updateStatus('statusProto', 'v' + (currentManifestVersion || '?'));
-      }
-    }
-  });
-
-  function sendCommand(command, payload, toolEl) {
-    const id = 'req_' + (++reqCounter);
-    const request = {
-      type: 'request', id, command, payload, timestamp: Date.now(),
-    };
-    pendingRequests[id] = { command, payload, sentAt: Date.now(), toolEl };
-    parent.postMessage(request, origin);
-  }
-
-  function handleResponse(msg) {
-    const req = pendingRequests[msg.id];
-    if (req) delete pendingRequests[msg.id];
-
-    const cmd = msg.command || 'unknown';
-    const hasError = !!msg.error;
-    const success = !hasError;
-
-    if (req && req.toolEl) {
-      updateToolCard(req.toolEl, success, hasError ? (msg.error.message || msg.error.code) : null);
-      if (cmd === 'resolve_selector' && msg.payload && msg.payload.target_ref) {
-        lastTargetRef = msg.payload.target_ref;
-      }
-    }
-
-    if (cmd === 'get_active_tab' && msg.payload) {
-      headerPage.textContent = msg.payload.url || msg.payload.title || '';
-    } else if (cmd === 'get_tabs' && msg.payload) {
-      const tabs = msg.payload.tabs || msg.payload;
-      if (Array.isArray(tabs)) {
-        statusTabs.textContent = tabs.length;
-      }
-    } else if (cmd === 'navigate' && msg.payload && msg.payload.url) {
-      headerPage.textContent = msg.payload.url;
-    }
-  }
-
-  function createToolCard(cmd, payload) {
-    const card = document.createElement('div');
-    card.className = 'tool-card';
-    card.innerHTML = `
-      <div class="tool-card-header">
-        <span class="tool-icon">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1" opacity="0.6"/>
-            <circle cx="6" cy="6" r="1.5" fill="currentColor" opacity="0.8">
-              <animate attributeName="r" values="1.5;2.5;1.5" dur="1.5s" repeatCount="indefinite"/>
-              <animate attributeName="opacity" values="0.8;0.3;0.8" dur="1.5s" repeatCount="indefinite"/>
-            </circle>
-          </svg>
-        </span>
-        <span class="tool-label">EXECUTING</span>
-        <span class="tool-cmd">${cmd}</span>
-      </div>
-      <div class="tool-card-body">${formatPayload(cmd, payload)}</div>
-    `;
-    return card;
-  }
-
-  function updateToolCard(card, success, errorMsg) {
-    card.classList.add(success ? 'done' : 'error');
-    const header = card.querySelector('.tool-card-header');
-    const label = header.querySelector('.tool-label');
-    const icon = header.querySelector('.tool-icon');
-    label.textContent = success ? 'DONE' : 'FAILED';
-    icon.innerHTML = success
-      ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-      : '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 3.5L8.5 8.5M8.5 3.5L3.5 8.5" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>';
-    if (errorMsg) {
-      const body = card.querySelector('.tool-card-body');
-      body.textContent = errorMsg;
-    }
-    card.querySelector('animate')?.remove();
-  }
-
-  function addMessage(role, content, time) {
-    dismissWelcome();
-
-    const el = document.createElement('div');
-    el.className = `msg ${role}`;
-    const avatarHtml = role === 'agent'
-      ? '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="0.8"/><rect x="3" y="8" width="8" height="4" rx="1.5" stroke="currentColor" stroke-width="0.8"/><path d="M5 10L5 12M9 10L9 12" stroke="currentColor" stroke-width="0.6"/></svg>'
-      : '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="3.5" stroke="currentColor" stroke-width="0.8"/><path d="M3.5 13C3.5 10 5.5 8 7 8C8.5 8 10.5 10 10.5 13" stroke="currentColor" stroke-width="0.8"/></svg>';
-
-    el.innerHTML = `
-      <div class="msg-avatar">${avatarHtml}</div>
-      <div>
-        <div class="msg-bubble">${content}</div>
-        <div class="msg-time">${time}</div>
-      </div>
-    `;
-    chatArea.appendChild(el);
-    chatArea.scrollTop = chatArea.scrollHeight;
-    return el;
-  }
-
-  function addThinkingMessage() {
-    dismissWelcome();
-    const el = document.createElement('div');
-    el.className = 'msg agent thinking';
-    el.innerHTML = `
-      <div class="msg-avatar">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="0.8"/><rect x="3" y="8" width="8" height="4" rx="1.5" stroke="currentColor" stroke-width="0.8"/></svg>
-      </div>
-      <div>
-        <div class="msg-bubble">
-          <div class="think-dot"></div>
-          <div class="think-dot"></div>
-          <div class="think-dot"></div>
-        </div>
-      </div>
-    `;
-    chatArea.appendChild(el);
-    chatArea.scrollTop = chatArea.scrollHeight;
-    return el;
-  }
-
-  function removeThinking(thinkingEl) {
-    if (thinkingEl && thinkingEl.parentNode) {
-      thinkingEl.remove();
-    }
-  }
-
-  function addToolCardToChat(card) {
-    dismissWelcome();
-    chatArea.appendChild(card);
-    chatArea.scrollTop = chatArea.scrollHeight;
-  }
-
-  function formatTime() {
-    return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  function simpleMarkdown(text) {
-    let html = escapeHtml(text);
-    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
-      `<pre><code>${escapeHtml(code.trim())}</code></pre>`
-    );
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-    html = html.replace(/\n/g, '<br>');
-    return html;
-  }
-
-  async function streamText(el, text, speed = 18) {
-    const bubble = el.querySelector('.msg-bubble');
-    let displayed = '';
-    for (let i = 0; i < text.length; i++) {
-      displayed += text[i];
-      bubble.innerHTML = simpleMarkdown(displayed);
-      chatArea.scrollTop = chatArea.scrollHeight;
-      await new Promise(r => setTimeout(r, speed));
-    }
-  }
-
-  async function handleUserMessage(text) {
-    if (isProcessing) return;
-    isProcessing = true;
-
-    const userTime = formatTime();
-    addMessage('user', escapeHtml(text), userTime);
-
-    const parsed = parseCommand(text);
-
-    if (!parsed) {
-      const thinking = addThinkingMessage();
-      await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
-      removeThinking(thinking);
-      const msg = addMessage('agent', '', formatTime());
-      await streamText(msg,
-        '抱歉，我没有理解你的指令。你可以试试：\n\n' +
-        '• "打开 github.com" — 导航到网页\n' +
-        '• "搜索 chromium browser" — 搜索内容\n' +
-        '• "点击 提交按钮" — 点击元素\n' +
-        '• "输入 Hello 到 搜索框" — 填写字段\n' +
-        '• "等待 3 秒" — 等待\n' +
-        '• "截取当前页面截图" — 截图\n' +
-        '• "列出所有标签页" — 查看标签页\n' +
-        '• "切换第 2 个标签页" — 切换标签\n' +
-        '• "按下键 Enter" — 按键\n' +
-        '• "运行: document.title" — 执行 JS',
-        12
-      );
-      isProcessing = false;
-      return;
-    }
-
-    const { command, payload } = parsed;
-    const friendlyName = getFriendlyName(command);
-
-    const thinking = addThinkingMessage();
-    await new Promise(r => setTimeout(r, 300 + Math.random() * 400));
-    removeThinking(thinking);
-
-    const msg = addMessage('agent', '', formatTime());
-    const bubble = msg.querySelector('.msg-bubble');
-    bubble.textContent = `正在${friendlyName}…`;
-
-    const toolCard = createToolCard(command, payload);
-    addToolCardToChat(toolCard);
-
-    sendCommand(command, payload, toolCard);
-
-    try {
-      const result = await waitForResponse(command);
-      const bubble = msg.querySelector('.msg-bubble');
-      bubble.innerHTML = '';
-
-      let responseText = buildResponseText(command, payload, result);
-      await streamText(msg, responseText, 12);
-    } catch (err) {
-      const bubble = msg.querySelector('.msg-bubble');
-      bubble.innerHTML = simpleMarkdown(`❌ ${friendlyName}失败: ${escapeHtml(err.message || '未知错误')}`);
-    }
-
-    isProcessing = false;
-  }
-
-  function waitForResponse(command) {
-    return new Promise((resolve, reject) => {
-      const start = Date.now();
-      const timeout = 15000;
-
-      function check() {
-        if (Date.now() - start > timeout) {
-          reject(new Error('请求超时'));
-          return;
-        }
-        const keys = Object.keys(pendingRequests);
-        const stillPending = keys.some(k => {
-          const r = pendingRequests[k];
-          return r && r.command === command;
-        });
-        if (!stillPending) {
-          resolve({ success: true });
-        } else {
-          setTimeout(check, 100);
-        }
-      }
-
-      const origHandler = handleResponse;
-      handleResponse = function(msg) {
-        const req = pendingRequests[msg.id];
-        if (req) delete pendingRequests[msg.id];
-        if (req && req.toolEl) {
-          const hasError = !!msg.error;
-          updateToolCard(req.toolEl, !hasError, hasError ? (msg.error.message || msg.error.code) : null);
-          if (msg.command === 'resolve_selector' && msg.payload && msg.payload.target_ref) {
-            lastTargetRef = msg.payload.target_ref;
-          }
-        }
-
-        if (msg.command === 'get_active_tab' && msg.payload) {
-          headerPage.textContent = msg.payload.url || msg.payload.title || '';
-        } else if (msg.command === 'get_tabs' && msg.payload) {
-          const tabs = msg.payload.tabs || msg.payload;
-          if (Array.isArray(tabs)) statusTabs.textContent = tabs.length;
-        } else if (msg.command === 'navigate' && msg.payload && msg.payload.url) {
-          headerPage.textContent = msg.payload.url;
-        }
-
-        if (msg.command === command) {
-          resolve(msg);
-          handleResponse = origHandler;
-        }
-      };
-
-      setTimeout(check, 200);
-    });
-  }
-
-  function buildResponseText(command, payload, result) {
-    const error = result?.error;
-    const data = result?.payload;
-
-    if (error) {
-      return `❌ 执行失败\n<code>${escapeHtml(error.code || 'ERROR')}</code> ${escapeHtml(error.message || '')}`;
-    }
-
-    switch (command) {
-      case 'navigate':
-        return `✅ 已导航到\n<code>${escapeHtml(payload.url)}</code>`;
-      case 'search':
-        return `✅ 已提交搜索\n关键词: <code>${escapeHtml(payload.query)}</code>`;
-      case 'click_button':
-        return `✅ 已点击元素`;
-      case 'fill_field':
-        return `✅ 已在 <code>${escapeHtml(payload.field_name)}</code> 中填入内容`;
-      case 'login':
-        return `✅ 已登录: <code>${escapeHtml(payload.username)}</code>`;
-      case 'scroll':
-        return `✅ 已滚动页面\n偏移: y=${payload.y || 0}px`;
-      case 'wait':
-        return `✅ 已等待 ${(payload.timeout_ms || 0) / 1000} 秒`;
-      case 'get_screenshot':
-        if (data && data.data_base64) {
-          return `✅ 截图完成\n尺寸: ${data.width || '?'} × ${data.height || '?'}`;
-        }
-        return `✅ 截图完成`;
-      case 'get_tabs':
-        if (data && data.tabs) {
-          const list = data.tabs.map(t =>
-            `${t.is_active ? '● ' : '  '}<code>#${t.id}</code> ${escapeHtml(t.title || '')}`
-          ).join('\n');
-          return `✅ 当前标签页:\n${list}`;
-        }
-        return `✅ 已获取标签页列表`;
-      case 'switch_tab':
-        return `✅ 已切换到标签页 #${payload.tab_id}`;
-      case 'create_tab':
-        return `✅ 已新建标签页`;
-      case 'close_tab':
-        return `✅ 已关闭标签页 #${payload.tab_id}`;
-      case 'press_key':
-        return `✅ 已按下 <code>${escapeHtml(payload.key)}</code>`;
-      case 'evaluate_js':
-        if (data && data.result !== undefined) {
-          return `✅ 脚本执行完成\n结果: <code>${escapeHtml(String(data.result).substring(0, 200))}</code>`;
-        }
-        return `✅ 脚本执行完成`;
-      case 'execute_plan':
-        if (data) {
-          return `✅ 计划执行完成\n步骤: ${data.steps_completed || 0}/${data.steps_total || 0}\n耗时: ${data.total_duration_ms || 0}ms`;
-        }
-        return `✅ 计划执行完成`;
-      default:
-        return `✅ ${getFriendlyName(command)}完成`;
-    }
-  }
-
-  function sendMessage() {
-    const text = chatInput.value.trim();
-    if (!text || isProcessing) return;
-    chatInput.value = '';
-    chatInput.style.height = 'auto';
-    handleUserMessage(text);
-  }
-
-  sendBtn.addEventListener('click', sendMessage);
-
-  chatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-  chatInput.addEventListener('input', () => {
-    chatInput.style.height = 'auto';
-    chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px';
-  });
-
-  document.querySelectorAll('.quick-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      const cmd = chip.dataset.cmd;
-      if (cmd) {
-        chatInput.value = cmd;
-        chatInput.style.height = 'auto';
-        chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px';
-        sendMessage();
-      }
-    });
-  });
-
-  function updateStatus(id, val) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val;
-  }
-
-  setTimeout(() => {
-    const id = 'req_' + (++reqCounter);
-    const request = {
-      type: 'request', id,
-      command: 'get_active_tab',
-      payload: {},
-      timestamp: Date.now(),
-    };
-    pendingRequests[id] = { command: 'get_active_tab', payload: {}, sentAt: Date.now() };
-    parent.postMessage(request, origin);
-  }, 500);
-})();
-</script>
+<script type="module" src="dist/company-app.js"></script>
 </body>
 </html>
