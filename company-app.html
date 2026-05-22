@@ -3,467 +3,764 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Company App</title>
+<title>AI Agent · Chat</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg-primary: #0d1117;
-    --bg-surface: #161b22;
-    --bg-elevated: #1c2333;
-    --border-color: #30363d;
-    --accent-blue: #58a6ff;
-    --accent-green: #3fb950;
-    --accent-purple: #bc8cff;
-    --accent-orange: #d29922;
-    --accent-red: #f85149;
-    --accent-pink: #f778ba;
-    --text-primary: #f0f6fc;
-    --text-secondary: #8b949e;
-    --text-muted: #484f58;
+    --bg-deep: #050508;
+    --bg-surface: #0c0c14;
+    --bg-elevated: #141420;
+    --bg-input: #0a0a12;
+    --border-dim: #1e1e32;
+    --border-glow: #1a2a3a;
+    --cyan: #00e5ff;
+    --cyan-dim: rgba(0, 229, 255, 0.12);
+    --cyan-glow: rgba(0, 229, 255, 0.25);
+    --pink: #ff2d78;
+    --pink-dim: rgba(255, 45, 120, 0.1);
+    --amber: #ffb74d;
+    --amber-dim: rgba(255, 183, 77, 0.1);
+    --green: #00e676;
+    --green-dim: rgba(0, 230, 118, 0.1);
+    --red: #ff1744;
+    --text-primary: #e8e8f0;
+    --text-secondary: #8888a0;
+    --text-muted: #4a4a60;
     --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     font-family: var(--font-sans);
-    background: var(--bg-primary);
+    background: var(--bg-deep);
     color: var(--text-primary);
     height: 100vh;
-    overflow-y: auto;
-    display: flex; flex-direction: column;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   body::before {
     content: '';
     position: fixed;
     inset: 0;
-    background: radial-gradient(ellipse 120% 80% at 30% 10%, rgba(88, 166, 255, 0.05) 0%, transparent 60%);
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0, 229, 255, 0.03) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 100% 100%, rgba(255, 45, 120, 0.02) 0%, transparent 60%);
     pointer-events: none;
     z-index: 0;
   }
 
-  .app { position: relative; z-index: 1; padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 14px; }
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.015) 2px,
+      rgba(0, 0, 0, 0.015) 4px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Header ── */
+  .header {
+    position: relative;
+    z-index: 2;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border-dim);
+    background: rgba(12, 12, 20, 0.8);
+    backdrop-filter: blur(12px);
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .agent-dot {
+    position: relative;
+    width: 10px;
+    height: 10px;
+  }
+  .agent-dot::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: var(--cyan);
+    opacity: 0.3;
+    animation: dot-pulse 2s ease-in-out infinite;
+  }
+  .agent-dot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan), 0 0 16px var(--cyan-glow);
+  }
+  @keyframes dot-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.3; }
+    50% { transform: scale(2.2); opacity: 0; }
+  }
+
+  .header-title {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: var(--text-primary);
+  }
+  .header-title span { color: var(--cyan); }
+
+  .header-badge {
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--border-dim);
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+  }
+  .header-badge.online {
+    border-color: rgba(0, 230, 118, 0.3);
+    color: var(--green);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .header-page {
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   /* ── Status Bar ── */
   .status-bar {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 0 8px;
-    border-bottom: 1px solid var(--border-color);
-  }
-  .status-app {
-    font-family: var(--font-mono); font-size: 0.7rem;
-    color: var(--text-secondary);
-  }
-  .status-app span { color: var(--accent-blue); }
-  .status-conn {
-    display: flex; align-items: center; gap: 5px;
-    font-family: var(--font-mono); font-size: 0.6rem;
-    color: var(--accent-green);
-  }
-  .status-conn::before {
-    content: '';
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--accent-green);
-    box-shadow: 0 0 6px var(--accent-green);
-  }
-
-  /* ── Digital Human Avatar ── */
-  .avatar-section {
-    display: flex; flex-direction: column; align-items: center;
-    padding: 20px 0 8px;
-  }
-  .avatar-container {
     position: relative;
-    width: 80px; height: 80px;
-  }
-  .avatar-ring {
-    position: absolute;
-    inset: -6px;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    background: linear-gradient(var(--bg-primary), var(--bg-primary)) padding-box,
-                conic-gradient(from 0deg, var(--accent-blue), var(--accent-purple), var(--accent-pink), var(--accent-blue)) border-box;
-    animation: spin-ring 4s linear infinite;
-    opacity: 0.6;
-  }
-  @keyframes spin-ring { to { transform: rotate(360deg); } }
-  .avatar-face {
-    width: 100%; height: 100%;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #1a2332 0%, #0d1520 100%);
-    display: flex; align-items: center; justify-content: center;
-    position: relative;
-    overflow: hidden;
-    border: 2px solid var(--border-color);
-  }
-  .avatar-face svg { width: 48px; height: 48px; }
-  .avatar-name {
-    margin-top: 8px;
-    font-family: var(--font-mono); font-size: 0.7rem;
-    color: var(--text-secondary);
-    letter-spacing: 1px;
-  }
-  .avatar-name span { color: var(--accent-blue); }
-
-  /* ── Info Cards ── */
-  .info-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  .info-card {
+    z-index: 2;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 6px 18px;
+    border-bottom: 1px solid var(--border-dim);
     background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 8px 12px;
   }
-  .info-label {
-    font-family: var(--font-mono); font-size: 0.55rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-  }
-  .info-value {
-    font-family: var(--font-mono); font-size: 0.7rem;
-    color: var(--text-secondary);
-  }
-  .info-value.active { color: var(--accent-green); }
-  .info-value.url { font-size: 0.6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-  /* ── Command Buttons ── */
-  .commands-section { flex: 1; }
-  .commands-title {
-    font-family: var(--font-mono); font-size: 0.6rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 8px;
-  }
-  .commands-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-  }
-  .cmd-btn {
-    font-family: var(--font-mono); font-size: 0.65rem;
-    padding: 7px 10px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-surface);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.15s;
-    text-align: center;
-  }
-  .cmd-btn:hover {
-    border-color: var(--accent-blue);
-    color: var(--accent-blue);
-    background: rgba(88, 166, 255, 0.08);
-    box-shadow: 0 0 12px rgba(88, 166, 255, 0.15);
-  }
-  .cmd-btn:active { transform: scale(0.97); }
-  .cmd-btn .cmd-key {
-    display: block;
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
     font-size: 0.55rem;
     color: var(--text-muted);
+  }
+  .status-val {
+    color: var(--text-secondary);
+  }
+  .status-val.active { color: var(--cyan); }
+
+  /* ── Chat Area ── */
+  .chat-area {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    scroll-behavior: smooth;
+  }
+
+  .chat-area::-webkit-scrollbar {
+    width: 4px;
+  }
+  .chat-area::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .chat-area::-webkit-scrollbar-thumb {
+    background: var(--border-dim);
+    border-radius: 2px;
+  }
+
+  /* ── Welcome Screen ── */
+  .welcome {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 40px 20px;
+    text-align: center;
+  }
+
+  .welcome-ring {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    margin-bottom: 4px;
+  }
+  .welcome-ring::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 1.5px solid transparent;
+    background:
+      linear-gradient(var(--bg-deep), var(--bg-deep)) padding-box,
+      conic-gradient(from 0deg, var(--cyan), var(--pink), var(--amber), var(--cyan)) border-box;
+    animation: ring-spin 6s linear infinite;
+    opacity: 0.5;
+  }
+  @keyframes ring-spin { to { transform: rotate(360deg); } }
+  .welcome-ring-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border-dim);
+  }
+  .welcome-ring-inner svg { width: 32px; height: 32px; opacity: 0.6; }
+
+  .welcome-title {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+  }
+  .welcome-sub {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    max-width: 320px;
+    line-height: 1.5;
+  }
+
+  .quick-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    margin-top: 8px;
+  }
+  .quick-chip {
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    padding: 6px 12px;
+    border-radius: 16px;
+    border: 1px solid var(--border-dim);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .quick-chip:hover {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    background: var(--cyan-dim);
+    box-shadow: 0 0 12px var(--cyan-glow);
+  }
+
+  /* ── Message Bubbles ── */
+  .msg {
+    display: flex;
+    gap: 10px;
+    max-width: 92%;
+    animation: msg-in 0.3s ease-out;
+  }
+  @keyframes msg-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg.user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+  }
+
+  .msg-avatar {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
     margin-top: 2px;
   }
-
-  /* ── Response Panel ── */
-  .response-section {
-    flex-shrink: 0;
-  }
-  .response-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 6px;
-  }
-  .response-title {
-    font-family: var(--font-mono); font-size: 0.6rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }
-  .response-status {
-    font-family: var(--font-mono); font-size: 0.6rem;
-    padding: 2px 8px;
-    border-radius: 4px;
-  }
-  .response-status.idle {
-    color: var(--text-muted);
+  .msg.agent .msg-avatar {
     background: var(--bg-elevated);
+    border: 1px solid var(--border-dim);
+    color: var(--cyan);
   }
-  .response-status.success { color: var(--accent-green); background: rgba(63, 185, 80, 0.1); }
-  .response-status.error { color: var(--accent-red); background: rgba(248, 81, 73, 0.1); }
-  .response-status.pending { color: var(--accent-orange); background: rgba(210, 153, 34, 0.1); }
-  .response-body {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 10px 12px;
-    min-height: 44px;
+  .msg.user .msg-avatar {
+    background: var(--pink-dim);
+    border: 1px solid rgba(255, 45, 120, 0.25);
+    color: var(--pink);
+  }
+
+  .msg-bubble {
+    position: relative;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    line-height: 1.55;
+    word-break: break-word;
+  }
+
+  .msg.agent .msg-bubble {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-dim);
+    border-top-left-radius: 4px;
+    color: var(--text-primary);
+  }
+
+  .msg.user .msg-bubble {
+    background: linear-gradient(135deg, rgba(255, 45, 120, 0.15), rgba(255, 45, 120, 0.06));
+    border: 1px solid rgba(255, 45, 120, 0.2);
+    border-top-right-radius: 4px;
+    color: var(--text-primary);
+  }
+
+  .msg-time {
     font-family: var(--font-mono);
-    font-size: 0.65rem;
-    color: var(--text-secondary);
-    overflow-x: auto;
-    white-space: pre-wrap;
-    word-break: break-all;
-  }
-  .response-body.empty {
-    display: flex; align-items: center; justify-content: center;
+    font-size: 0.5rem;
     color: var(--text-muted);
-    font-size: 0.6rem;
+    margin-top: 4px;
+    padding: 0 4px;
+  }
+  .msg.user .msg-time { text-align: right; }
+
+  /* ── Agent thinking ── */
+  .msg.agent.thinking .msg-bubble {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 16px;
+    min-height: 36px;
+  }
+  .think-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--cyan);
+    animation: think-bounce 1.2s ease-in-out infinite;
+  }
+  .think-dot:nth-child(2) { animation-delay: 0.2s; }
+  .think-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes think-bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.3; }
+    40% { transform: translateY(-6px); opacity: 1; }
   }
 
-  .cmd-btn.col-2 { grid-column: span 2; }
+  /* ── Tool execution card ── */
+  .tool-card {
+    margin: 4px 0;
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    border-radius: 6px;
+    border: 1px solid var(--amber-dim);
+    background: rgba(255, 183, 77, 0.04);
+    overflow: hidden;
+    animation: tool-slide 0.3s ease-out;
+  }
+  @keyframes tool-slide {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
 
-  /* ── TC additions ── */
-  .tc-subsection { margin-bottom: 8px; }
-  .tc-label {
-    font-family: var(--font-mono); font-size: 0.55rem;
-    color: var(--text-muted);
+  .tool-card-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255, 183, 77, 0.08);
+    color: var(--amber);
+  }
+  .tool-icon {
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tool-label {
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: 4px;
-    display: flex; align-items: center; gap: 6px;
+    font-size: 0.5rem;
   }
-  .tc-target-ref {
-    font-family: var(--font-mono); font-size: 0.5rem;
-    color: var(--accent-green);
-    text-transform: none;
-    letter-spacing: 0;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    max-width: 120px;
-  }
-  .tc-row {
-    display: flex; gap: 4px; align-items: center;
-  }
-  .tc-input {
-    flex: 1;
-    font-family: var(--font-mono); font-size: 0.6rem;
-    padding: 4px 8px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    min-width: 0;
-  }
-  .tc-input:focus { outline: none; border-color: var(--accent-blue); }
-  .tc-select {
-    font-family: var(--font-mono); font-size: 0.6rem;
-    padding: 4px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-elevated);
-    color: var(--text-primary);
-    cursor: pointer;
-  }
-  .tc-tab-item {
-    display: flex; align-items: center; gap: 4px;
-    padding: 3px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--bg-elevated);
-    font-family: var(--font-mono); font-size: 0.55rem;
+  .tool-cmd {
     color: var(--text-secondary);
-    cursor: default;
+    margin-left: auto;
   }
-  .tc-tab-id { color: var(--text-muted); flex-shrink: 0; }
-  .tc-tab-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .tc-tab-active { color: var(--accent-green); flex-shrink: 0; }
-  .tc-tab-switch {
-    font-family: var(--font-mono); font-size: 0.5rem;
+  .tool-card-body {
+    padding: 6px 10px;
+    color: var(--text-muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 80px;
+    overflow-y: auto;
+  }
+  .tool-card-body::-webkit-scrollbar { width: 3px; }
+  .tool-card-body::-webkit-scrollbar-thumb { background: var(--border-dim); border-radius: 1px; }
+
+  .tool-card.done {
+    border-color: rgba(0, 230, 118, 0.2);
+    background: rgba(0, 230, 118, 0.03);
+  }
+  .tool-card.done .tool-card-header { color: var(--green); border-bottom-color: rgba(0, 230, 118, 0.08); }
+  .tool-card.error {
+    border-color: rgba(255, 23, 68, 0.2);
+    background: rgba(255, 23, 68, 0.03);
+  }
+  .tool-card.error .tool-card-header { color: var(--red); border-bottom-color: rgba(255, 23, 68, 0.08); }
+
+  /* ── Code block in messages ── */
+  .msg-bubble pre {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--border-dim);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 8px 0;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    overflow-x: auto;
+    color: var(--cyan);
+    position: relative;
+  }
+  .msg-bubble pre::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan-glow), transparent);
+    opacity: 0.4;
+  }
+  .msg-bubble code {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    background: rgba(0, 229, 255, 0.08);
     padding: 1px 5px;
     border-radius: 3px;
-    border: 1px solid var(--accent-blue);
-    background: transparent;
-    color: var(--accent-blue);
-    cursor: pointer;
+    color: var(--cyan);
   }
-  .tc-tab-switch:hover { background: var(--accent-blue); color: #fff; }
-  .tc-tab-list {
-    max-height: 100px; overflow-y: auto;
-    display: flex; flex-direction: column; gap: 2px;
-    margin-top: 4px;
+  .msg-bubble pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+  }
+
+  .msg-bubble .inline-result {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+  }
+  .inline-result.ok {
+    background: var(--green-dim);
+    color: var(--green);
+  }
+  .inline-result.err {
+    background: rgba(255, 23, 68, 0.1);
+    color: var(--red);
+  }
+
+  /* ── Input Area ── */
+  .input-area {
+    position: relative;
+    z-index: 2;
+    flex-shrink: 0;
+    padding: 10px 18px 14px;
+    border-top: 1px solid var(--border-dim);
+    background: rgba(12, 12, 20, 0.85);
+    backdrop-filter: blur(12px);
+  }
+
+  .input-wrapper {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-dim);
+    border-radius: 12px;
+    padding: 6px 6px 6px 14px;
+    transition: border-color 0.2s;
+  }
+  .input-wrapper:focus-within {
+    border-color: rgba(0, 229, 255, 0.35);
+    box-shadow: 0 0 16px rgba(0, 229, 255, 0.06);
+  }
+
+  .chat-input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    line-height: 1.5;
+    resize: none;
+    max-height: 100px;
+    padding: 6px 0;
+  }
+  .chat-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .send-btn {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--border-dim);
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .send-btn:hover {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    background: var(--cyan-dim);
+    box-shadow: 0 0 12px var(--cyan-glow);
+  }
+  .send-btn:active { transform: scale(0.95); }
+  .send-btn svg { width: 16px; height: 16px; }
+
+  .input-hint {
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+    text-align: center;
+    letter-spacing: 0.3px;
+  }
+  .input-hint kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--border-dim);
+    background: var(--bg-elevated);
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    color: var(--text-secondary);
   }
 </style>
 </head>
 <body>
-<div class="app">
-  <div class="status-bar">
-    <div class="status-app">Company <span>App</span></div>
-    <div class="status-conn">已连接 Shell</div>
-  </div>
 
-  <!-- Digital Human Avatar -->
-  <div class="avatar-section">
-    <div class="avatar-container">
-      <div class="avatar-ring"></div>
-      <div class="avatar-face">
-        <svg viewBox="0 0 48 48" fill="none">
-          <circle cx="24" cy="19" r="9" fill="rgba(88,166,255,0.15)" stroke="rgba(88,166,255,0.4)" stroke-width="1"/>
-          <ellipse cx="21" cy="17.5" rx="2" ry="2.5" fill="rgba(88,166,255,0.6)"/>
-          <ellipse cx="27" cy="17.5" rx="2" ry="2.5" fill="rgba(88,166,255,0.6)"/>
-          <circle cx="21" cy="17.5" r="0.8" fill="#fff"/>
-          <circle cx="27" cy="17.5" r="0.8" fill="#fff"/>
-          <path d="M20 23.5 Q24 27, 28 23.5" stroke="rgba(188,140,255,0.6)" stroke-width="1.2" fill="none" stroke-linecap="round"/>
-          <path d="M24 28 L24 33 M21 31 L24 33 L27 31" stroke="rgba(88,166,255,0.3)" stroke-width="1" fill="none"/>
-          <rect x="15" y="32" width="18" height="8" rx="3" fill="rgba(88,166,255,0.08)" stroke="rgba(88,166,255,0.2)" stroke-width="0.8"/>
-          <path d="M10 36 Q8 32, 10 30" stroke="rgba(88,166,255,0.2)" stroke-width="1" fill="none"/>
-          <path d="M38 36 Q40 32, 38 30" stroke="rgba(88,166,255,0.2)" stroke-width="1" fill="none"/>
+<!-- Header -->
+<header class="header">
+  <div class="header-left">
+    <div class="agent-dot"></div>
+    <div class="header-title">AI <span>Agent</span></div>
+  </div>
+  <div class="header-right">
+    <span class="header-page" id="headerPage">—</span>
+    <span class="header-badge online" id="headerBadge">ONLINE</span>
+  </div>
+</header>
+
+<!-- Status -->
+<div class="status-bar">
+  <div class="status-item">会话<span class="status-val" id="statusSessions">1</span></div>
+  <div class="status-item">标签页<span class="status-val active" id="statusTabs">—</span></div>
+  <div class="status-item">协议<span class="status-val" id="statusProto">v1.1</span></div>
+</div>
+
+<!-- Chat -->
+<div class="chat-area" id="chatArea">
+  <div class="welcome" id="welcomeScreen">
+    <div class="welcome-ring">
+      <div class="welcome-ring-inner">
+        <svg viewBox="0 0 32 32" fill="none">
+          <circle cx="16" cy="12" r="6" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+          <ellipse cx="14" cy="11" rx="1.2" ry="1.5" fill="currentColor" opacity="0.5"/>
+          <ellipse cx="18" cy="11" rx="1.2" ry="1.5" fill="currentColor" opacity="0.5"/>
+          <path d="M13 15.5 Q16 18, 19 15.5" stroke="currentColor" stroke-width="0.8" fill="none" opacity="0.5"/>
+          <path d="M16 19 L16 23 M14 21 L16 23 L18 21" stroke="currentColor" stroke-width="0.6" fill="none" opacity="0.4"/>
+          <rect x="10" y="22" width="12" height="5" rx="2" stroke="currentColor" stroke-width="0.6" opacity="0.3"/>
         </svg>
       </div>
     </div>
-    <div class="avatar-name">AI <span>Assistant</span></div>
-  </div>
-
-  <!-- Info Cards -->
-  <div class="info-grid">
-    <div class="info-card">
-      <div class="info-label">状态</div>
-      <div class="info-value active">● 在线</div>
+    <div class="welcome-title">AI AUTOMATION AGENT</div>
+    <div class="welcome-sub">
+      我可以帮你操控浏览器——导航页面、点击元素、填写表单、执行计划。试试下面的快捷指令，或者直接告诉我你想做什么。
     </div>
-    <div class="info-card">
-      <div class="info-label">会话</div>
-      <div class="info-value" id="sessionCount">1</div>
-    </div>
-    <div class="info-card" style="grid-column: span 2;">
-      <div class="info-label">当前页面</div>
-      <div class="info-value url" id="currentPage">等待获取...</div>
+    <div class="quick-chips">
+      <button class="quick-chip" data-cmd="打开 github.com">🌐 打开 github.com</button>
+      <button class="quick-chip" data-cmd="搜索 chromium browser">🔍 搜索 chromium browser</button>
+      <button class="quick-chip" data-cmd="截取当前页面截图">📸 截取页面截图</button>
+      <button class="quick-chip" data-cmd="列出所有标签页">📑 列出所有标签页</button>
+      <button class="quick-chip" data-cmd="向下滚动 500 像素">⬇ 向下滚动</button>
+      <button class="quick-chip" data-cmd="等待 2 秒">⏱ 等待 2 秒</button>
     </div>
   </div>
+</div>
 
-  <!-- Commands -->
-  <div class="commands-section">
-    <div class="commands-title">测试控制台</div>
-
-    <div class="tc-subsection">
-      <div class="tc-label">导航</div>
-      <div class="tc-row">
-        <input type="text" id="navUrl" class="tc-input" placeholder="输入 URL" value="https://example.com">
-        <button class="cmd-btn" data-cmd="navigate" id="btnNavigate" style="flex-shrink:0;">前往</button>
-      </div>
-    </div>
-
-    <div class="tc-subsection">
-      <div class="tc-label">查找元素</div>
-      <div class="tc-row">
-        <input type="text" id="selInput" class="tc-input" placeholder="XPath 或 CSS 选择器" value="//button[@id='submit-btn']">
-        <select id="selType" class="tc-select">
-          <option value="xpath" selected>XPath</option>
-          <option value="css">CSS</option>
-        </select>
-        <button class="cmd-btn" id="btnResolve" style="flex-shrink:0;">查找</button>
-      </div>
-    </div>
-
-    <div class="tc-subsection">
-      <div class="tc-label">元素操作 <span id="targetRefDisplay" class="tc-target-ref">（未选中元素）</span></div>
-      <div class="commands-grid">
-        <button class="cmd-btn" id="btnClick">点击元素</button>
-        <button class="cmd-btn" id="btnHover">悬停</button>
-        <button class="cmd-btn" id="btnScroll">滚动到</button>
-        <button class="cmd-btn" id="btnScreenshot">截图</button>
-        <button class="cmd-btn" id="btnQuery">查询状态</button>
-        <button class="cmd-btn" id="btnWaitFor">等待(5s)</button>
-      </div>
-      <div class="tc-row" style="margin-top:4px;">
-        <input type="text" id="textInput" class="tc-input" placeholder="输入文本..." value="Hello World">
-        <button class="cmd-btn" id="btnInputText" style="flex-shrink:0;">输入文本</button>
-      </div>
-    </div>
-
-    <div class="tc-subsection">
-      <div class="tc-label">标签页管理</div>
-      <div class="commands-grid">
-        <button class="cmd-btn" id="btnGetTabs">获取标签页</button>
-        <button class="cmd-btn" id="btnGetActiveTab">当前活跃</button>
-        <button class="cmd-btn" id="btnClosePopup">关闭弹窗</button>
-      </div>
-    </div>
-
-    <div class="tc-subsection">
-      <div class="tc-label">编排执行 ─ execute_step</div>
-      <div class="tc-row">
-        <select id="stepCmdSelect" class="tc-select" style="flex-shrink:0;">
-          <option value="click_button">click_button</option>
-          <option value="input_text">input_text</option>
-          <option value="navigate" selected>navigate</option>
-          <option value="scroll">scroll</option>
-          <option value="wait">wait</option>
-          <option value="hover">hover</option>
-          <option value="press_key">press_key</option>
-          <option value="get_screenshot">get_screenshot</option>
-        </select>
-        <input type="text" id="stepPayload" class="tc-input" placeholder='子 payload JSON，如 {"url":"https://..."}' value='{"url":"https://github.com"}'>
-        <input type="number" id="stepTimeout" class="tc-input" placeholder="超时(ms)" value="10000" style="max-width:80px;">
-        <button class="cmd-btn" id="btnExecuteStep" style="flex-shrink:0;">执行步骤</button>
-      </div>
-    </div>
-
-    <div class="tc-subsection">
-      <div class="tc-label">编排执行 ─ execute_plan</div>
-      <textarea id="planSteps" class="tc-input" style="height:80px;font-size:0.55rem;width:100%;resize:vertical;" placeholder='JSON 步骤数组'>[
-  {"command":"navigate", "payload":{"url":"https://github.com/search"}},
-  {"command":"wait", "payload":{"timeout_ms":2000}},
-  {"command":"resolve_selector", "payload":{"selector":"textarea[name='q']","selector_type":"css"}},
-  {"command":"input_text", "payload":{"text":"chromium browser automation"}},
-  {"command":"wait", "payload":{"timeout_ms":500}},
-  {"command":"press_key", "payload":{"key":"Enter"}}
-]</textarea>
-      <div class="tc-row" style="margin-top:4px;gap:8px;">
-        <label style="font-size:0.55rem;color:var(--text-muted);display:flex;align-items:center;gap:4px;">
-          <input type="checkbox" id="planStopOnError" checked> 遇错停止
-        </label>
-        <input type="number" id="planTimeout" class="tc-input" placeholder="总超时(ms)" value="60000" style="max-width:80px;">
-        <button class="cmd-btn" id="btnExecutePlan" style="flex-shrink:0;">执行计划</button>
-      </div>
-    </div>
+<!-- Input -->
+<div class="input-area">
+  <div class="input-wrapper">
+    <textarea
+      class="chat-input"
+      id="chatInput"
+      rows="1"
+      placeholder="输入指令，例如：打开 github.com 并搜索 react..."
+    ></textarea>
+    <button class="send-btn" id="sendBtn" title="发送 (Enter)">
+      <svg viewBox="0 0 16 16" fill="none">
+        <path d="M2 2 L14 8 L2 14 L4 8 L2 2Z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/>
+      </svg>
+    </button>
   </div>
-
-  <!-- Response -->
-  <div class="response-section">
-    <div class="response-header">
-      <div class="response-title">最近响应</div>
-      <div class="response-status idle" id="respStatus">等待指令</div>
-    </div>
-    <div class="response-body empty" id="respBody">点击上方按钮发送命令</div>
+  <div class="input-hint">
+    <kbd>Enter</kbd> 发送 · <kbd>Shift+Enter</kbd> 换行
   </div>
 </div>
 
 <script>
 (function() {
   const origin = window.location.origin;
-
-  const respStatus = document.getElementById('respStatus');
-  const respBody = document.getElementById('respBody');
-  const sessionCount = document.getElementById('sessionCount');
-  const currentPage = document.getElementById('currentPage');
+  const chatArea = document.getElementById('chatArea');
+  const chatInput = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const welcomeScreen = document.getElementById('welcomeScreen');
+  const headerPage = document.getElementById('headerPage');
+  const headerBadge = document.getElementById('headerBadge');
+  const statusSessions = document.getElementById('statusSessions');
+  const statusTabs = document.getElementById('statusTabs');
 
   let pendingRequests = {};
   let reqCounter = 0;
   let lastTargetRef = '';
   let currentManifestVersion = '';
+  let isProcessing = false;
+  let welcomeDismissed = false;
 
-  const targetRefDisplay = document.getElementById('targetRefDisplay');
-
-  function setTargetRef(ref) {
-    lastTargetRef = ref;
-    targetRefDisplay.textContent = ref ? '当前: ' + ref.substring(0, 30) : '（未选中元素）';
+  function dismissWelcome() {
+    if (welcomeDismissed) return;
+    welcomeDismissed = true;
+    if (welcomeScreen && welcomeScreen.parentNode) {
+      welcomeScreen.remove();
+    }
   }
 
-  // Listen for trigger_command from parent (bottom bar shortcuts)
-  window.addEventListener('message', (event) => {
-    if (event.origin !== origin) return;
-    const msg = event.data;
-    if (!msg || msg.type !== 'trigger_command') return;
-    sendCommand(msg.command, msg.payload || {});
-  });
+  const COMMAND_PATTERNS = [
+    { regex: /^(?:打开|前往|导航[到至]?|访问|go\s+to|navigate\s+to)\s+(.+)/i, cmd: 'navigate', build: (m) => ({ url: normalizeUrl(m[1].trim()) }) },
+    { regex: /^搜索\s+(.+)/i, cmd: 'search', build: (m) => ({ query: m[1].trim() }) },
+    { regex: /^点击\s+(.+)/i, cmd: 'click_button', build: (m) => ({ button_label: m[1].trim() }) },
+    { regex: /^(?:输入|填写?|键入)\s*(.+?)\s*(?:到|在|至)\s*(.+)/i, cmd: 'fill_field', build: (m) => ({ field_name: m[2].trim(), value: m[1].trim() }) },
+    { regex: /^登录\s+(\S+)\s+(\S+)/i, cmd: 'login', build: (m) => ({ username: m[1], password: m[2] }) },
+    { regex: /^(?:向下|up|down)\s*(?:滚动|scroll)\s*(\d+)?/i, cmd: 'scroll', build: (m) => {
+      const amt = parseInt(m[1]) || 300;
+      const isUp = /up/i.test(m[0]);
+      return { y: isUp ? -amt : amt, behavior: 'smooth' };
+    }},
+    { regex: /^等待\s*(\d+)\s*(?:秒|s)/i, cmd: 'wait', build: (m) => ({ timeout_ms: parseInt(m[1]) * 1000 }) },
+    { regex: /^(?:截图|截取|screenshot)/i, cmd: 'get_screenshot', build: () => ({}) },
+    { regex: /^(?:列出|获取|显示|查看)?\s*(?:所有)?标签页/i, cmd: 'get_tabs', build: () => ({}) },
+    { regex: /^切换(?:到)?\s*(?:第)?\s*(\d+)\s*(?:个)?标签页/i, cmd: 'switch_tab', build: (m) => ({ tab_id: parseInt(m[1]) }) },
+    { regex: /^新建标签页\s*(.+)?/i, cmd: 'create_tab', build: (m) => {
+      const url = m[1] ? normalizeUrl(m[1].trim()) : undefined;
+      return { url, active: true };
+    }},
+    { regex: /^关闭标签页\s*(\d+)/i, cmd: 'close_tab', build: (m) => ({ tab_id: parseInt(m[1]) }) },
+    { regex: /^按(?:下)?键?\s*(.+)/i, cmd: 'press_key', build: (m) => ({ key: m[1].trim() }) },
+    { regex: /^运行[：:]\s*([\s\S]+)/i, cmd: 'evaluate_js', build: (m) => ({ code: m[1].trim() }) },
+    { regex: /^执行计划\s*([\s\S]+)/i, cmd: 'execute_plan', parseJson: true, build: (m, parsed) => {
+      const steps = parsed || [];
+      return { manifest_version: currentManifestVersion || 'none', steps, stop_on_error: true };
+    }},
+  ];
 
-  // Listen for responses from parent (via Shell)
+  function normalizeUrl(str) {
+    if (/^https?:\/\//i.test(str)) return str;
+    if (/^[\w-]+\.\w{2,}/.test(str)) return 'https://' + str;
+    return 'https://' + str + '.com';
+  }
+
+  function parseCommand(text) {
+    const trimmed = text.trim();
+    for (const pattern of COMMAND_PATTERNS) {
+      const match = trimmed.match(pattern.regex);
+      if (match) {
+        let parsed = null;
+        if (pattern.parseJson) {
+          try { parsed = JSON.parse(match[1]); } catch {}
+        }
+        return {
+          command: pattern.cmd,
+          payload: pattern.build(match, parsed),
+        };
+      }
+    }
+    return null;
+  }
+
+  function getFriendlyName(cmd) {
+    const map = {
+      navigate: '导航', search: '搜索', click_button: '点击元素',
+      fill_field: '填写字段', login: '登录', scroll: '滚动',
+      wait: '等待', get_screenshot: '截图', get_tabs: '获取标签页',
+      switch_tab: '切换标签页', create_tab: '新建标签页', close_tab: '关闭标签页',
+      press_key: '按键', evaluate_js: '执行脚本', execute_plan: '执行计划',
+      get_active_tab: '获取活跃标签页',
+    };
+    return map[cmd] || cmd;
+  }
+
+  function formatPayload(cmd, payload) {
+    if (!payload) return '';
+    switch (cmd) {
+      case 'navigate': return payload.url || '';
+      case 'search': return `"${payload.query}"`;
+      case 'click_button': return payload.button_label || payload.selector || payload.target_ref || '';
+      case 'fill_field': return `${payload.value} → ${payload.field_name}`;
+      case 'login': return `${payload.username} / ***`;
+      case 'scroll': return `y=${payload.y || 0}`;
+      case 'wait': return `${(payload.timeout_ms || 0) / 1000}s`;
+      case 'get_screenshot': return '全页面';
+      case 'switch_tab': return `标签页 #${payload.tab_id}`;
+      case 'press_key': return payload.key;
+      default: return JSON.stringify(payload).substring(0, 60);
+    }
+  }
+
   window.addEventListener('message', (event) => {
     if (event.origin !== origin) return;
     const msg = event.data;
@@ -473,211 +770,396 @@
     } else if (msg.type === 'event') {
       if (msg.command === 'manifest_push' || msg.command === 'manifest_update') {
         currentManifestVersion = msg.payload?.manifest_version || msg.manifest_version || '';
+        updateStatus('statusProto', 'v' + (currentManifestVersion || '?'));
       }
     }
   });
 
-  function sendCommand(command, payload) {
+  function sendCommand(command, payload, toolEl) {
     const id = 'req_' + (++reqCounter);
     const request = {
-      type: 'request',
-      id,
-      command,
-      payload,
-      timestamp: Date.now(),
+      type: 'request', id, command, payload, timestamp: Date.now(),
     };
-
-    respStatus.className = 'response-status pending';
-    respStatus.textContent = '等待响应...';
-    respBody.className = 'response-body';
-    respBody.textContent = '发送命令: ' + command + '\n参数: ' + JSON.stringify(payload, null, 2) + '\n等待宿主处理...';
-
-    pendingRequests[id] = { command, payload, sentAt: Date.now() };
+    pendingRequests[id] = { command, payload, sentAt: Date.now(), toolEl };
     parent.postMessage(request, origin);
   }
 
   function handleResponse(msg) {
     const req = pendingRequests[msg.id];
-    if (req) {
-      delete pendingRequests[msg.id];
-    }
+    if (req) delete pendingRequests[msg.id];
 
     const cmd = msg.command || 'unknown';
     const hasError = !!msg.error;
-    const time = new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour12: false });
+    const success = !hasError;
 
-    if (hasError) {
-      respStatus.className = 'response-status error';
-      respStatus.textContent = '✕ 错误';
-      respBody.className = 'response-body';
-      respBody.textContent = '命令: ' + cmd + '\n状态: 失败\n时间: ' + time + '\n错误码: ' + msg.error.code + '\n消息: ' + msg.error.message;
-    } else {
-      respStatus.className = 'response-status success';
-      respStatus.textContent = '✓ 成功';
-      respBody.className = 'response-body';
-      const payloadStr = msg.payload ? JSON.stringify(msg.payload, null, 2) : '(无数据)';
-      respBody.textContent = '命令: ' + cmd + '\n状态: 成功\n时间: ' + time + '\n耗时: ' + (req ? (Date.now() - req.sentAt) + 'ms' : '-') + '\n数据:\n' + payloadStr;
+    if (req && req.toolEl) {
+      updateToolCard(req.toolEl, success, hasError ? (msg.error.message || msg.error.code) : null);
+      if (cmd === 'resolve_selector' && msg.payload && msg.payload.target_ref) {
+        lastTargetRef = msg.payload.target_ref;
+      }
     }
 
-    // Update info cards based on response
     if (cmd === 'get_active_tab' && msg.payload) {
-      currentPage.textContent = msg.payload.title || msg.payload.url || '未知';
-    } else if (cmd === 'get_tabs' && msg.payload && Array.isArray(msg.payload?.tabs ?? msg.payload)) {
-      sessionCount.textContent = (msg.payload.tabs ?? msg.payload).length;
+      headerPage.textContent = msg.payload.url || msg.payload.title || '';
+    } else if (cmd === 'get_tabs' && msg.payload) {
+      const tabs = msg.payload.tabs || msg.payload;
+      if (Array.isArray(tabs)) {
+        statusTabs.textContent = tabs.length;
+      }
+    } else if (cmd === 'navigate' && msg.payload && msg.payload.url) {
+      headerPage.textContent = msg.payload.url;
     }
   }
 
-  // ---- navigation ----
-  document.getElementById('btnNavigate').addEventListener('click', () => {
-    const url = document.getElementById('navUrl').value.trim();
-    if (!url) return;
-    sendCommand('navigate', { url });
-  });
-
-  // ---- resolve selector ----
-  document.getElementById('btnResolve').addEventListener('click', () => {
-    const selector = document.getElementById('selInput').value.trim();
-    const selectorType = document.getElementById('selType').value;
-    if (!selector) return;
-    const id = 'req_' + (++reqCounter);
-    const request = {
-      type: 'request', id,
-      command: 'resolve_selector',
-      payload: { selector, selector_type: selectorType },
-      timestamp: Date.now(),
-    };
-    respStatus.className = 'response-status pending';
-    respStatus.textContent = '等待响应...';
-    respBody.className = 'response-body';
-    respBody.textContent = '查找元素: ' + selector + '\n类型: ' + selectorType;
-    pendingRequests[id] = { command: 'resolve_selector', payload: request.payload, sentAt: Date.now() };
-
-    // Override handler for resolve_selector to capture target_ref
-    const origHandler = pendingRequests[id];
-    pendingRequests[id]._onDone = (msg) => {
-      if (msg.payload && msg.payload.target_ref) {
-        setTargetRef(msg.payload.target_ref);
-      }
-    };
-
-    parent.postMessage(request, origin);
-
-    // Patch handleResponse for this id
-    const origHandle = handleResponse;
-    const thisId = id;
-    window._resolveHandlers = window._resolveHandlers || {};
-    window._resolveHandlers[thisId] = (msg) => {
-      if (msg.payload && msg.payload.target_ref) {
-        setTargetRef(msg.payload.target_ref);
-      }
-      origHandle.call(null, msg);
-      delete window._resolveHandlers[thisId];
-    };
-  });
-
-  // Override handleResponse to check for resolve handlers
-  const origHandleResponse = handleResponse;
-  handleResponse = function(msg) {
-    if (window._resolveHandlers && window._resolveHandlers[msg.id]) {
-      window._resolveHandlers[msg.id](msg);
-      return;
-    }
-    origHandleResponse(msg);
-  };
-
-  // ---- element actions with selector ----
-  function withSelector(command, extraPayload) {
-    const selector = document.getElementById('selInput').value.trim();
-    const selectorType = document.getElementById('selType').value;
-    if (!selector) {
-      alert('请先输入 XPath 或 CSS 选择器');
-      return;
-    }
-    const payload = { selector, selector_type: selectorType, ...(extraPayload || {}) };
-    sendCommand(command, payload);
+  function createToolCard(cmd, payload) {
+    const card = document.createElement('div');
+    card.className = 'tool-card';
+    card.innerHTML = `
+      <div class="tool-card-header">
+        <span class="tool-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1" opacity="0.6"/>
+            <circle cx="6" cy="6" r="1.5" fill="currentColor" opacity="0.8">
+              <animate attributeName="r" values="1.5;2.5;1.5" dur="1.5s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.8;0.3;0.8" dur="1.5s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </span>
+        <span class="tool-label">EXECUTING</span>
+        <span class="tool-cmd">${cmd}</span>
+      </div>
+      <div class="tool-card-body">${formatPayload(cmd, payload)}</div>
+    `;
+    return card;
   }
 
-  function withTargetRef(command, extraPayload) {
-    if (lastTargetRef) {
-      sendCommand(command, { target_ref: lastTargetRef, ...(extraPayload || {}) });
-    } else {
-      withSelector(command, extraPayload);
+  function updateToolCard(card, success, errorMsg) {
+    card.classList.add(success ? 'done' : 'error');
+    const header = card.querySelector('.tool-card-header');
+    const label = header.querySelector('.tool-label');
+    const icon = header.querySelector('.tool-icon');
+    label.textContent = success ? 'DONE' : 'FAILED';
+    icon.innerHTML = success
+      ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      : '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 3.5L8.5 8.5M8.5 3.5L3.5 8.5" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>';
+    if (errorMsg) {
+      const body = card.querySelector('.tool-card-body');
+      body.textContent = errorMsg;
+    }
+    card.querySelector('animate')?.remove();
+  }
+
+  function addMessage(role, content, time) {
+    dismissWelcome();
+
+    const el = document.createElement('div');
+    el.className = `msg ${role}`;
+    const avatarHtml = role === 'agent'
+      ? '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="0.8"/><rect x="3" y="8" width="8" height="4" rx="1.5" stroke="currentColor" stroke-width="0.8"/><path d="M5 10L5 12M9 10L9 12" stroke="currentColor" stroke-width="0.6"/></svg>'
+      : '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="3.5" stroke="currentColor" stroke-width="0.8"/><path d="M3.5 13C3.5 10 5.5 8 7 8C8.5 8 10.5 10 10.5 13" stroke="currentColor" stroke-width="0.8"/></svg>';
+
+    el.innerHTML = `
+      <div class="msg-avatar">${avatarHtml}</div>
+      <div>
+        <div class="msg-bubble">${content}</div>
+        <div class="msg-time">${time}</div>
+      </div>
+    `;
+    chatArea.appendChild(el);
+    chatArea.scrollTop = chatArea.scrollHeight;
+    return el;
+  }
+
+  function addThinkingMessage() {
+    dismissWelcome();
+    const el = document.createElement('div');
+    el.className = 'msg agent thinking';
+    el.innerHTML = `
+      <div class="msg-avatar">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="0.8"/><rect x="3" y="8" width="8" height="4" rx="1.5" stroke="currentColor" stroke-width="0.8"/></svg>
+      </div>
+      <div>
+        <div class="msg-bubble">
+          <div class="think-dot"></div>
+          <div class="think-dot"></div>
+          <div class="think-dot"></div>
+        </div>
+      </div>
+    `;
+    chatArea.appendChild(el);
+    chatArea.scrollTop = chatArea.scrollHeight;
+    return el;
+  }
+
+  function removeThinking(thinkingEl) {
+    if (thinkingEl && thinkingEl.parentNode) {
+      thinkingEl.remove();
     }
   }
 
-  document.getElementById('btnClick').addEventListener('click', () =>
-    withTargetRef('click_button'));
-  document.getElementById('btnHover').addEventListener('click', () =>
-    withTargetRef('hover'));
-  document.getElementById('btnScroll').addEventListener('click', () =>
-    withTargetRef('scroll_into_view'));
-  document.getElementById('btnScreenshot').addEventListener('click', () =>
-    withTargetRef('screenshot_element'));
-  document.getElementById('btnQuery').addEventListener('click', () => {
-    if (lastTargetRef) {
-      sendCommand('query_target', { target_ref: lastTargetRef });
-    } else {
-      withSelector('query_target');
+  function addToolCardToChat(card) {
+    dismissWelcome();
+    chatArea.appendChild(card);
+    chatArea.scrollTop = chatArea.scrollHeight;
+  }
+
+  function formatTime() {
+    return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function simpleMarkdown(text) {
+    let html = escapeHtml(text);
+    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
+      `<pre><code>${escapeHtml(code.trim())}</code></pre>`
+    );
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
+  async function streamText(el, text, speed = 18) {
+    const bubble = el.querySelector('.msg-bubble');
+    let displayed = '';
+    for (let i = 0; i < text.length; i++) {
+      displayed += text[i];
+      bubble.innerHTML = simpleMarkdown(displayed);
+      chatArea.scrollTop = chatArea.scrollHeight;
+      await new Promise(r => setTimeout(r, speed));
     }
-  });
-  document.getElementById('btnWaitFor').addEventListener('click', () =>
-    withSelector('wait_for_element', { timeout_ms: 5000, state: 'visible' }));
-  document.getElementById('btnInputText').addEventListener('click', () => {
-    const text = document.getElementById('textInput').value;
-    withTargetRef('input_text', { text });
-  });
+  }
 
-  // ---- tab management ----
-  document.getElementById('btnGetTabs').addEventListener('click', () =>
-    sendCommand('get_tabs', {}));
-  document.getElementById('btnGetActiveTab').addEventListener('click', () =>
-    sendCommand('get_active_tab', {}));
-  document.getElementById('btnClosePopup').addEventListener('click', () =>
-    sendCommand('close_popup', {}));
+  async function handleUserMessage(text) {
+    if (isProcessing) return;
+    isProcessing = true;
 
-  // ---- execute_step ----
-  document.getElementById('btnExecuteStep').addEventListener('click', () => {
-    const command = document.getElementById('stepCmdSelect').value;
-    const raw = document.getElementById('stepPayload').value.trim();
-    const timeout = parseInt(document.getElementById('stepTimeout').value) || 10000;
-    let subPayload = {};
-    if (raw) {
-      try { subPayload = JSON.parse(raw); } catch {
-        alert('子 payload 不是合法的 JSON');
-        return;
-      }
-    }
-    sendCommand('execute_step', { command, payload: subPayload, timeout_ms: timeout });
-  });
+    const userTime = formatTime();
+    addMessage('user', escapeHtml(text), userTime);
 
-  // ---- execute_plan ----
-  document.getElementById('btnExecutePlan').addEventListener('click', () => {
-    const raw = document.getElementById('planSteps').value.trim();
-    const stopOnError = document.getElementById('planStopOnError').checked;
-    const planTimeout = parseInt(document.getElementById('planTimeout').value) || 60000;
-    let steps;
-    try { steps = JSON.parse(raw); } catch {
-      alert('步骤 JSON 解析失败');
+    const parsed = parseCommand(text);
+
+    if (!parsed) {
+      const thinking = addThinkingMessage();
+      await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
+      removeThinking(thinking);
+      const msg = addMessage('agent', '', formatTime());
+      await streamText(msg,
+        '抱歉，我没有理解你的指令。你可以试试：\n\n' +
+        '• "打开 github.com" — 导航到网页\n' +
+        '• "搜索 chromium browser" — 搜索内容\n' +
+        '• "点击 提交按钮" — 点击元素\n' +
+        '• "输入 Hello 到 搜索框" — 填写字段\n' +
+        '• "等待 3 秒" — 等待\n' +
+        '• "截取当前页面截图" — 截图\n' +
+        '• "列出所有标签页" — 查看标签页\n' +
+        '• "切换第 2 个标签页" — 切换标签\n' +
+        '• "按下键 Enter" — 按键\n' +
+        '• "运行: document.title" — 执行 JS',
+        12
+      );
+      isProcessing = false;
       return;
     }
-    if (!Array.isArray(steps)) { alert('步骤必须是数组'); return; }
-    if (!currentManifestVersion) {
-      respStatus.className = 'response-status pending';
-      respStatus.textContent = '⚠ 警告';
-      respBody.className = 'response-body';
-      respBody.textContent = '尚未收到 manifest_push，manifest_version 将使用 "none"';
+
+    const { command, payload } = parsed;
+    const friendlyName = getFriendlyName(command);
+
+    const thinking = addThinkingMessage();
+    await new Promise(r => setTimeout(r, 300 + Math.random() * 400));
+    removeThinking(thinking);
+
+    const msg = addMessage('agent', '', formatTime());
+    const bubble = msg.querySelector('.msg-bubble');
+    bubble.textContent = `正在${friendlyName}…`;
+
+    const toolCard = createToolCard(command, payload);
+    addToolCardToChat(toolCard);
+
+    sendCommand(command, payload, toolCard);
+
+    try {
+      const result = await waitForResponse(command);
+      const bubble = msg.querySelector('.msg-bubble');
+      bubble.innerHTML = '';
+
+      let responseText = buildResponseText(command, payload, result);
+      await streamText(msg, responseText, 12);
+    } catch (err) {
+      const bubble = msg.querySelector('.msg-bubble');
+      bubble.innerHTML = simpleMarkdown(`❌ ${friendlyName}失败: ${escapeHtml(err.message || '未知错误')}`);
     }
-    sendCommand('execute_plan', {
-      manifest_version: currentManifestVersion || 'none',
-      steps,
-      stop_on_error: stopOnError,
-      config: { plan_timeout_ms: planTimeout },
+
+    isProcessing = false;
+  }
+
+  function waitForResponse(command) {
+    return new Promise((resolve, reject) => {
+      const start = Date.now();
+      const timeout = 15000;
+
+      function check() {
+        if (Date.now() - start > timeout) {
+          reject(new Error('请求超时'));
+          return;
+        }
+        const keys = Object.keys(pendingRequests);
+        const stillPending = keys.some(k => {
+          const r = pendingRequests[k];
+          return r && r.command === command;
+        });
+        if (!stillPending) {
+          resolve({ success: true });
+        } else {
+          setTimeout(check, 100);
+        }
+      }
+
+      const origHandler = handleResponse;
+      handleResponse = function(msg) {
+        const req = pendingRequests[msg.id];
+        if (req) delete pendingRequests[msg.id];
+        if (req && req.toolEl) {
+          const hasError = !!msg.error;
+          updateToolCard(req.toolEl, !hasError, hasError ? (msg.error.message || msg.error.code) : null);
+          if (msg.command === 'resolve_selector' && msg.payload && msg.payload.target_ref) {
+            lastTargetRef = msg.payload.target_ref;
+          }
+        }
+
+        if (msg.command === 'get_active_tab' && msg.payload) {
+          headerPage.textContent = msg.payload.url || msg.payload.title || '';
+        } else if (msg.command === 'get_tabs' && msg.payload) {
+          const tabs = msg.payload.tabs || msg.payload;
+          if (Array.isArray(tabs)) statusTabs.textContent = tabs.length;
+        } else if (msg.command === 'navigate' && msg.payload && msg.payload.url) {
+          headerPage.textContent = msg.payload.url;
+        }
+
+        if (msg.command === command) {
+          resolve(msg);
+          handleResponse = origHandler;
+        }
+      };
+
+      setTimeout(check, 200);
+    });
+  }
+
+  function buildResponseText(command, payload, result) {
+    const error = result?.error;
+    const data = result?.payload;
+
+    if (error) {
+      return `❌ 执行失败\n<code>${escapeHtml(error.code || 'ERROR')}</code> ${escapeHtml(error.message || '')}`;
+    }
+
+    switch (command) {
+      case 'navigate':
+        return `✅ 已导航到\n<code>${escapeHtml(payload.url)}</code>`;
+      case 'search':
+        return `✅ 已提交搜索\n关键词: <code>${escapeHtml(payload.query)}</code>`;
+      case 'click_button':
+        return `✅ 已点击元素`;
+      case 'fill_field':
+        return `✅ 已在 <code>${escapeHtml(payload.field_name)}</code> 中填入内容`;
+      case 'login':
+        return `✅ 已登录: <code>${escapeHtml(payload.username)}</code>`;
+      case 'scroll':
+        return `✅ 已滚动页面\n偏移: y=${payload.y || 0}px`;
+      case 'wait':
+        return `✅ 已等待 ${(payload.timeout_ms || 0) / 1000} 秒`;
+      case 'get_screenshot':
+        if (data && data.data_base64) {
+          return `✅ 截图完成\n尺寸: ${data.width || '?'} × ${data.height || '?'}`;
+        }
+        return `✅ 截图完成`;
+      case 'get_tabs':
+        if (data && data.tabs) {
+          const list = data.tabs.map(t =>
+            `${t.is_active ? '● ' : '  '}<code>#${t.id}</code> ${escapeHtml(t.title || '')}`
+          ).join('\n');
+          return `✅ 当前标签页:\n${list}`;
+        }
+        return `✅ 已获取标签页列表`;
+      case 'switch_tab':
+        return `✅ 已切换到标签页 #${payload.tab_id}`;
+      case 'create_tab':
+        return `✅ 已新建标签页`;
+      case 'close_tab':
+        return `✅ 已关闭标签页 #${payload.tab_id}`;
+      case 'press_key':
+        return `✅ 已按下 <code>${escapeHtml(payload.key)}</code>`;
+      case 'evaluate_js':
+        if (data && data.result !== undefined) {
+          return `✅ 脚本执行完成\n结果: <code>${escapeHtml(String(data.result).substring(0, 200))}</code>`;
+        }
+        return `✅ 脚本执行完成`;
+      case 'execute_plan':
+        if (data) {
+          return `✅ 计划执行完成\n步骤: ${data.steps_completed || 0}/${data.steps_total || 0}\n耗时: ${data.total_duration_ms || 0}ms`;
+        }
+        return `✅ 计划执行完成`;
+      default:
+        return `✅ ${getFriendlyName(command)}完成`;
+    }
+  }
+
+  function sendMessage() {
+    const text = chatInput.value.trim();
+    if (!text || isProcessing) return;
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+    handleUserMessage(text);
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  chatInput.addEventListener('input', () => {
+    chatInput.style.height = 'auto';
+    chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px';
+  });
+
+  document.querySelectorAll('.quick-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const cmd = chip.dataset.cmd;
+      if (cmd) {
+        chatInput.value = cmd;
+        chatInput.style.height = 'auto';
+        chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px';
+        sendMessage();
+      }
     });
   });
 
-  // Init: send get_active_tab on load
+  function updateStatus(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+
   setTimeout(() => {
-    sendCommand('get_active_tab', {});
+    const id = 'req_' + (++reqCounter);
+    const request = {
+      type: 'request', id,
+      command: 'get_active_tab',
+      payload: {},
+      timestamp: Date.now(),
+    };
+    pendingRequests[id] = { command: 'get_active_tab', payload: {}, sentAt: Date.now() };
+    parent.postMessage(request, origin);
   }, 500);
 })();
 </script>
