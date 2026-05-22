@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Company App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #0d1117;
+    --bg-surface: #161b22;
+    --bg-elevated: #1c2333;
+    --border-color: #30363d;
+    --accent-blue: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-purple: #bc8cff;
+    --accent-orange: #d29922;
+    --accent-red: #f85149;
+    --accent-pink: #f778ba;
+    --text-primary: #f0f6fc;
+    --text-secondary: #8b949e;
+    --text-muted: #484f58;
+    --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow-y: auto;
+    display: flex; flex-direction: column;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 120% 80% at 30% 10%, rgba(88, 166, 255, 0.05) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── Status Bar ── */
+  .status-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 0 8px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .status-app {
+    font-family: var(--font-mono); font-size: 0.7rem;
+    color: var(--text-secondary);
+  }
+  .status-app span { color: var(--accent-blue); }
+  .status-conn {
+    display: flex; align-items: center; gap: 5px;
+    font-family: var(--font-mono); font-size: 0.6rem;
+    color: var(--accent-green);
+  }
+  .status-conn::before {
+    content: '';
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 6px var(--accent-green);
+  }
+
+  /* ── Digital Human Avatar ── */
+  .avatar-section {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 20px 0 8px;
+  }
+  .avatar-container {
+    position: relative;
+    width: 80px; height: 80px;
+  }
+  .avatar-ring {
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    background: linear-gradient(var(--bg-primary), var(--bg-primary)) padding-box,
+                conic-gradient(from 0deg, var(--accent-blue), var(--accent-purple), var(--accent-pink), var(--accent-blue)) border-box;
+    animation: spin-ring 4s linear infinite;
+    opacity: 0.6;
+  }
+  @keyframes spin-ring { to { transform: rotate(360deg); } }
+  .avatar-face {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1a2332 0%, #0d1520 100%);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    overflow: hidden;
+    border: 2px solid var(--border-color);
+  }
+  .avatar-face svg { width: 48px; height: 48px; }
+  .avatar-name {
+    margin-top: 8px;
+    font-family: var(--font-mono); font-size: 0.7rem;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+  }
+  .avatar-name span { color: var(--accent-blue); }
+
+  /* ── Info Cards ── */
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .info-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .info-label {
+    font-family: var(--font-mono); font-size: 0.55rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .info-value {
+    font-family: var(--font-mono); font-size: 0.7rem;
+    color: var(--text-secondary);
+  }
+  .info-value.active { color: var(--accent-green); }
+  .info-value.url { font-size: 0.6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── Command Buttons ── */
+  .commands-section { flex: 1; }
+  .commands-title {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .commands-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .cmd-btn {
+    font-family: var(--font-mono); font-size: 0.65rem;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .cmd-btn:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: rgba(88, 166, 255, 0.08);
+    box-shadow: 0 0 12px rgba(88, 166, 255, 0.15);
+  }
+  .cmd-btn:active { transform: scale(0.97); }
+  .cmd-btn .cmd-key {
+    display: block;
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  /* ── Response Panel ── */
+  .response-section {
+    flex-shrink: 0;
+  }
+  .response-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .response-title {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .response-status {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .response-status.idle {
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+  }
+  .response-status.success { color: var(--accent-green); background: rgba(63, 185, 80, 0.1); }
+  .response-status.error { color: var(--accent-red); background: rgba(248, 81, 73, 0.1); }
+  .response-status.pending { color: var(--accent-orange); background: rgba(210, 153, 34, 0.1); }
+  .response-body {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px 12px;
+    min-height: 44px;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .response-body.empty {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted);
+    font-size: 0.6rem;
+  }
+
+  .cmd-btn.col-2 { grid-column: span 2; }
+
+  /* ── TC additions ── */
+  .tc-subsection { margin-bottom: 8px; }
+  .tc-label {
+    font-family: var(--font-mono); font-size: 0.55rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tc-target-ref {
+    font-family: var(--font-mono); font-size: 0.5rem;
+    color: var(--accent-green);
+    text-transform: none;
+    letter-spacing: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    max-width: 120px;
+  }
+  .tc-row {
+    display: flex; gap: 4px; align-items: center;
+  }
+  .tc-input {
+    flex: 1;
+    font-family: var(--font-mono); font-size: 0.6rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-width: 0;
+  }
+  .tc-input:focus { outline: none; border-color: var(--accent-blue); }
+  .tc-select {
+    font-family: var(--font-mono); font-size: 0.6rem;
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .tc-tab-item {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--bg-elevated);
+    font-family: var(--font-mono); font-size: 0.55rem;
+    color: var(--text-secondary);
+    cursor: default;
+  }
+  .tc-tab-id { color: var(--text-muted); flex-shrink: 0; }
+  .tc-tab-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tc-tab-active { color: var(--accent-green); flex-shrink: 0; }
+  .tc-tab-switch {
+    font-family: var(--font-mono); font-size: 0.5rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--accent-blue);
+    background: transparent;
+    color: var(--accent-blue);
+    cursor: pointer;
+  }
+  .tc-tab-switch:hover { background: var(--accent-blue); color: #fff; }
+  .tc-tab-list {
+    max-height: 100px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 2px;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="status-bar">
+    <div class="status-app">Company <span>App</span></div>
+    <div class="status-conn">已连接 Shell</div>
+  </div>
+
+  <!-- Digital Human Avatar -->
+  <div class="avatar-section">
+    <div class="avatar-container">
+      <div class="avatar-ring"></div>
+      <div class="avatar-face">
+        <svg viewBox="0 0 48 48" fill="none">
+          <circle cx="24" cy="19" r="9" fill="rgba(88,166,255,0.15)" stroke="rgba(88,166,255,0.4)" stroke-width="1"/>
+          <ellipse cx="21" cy="17.5" rx="2" ry="2.5" fill="rgba(88,166,255,0.6)"/>
+          <ellipse cx="27" cy="17.5" rx="2" ry="2.5" fill="rgba(88,166,255,0.6)"/>
+          <circle cx="21" cy="17.5" r="0.8" fill="#fff"/>
+          <circle cx="27" cy="17.5" r="0.8" fill="#fff"/>
+          <path d="M20 23.5 Q24 27, 28 23.5" stroke="rgba(188,140,255,0.6)" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+          <path d="M24 28 L24 33 M21 31 L24 33 L27 31" stroke="rgba(88,166,255,0.3)" stroke-width="1" fill="none"/>
+          <rect x="15" y="32" width="18" height="8" rx="3" fill="rgba(88,166,255,0.08)" stroke="rgba(88,166,255,0.2)" stroke-width="0.8"/>
+          <path d="M10 36 Q8 32, 10 30" stroke="rgba(88,166,255,0.2)" stroke-width="1" fill="none"/>
+          <path d="M38 36 Q40 32, 38 30" stroke="rgba(88,166,255,0.2)" stroke-width="1" fill="none"/>
+        </svg>
+      </div>
+    </div>
+    <div class="avatar-name">AI <span>Assistant</span></div>
+  </div>
+
+  <!-- Info Cards -->
+  <div class="info-grid">
+    <div class="info-card">
+      <div class="info-label">状态</div>
+      <div class="info-value active">● 在线</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">会话</div>
+      <div class="info-value" id="sessionCount">1</div>
+    </div>
+    <div class="info-card" style="grid-column: span 2;">
+      <div class="info-label">当前页面</div>
+      <div class="info-value url" id="currentPage">等待获取...</div>
+    </div>
+  </div>
+
+  <!-- Commands -->
+  <div class="commands-section">
+    <div class="commands-title">测试控制台</div>
+
+    <div class="tc-subsection">
+      <div class="tc-label">导航</div>
+      <div class="tc-row">
+        <input type="text" id="navUrl" class="tc-input" placeholder="输入 URL" value="https://example.com">
+        <button class="cmd-btn" data-cmd="navigate" id="btnNavigate" style="flex-shrink:0;">前往</button>
+      </div>
+    </div>
+
+    <div class="tc-subsection">
+      <div class="tc-label">查找元素</div>
+      <div class="tc-row">
+        <input type="text" id="selInput" class="tc-input" placeholder="XPath 或 CSS 选择器" value="//button[@id='submit-btn']">
+        <select id="selType" class="tc-select">
+          <option value="xpath" selected>XPath</option>
+          <option value="css">CSS</option>
+        </select>
+        <button class="cmd-btn" id="btnResolve" style="flex-shrink:0;">查找</button>
+      </div>
+    </div>
+
+    <div class="tc-subsection">
+      <div class="tc-label">元素操作 <span id="targetRefDisplay" class="tc-target-ref">（未选中元素）</span></div>
+      <div class="commands-grid">
+        <button class="cmd-btn" id="btnClick">点击元素</button>
+        <button class="cmd-btn" id="btnHover">悬停</button>
+        <button class="cmd-btn" id="btnScroll">滚动到</button>
+        <button class="cmd-btn" id="btnScreenshot">截图</button>
+        <button class="cmd-btn" id="btnQuery">查询状态</button>
+        <button class="cmd-btn" id="btnWaitFor">等待(5s)</button>
+      </div>
+      <div class="tc-row" style="margin-top:4px;">
+        <input type="text" id="textInput" class="tc-input" placeholder="输入文本..." value="Hello World">
+        <button class="cmd-btn" id="btnInputText" style="flex-shrink:0;">输入文本</button>
+      </div>
+    </div>
+
+    <div class="tc-subsection">
+      <div class="tc-label">标签页管理</div>
+      <div class="commands-grid">
+        <button class="cmd-btn" id="btnGetTabs">获取标签页</button>
+        <button class="cmd-btn" id="btnGetActiveTab">当前活跃</button>
+        <button class="cmd-btn" id="btnClosePopup">关闭弹窗</button>
+      </div>
+    </div>
+
+    <div class="tc-subsection">
+      <div class="tc-label">编排执行 ─ execute_step</div>
+      <div class="tc-row">
+        <select id="stepCmdSelect" class="tc-select" style="flex-shrink:0;">
+          <option value="click_button">click_button</option>
+          <option value="input_text">input_text</option>
+          <option value="navigate" selected>navigate</option>
+          <option value="scroll">scroll</option>
+          <option value="wait">wait</option>
+          <option value="hover">hover</option>
+          <option value="press_key">press_key</option>
+          <option value="get_screenshot">get_screenshot</option>
+        </select>
+        <input type="text" id="stepPayload" class="tc-input" placeholder='子 payload JSON，如 {"url":"https://..."}' value='{"url":"https://github.com"}'>
+        <input type="number" id="stepTimeout" class="tc-input" placeholder="超时(ms)" value="10000" style="max-width:80px;">
+        <button class="cmd-btn" id="btnExecuteStep" style="flex-shrink:0;">执行步骤</button>
+      </div>
+    </div>
+
+    <div class="tc-subsection">
+      <div class="tc-label">编排执行 ─ execute_plan</div>
+      <textarea id="planSteps" class="tc-input" style="height:80px;font-size:0.55rem;width:100%;resize:vertical;" placeholder='JSON 步骤数组'>[
+  {"command":"navigate", "payload":{"url":"https://github.com/search"}},
+  {"command":"wait", "payload":{"timeout_ms":2000}},
+  {"command":"resolve_selector", "payload":{"selector":"textarea[name='q']","selector_type":"css"}},
+  {"command":"input_text", "payload":{"text":"chromium browser automation"}},
+  {"command":"wait", "payload":{"timeout_ms":500}},
+  {"command":"press_key", "payload":{"key":"Enter"}}
+]</textarea>
+      <div class="tc-row" style="margin-top:4px;gap:8px;">
+        <label style="font-size:0.55rem;color:var(--text-muted);display:flex;align-items:center;gap:4px;">
+          <input type="checkbox" id="planStopOnError" checked> 遇错停止
+        </label>
+        <input type="number" id="planTimeout" class="tc-input" placeholder="总超时(ms)" value="60000" style="max-width:80px;">
+        <button class="cmd-btn" id="btnExecutePlan" style="flex-shrink:0;">执行计划</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Response -->
+  <div class="response-section">
+    <div class="response-header">
+      <div class="response-title">最近响应</div>
+      <div class="response-status idle" id="respStatus">等待指令</div>
+    </div>
+    <div class="response-body empty" id="respBody">点击上方按钮发送命令</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const origin = window.location.origin;
+
+  const respStatus = document.getElementById('respStatus');
+  const respBody = document.getElementById('respBody');
+  const sessionCount = document.getElementById('sessionCount');
+  const currentPage = document.getElementById('currentPage');
+
+  let pendingRequests = {};
+  let reqCounter = 0;
+  let lastTargetRef = '';
+  let currentManifestVersion = '';
+
+  const targetRefDisplay = document.getElementById('targetRefDisplay');
+
+  function setTargetRef(ref) {
+    lastTargetRef = ref;
+    targetRefDisplay.textContent = ref ? '当前: ' + ref.substring(0, 30) : '（未选中元素）';
+  }
+
+  // Listen for trigger_command from parent (bottom bar shortcuts)
+  window.addEventListener('message', (event) => {
+    if (event.origin !== origin) return;
+    const msg = event.data;
+    if (!msg || msg.type !== 'trigger_command') return;
+    sendCommand(msg.command, msg.payload || {});
+  });
+
+  // Listen for responses from parent (via Shell)
+  window.addEventListener('message', (event) => {
+    if (event.origin !== origin) return;
+    const msg = event.data;
+    if (!msg) return;
+    if (msg.type === 'response') {
+      handleResponse(msg);
+    } else if (msg.type === 'event') {
+      if (msg.command === 'manifest_push' || msg.command === 'manifest_update') {
+        currentManifestVersion = msg.payload?.manifest_version || msg.manifest_version || '';
+      }
+    }
+  });
+
+  function sendCommand(command, payload) {
+    const id = 'req_' + (++reqCounter);
+    const request = {
+      type: 'request',
+      id,
+      command,
+      payload,
+      timestamp: Date.now(),
+    };
+
+    respStatus.className = 'response-status pending';
+    respStatus.textContent = '等待响应...';
+    respBody.className = 'response-body';
+    respBody.textContent = '发送命令: ' + command + '\n参数: ' + JSON.stringify(payload, null, 2) + '\n等待宿主处理...';
+
+    pendingRequests[id] = { command, payload, sentAt: Date.now() };
+    parent.postMessage(request, origin);
+  }
+
+  function handleResponse(msg) {
+    const req = pendingRequests[msg.id];
+    if (req) {
+      delete pendingRequests[msg.id];
+    }
+
+    const cmd = msg.command || 'unknown';
+    const hasError = !!msg.error;
+    const time = new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour12: false });
+
+    if (hasError) {
+      respStatus.className = 'response-status error';
+      respStatus.textContent = '✕ 错误';
+      respBody.className = 'response-body';
+      respBody.textContent = '命令: ' + cmd + '\n状态: 失败\n时间: ' + time + '\n错误码: ' + msg.error.code + '\n消息: ' + msg.error.message;
+    } else {
+      respStatus.className = 'response-status success';
+      respStatus.textContent = '✓ 成功';
+      respBody.className = 'response-body';
+      const payloadStr = msg.payload ? JSON.stringify(msg.payload, null, 2) : '(无数据)';
+      respBody.textContent = '命令: ' + cmd + '\n状态: 成功\n时间: ' + time + '\n耗时: ' + (req ? (Date.now() - req.sentAt) + 'ms' : '-') + '\n数据:\n' + payloadStr;
+    }
+
+    // Update info cards based on response
+    if (cmd === 'get_active_tab' && msg.payload) {
+      currentPage.textContent = msg.payload.title || msg.payload.url || '未知';
+    } else if (cmd === 'get_tabs' && msg.payload && Array.isArray(msg.payload?.tabs ?? msg.payload)) {
+      sessionCount.textContent = (msg.payload.tabs ?? msg.payload).length;
+    }
+  }
+
+  // ---- navigation ----
+  document.getElementById('btnNavigate').addEventListener('click', () => {
+    const url = document.getElementById('navUrl').value.trim();
+    if (!url) return;
+    sendCommand('navigate', { url });
+  });
+
+  // ---- resolve selector ----
+  document.getElementById('btnResolve').addEventListener('click', () => {
+    const selector = document.getElementById('selInput').value.trim();
+    const selectorType = document.getElementById('selType').value;
+    if (!selector) return;
+    const id = 'req_' + (++reqCounter);
+    const request = {
+      type: 'request', id,
+      command: 'resolve_selector',
+      payload: { selector, selector_type: selectorType },
+      timestamp: Date.now(),
+    };
+    respStatus.className = 'response-status pending';
+    respStatus.textContent = '等待响应...';
+    respBody.className = 'response-body';
+    respBody.textContent = '查找元素: ' + selector + '\n类型: ' + selectorType;
+    pendingRequests[id] = { command: 'resolve_selector', payload: request.payload, sentAt: Date.now() };
+
+    // Override handler for resolve_selector to capture target_ref
+    const origHandler = pendingRequests[id];
+    pendingRequests[id]._onDone = (msg) => {
+      if (msg.payload && msg.payload.target_ref) {
+        setTargetRef(msg.payload.target_ref);
+      }
+    };
+
+    parent.postMessage(request, origin);
+
+    // Patch handleResponse for this id
+    const origHandle = handleResponse;
+    const thisId = id;
+    window._resolveHandlers = window._resolveHandlers || {};
+    window._resolveHandlers[thisId] = (msg) => {
+      if (msg.payload && msg.payload.target_ref) {
+        setTargetRef(msg.payload.target_ref);
+      }
+      origHandle.call(null, msg);
+      delete window._resolveHandlers[thisId];
+    };
+  });
+
+  // Override handleResponse to check for resolve handlers
+  const origHandleResponse = handleResponse;
+  handleResponse = function(msg) {
+    if (window._resolveHandlers && window._resolveHandlers[msg.id]) {
+      window._resolveHandlers[msg.id](msg);
+      return;
+    }
+    origHandleResponse(msg);
+  };
+
+  // ---- element actions with selector ----
+  function withSelector(command, extraPayload) {
+    const selector = document.getElementById('selInput').value.trim();
+    const selectorType = document.getElementById('selType').value;
+    if (!selector) {
+      alert('请先输入 XPath 或 CSS 选择器');
+      return;
+    }
+    const payload = { selector, selector_type: selectorType, ...(extraPayload || {}) };
+    sendCommand(command, payload);
+  }
+
+  function withTargetRef(command, extraPayload) {
+    if (lastTargetRef) {
+      sendCommand(command, { target_ref: lastTargetRef, ...(extraPayload || {}) });
+    } else {
+      withSelector(command, extraPayload);
+    }
+  }
+
+  document.getElementById('btnClick').addEventListener('click', () =>
+    withTargetRef('click_button'));
+  document.getElementById('btnHover').addEventListener('click', () =>
+    withTargetRef('hover'));
+  document.getElementById('btnScroll').addEventListener('click', () =>
+    withTargetRef('scroll_into_view'));
+  document.getElementById('btnScreenshot').addEventListener('click', () =>
+    withTargetRef('screenshot_element'));
+  document.getElementById('btnQuery').addEventListener('click', () => {
+    if (lastTargetRef) {
+      sendCommand('query_target', { target_ref: lastTargetRef });
+    } else {
+      withSelector('query_target');
+    }
+  });
+  document.getElementById('btnWaitFor').addEventListener('click', () =>
+    withSelector('wait_for_element', { timeout_ms: 5000, state: 'visible' }));
+  document.getElementById('btnInputText').addEventListener('click', () => {
+    const text = document.getElementById('textInput').value;
+    withTargetRef('input_text', { text });
+  });
+
+  // ---- tab management ----
+  document.getElementById('btnGetTabs').addEventListener('click', () =>
+    sendCommand('get_tabs', {}));
+  document.getElementById('btnGetActiveTab').addEventListener('click', () =>
+    sendCommand('get_active_tab', {}));
+  document.getElementById('btnClosePopup').addEventListener('click', () =>
+    sendCommand('close_popup', {}));
+
+  // ---- execute_step ----
+  document.getElementById('btnExecuteStep').addEventListener('click', () => {
+    const command = document.getElementById('stepCmdSelect').value;
+    const raw = document.getElementById('stepPayload').value.trim();
+    const timeout = parseInt(document.getElementById('stepTimeout').value) || 10000;
+    let subPayload = {};
+    if (raw) {
+      try { subPayload = JSON.parse(raw); } catch {
+        alert('子 payload 不是合法的 JSON');
+        return;
+      }
+    }
+    sendCommand('execute_step', { command, payload: subPayload, timeout_ms: timeout });
+  });
+
+  // ---- execute_plan ----
+  document.getElementById('btnExecutePlan').addEventListener('click', () => {
+    const raw = document.getElementById('planSteps').value.trim();
+    const stopOnError = document.getElementById('planStopOnError').checked;
+    const planTimeout = parseInt(document.getElementById('planTimeout').value) || 60000;
+    let steps;
+    try { steps = JSON.parse(raw); } catch {
+      alert('步骤 JSON 解析失败');
+      return;
+    }
+    if (!Array.isArray(steps)) { alert('步骤必须是数组'); return; }
+    if (!currentManifestVersion) {
+      respStatus.className = 'response-status pending';
+      respStatus.textContent = '⚠ 警告';
+      respBody.className = 'response-body';
+      respBody.textContent = '尚未收到 manifest_push，manifest_version 将使用 "none"';
+    }
+    sendCommand('execute_plan', {
+      manifest_version: currentManifestVersion || 'none',
+      steps,
+      stop_on_error: stopOnError,
+      config: { plan_timeout_ms: planTimeout },
+    });
+  });
+
+  // Init: send get_active_tab on load
+  setTimeout(() => {
+    sendCommand('get_active_tab', {});
+  }, 500);
+})();
+</script>
+</body>
+</html>
