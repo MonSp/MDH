@@ -1,4 +1,4 @@
-import { DEFAULT_PROMPT } from './prompt';
+import { TOOL_DEFINITIONS, DEFAULT_SYSTEM_PROMPT } from './prompt';
 
 interface PendingRequest {
   command: string;
@@ -58,7 +58,7 @@ const DEFAULT_API_KEY = '';
 
 const STORAGE_KEY_BASE_URL = 'deepseek_base_url';
 const STORAGE_KEY_API_KEY = 'deepseek_api_key';
-const STORAGE_KEY_PROMPT = 'deepseek_prompt';
+const STORAGE_KEY_PROMPT = 'deepseek_system_prompt';
 
 const settingsOverlay = document.getElementById('settingsOverlay')!;
 const cfgBaseUrl = document.getElementById('cfgBaseUrl') as HTMLInputElement;
@@ -525,13 +525,13 @@ async function handleUserMessage(text: string): Promise<void> {
 function loadSettings(): void {
   cfgBaseUrl.value = localStorage.getItem(STORAGE_KEY_BASE_URL) || DEFAULT_BASE_URL;
   cfgApiKey.value = localStorage.getItem(STORAGE_KEY_API_KEY) || DEFAULT_API_KEY;
-  cfgPrompt.value = localStorage.getItem(STORAGE_KEY_PROMPT) || DEFAULT_PROMPT;
+  cfgPrompt.value = localStorage.getItem(STORAGE_KEY_PROMPT) || DEFAULT_SYSTEM_PROMPT;
 }
 
 function saveSettings(): void {
   const baseUrl = cfgBaseUrl.value.trim() || DEFAULT_BASE_URL;
   const apiKey = cfgApiKey.value.trim();
-  const prompt = cfgPrompt.value.trim() || DEFAULT_PROMPT;
+  const prompt = cfgPrompt.value.trim() || DEFAULT_SYSTEM_PROMPT;
   localStorage.setItem(STORAGE_KEY_BASE_URL, baseUrl);
   localStorage.setItem(STORAGE_KEY_API_KEY, apiKey);
   localStorage.setItem(STORAGE_KEY_PROMPT, prompt);
@@ -541,7 +541,7 @@ function saveSettings(): void {
 function resetSettings(): void {
   cfgBaseUrl.value = DEFAULT_BASE_URL;
   cfgApiKey.value = DEFAULT_API_KEY;
-  cfgPrompt.value = DEFAULT_PROMPT;
+  cfgPrompt.value = DEFAULT_SYSTEM_PROMPT;
 }
 
 function getCurrentBaseUrl(): string {
@@ -552,18 +552,16 @@ function getCurrentApiKey(): string {
   return localStorage.getItem(STORAGE_KEY_API_KEY) || DEFAULT_API_KEY;
 }
 
-function getCurrentPrompt(): string {
-  return localStorage.getItem(STORAGE_KEY_PROMPT) || DEFAULT_PROMPT;
+function getCurrentSystemPrompt(): string {
+  return localStorage.getItem(STORAGE_KEY_PROMPT) || DEFAULT_SYSTEM_PROMPT;
 }
 
 async function deepseekIntentRecognition(userMessage: string): Promise<DeepSeekResult | null> {
   const baseUrl = getCurrentBaseUrl();
   const apiKey = getCurrentApiKey();
-  const prompt = getCurrentPrompt();
+  const systemPrompt = getCurrentSystemPrompt();
 
   if (!apiKey) return null;
-
-  const systemPrompt = prompt.replace('{user_message}', userMessage);
 
   try {
     const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
@@ -575,8 +573,10 @@ async function deepseekIntentRecognition(userMessage: string): Promise<DeepSeekR
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: [
-          { role: 'system', content: systemPrompt },
+          { role: 'system', content: systemPrompt.replace('{user_message}', userMessage) },
+          { role: 'user', content: userMessage },
         ],
+        tools: TOOL_DEFINITIONS,
         temperature: 0,
         max_tokens: 1024,
       }),
@@ -585,19 +585,25 @@ async function deepseekIntentRecognition(userMessage: string): Promise<DeepSeekR
     if (!resp.ok) return null;
 
     const data = await resp.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) return null;
+    const message = data.choices?.[0]?.message;
+    if (!message) return null;
 
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
+    const toolCalls = message.tool_calls;
+    if (!toolCalls || toolCalls.length === 0) return null;
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    if (!parsed.command) return null;
+    const toolCall = toolCalls[0];
+    const command = toolCall.function?.name;
+    if (!command) return null;
+
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = JSON.parse(toolCall.function?.arguments || '{}');
+    } catch { /* ignore */ }
 
     return {
-      command: parsed.command,
-      payload: parsed.payload || {},
-      reply: parsed.reply || null,
+      command,
+      payload,
+      reply: message.content || null,
     };
   } catch {
     return null;

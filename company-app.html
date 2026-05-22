@@ -872,11 +872,11 @@
 
     <hr class="settings-divider">
 
-    <h3><span>📝</span> Prompt 模板</h3>
+    <h3><span>📝</span> System Prompt</h3>
     <div class="settings-group">
-      <label class="settings-label">意图识别 Prompt</label>
-      <textarea class="settings-textarea" id="cfgPrompt" placeholder="输入意图识别的系统提示词..."></textarea>
-      <div class="settings-hint">用于指导 DeepSeek 将用户自然语言指令解析为结构化命令。可用 <code>{user_message}</code> 作为用户输入的占位符。</div>
+      <label class="settings-label">系统提示词</label>
+      <textarea class="settings-textarea" id="cfgPrompt" placeholder="输入系统提示词..."></textarea>
+      <div class="settings-hint">用于设定助手行为和上下文。可用 <code>{user_message}</code> 作为用户输入的占位符。命令解析由 Tool Calling 自动完成，无需在 Prompt 中约束格式。</div>
     </div>
 
     <div class="settings-actions">

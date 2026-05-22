@@ -1,35 +1,230 @@
-export const DEFAULT_PROMPT = `你是一个浏览器自动化意图识别助手。用户会用自然语言描述他们想对浏览器执行的操作。
-
-你的任务是将用户的自然语言指令解析为结构化的JSON命令。请严格按以下JSON格式返回，不要包含任何其他文字：
-
-{
-  "command": "<命令名>",
-  "payload": { <参数对象> },
-  "reply": "<对用户的简短确认回复>"
+interface ToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: 'object';
+      properties: Record<string, { type: string; description: string; enum?: string[] }>;
+      required: string[];
+    };
+  };
 }
 
-可用命令及参数：
-- navigate: { "url": "<完整URL>" } — 导航到网页
-- search: { "query": "<搜索关键词>" } — 搜索
-- click_button: { "button_label": "<按钮文字>" } — 点击元素
-- fill_field: { "field_name": "<字段名>", "value": "<输入值>" } — 填写输入框
-- login: { "username": "<用户名>", "password": "<密码>" } — 登录
-- scroll: { "y": <数字, 正向下>, "behavior": "smooth" } — 滚动
-- wait: { "timeout_ms": <毫秒数> } — 等待
-- get_screenshot: {} — 截图
-- get_tabs: {} — 获取所有标签页
-- switch_tab: { "tab_id": <数字> } — 切换标签页
-- create_tab: { "url": "<URL>", "active": true } — 新建标签页
-- close_tab: { "tab_id": <数字> } — 关闭标签页
-- press_key: { "key": "<键名>" } — 按键
-- evaluate_js: { "code": "<JS代码>" } — 执行JavaScript
-- execute_plan: { "steps": [<步骤数组>], "stop_on_error": true } — 执行多步计划
+export const TOOL_DEFINITIONS: ToolDefinition[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'navigate',
+      description: '导航到指定的网页地址',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: '完整的URL地址，如 https://github.com' },
+        },
+        required: ['url'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search',
+      description: '在浏览器中搜索指定关键词',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: '搜索关键词' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'click_button',
+      description: '点击页面上的按钮或元素',
+      parameters: {
+        type: 'object',
+        properties: {
+          button_label: { type: 'string', description: '按钮或元素的文字标签' },
+        },
+        required: ['button_label'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'fill_field',
+      description: '在指定输入框中填入内容',
+      parameters: {
+        type: 'object',
+        properties: {
+          field_name: { type: 'string', description: '输入框的名称或描述' },
+          value: { type: 'string', description: '要填入的内容' },
+        },
+        required: ['field_name', 'value'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'login',
+      description: '使用用户名和密码登录',
+      parameters: {
+        type: 'object',
+        properties: {
+          username: { type: 'string', description: '用户名' },
+          password: { type: 'string', description: '密码' },
+        },
+        required: ['username', 'password'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'scroll',
+      description: '滚动页面',
+      parameters: {
+        type: 'object',
+        properties: {
+          y: { type: 'integer', description: '垂直滚动像素数，正值向下，负值向上' },
+          behavior: { type: 'string', description: '滚动行为', enum: ['smooth', 'auto'] },
+        },
+        required: ['y'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'wait',
+      description: '等待指定时长',
+      parameters: {
+        type: 'object',
+        properties: {
+          timeout_ms: { type: 'integer', description: '等待时长，单位毫秒' },
+        },
+        required: ['timeout_ms'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_screenshot',
+      description: '截取当前页面的截图',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_tabs',
+      description: '获取所有浏览器标签页列表',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'switch_tab',
+      description: '切换到指定的标签页',
+      parameters: {
+        type: 'object',
+        properties: {
+          tab_id: { type: 'integer', description: '标签页ID' },
+        },
+        required: ['tab_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_tab',
+      description: '新建一个标签页，可选择指定URL',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: '新标签页要打开的URL（可选）' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'close_tab',
+      description: '关闭指定的标签页',
+      parameters: {
+        type: 'object',
+        properties: {
+          tab_id: { type: 'integer', description: '要关闭的标签页ID' },
+        },
+        required: ['tab_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'press_key',
+      description: '按下指定的键盘按键',
+      parameters: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: '按键名称，如 Enter, Escape, Tab 等' },
+        },
+        required: ['key'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'evaluate_js',
+      description: '在页面中执行JavaScript代码',
+      parameters: {
+        type: 'object',
+        properties: {
+          code: { type: 'string', description: '要执行的JavaScript代码' },
+        },
+        required: ['code'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'execute_plan',
+      description: '执行一个多步骤的浏览器操作计划',
+      parameters: {
+        type: 'object',
+        properties: {
+          steps: {
+            type: 'array',
+            description: '步骤数组，每个步骤包含 command 和 payload',
+          },
+          stop_on_error: { type: 'boolean', description: '遇到错误时是否停止' },
+        },
+        required: ['steps'],
+      },
+    },
+  },
+];
 
-如果用户指令无法识别为上述命令，返回：
-{
-  "command": null,
-  "payload": null,
-  "reply": null
-}
-
-用户指令: {user_message}`;
+export const DEFAULT_SYSTEM_PROMPT = `你是一个浏览器自动化助手。根据用户的自然语言指令，调用合适的工具函数来执行浏览器操作。如果用户输入无法匹配任何可用工具，请用中文友好地回复用户，说明你暂时无法处理这个请求，并举例说明可以执行的操作用户指令: {user_message}`;
