@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node esbuild.config.mjs",
+    "build": "vite build && node esbuild.config.mjs && node copy-shell.mjs",
     "build:shell": "node esbuild.config.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "npm run build && vite preview"
   },
   "dependencies": {
     "vue": "^3.5.0"
