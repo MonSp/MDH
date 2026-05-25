@@ -2,7 +2,7 @@
 import esbuild from 'esbuild';
 
 await esbuild.build({
-  entryPoints: ['plugin-shell.ts', 'company-app.ts'],
+  entryPoints: ['plugin-shell.ts'],
   bundle: true,
   format: 'esm',
   platform: 'browser',
