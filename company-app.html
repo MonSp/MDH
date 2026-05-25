@@ -70,7 +70,6 @@
     z-index: 0;
   }
 
-  /* ── Header ── */
   .header {
     position: relative;
     z-index: 2;
@@ -84,16 +83,11 @@
     backdrop-filter: blur(12px);
   }
 
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
 
   .agent-dot {
     position: relative;
-    width: 10px;
-    height: 10px;
+    width: 10px; height: 10px;
   }
   .agent-dot::before {
     content: '';
@@ -140,11 +134,7 @@
     color: var(--green);
   }
 
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
+  .header-right { display: flex; align-items: center; gap: 8px; }
   .header-page {
     font-family: var(--font-mono);
     font-size: 0.55rem;
@@ -155,7 +145,6 @@
     white-space: nowrap;
   }
 
-  /* ── Status Bar ── */
   .status-bar {
     position: relative;
     z-index: 2;
@@ -175,12 +164,9 @@
     font-size: 0.55rem;
     color: var(--text-muted);
   }
-  .status-val {
-    color: var(--text-secondary);
-  }
+  .status-val { color: var(--text-secondary); }
   .status-val.active { color: var(--cyan); }
 
-  /* ── Chat Area ── */
   .chat-area {
     position: relative;
     z-index: 1;
@@ -190,22 +176,14 @@
     padding: 16px 18px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 10px;
     scroll-behavior: smooth;
   }
 
-  .chat-area::-webkit-scrollbar {
-    width: 4px;
-  }
-  .chat-area::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .chat-area::-webkit-scrollbar-thumb {
-    background: var(--border-dim);
-    border-radius: 2px;
-  }
+  .chat-area::-webkit-scrollbar { width: 4px; }
+  .chat-area::-webkit-scrollbar-track { background: transparent; }
+  .chat-area::-webkit-scrollbar-thumb { background: var(--border-dim); border-radius: 2px; }
 
-  /* ── Welcome Screen ── */
   .welcome {
     flex: 1;
     display: flex;
@@ -219,8 +197,7 @@
 
   .welcome-ring {
     position: relative;
-    width: 72px;
-    height: 72px;
+    width: 72px; height: 72px;
     margin-bottom: 4px;
   }
   .welcome-ring::before {
@@ -237,13 +214,10 @@
   }
   @keyframes ring-spin { to { transform: rotate(360deg); } }
   .welcome-ring-inner {
-    width: 100%;
-    height: 100%;
+    width: 100%; height: 100%;
     border-radius: 50%;
     background: var(--bg-elevated);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     border: 1px solid var(--border-dim);
   }
   .welcome-ring-inner svg { width: 32px; height: 32px; opacity: 0.6; }
@@ -288,7 +262,7 @@
     box-shadow: 0 0 12px var(--cyan-glow);
   }
 
-  /* ── Message Bubbles ── */
+  /* ── Messages ── */
   .msg {
     display: flex;
     gap: 10px;
@@ -300,19 +274,14 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
-  .msg.user {
-    align-self: flex-end;
-    flex-direction: row-reverse;
-  }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
 
   .msg-avatar {
     flex-shrink: 0;
-    width: 28px;
-    height: 28px;
+    width: 28px; height: 28px;
     border-radius: 50%;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: center; justify-content: center;
     font-size: 0.6rem;
     margin-top: 2px;
   }
@@ -326,6 +295,8 @@
     border: 1px solid rgba(255, 45, 120, 0.25);
     color: var(--pink);
   }
+
+  .msg-body { flex: 1; min-width: 0; }
 
   .msg-bubble {
     position: relative;
@@ -359,7 +330,6 @@
   }
   .msg.user .msg-time { text-align: right; }
 
-  /* ── Agent thinking ── */
   .msg.agent.thinking .msg-bubble {
     display: flex;
     align-items: center;
@@ -368,8 +338,7 @@
     min-height: 36px;
   }
   .think-dot {
-    width: 5px;
-    height: 5px;
+    width: 5px; height: 5px;
     border-radius: 50%;
     background: var(--cyan);
     animation: think-bounce 1.2s ease-in-out infinite;
@@ -381,69 +350,273 @@
     40% { transform: translateY(-6px); opacity: 1; }
   }
 
-  /* ── Tool execution card ── */
-  .tool-card {
-    margin: 4px 0;
+  /* ── Exec Status Card ── */
+  .exec-status {
+    margin: 2px 0;
+    border-radius: 8px;
+    border: 1px solid var(--border-dim);
+    background: var(--bg-elevated);
+    overflow: hidden;
+    animation: exec-slide-in 0.35s ease-out;
+    align-self: flex-start;
+    max-width: 88%;
+  }
+  @keyframes exec-slide-in {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .exec-status.running {
+    border-color: rgba(255, 183, 77, 0.3);
+    box-shadow: 0 0 0 1px rgba(255, 183, 77, 0.08), 0 4px 24px rgba(255, 183, 77, 0.06);
+  }
+  .exec-status.done {
+    border-color: rgba(0, 230, 118, 0.2);
+  }
+  .exec-status.error {
+    border-color: rgba(255, 23, 68, 0.2);
+  }
+
+  .exec-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     font-family: var(--font-mono);
     font-size: 0.58rem;
-    border-radius: 6px;
-    border: 1px solid var(--amber-dim);
-    background: rgba(255, 183, 77, 0.04);
-    overflow: hidden;
-    animation: tool-slide 0.3s ease-out;
   }
-  @keyframes tool-slide {
-    from { opacity: 0; transform: translateX(-8px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
+  .exec-status.running .exec-header { color: var(--amber); }
+  .exec-status.done .exec-header { color: var(--green); }
+  .exec-status.error .exec-header { color: var(--red); }
 
-  .tool-card-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    border-bottom: 1px solid rgba(255, 183, 77, 0.08);
-    color: var(--amber);
+  .exec-icon {
+    width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
   }
-  .tool-icon {
-    width: 14px;
-    height: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .tool-label {
-    text-transform: uppercase;
+  .exec-status.running .exec-icon svg { animation: spin-cw 1.2s linear infinite; }
+  @keyframes spin-cw { to { transform: rotate(360deg); } }
+
+  .exec-cmd-name {
+    font-weight: 600;
     letter-spacing: 0.5px;
+    flex: 1;
+  }
+
+  .exec-elapsed {
     font-size: 0.5rem;
+    font-family: var(--font-mono);
+    opacity: 0.7;
+    tabular-nums: 1;
   }
-  .tool-cmd {
-    color: var(--text-secondary);
-    margin-left: auto;
+
+  .exec-body {
+    padding: 8px 12px;
   }
-  .tool-card-body {
-    padding: 6px 10px;
+  .exec-params {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+  .exec-param {
+    font-family: var(--font-mono);
+    font-size: 0.52rem;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    gap: 4px;
+    align-items: baseline;
+  }
+  .exec-param-key {
     color: var(--text-muted);
-    white-space: pre-wrap;
-    word-break: break-all;
-    max-height: 80px;
-    overflow-y: auto;
   }
-  .tool-card-body::-webkit-scrollbar { width: 3px; }
-  .tool-card-body::-webkit-scrollbar-thumb { background: var(--border-dim); border-radius: 1px; }
+  .exec-param-val {
+    color: var(--text-secondary);
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-  .tool-card.done {
-    border-color: rgba(0, 230, 118, 0.2);
-    background: rgba(0, 230, 118, 0.03);
+  .exec-error-msg {
+    font-family: var(--font-mono);
+    font-size: 0.52rem;
+    color: var(--red);
+    margin-top: 4px;
   }
-  .tool-card.done .tool-card-header { color: var(--green); border-bottom-color: rgba(0, 230, 118, 0.08); }
-  .tool-card.error {
-    border-color: rgba(255, 23, 68, 0.2);
-    background: rgba(255, 23, 68, 0.03);
-  }
-  .tool-card.error .tool-card-header { color: var(--red); border-bottom-color: rgba(255, 23, 68, 0.08); }
 
-  /* ── Code block in messages ── */
+  /* ── Progress Bar ── */
+  .exec-progress {
+    height: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    position: relative;
+    overflow: hidden;
+  }
+  .exec-progress-bar {
+    height: 100%;
+    transition: width 0.3s ease;
+  }
+  .exec-status.running .exec-progress-bar {
+    background: linear-gradient(90deg, var(--amber), rgba(255, 183, 77, 0.6));
+    animation: progress-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes progress-pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+  }
+  .exec-status.done .exec-progress-bar {
+    background: var(--green);
+    width: 100%;
+  }
+  .exec-status.error .exec-progress-bar {
+    background: var(--red);
+    width: 100%;
+  }
+
+  /* ── Plan Timeline ── */
+  .plan-timeline {
+    margin: 4px 0;
+    align-self: flex-start;
+    max-width: 88%;
+    animation: exec-slide-in 0.35s ease-out;
+  }
+
+  .plan-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.58rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+
+  .plan-progress-text {
+    margin-left: auto;
+    font-size: 0.52rem;
+    color: var(--cyan);
+  }
+
+  .plan-step {
+    display: flex;
+    gap: 10px;
+    padding: 6px 0;
+    position: relative;
+  }
+
+  .plan-step-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    width: 18px;
+  }
+
+  .plan-step-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border-dim);
+    background: var(--bg-deep);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+    transition: all 0.3s ease;
+  }
+  .plan-step.active .plan-step-dot {
+    border-color: var(--amber);
+    background: var(--amber);
+    box-shadow: 0 0 8px rgba(255, 183, 77, 0.4);
+    animation: step-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes step-pulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(255, 183, 77, 0.4); }
+    50% { box-shadow: 0 0 16px rgba(255, 183, 77, 0.7); }
+  }
+  .plan-step.done .plan-step-dot {
+    border-color: var(--green);
+    background: var(--green);
+    box-shadow: 0 0 6px rgba(0, 230, 118, 0.3);
+  }
+  .plan-step.error .plan-step-dot {
+    border-color: var(--red);
+    background: var(--red);
+    box-shadow: 0 0 6px rgba(255, 23, 68, 0.3);
+  }
+
+  .plan-step-line {
+    width: 1.5px;
+    flex: 1;
+    min-height: 12px;
+    background: var(--border-dim);
+    margin: 2px 0;
+  }
+
+  .plan-step-body {
+    flex: 1;
+    min-width: 0;
+    padding-bottom: 4px;
+  }
+  .plan-step-cmd {
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.3px;
+    transition: color 0.3s;
+  }
+  .plan-step.active .plan-step-cmd { color: var(--amber); }
+  .plan-step.done .plan-step-cmd { color: var(--green); }
+  .plan-step.error .plan-step-cmd { color: var(--red); }
+
+  .plan-step-params {
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .plan-step-duration {
+    font-family: var(--font-mono);
+    font-size: 0.48rem;
+    color: var(--text-muted);
+    margin-top: 1px;
+  }
+
+  .plan-step-status {
+    font-family: var(--font-mono);
+    font-size: 0.48rem;
+    margin-top: 1px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .plan-step.active .plan-step-status { color: var(--amber); }
+  .plan-step.done .plan-step-status { color: var(--green); }
+  .plan-step.error .plan-step-status { color: var(--red); }
+
+  .plan-summary {
+    font-family: var(--font-mono);
+    font-size: 0.52rem;
+    color: var(--text-secondary);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-dim);
+    display: flex;
+    gap: 16px;
+  }
+  .plan-summary-item {
+    display: flex;
+    gap: 4px;
+    align-items: baseline;
+  }
+  .plan-summary-label { color: var(--text-muted); }
+  .plan-summary-val { color: var(--cyan); font-weight: 600; }
+
+  /* ── Code in messages ── */
   .msg-bubble pre {
     background: rgba(0, 0, 0, 0.35);
     border: 1px solid var(--border-dim);
@@ -459,9 +632,7 @@
   .msg-bubble pre::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
+    top: 0; left: 0; right: 0;
     height: 1px;
     background: linear-gradient(90deg, transparent, var(--cyan-glow), transparent);
     opacity: 0.4;
@@ -480,7 +651,7 @@
     color: inherit;
   }
 
-  .msg-bubble .inline-result {
+  .inline-result {
     display: inline-block;
     padding: 1px 6px;
     border-radius: 3px;
@@ -535,22 +706,18 @@
     max-height: 100px;
     padding: 6px 0;
   }
-  .chat-input::placeholder {
-    color: var(--text-muted);
-  }
+  .chat-input::placeholder { color: var(--text-muted); }
 
   .send-btn {
     flex-shrink: 0;
-    width: 34px;
-    height: 34px;
+    width: 34px; height: 34px;
     border-radius: 8px;
     border: 1px solid var(--border-dim);
     background: var(--bg-elevated);
     color: var(--text-muted);
     cursor: pointer;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: center; justify-content: center;
     transition: all 0.2s;
   }
   .send-btn:hover {
@@ -581,18 +748,17 @@
     color: var(--text-secondary);
   }
 
+  /* ── Settings ── */
   .settings-btn {
     flex-shrink: 0;
-    width: 26px;
-    height: 26px;
+    width: 26px; height: 26px;
     border-radius: 6px;
     border: 1px solid var(--border-dim);
     background: transparent;
     color: var(--text-muted);
     cursor: pointer;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: center; justify-content: center;
     transition: all 0.2s;
   }
   .settings-btn:hover {
@@ -609,16 +775,12 @@
     background: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(4px);
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: center; justify-content: center;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.25s;
   }
-  .settings-overlay.open {
-    opacity: 1;
-    pointer-events: auto;
-  }
+  .settings-overlay.open { opacity: 1; pointer-events: auto; }
 
   .settings-panel {
     width: 420px;
@@ -631,13 +793,8 @@
     padding: 24px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   }
-  .settings-panel::-webkit-scrollbar {
-    width: 4px;
-  }
-  .settings-panel::-webkit-scrollbar-thumb {
-    background: var(--border-dim);
-    border-radius: 2px;
-  }
+  .settings-panel::-webkit-scrollbar { width: 4px; }
+  .settings-panel::-webkit-scrollbar-thumb { background: var(--border-dim); border-radius: 2px; }
 
   .settings-panel h3 {
     font-family: var(--font-mono);
@@ -652,9 +809,7 @@
   }
   .settings-panel h3 span { color: var(--cyan); }
 
-  .settings-group {
-    margin-bottom: 16px;
-  }
+  .settings-group { margin-bottom: 16px; }
   .settings-label {
     display: block;
     font-family: var(--font-mono);
@@ -745,9 +900,7 @@
     cursor: pointer;
     transition: all 0.2s;
   }
-  .settings-btn-secondary:hover {
-    border-color: var(--text-secondary);
-  }
+  .settings-btn-secondary:hover { border-color: var(--text-secondary); }
 
   .settings-btn-reset {
     padding: 8px 18px;
@@ -776,7 +929,6 @@
 </head>
 <body>
 
-<!-- Header -->
 <header class="header">
   <div class="header-left">
     <div class="agent-dot"></div>
@@ -797,14 +949,12 @@
   </div>
 </header>
 
-<!-- Status -->
 <div class="status-bar">
   <div class="status-item">会话<span class="status-val" id="statusSessions">1</span></div>
   <div class="status-item">标签页<span class="status-val active" id="statusTabs">—</span></div>
   <div class="status-item">协议<span class="status-val" id="statusProto">v1.1</span></div>
 </div>
 
-<!-- Chat -->
 <div class="chat-area" id="chatArea">
   <div class="welcome" id="welcomeScreen">
     <div class="welcome-ring">
@@ -834,7 +984,6 @@
   </div>
 </div>
 
-<!-- Input -->
 <div class="input-area">
   <div class="input-wrapper">
     <textarea
@@ -857,28 +1006,23 @@
 <div class="settings-overlay" id="settingsOverlay">
   <div class="settings-panel" id="settingsPanel">
     <h3><span>⚙</span> API 配置</h3>
-
     <div class="settings-group">
       <label class="settings-label">BASE URL</label>
       <input class="settings-input" type="text" id="cfgBaseUrl" placeholder="https://api.deepseek.com">
       <div class="settings-hint">DeepSeek API 地址，默认使用官方地址</div>
     </div>
-
     <div class="settings-group">
       <label class="settings-label">API KEY</label>
       <input class="settings-input" type="password" id="cfgApiKey" placeholder="sk-...">
       <div class="settings-hint">您的 DeepSeek API Key</div>
     </div>
-
     <hr class="settings-divider">
-
     <h3><span>📝</span> System Prompt</h3>
     <div class="settings-group">
       <label class="settings-label">系统提示词</label>
       <textarea class="settings-textarea" id="cfgPrompt" placeholder="输入系统提示词..."></textarea>
-      <div class="settings-hint">用于设定助手行为和上下文。可用 <code>{user_message}</code> 作为用户输入的占位符。命令解析由 Tool Calling 自动完成，无需在 Prompt 中约束格式。</div>
+      <div class="settings-hint">用于设定助手行为和上下文。可用 <code>{user_message}</code> 作为用户输入的占位符。命令解析由 Tool Calling 自动完成。</div>
     </div>
-
     <div class="settings-actions">
       <button class="settings-btn-reset" id="settingsReset">恢复默认</button>
       <button class="settings-btn-secondary" id="settingsCancel">取消</button>

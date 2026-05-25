@@ -4,7 +4,9 @@ interface PendingRequest {
   command: string;
   payload: Record<string, unknown>;
   sentAt: number;
-  toolEl: HTMLElement | null;
+  statusEl: HTMLElement | null;
+  /* for plan: step index */
+  stepIndex?: number;
 }
 
 interface CommandPattern {
@@ -137,59 +139,165 @@ function getFriendlyName(cmd: string): string {
   return map[cmd] || cmd;
 }
 
-function formatPayload(cmd: string, payload: Record<string, unknown>): string {
-  if (!payload) return '';
-  switch (cmd) {
-    case 'navigate': return (payload.url as string) || '';
-    case 'search': return `"${payload.query}"`;
-    case 'click_button': return (payload.button_label || payload.selector || payload.target_ref || '') as string;
-    case 'fill_field': return `${payload.value} → ${payload.field_name}`;
-    case 'login': return `${payload.username} / ***`;
-    case 'scroll': return `y=${payload.y || 0}`;
-    case 'wait': return `${(Number(payload.timeout_ms) || 0) / 1000}s`;
-    case 'get_screenshot': return '全页面';
-    case 'switch_tab': return `标签页 #${payload.tab_id}`;
-    case 'press_key': return payload.key as string;
-    default: return JSON.stringify(payload).substring(0, 60);
-  }
+function getCommandIcon(cmd: string): string {
+  const icons: Record<string, string> = {
+    navigate: '🌐', search: '🔍', click_button: '👆', fill_field: '⌨',
+    login: '🔑', scroll: '↕', wait: '⏱', get_screenshot: '📸',
+    get_tabs: '📑', switch_tab: '↗', create_tab: '➕', close_tab: '✕',
+    press_key: '⌨', evaluate_js: '⚡', execute_plan: '📋',
+  };
+  return icons[cmd] || '▶';
 }
 
-function createToolCard(cmd: string, payload: Record<string, unknown>): HTMLElement {
+function formatPayloadSummary(payload: Record<string, unknown>): string {
+  if (!payload || Object.keys(payload).length === 0) return '';
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(payload)) {
+    if (k === 'steps' || k === 'manifest_version') continue;
+    const val = typeof v === 'string' ? (v.length > 24 ? v.substring(0, 21) + '...' : v) : String(v);
+    parts.push(val);
+  }
+  return parts.join(' · ');
+}
+
+function createExecStatus(cmd: string, payload: Record<string, unknown>): HTMLElement {
+  dismissWelcome();
   const card = document.createElement('div');
-  card.className = 'tool-card';
+  card.className = 'exec-status running';
+
+  const params = Object.entries(payload)
+    .filter(([k]) => k !== 'steps' && k !== 'manifest_version')
+    .map(([k, v]) => {
+      const val = typeof v === 'string' ? v : JSON.stringify(v);
+      return `<span class="exec-param"><span class="exec-param-key">${escapeHtml(k)}</span><span class="exec-param-val">${escapeHtml(val)}</span></span>`;
+    })
+    .join('');
+
   card.innerHTML = `
-    <div class="tool-card-header">
-      <span class="tool-icon">
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1" opacity="0.6"/>
-          <circle cx="6" cy="6" r="1.5" fill="currentColor" opacity="0.8">
-            <animate attributeName="r" values="1.5;2.5;1.5" dur="1.5s" repeatCount="indefinite"/>
-            <animate attributeName="opacity" values="0.8;0.3;0.8" dur="1.5s" repeatCount="indefinite"/>
-          </circle>
+    <div class="exec-header">
+      <span class="exec-icon">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2" stroke-dasharray="8 4" fill="none"/>
         </svg>
       </span>
-      <span class="tool-label">EXECUTING</span>
-      <span class="tool-cmd">${cmd}</span>
+      <span class="exec-cmd-name">${getFriendlyName(cmd)}</span>
+      <span class="exec-elapsed" data-elapsed>0.0s</span>
     </div>
-    <div class="tool-card-body">${formatPayload(cmd, payload)}</div>
+    <div class="exec-progress"><div class="exec-progress-bar" style="width:20%"></div></div>
+    ${params ? `<div class="exec-body"><div class="exec-params">${params}</div></div>` : ''}
   `;
+
+  chatArea.appendChild(card);
+  chatArea.scrollTop = chatArea.scrollHeight;
+  startElapsedTimer(card);
   return card;
 }
 
-function updateToolCard(card: HTMLElement, success: boolean, errorMsg: string | null): void {
+function startElapsedTimer(card: HTMLElement): void {
+  const elapsedEl = card.querySelector('[data-elapsed]');
+  if (!elapsedEl) return;
+  const start = Date.now();
+  const iv = setInterval(() => {
+    if (!card.parentNode) { clearInterval(iv); return; }
+    const s = (Date.now() - start) / 1000;
+    elapsedEl.textContent = s.toFixed(1) + 's';
+  }, 100);
+}
+
+function updateExecStatus(card: HTMLElement, success: boolean, errorMsg: string | null): void {
+  card.classList.remove('running');
   card.classList.add(success ? 'done' : 'error');
-  const header = card.querySelector('.tool-card-header')!;
-  const label = header.querySelector('.tool-label')!;
-  const icon = header.querySelector('.tool-icon')!;
-  label.textContent = success ? 'DONE' : 'FAILED';
+
+  const header = card.querySelector('.exec-header')!;
+  const elapsed = header.querySelector('.exec-elapsed');
+  if (elapsed) elapsed.remove();
+
+  const icon = card.querySelector('.exec-icon')!;
   icon.innerHTML = success
-    ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-    : '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 3.5L8.5 8.5M8.5 3.5L3.5 8.5" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>';
+    ? '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7L6 10L11 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    : '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 4L10 10M10 4L4 10" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>';
+
+  const nameEl = header.querySelector('.exec-cmd-name')!;
+  nameEl.textContent = success ? getFriendlyName(nameEl.textContent || '') : (nameEl.textContent || '操作') + ' 失败';
+
   if (errorMsg) {
-    const body = card.querySelector('.tool-card-body')!;
-    body.textContent = errorMsg;
+    const body = card.querySelector('.exec-body');
+    if (body) {
+      body.innerHTML = `<div class="exec-error-msg">${escapeHtml(errorMsg)}</div>`;
+    } else {
+      const errDiv = document.createElement('div');
+      errDiv.className = 'exec-body';
+      errDiv.innerHTML = `<div class="exec-error-msg">${escapeHtml(errorMsg)}</div>`;
+      card.appendChild(errDiv);
+    }
   }
-  card.querySelector('animate')?.remove();
+}
+
+function createPlanTimeline(payload: Record<string, unknown>): HTMLElement {
+  dismissWelcome();
+  const steps = (payload.steps || []) as Array<{ command: string; payload?: Record<string, unknown> }>;
+  const total = steps.length;
+
+  const timeline = document.createElement('div');
+  timeline.className = 'plan-timeline';
+
+  let stepsHtml = '';
+  steps.forEach((step, i) => {
+    const summary = step.payload ? formatPayloadSummary(step.payload) : '';
+    stepsHtml += `
+      <div class="plan-step" data-step="${i}">
+        <div class="plan-step-indicator">
+          <div class="plan-step-dot"></div>
+          <div class="plan-step-line"></div>
+        </div>
+        <div class="plan-step-body">
+          <div class="plan-step-cmd">${getFriendlyName(step.command)}</div>
+          ${summary ? `<div class="plan-step-params">${escapeHtml(summary)}</div>` : ''}
+          <div class="plan-step-status"></div>
+        </div>
+      </div>
+    `;
+  });
+
+  timeline.innerHTML = `
+    <div class="plan-header">
+      <span>PLAN</span>
+      <span class="plan-progress-text" data-plan-progress>0 / ${total}</span>
+    </div>
+    ${stepsHtml}
+    <div class="plan-summary">
+      <div class="plan-summary-item"><span class="plan-summary-label">步骤</span><span class="plan-summary-val" data-plan-total>${total}</span></div>
+      <div class="plan-summary-item"><span class="plan-summary-label">完成</span><span class="plan-summary-val" data-plan-done>0</span></div>
+    </div>
+  `;
+
+  chatArea.appendChild(timeline);
+  chatArea.scrollTop = chatArea.scrollHeight;
+  return timeline;
+}
+
+function updatePlanStep(timeline: HTMLElement, stepIndex: number, status: 'active' | 'done' | 'error', errorMsg?: string): void {
+  const step = timeline.querySelector(`[data-step="${stepIndex}"]`);
+  if (!step) return;
+  step.className = `plan-step ${status}`;
+
+  const statusEl = step.querySelector('.plan-step-status')!;
+  if (status === 'active') {
+    statusEl.textContent = 'EXECUTING';
+  } else if (status === 'done') {
+    statusEl.textContent = 'DONE';
+  } else {
+    statusEl.textContent = errorMsg ? `FAILED: ${errorMsg}` : 'FAILED';
+  }
+
+  const progressEl = timeline.querySelector('[data-plan-progress]')!;
+  const doneEl = timeline.querySelector('[data-plan-done]')!;
+  const total = Number.parseInt(timeline.querySelector('[data-plan-total]')!.textContent || '0', 10);
+  const doneCount = timeline.querySelectorAll('.plan-step.done').length;
+  progressEl.textContent = `${doneCount} / ${total}`;
+  doneEl.textContent = String(doneCount);
+
+  chatArea.scrollTop = chatArea.scrollHeight;
 }
 
 function addMessage(role: 'agent' | 'user', content: string, time: string): HTMLElement {
@@ -203,7 +311,7 @@ function addMessage(role: 'agent' | 'user', content: string, time: string): HTML
 
   el.innerHTML = `
     <div class="msg-avatar">${avatarHtml}</div>
-    <div>
+    <div class="msg-body">
       <div class="msg-bubble">${content}</div>
       <div class="msg-time">${time}</div>
     </div>
@@ -221,7 +329,7 @@ function addThinkingMessage(): HTMLElement {
     <div class="msg-avatar">
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="5" r="3" stroke="currentColor" stroke-width="0.8"/><rect x="3" y="8" width="8" height="4" rx="1.5" stroke="currentColor" stroke-width="0.8"/></svg>
     </div>
-    <div>
+    <div class="msg-body">
       <div class="msg-bubble">
         <div class="think-dot"></div>
         <div class="think-dot"></div>
@@ -238,12 +346,6 @@ function removeThinking(thinkingEl: HTMLElement | null): void {
   if (thinkingEl && thinkingEl.parentNode) {
     thinkingEl.remove();
   }
-}
-
-function addToolCardToChat(card: HTMLElement): void {
-  dismissWelcome();
-  chatArea.appendChild(card);
-  chatArea.scrollTop = chatArea.scrollHeight;
 }
 
 function formatTime(): string {
@@ -286,12 +388,12 @@ function updateStatus(id: string, val: string): void {
 
 let handleResponse: (msg: ParentMessage) => void;
 
-function sendCommand(command: string, payload: Record<string, unknown>, toolEl: HTMLElement | null): void {
+function sendCommand(command: string, payload: Record<string, unknown>, statusEl: HTMLElement | null, stepIndex?: number): void {
   const id = 'req_' + (++reqCounter);
   const request = {
     type: 'request', id, command, payload, timestamp: Date.now(),
   };
-  pendingRequests[id] = { command, payload, sentAt: Date.now(), toolEl };
+  pendingRequests[id] = { command, payload, sentAt: Date.now(), statusEl, stepIndex };
   parent.postMessage(request, origin);
 }
 
@@ -301,10 +403,14 @@ handleResponse = function(msg: ParentMessage): void {
 
   const cmd = msg.command || 'unknown';
   const hasError = !!msg.error;
-  const success = !hasError;
 
-  if (req && req.toolEl) {
-    updateToolCard(req.toolEl, success, hasError ? (msg.error!.message || msg.error!.code) : null);
+  if (req && req.statusEl) {
+    if (req.statusEl.classList.contains('exec-status')) {
+      updateExecStatus(req.statusEl, !hasError, hasError ? (msg.error!.message || msg.error!.code) : null);
+    } else if (req.statusEl.classList.contains('plan-timeline')) {
+      const status: 'done' | 'error' = hasError ? 'error' : 'done';
+      updatePlanStep(req.statusEl, req.stepIndex!, status, hasError ? (msg.error!.message || msg.error!.code) : undefined);
+    }
     if (cmd === 'resolve_selector' && msg.payload && msg.payload.target_ref) {
       lastTargetRef = msg.payload.target_ref as string;
     }
@@ -422,9 +528,11 @@ function waitForResponse(command: string): Promise<ParentMessage> {
     handleResponse = function(msg: ParentMessage): void {
       const req = pendingRequests[msg.id];
       if (req) delete pendingRequests[msg.id];
-      if (req && req.toolEl) {
+      if (req && req.statusEl) {
         const hasError = !!msg.error;
-        updateToolCard(req.toolEl, !hasError, hasError ? (msg.error!.message || msg.error!.code) : null);
+        if (req.statusEl.classList.contains('exec-status')) {
+          updateExecStatus(req.statusEl, !hasError, hasError ? (msg.error!.message || msg.error!.code) : null);
+        }
         if (msg.command === 'resolve_selector' && msg.payload && msg.payload.target_ref) {
           lastTargetRef = msg.payload.target_ref as string;
         }
@@ -493,33 +601,66 @@ async function handleUserMessage(text: string): Promise<void> {
   }
 
   const { command, payload } = parsed;
-  const friendlyName = getFriendlyName(command);
 
   const msg = addMessage('agent', '', formatTime());
   const bubble = msg.querySelector('.msg-bubble')!;
   if (deepseekReply) {
     bubble.textContent = deepseekReply;
   } else {
-    bubble.textContent = `正在${friendlyName}…`;
+    bubble.textContent = `正在${getFriendlyName(command)}…`;
   }
 
-  const toolCard = createToolCard(command, payload);
-  addToolCardToChat(toolCard);
+  if (command === 'execute_plan') {
+    await handlePlanExecution(command, payload, msg);
+  } else {
+    const statusCard = createExecStatus(command, payload);
+    sendCommand(command, payload, statusCard);
 
-  sendCommand(command, payload, toolCard);
-
-  try {
-    const result = await waitForResponse(command);
-    bubble.innerHTML = '';
-
-    const responseText = buildResponseText(command, payload, result);
-    await streamText(msg, responseText, 12);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : '未知错误';
-    bubble.innerHTML = simpleMarkdown(`❌ ${friendlyName}失败: ${escapeHtml(message)}`);
+    try {
+      const result = await waitForResponse(command);
+      bubble.innerHTML = '';
+      const responseText = buildResponseText(command, payload, result);
+      await streamText(msg, responseText, 12);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '未知错误';
+      bubble.innerHTML = simpleMarkdown(`❌ ${getFriendlyName(command)}失败: ${escapeHtml(message)}`);
+    }
   }
 
   isProcessing = false;
+}
+
+async function handlePlanExecution(command: string, payload: Record<string, unknown>, msg: HTMLElement): Promise<void> {
+  const steps = (payload.steps || []) as Array<{ command: string; payload?: Record<string, unknown> }>;
+  const timeline = createPlanTimeline(payload);
+
+  let allDone = 0;
+  let hasError = false;
+
+  for (let i = 0; i < steps.length; i++) {
+    if (hasError && payload.stop_on_error) break;
+
+    const step = steps[i];
+    updatePlanStep(timeline, i, 'active');
+
+    sendCommand(step.command ?? '', step.payload ?? {}, timeline, i);
+
+    try {
+      await waitForResponse(step.command ?? '');
+      allDone++;
+    } catch {
+      hasError = true;
+    }
+  }
+
+  const bubble = msg.querySelector('.msg-bubble')!;
+  bubble.innerHTML = '';
+  if (hasError) {
+    bubble.innerHTML = simpleMarkdown(`⚠ 计划执行中断\n完成: ${allDone}/${steps.length} 个步骤`);
+  } else {
+    bubble.innerHTML = simpleMarkdown(`✅ 计划执行完成\n共 ${steps.length} 个步骤全部成功`);
+  }
+  chatArea.scrollTop = chatArea.scrollHeight;
 }
 
 function loadSettings(): void {
@@ -671,6 +812,6 @@ setTimeout(() => {
     payload: {},
     timestamp: Date.now(),
   };
-  pendingRequests[id] = { command: 'get_active_tab', payload: {}, sentAt: Date.now(), toolEl: null };
+  pendingRequests[id] = { command: 'get_active_tab', payload: {}, sentAt: Date.now(), statusEl: null };
   parent.postMessage(request, origin);
 }, 500);
