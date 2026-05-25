@@ -4,6 +4,9 @@ import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [vue()],
+  server: {
+    open: '/company-app.html',
+  },
   build: {
     outDir: 'dist',
     rollupOptions: {
