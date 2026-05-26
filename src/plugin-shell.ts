@@ -46,6 +46,15 @@ export interface ShellConfig {
   onLog?: LogCallback;
 }
 
+export interface PageContext {
+  url: string;
+  title: string;
+  page_type: string;
+  tools?: Array<{ tool: string; label: string; risk: string }>;
+}
+
+export type PageContextCallback = (ctx: PageContext) => void;
+
 const PARENT_ORIGIN_DEFAULT = 'chrome://ai-automation-side-panel.top-chrome';
 const SELF_ORIGIN = typeof window !== 'undefined' ? window.location.origin : '';
 const isStandalone = typeof window !== 'undefined' && window.parent === window;
@@ -54,6 +63,12 @@ const pending = new Map<string, { resolve: (v: any) => void; reject: (e: any) =>
 let counter = 0;
 let currentManifestVersion = '';
 let handshakeSent = false;
+
+let onPageContext: PageContextCallback | null = null;
+
+export function setPageContextCallback(cb: PageContextCallback) {
+  onPageContext = cb;
+}
 
 export function getCurrentManifestVersion(): string {
   return currentManifestVersion;
@@ -130,6 +145,23 @@ window.addEventListener('message', (event: MessageEvent) => {
     }
     if (msg.command === 'manifest_push' || msg.command === 'manifest_update') {
       currentManifestVersion = msg.payload?.manifest_version || msg.manifest_version || '';
+      if (onPageContext && msg.payload?.page_metadata) {
+        const meta = msg.payload.page_metadata;
+        onPageContext({
+          url: meta.url || '',
+          title: meta.title || '',
+          page_type: meta.page_type || '',
+          tools: msg.payload.tools || [],
+        });
+      }
+    } else if (msg.command === 'page_changed') {
+      if (onPageContext && msg.payload) {
+        onPageContext({
+          url: msg.payload.new_url || '',
+          title: '',
+          page_type: '',
+        });
+      }
     }
     if (shellIframe) {
       shellIframe.contentWindow?.postMessage(msg, shellAppOrigin);
