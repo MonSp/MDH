@@ -44,17 +44,52 @@
           </div>
           <div class="msg-body">
 
-            <div
-              class="agent-think-line"
-              v-for="(item, idx) in conv.thinkItems"
-              :key="idx"
-              :style="{ animationDelay: idx * 0.08 + 's' }"
-            >
-              <span class="think-tag-inline" :class="item.tag">{{ item.tagText }}</span>
-              <span class="think-text-inline">{{ item.content }}</span>
+            <div class="think-section" v-if="conv.thinkItems.length">
+              <div
+                v-if="conv.thinkingCollapsed"
+                class="think-summary-bar"
+                @click="conv.thinkingCollapsed = false"
+              >
+                <span class="think-summary-icon">◈</span>
+                <span class="think-summary-text">{{ conv.thinkItems[conv.thinkItems.length - 1].content.substring(0, 60) }}{{ conv.thinkItems[conv.thinkItems.length - 1].content.length > 60 ? '...' : '' }}</span>
+                <span class="think-summary-count">{{ conv.thinkItems.length }} 步推理</span>
+                <span class="think-summary-expand">展开 ▸</span>
+              </div>
+              <template v-else>
+                <div class="think-header-row">
+                  <span class="think-header-label">推理过程</span>
+                  <button
+                    class="think-collapse-btn"
+                    @click="conv.thinkingCollapsed = true"
+                    v-if="conv.pipelineStatus === 'done' || conv.pipelineStatus === 'error' || conv.pipelineStatus === 'unknown'"
+                  >收起 ▾</button>
+                </div>
+                <div
+                  class="agent-think-line"
+                  v-for="(item, idx) in conv.thinkItems"
+                  :key="idx"
+                  :class="{
+                    'think-active': conv.pipelineStatus === 'running' && idx === conv.thinkItems.length - 1,
+                    'think-historical': conv.pipelineStatus === 'running' && idx < conv.thinkItems.length - 1
+                  }"
+                  :style="{ animationDelay: idx * 0.06 + 's' }"
+                >
+                  <span class="think-tag-inline" :class="item.tag">{{ item.tagText }}</span>
+                  <span class="think-text-inline">{{ item.content }}</span>
+                </div>
+              </template>
             </div>
 
-            <div class="agent-pipeline" v-if="conv.timeline.length">
+            <div class="phase-divider" v-if="conv.timeline.length && !conv.thinkingCollapsed && conv.thinkItems.length">
+              <div class="phase-line"></div>
+              <div class="phase-label">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 1L8 5L2 9" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                执行阶段
+              </div>
+              <div class="phase-line"></div>
+            </div>
+
+            <div class="agent-pipeline" v-if="conv.timeline.length && !conv.thinkingCollapsed">
               <div
                 class="pipeline-step"
                 v-for="(step, i) in conv.timeline"
@@ -74,6 +109,19 @@
                   <span class="pip-detail" v-if="step.detail">{{ step.detail }}</span>
                   <span class="pip-duration" v-if="step.duration">{{ step.duration }}</span>
                 </div>
+              </div>
+            </div>
+
+            <div class="timeline-mini-bar" v-if="conv.timeline.length && conv.thinkingCollapsed && (conv.pipelineStatus === 'done' || conv.pipelineStatus === 'error')">
+              <div class="mini-bar-track">
+                <div
+                  class="mini-bar-fill"
+                  :style="{ width: miniBarWidth(conv) + '%' }"
+                ></div>
+              </div>
+              <div class="mini-bar-info">
+                <span class="mini-bar-steps">{{ conv.timeline.filter(s => s.status === 'done').length }}/{{ conv.timeline.length }} 步骤完成</span>
+                <span class="mini-bar-duration" v-if="totalDuration(conv)">{{ totalDuration(conv) }}</span>
               </div>
             </div>
 
@@ -282,6 +330,7 @@ const conversations = ref([
       { text:'Compiling PDF report...', ok:true },
       { text:'Output: weekly_sales_report.pdf (2.4 MB)', ok:null },
     ],
+    thinkingCollapsed: true,
   },
 ]);
 
@@ -394,7 +443,25 @@ function newConversation(userMessage) {
     result: null,
     terminalOpen: false,
     terminalLines: [],
+    thinkingCollapsed: false,
   };
+}
+
+function miniBarWidth(conv) {
+  const total = conv.timeline.length;
+  if (!total) return 0;
+  const done = conv.timeline.filter(s => s.status === 'done').length;
+  const errors = conv.timeline.filter(s => s.status === 'error').length;
+  return ((done + errors) / total) * 100;
+}
+
+function totalDuration(conv) {
+  const durations = conv.timeline
+    .filter(s => s.duration)
+    .map(s => parseFloat(s.duration));
+  if (!durations.length) return '';
+  const total = durations.reduce((a, b) => a + b, 0);
+  return total.toFixed(1) + 's 总耗时';
 }
 
 async function sendMessage() {
@@ -426,6 +493,7 @@ async function sendMessage() {
   if (!parsed) {
     conv.thinkItems.push({ tag:'reason', tagText:'推理', content:'未匹配到可用工具，建议：导航、搜索、截图、获取标签页、滚动、等待、按键、执行JS等。' });
     conv.pipelineStatus = 'unknown';
+    conv.thinkingCollapsed = true;
     isProcessing.value = false;
     scrollToBottom();
     return;
@@ -468,8 +536,10 @@ async function sendMessage() {
 
     if (hasError) {
       conv.pipelineStatus = 'error';
+      conv.thinkingCollapsed = true;
     } else {
       conv.pipelineStatus = 'done';
+      conv.thinkingCollapsed = true;
       conv.result = {
         summary: '✅ 任务完成！共执行 ' + doneCount + ' 个步骤，全部成功。',
         stats: [
@@ -490,6 +560,7 @@ async function sendMessage() {
       conv.timeline[0].detail = '';
       conv.timeline[0].duration = ((Date.now() - stepStart) / 1000).toFixed(1) + 's';
       conv.pipelineStatus = 'done';
+      conv.thinkingCollapsed = true;
       conv.result = {
         summary: '✅ ' + getFriendlyName(command) + '完成。',
         stats: [
@@ -503,6 +574,7 @@ async function sendMessage() {
       conv.timeline[0].status = 'error';
       conv.timeline[0].detail = '失败';
       conv.pipelineStatus = 'error';
+      conv.thinkingCollapsed = true;
     }
   }
 
