@@ -1,10 +1,11 @@
 import asyncio
 import json
 import uuid
+import os
 import traceback
 from contextvars import ContextVar
 
-from agentscope.agent import Agent
+from agentscope.agent import Agent, ContextConfig
 from agentscope.credential import OpenAICredential
 from agentscope.event import (
     ExternalExecutionResultEvent,
@@ -20,7 +21,8 @@ from agentscope.event import (
 from agentscope.formatter import DeepSeekChatFormatter
 from agentscope.message import Msg, TextBlock, ToolResultBlock, ToolResultState
 from agentscope.model import OpenAIChatModel
-from agentscope.tool import FunctionTool, Toolkit, ToolResponse
+from agentscope.skill import LocalSkillLoader
+from agentscope.tool import FunctionTool, Toolkit
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -49,6 +51,79 @@ SYSTEM_PROMPT = """你是一个浏览器自动化助手。你可以通过调用�
 请根据用户的自然语言指令，合理选择并调用工具。如果用户的指令复杂需要多步执行，请按顺序调用工具。
 
 当任务完成后，请简要总结执行结果。"""
+
+SKILLS_DIR = os.path.join(os.path.dirname(__file__), "skills")
+
+SKILL_MD_TEMPLATE = """---
+name: {name}
+description: {description}
+---
+
+# {name}
+
+## 说明
+{description}
+
+## 执行步骤
+{steps_section}
+
+## 参数
+{params_section}
+"""
+
+
+def _list_skills_from_dir() -> list[dict]:
+    if not os.path.isdir(SKILLS_DIR):
+        return []
+    result = []
+    for entry in os.listdir(SKILLS_DIR):
+        skill_dir = os.path.join(SKILLS_DIR, entry)
+        md_path = os.path.join(skill_dir, "SKILL.md")
+        if os.path.isdir(skill_dir) and os.path.isfile(md_path):
+            try:
+                import frontmatter
+                with open(md_path, encoding="utf-8") as f:
+                    fm = frontmatter.load(f)
+                result.append({
+                    "name": fm.get("name", entry),
+                    "description": fm.get("description", ""),
+                    "dir": entry,
+                })
+            except Exception:
+                pass
+    return result
+
+
+def _save_skill_to_dir(name: str, description: str, steps: list[dict]) -> str:
+    safe_name = "".join(c if c.isalnum() or c in "_-" else "_" for c in name)
+    skill_dir = os.path.join(SKILLS_DIR, safe_name)
+    os.makedirs(skill_dir, exist_ok=True)
+
+    steps_lines = []
+    for i, step in enumerate(steps, 1):
+        cmd = step.get("command", "")
+        payload = step.get("payload", {})
+        payload_str = ", ".join(f"{k}={v}" for k, v in payload.items())
+        steps_lines.append(f"{i}. 调用 `{cmd}` 工具: {payload_str}")
+
+    params = []
+    for step in steps:
+        for k, v in step.get("payload", {}).items():
+            if isinstance(v, str) and len(v) > 1:
+                params.append(f"- {k}: {v}")
+
+    content = SKILL_MD_TEMPLATE.format(
+        name=name,
+        description=description,
+        steps_section="\n".join(steps_lines),
+        params_section="\n".join(params) if params else "无",
+    )
+
+    md_path = os.path.join(skill_dir, "SKILL.md")
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    return safe_name
 
 _current_session: ContextVar["Session | None"] = ContextVar(
     "_current_session", default=None
@@ -80,7 +155,17 @@ class Session:
             return ""
         title = self.page_context.get("title", "")
         url = self.page_context.get("url", "")
-        return f"\n当前页面: {title + ' (' + url + ')' if title else url}"
+        lines = [f"\n当前页面: {title + ' (' + url + ')' if title else url}"]
+        tools = self.page_context.get("tools", [])
+        if tools:
+            tool_names = ", ".join(
+                f"{t.get('tool','')}({t.get('label','')})" for t in tools
+            )
+            lines.append(f"当前页面可用的页面语义工具: {tool_names}")
+        return "".join(lines)
+
+    def update_page_context(self, context: dict[str, str]) -> None:
+        self.page_context = context
 
     def get_or_create_agent(self) -> Agent:
         if self.agent is not None:
@@ -97,12 +182,20 @@ class Session:
             stream=True,
             formatter=formatter,
         )
-        toolkit = Toolkit(tools=_build_browser_tools())
+        toolkit = Toolkit(
+            tools=_build_browser_tools(),
+            skills_or_loaders=[LocalSkillLoader(SKILLS_DIR)],
+        )
         self.agent = Agent(
             name="BrowserAgent",
             system_prompt=SYSTEM_PROMPT + self.build_page_info(),
             model=model,
             toolkit=toolkit,
+            context_config=ContextConfig(
+                trigger_ratio=0.7,
+                reserve_ratio=0.1,
+                tool_result_limit=2000,
+            ),
         )
         return self.agent
 
@@ -114,66 +207,30 @@ def get_session() -> Session:
     return s
 
 
-def _make_tool_func(name: str, description: str):
-    async def tool_func(**kwargs) -> ToolResponse:
-        session = get_session()
-        call_id = f"tc_{session.tool_counter}"
-        session.tool_counter += 1
+def _make_browser_tool(name: str, description: str) -> FunctionTool:
+    async def _noop(**kwargs) -> None:
+        pass
 
-        future: asyncio.Future = asyncio.get_event_loop().create_future()
-        session.pending[call_id] = future
-
-        await session.ws.send_json({
-            "type": "tool_call",
-            "call_id": call_id,
-            "name": name,
-            "arguments": kwargs,
-        })
-
-        try:
-            result = await asyncio.wait_for(future, timeout=30)
-        except asyncio.TimeoutError:
-            session.pending.pop(call_id, None)
-            return ToolResponse(
-                content=[{"type": "text", "text": f"工具 '{name}' 执行超时"}],
-                state="error",
-            )
-
-        if isinstance(result, dict) and result.get("error"):
-            return ToolResponse(
-                content=[{"type": "text", "text": result.get("error", "未知错误")}],
-                state="error",
-            )
-
-        result_text = (
-            json.dumps(result, ensure_ascii=False)
-            if isinstance(result, dict)
-            else str(result)
-        )
-        return ToolResponse(
-            content=[{"type": "text", "text": result_text}],
-            state="success",
-        )
-
-    tool_func.__name__ = name
-    return FunctionTool(func=tool_func, name=name, description=description)
+    tool = FunctionTool(func=_noop, name=name, description=description)
+    tool.is_external_tool = True
+    return tool
 
 
 def _build_browser_tools() -> list:
     return [
-        _make_tool_func("navigate", "导航到指定网页"),
-        _make_tool_func("search", "在页面中搜索内容"),
-        _make_tool_func("click_button", "点击页面上的按钮或元素"),
-        _make_tool_func("fill_field", "填写表单输入字段"),
-        _make_tool_func("scroll", "滚动页面（像素值）"),
-        _make_tool_func("wait", "等待指定毫秒数"),
-        _make_tool_func("get_screenshot", "获取当前页面的截图"),
-        _make_tool_func("get_tabs", "获取所有打开的标签页列表"),
-        _make_tool_func("switch_tab", "切换到指定标签页"),
-        _make_tool_func("create_tab", "新建标签页"),
-        _make_tool_func("close_tab", "关闭指定标签页"),
-        _make_tool_func("press_key", "按下键盘按键"),
-        _make_tool_func("evaluate_js", "在当前页面执行 JavaScript 代码"),
+        _make_browser_tool("navigate", "导航到指定网页"),
+        _make_browser_tool("search", "在页面中搜索内容"),
+        _make_browser_tool("click_button", "点击页面上的按钮或元素"),
+        _make_browser_tool("fill_field", "填写表单输入字段"),
+        _make_browser_tool("scroll", "滚动页面（像素值）"),
+        _make_browser_tool("wait", "等待指定毫秒数"),
+        _make_browser_tool("get_screenshot", "获取当前页面的截图"),
+        _make_browser_tool("get_tabs", "获取所有打开的标签页列表"),
+        _make_browser_tool("switch_tab", "切换到指定标签页"),
+        _make_browser_tool("create_tab", "新建标签页"),
+        _make_browser_tool("close_tab", "关闭指定标签页"),
+        _make_browser_tool("press_key", "按下键盘按键"),
+        _make_browser_tool("evaluate_js", "在当前页面执行 JavaScript 代码"),
     ]
 
 
@@ -364,6 +421,29 @@ async def ws_handler(ws: WebSocket):
 
             elif msg_type == "page_context":
                 session.update_page_context(msg.get("context", {}))
+
+            elif msg_type == "save_skill":
+                name = msg.get("name", "")
+                desc = msg.get("description", "")
+                steps = msg.get("steps", [])
+                if name and steps:
+                    _save_skill_to_dir(name, desc, steps)
+                    session.agent = None
+                    await ws.send_json({"type": "skill_saved", "name": name})
+
+            elif msg_type == "get_skills":
+                skills = _list_skills_from_dir()
+                await ws.send_json({"type": "skill_list", "skills": skills})
+
+            elif msg_type == "delete_skill":
+                skill_dir_name = msg.get("dir", "")
+                if skill_dir_name:
+                    target = os.path.join(SKILLS_DIR, skill_dir_name)
+                    if os.path.isdir(target):
+                        import shutil
+                        shutil.rmtree(target)
+                        session.agent = None
+                await ws.send_json({"type": "skill_deleted", "dir": skill_dir_name})
 
     except WebSocketDisconnect:
         pass

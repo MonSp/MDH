@@ -484,6 +484,7 @@ body::after {
 }
 
 .pip-x { font-size: 0.5rem; }
+.pip-r { font-size: 0.6rem; animation: pip-retrying 0.8s ease-in-out infinite; }
 
 .pip-connector {
   width: 1.5px;
@@ -957,3 +958,93 @@ body::after {
 .skill-param-item { display: flex; gap: 8px; }
 .skill-param-item .param-name { flex: 1; }
 .skill-param-item .param-label { flex: 1; }
+
+/* === Skill Panel Overlay === */
+.skill-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.4); display: none;
+  justify-content: center; align-items: flex-start; padding-top: 60px;
+}
+.skill-overlay.open { display: flex; }
+.skill-panel {
+  width: 380px; max-height: 70vh; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 20px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+}
+.skill-panel h3 { margin: 0 0 16px; font-size: 15px; color: var(--text); }
+
+.skill-editor-field { margin-bottom: 14px; }
+.skill-editor-field label {
+  display: block; font-size: 11px; font-weight: 600; color: var(--text-dim);
+  margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.skill-editor-field input {
+  width: 100%; padding: 8px 10px; font-size: 13px;
+  background: var(--surface-dim); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); box-sizing: border-box;
+}
+.skill-param-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.skill-param-label {
+  font-size: 12px; color: var(--text-dim); min-width: 60px; flex-shrink: 0;
+}
+.skill-param-row input { flex: 1; }
+.skill-step-preview {
+  display: flex; gap: 8px; align-items: center; padding: 4px 0;
+  font-size: 12px; color: var(--text-dim);
+}
+.skill-step-index {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--surface-hover); display: flex; align-items: center;
+  justify-content: center; font-size: 10px; flex-shrink: 0;
+}
+.skill-editor-actions {
+  display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;
+}
+.skill-btn-cancel {
+  padding: 6px 14px; font-size: 12px; background: transparent;
+  border: 1px solid var(--border); border-radius: 6px; color: var(--text-dim); cursor: pointer;
+}
+.skill-btn-save {
+  padding: 6px 14px; font-size: 12px;
+  background: var(--accent); border: none; border-radius: 6px;
+  color: #fff; cursor: pointer; font-weight: 600;
+}
+
+.skill-empty { text-align: center; padding: 20px 0; color: var(--text-dim); }
+.skill-empty p { margin: 4px 0; font-size: 13px; }
+.skill-hint { font-size: 11px; opacity: 0.6; }
+.skill-card {
+  border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px;
+}
+.skill-card-header {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;
+}
+.skill-card-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.skill-card-del {
+  background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px;
+  padding: 0; line-height: 1;
+}
+.skill-card-desc { font-size: 11px; color: var(--text-dim); margin-bottom: 8px; }
+.skill-card-run {
+  width: 100%; padding: 6px 0; font-size: 12px; cursor: pointer;
+  background: var(--accent); border: none; border-radius: 6px;
+  color: #fff; font-weight: 600;
+}
+
+.result-actions { display: flex; justify-content: space-between; align-items: center; }
+.save-skill-btn {
+  padding: 4px 10px; font-size: 11px; cursor: pointer;
+  background: transparent; border: 1px solid var(--accent); border-radius: 5px;
+  color: var(--accent);
+}
+.save-skill-btn:hover { background: var(--accent); color: #fff; }
+
+.skills-btn {
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  color: var(--text-dim); cursor: pointer; padding: 4px;
+  display: flex; align-items: center; justify-content: center;
+}
+.skills-btn:hover { color: var(--accent); border-color: var(--accent); }
