@@ -1,3 +1,4 @@
 [submodule "backend/agentscope"]
 	path = backend/agentscope
 	url = https://github.com/agentscope-ai/agentscope.git
+	ignore = dirty
