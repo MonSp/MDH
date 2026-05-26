@@ -1,0 +1,40 @@
+[data-theme="light"] {
+  --bg-deep: #f7f4ef;
+  --bg-elevated: rgba(255, 252, 248, 0.92);
+  --bg-input: rgba(250, 247, 242, 0.9);
+  --border-card: rgba(0, 0, 0, 0.06);
+  --border-glow: rgba(0, 0, 0, 0.08);
+  --glass-blur: 20px;
+  --blue: #2563eb;
+  --blue-dim: rgba(37, 99, 235, 0.08);
+  --cyan: #0891b2;
+  --cyan-dim: rgba(8, 145, 178, 0.08);
+  --purple: #7c3aed;
+  --purple-dim: rgba(124, 58, 237, 0.08);
+  --amber: #d97706;
+  --amber-dim: rgba(217, 119, 6, 0.08);
+  --green: #059669;
+  --green-dim: rgba(5, 150, 105, 0.08);
+  --red: #dc2626;
+  --red-dim: rgba(220, 38, 38, 0.06);
+  --text-primary: #1c1917;
+  --text-secondary: #78716c;
+  --text-muted: #a8a29e;
+
+  --body-bg-before: radial-gradient(ellipse 60% 50% at 20% 10%, rgba(37, 99, 235, 0.045) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 90%, rgba(124, 58, 237, 0.035) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 50% 50%, rgba(8, 145, 178, 0.025) 0%, transparent 50%);
+  --body-bg-after: linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+  --header-bg: rgba(255, 252, 248, 0.88);
+  --input-bar-bg: rgba(255, 252, 248, 0.88);
+  --icon-btn-border: rgba(0, 0, 0, 0.08);
+  --think-summary-bg: rgba(0, 0, 0, 0.03);
+  --think-summary-border: rgba(0, 0, 0, 0.05);
+  --think-collapse-border: rgba(0, 0, 0, 0.06);
+  --pipeline-divider: rgba(0, 0, 0, 0.05);
+  --kbd-border: rgba(0, 0, 0, 0.08);
+  --kbd-bg: rgba(0, 0, 0, 0.03);
+  --settings-panel-shadow: 0 24px 80px rgba(0, 0, 0, 0.08);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.08);
+}

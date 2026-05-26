@@ -1,0 +1,44 @@
+:root {
+  --bg-deep: #050b14;
+  --bg-elevated: rgba(15, 25, 45, 0.85);
+  --bg-input: rgba(8, 14, 26, 0.8);
+  --border-card: rgba(90, 140, 210, 0.12);
+  --border-glow: rgba(90, 140, 210, 0.22);
+  --glass-blur: 16px;
+  --blue: #4d9fff;
+  --blue-dim: rgba(77, 159, 255, 0.1);
+  --cyan: #3dd6c8;
+  --cyan-dim: rgba(61, 214, 200, 0.1);
+  --purple: #a78bfa;
+  --purple-dim: rgba(167, 139, 250, 0.1);
+  --amber: #f59e0b;
+  --amber-dim: rgba(245, 158, 11, 0.1);
+  --green: #34d399;
+  --green-dim: rgba(52, 211, 153, 0.1);
+  --red: #f87171;
+  --red-dim: rgba(248, 113, 113, 0.1);
+  --text-primary: #e2e8f0;
+  --text-secondary: #8899b4;
+  --text-muted: #4a5575;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  --radius-sm: 6px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --body-bg-before: radial-gradient(ellipse 60% 50% at 20% 10%, rgba(77, 159, 255, 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 90%, rgba(167, 139, 250, 0.03) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 50% 50%, rgba(61, 214, 200, 0.02) 0%, transparent 50%);
+  --body-bg-after: linear-gradient(rgba(90, 140, 210, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(90, 140, 210, 0.02) 1px, transparent 1px);
+  --header-bg: rgba(8, 14, 26, 0.7);
+  --input-bar-bg: rgba(8, 14, 26, 0.7);
+  --icon-btn-border: rgba(255, 255, 255, 0.06);
+  --think-summary-bg: rgba(15, 25, 45, 0.35);
+  --think-summary-border: rgba(255, 255, 255, 0.03);
+  --think-collapse-border: rgba(255, 255, 255, 0.04);
+  --pipeline-divider: rgba(255, 255, 255, 0.03);
+  --kbd-border: rgba(255, 255, 255, 0.06);
+  --kbd-bg: rgba(255, 255, 255, 0.03);
+  --settings-panel-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.04);
+}

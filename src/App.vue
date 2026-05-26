@@ -7,6 +7,10 @@
       </div>
       <div class="header-right">
         <div class="header-status"><span>●</span> ONLINE</div>
+        <button class="theme-toggle-btn" @click="toggleTheme" :title="theme === 'dark' ? '切换到浅色' : '切换到深色'">
+          <svg v-if="theme === 'dark'" width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="3.5" stroke="currentColor" stroke-width="1"/><path d="M7 1 L7 3 M7 11 L7 13 M1 7 L3 7 M11 7 L13 7 M2.5 2.5 L4 4 M10 10 L11.5 11.5 M2.5 11.5 L4 10 M10 4 L11.5 2.5" stroke="currentColor" stroke-width="0.7" stroke-linecap="round"/></svg>
+          <svg v-else width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M8.5 2.5 A4.5 4.5 0 1 0 11.5 5.5 A3 3 0 0 1 8.5 2.5Z" stroke="currentColor" stroke-width="1" fill="none"/></svg>
+        </button>
         <button class="settings-btn" @click="openSettings" title="配置">
           <svg viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="2.5" stroke="currentColor" stroke-width="1"/><path d="M7 1.5 L7.8 3.2 L7 4.5 L6.2 3.2 Z M12.5 7 L11 7.5 L10.2 6.5 L11 5.5 Z M1.5 7 L3 7.5 L3.8 6.5 L3 5.5 Z M7 12.5 L7.8 10.8 L6.2 9.5 L5.5 10.3 Z" stroke="currentColor" stroke-width="0.8" fill="none"/></svg>
         </button>
@@ -294,6 +298,18 @@ const streamRef = ref(null);
 const inputRef = ref(null);
 const settingsOpen = ref(false);
 const settingsCfg = reactive({ baseUrl: DEFAULT_BASE_URL, apiKey: DEFAULT_API_KEY, prompt: DEFAULT_SYSTEM_PROMPT });
+
+const theme = ref('dark');
+
+function applyTheme(t) {
+  theme.value = t;
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('app_theme', t);
+}
+
+function toggleTheme() {
+  applyTheme(theme.value === 'dark' ? 'light' : 'dark');
+}
 
 const conversations = ref([
   {
@@ -591,6 +607,9 @@ function autoResize(e) {
 }
 
 onMounted(() => {
+  const savedTheme = localStorage.getItem('app_theme') || 'dark';
+  applyTheme(savedTheme);
+
   settingsCfg.baseUrl = localStorage.getItem(STORAGE_KEY_BASE_URL) || DEFAULT_BASE_URL;
   settingsCfg.apiKey = localStorage.getItem(STORAGE_KEY_API_KEY) || DEFAULT_API_KEY;
   settingsCfg.prompt = localStorage.getItem(STORAGE_KEY_PROMPT) || DEFAULT_SYSTEM_PROMPT;
@@ -605,5 +624,7 @@ onMounted(() => {
 </script>
 
 <style>
+@import './theme-dark.css';
+@import './theme-light.css';
 @import './App.css';
 </style>
