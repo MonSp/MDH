@@ -1,0 +1,170 @@
+.tool-tree {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.tool-tree-item {
+  display: flex;
+  gap: 0;
+}
+
+.tool-tree-item:last-child {
+  min-height: auto;
+}
+
+.tool-tree-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 18px;
+  flex-shrink: 0;
+}
+
+.tool-tree-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 2px solid var(--text-muted);
+  background: transparent;
+  position: relative;
+  margin-top: 4px;
+  transition: all 0.4s var(--ease-out);
+}
+
+.tool-tree-dot.active {
+  border-color: var(--blue);
+  background: rgba(77, 159, 255, 0.15);
+  color: var(--blue);
+  animation: pip-pulse 1.5s ease-in-out infinite;
+}
+
+.tool-tree-dot.done {
+  border-color: var(--green);
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--green);
+}
+
+.tool-tree-dot.error {
+  border-color: var(--red);
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--red);
+}
+
+.tool-tree-dot.retrying {
+  border-color: var(--amber);
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--amber);
+  animation: pip-retrying 0.8s ease-in-out infinite;
+}
+
+.tool-dot-x {
+  font-size: 0.5rem;
+}
+
+.tool-dot-r {
+  font-size: 0.55rem;
+  animation: pip-retrying 0.8s ease-in-out infinite;
+}
+
+.tool-tree-line {
+  width: 2px;
+  flex: 1;
+  min-height: 12px;
+  background: var(--text-muted);
+  opacity: 0.2;
+  margin-top: 2px;
+}
+
+.tool-tree-content {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-tree-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.tool-tree-name {
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: color 0.3s;
+}
+
+.tool-name-done {
+  color: var(--green);
+}
+
+.tool-name-active {
+  color: var(--blue);
+}
+
+.tool-name-error {
+  color: var(--red);
+}
+
+.tool-name-retrying {
+  color: var(--amber);
+}
+
+.tool-tree-duration {
+  font-family: var(--font-mono);
+  font-size: 0.44rem;
+  color: var(--text-muted);
+}
+
+.tool-tree-result {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding: 4px 0 0;
+}
+
+.tool-result-done {
+  color: var(--text-secondary);
+}
+
+.tool-result-error {
+  color: var(--red);
+}
+
+.tool-result-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 0.48rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.tool-result-pre::-webkit-scrollbar { width: 3px; }
+.tool-result-pre::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
+
+@keyframes pip-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(77, 159, 255, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(77, 159, 255, 0); }
+}
+
+@keyframes pip-retrying {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}

@@ -170,6 +170,11 @@ async def _stream_loop(agent: Agent, first_input):
                 await _send_event_async("done", message=text)
                 return
 
+            else:
+                print(
+                    f"[AgentScope] 未处理的流式事件: {type(event).__name__}"
+                )
+
         if exc_event is None:
             await _send_event_async("done")
             return
@@ -188,7 +193,7 @@ async def _stream_loop(agent: Agent, first_input):
                 "tool_call",
                 call_id=call_id,
                 name=tc.name,
-                arguments=tc_input,
+                args=tc_input,
             )
 
             future: asyncio.Future = asyncio.get_event_loop().create_future()
