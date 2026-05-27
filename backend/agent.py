@@ -275,42 +275,53 @@ async def _stream_loop(agent: Agent, first_input):
         confirm_event: RequireUserConfirmEvent | None = None
 
         async for event in agent.reply_stream(inputs):
+            logger.debug("流式事件: type=%s", type(event).__name__)
+
             if isinstance(event, ThinkingBlockDeltaEvent):
+                logger.debug("  ThinkingBlockDelta: block_id=%s delta=%r", event.block_id, event.delta)
                 await _send_event_async(
                     "thinking", block_id=event.block_id, delta=event.delta
                 )
 
             elif isinstance(event, ThinkingBlockEndEvent):
+                logger.debug("  ThinkingBlockEnd")
                 await _send_event_async("thinking_end")
 
             elif isinstance(event, TextBlockDeltaEvent):
+                logger.debug("  TextBlockDelta: block_id=%s delta=%r", event.block_id, event.delta)
                 await _send_event_async(
                     "reply_text", block_id=event.block_id, delta=event.delta
                 )
 
             elif isinstance(event, TextBlockEndEvent):
+                logger.debug("  TextBlockEnd")
                 await _send_event_async("reply_text_end")
 
             elif isinstance(event, ToolCallEndEvent):
-                pass
+                logger.debug("  ToolCallEnd")
 
             elif isinstance(event, RequireExternalExecutionEvent):
+                logger.debug("  RequireExternalExecution")
                 exc_event = event
                 break
 
             elif isinstance(event, RequireUserConfirmEvent):
+                logger.debug("  RequireUserConfirm")
                 confirm_event = event
                 break
 
             elif isinstance(event, ReplyEndEvent):
+                logger.debug("  ReplyEnd")
                 await _send_event_async("done")
                 return
 
             elif isinstance(event, ExceedMaxItersEvent):
+                logger.debug("  ExceedMaxIters")
                 await _send_event_async("error", message="Agent 执行超过最大迭代次数")
                 return
 
             elif isinstance(event, Msg):
+                logger.debug("  Msg: %r", _extract_text(event)[:200])
                 text = _extract_text(event)
                 await _send_event_async("done", message=text)
                 return
@@ -331,12 +342,11 @@ async def _stream_loop(agent: Agent, first_input):
                 DataBlockDeltaEvent,
                 DataBlockEndEvent,
             )):
+                logger.debug("  (已忽略事件)")
                 pass
 
             else:
-                print(
-                    f"[AgentScope] 未处理的流式事件: {type(event).__name__}"
-                )
+                logger.debug("  未处理的流式事件: %s", type(event).__name__)
 
         if confirm_event is not None:
             call_ids = []

@@ -281,7 +281,7 @@ function handleToolCall(msg) {
   const stepName = getFriendlyName(name) || name
   const stepStart = Date.now()
 
-  const step = {
+  const step = reactive({
     callId: call_id,
     name: stepName,
     args,
@@ -290,7 +290,7 @@ function handleToolCall(msg) {
     duration: '',
     resultText: '',
     startTime: stepStart,
-  }
+  })
   activeConv.toolSteps.push(step)
   scheduleScroll()
 
@@ -403,7 +403,7 @@ async function sendMessage() {
   chatText.value = ''
   isProcessing.value = true
 
-  activeConv = {
+  activeConv = reactive({
     id: 'conv_' + Date.now(),
     userMessage: text,
     status: 'running',
@@ -412,7 +412,7 @@ async function sendMessage() {
     toolSteps: [],
     errorMessage: '',
     thinkCollapsed: false,
-  }
+  })
   conversations.value.push(activeConv)
   forceScrollToBottom()
 
