@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import traceback
 
 from agentscope.agent import Agent, ContextConfig
@@ -67,6 +68,8 @@ from agentscope.tool import FunctionTool, Toolkit
 
 from config import SYSTEM_PROMPT, SKILLS_DIR
 from session import Session, get_session, _current_session
+
+logger = logging.getLogger("agent")
 
 PROVIDER_REGISTRY = {
     "deepseek": {
@@ -189,6 +192,7 @@ async def run_agent_stream(session: Session, content: str):
     token = _current_session.set(session)
     try:
         agent = _get_or_create_agent(session)
+        logger.info("Agent 开始处理: session=%s provider=%s model=%s", session.session_id, session.provider, session.model_name or "(默认)")
         user_msg = Msg(
             name="user",
             role="user",
@@ -196,9 +200,11 @@ async def run_agent_stream(session: Session, content: str):
         )
 
         await _stream_loop(agent, user_msg)
+        logger.info("Agent 处理完成: session=%s", session.session_id)
 
     except Exception:
         traceback.print_exc()
+        logger.exception("Agent 执行异常: session=%s", session.session_id)
         await _send_event_async("error", message="Agent 内部错误，请检查后端日志")
     finally:
         _current_session.reset(token)
@@ -257,6 +263,7 @@ def _get_or_create_agent(session: Session) -> Agent:
             tool_result_limit=2000,
         ),
     )
+    logger.info("Agent 已创建: provider=%s model=%s", provider, model_name)
     return session.agent
 
 
@@ -341,6 +348,7 @@ async def _stream_loop(agent: Agent, first_input):
                     tc_input = json.loads(tc.input) if tc.input else {}
                 except (json.JSONDecodeError, TypeError):
                     tc_input = {}
+                logger.info("需要用户确认: tool=%s args=%s", tc.name, json.dumps(tc_input, ensure_ascii=False)[:100])
                 await _send_event_async(
                     "confirm_request",
                     call_id=call_id,
@@ -386,6 +394,7 @@ async def _stream_loop(agent: Agent, first_input):
             except (json.JSONDecodeError, TypeError):
                 tc_input = {}
 
+            logger.info("工具调用: tool=%s args=%s", tc.name, json.dumps(tc_input, ensure_ascii=False)[:100])
             await _send_event_async(
                 "tool_call",
                 call_id=call_id,
@@ -401,12 +410,16 @@ async def _stream_loop(agent: Agent, first_input):
             except asyncio.TimeoutError:
                 get_session().pending.pop(call_id, None)
                 result = {"error": f"工具 '{tc.name}' 执行超时"}
+                logger.warning("工具执行超时: tool=%s call_id=%s", tc.name, call_id)
 
             result_text = (
                 json.dumps(result, ensure_ascii=False)
                 if isinstance(result, dict)
                 else str(result)
             )
+
+            has_error = isinstance(result, dict) and result.get("error")
+            logger.info("工具结果: tool=%s error=%s result=%s", tc.name, has_error, result_text[:100])
 
             tr = ToolResultBlock(
                 id=tc.id,
