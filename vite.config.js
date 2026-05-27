@@ -5,7 +5,11 @@ import { resolve } from 'path';
 export default defineConfig({
   plugins: [vue()],
   server: {
+    host: '0.0.0.0',
     open: '/company-app.html',
+  },
+  preview: {
+    host: '0.0.0.0',
   },
   build: {
     outDir: 'dist',

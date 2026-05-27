@@ -58,7 +58,7 @@ import SettingsPanel from './components/SettingsPanel.vue'
 import SkillPanel from './components/SkillPanel.vue'
 import ChatInput from './components/ChatInput.vue'
 
-const AGENT_URL_DEFAULT = 'ws://localhost:8765/ws'
+const AGENT_URL_DEFAULT = `ws://${window.location.hostname}:8765/ws`
 const STORAGE_AGENT_URL = 'agentscope_url'
 const STORAGE_API_KEY = 'deepseek_api_key'
 const STORAGE_BASE_URL = 'deepseek_base_url'
