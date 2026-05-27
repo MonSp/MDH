@@ -43,11 +43,20 @@ async def ws_handler(ws: WebSocket):
             msg_type = msg.get("type")
 
             if msg_type == "user_message":
-                if msg.get("api_key"):
+                config_changed = False
+                if msg.get("provider") and msg["provider"] != session.provider:
+                    session.provider = msg["provider"]
+                    config_changed = True
+                if msg.get("model_name") and msg["model_name"] != session.model_name:
+                    session.model_name = msg["model_name"]
+                    config_changed = True
+                if msg.get("api_key") and msg["api_key"] != session.api_key:
                     session.api_key = msg["api_key"]
-                if msg.get("base_url"):
+                    config_changed = True
+                if msg.get("base_url") and msg["base_url"] != session.base_url:
                     session.base_url = msg["base_url"]
-                if msg.get("reset"):
+                    config_changed = True
+                if msg.get("reset") or config_changed:
                     session.agent = None
 
                 if agent_task and not agent_task.done():

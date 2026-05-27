@@ -49,7 +49,7 @@
   margin-bottom: 5px;
   text-transform: uppercase;
 }
-.settings-input, .settings-textarea {
+.settings-input, .settings-textarea, select.settings-input {
   width: 100%;
   padding: 8px 12px;
   border-radius: 8px;
@@ -61,12 +61,14 @@
   outline: none;
   transition: border-color 0.2s;
 }
-.settings-input:focus, .settings-textarea:focus {
+select.settings-input { cursor: pointer; appearance: auto; }
+.settings-input:focus, .settings-textarea:focus, select.settings-input:focus {
   border-color: rgba(77, 159, 255, 0.35);
   box-shadow: 0 0 10px rgba(77, 159, 255, 0.05);
 }
 .settings-textarea { min-height: 100px; resize: vertical; line-height: 1.5; }
 .settings-hint { font-family: var(--font-mono); font-size: 0.47rem; color: var(--text-muted); margin-top: 4px; }
+.required { color: var(--red); font-size: 0.6rem; }
 
 .settings-actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
 .settings-btn-primary {

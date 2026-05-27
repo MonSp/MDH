@@ -62,6 +62,8 @@ const AGENT_URL_DEFAULT = `ws://${window.location.hostname}:8765/ws`
 const STORAGE_AGENT_URL = 'agentscope_url'
 const STORAGE_API_KEY = 'deepseek_api_key'
 const STORAGE_BASE_URL = 'deepseek_base_url'
+const STORAGE_PROVIDER = 'llm_provider'
+const STORAGE_MODEL_NAME = 'llm_model_name'
 const STORAGE_CONVERSATIONS = 'agent_conversations'
 
 const origin = window.location.origin
@@ -74,6 +76,8 @@ const editingSkill = ref(null)
 
 const settingsCfg = reactive({
   agentUrl: AGENT_URL_DEFAULT,
+  provider: 'deepseek',
+  modelName: '',
   apiKey: '',
   baseUrl: '',
 })
@@ -106,6 +110,8 @@ function toggleTheme() {
 function toggleSettings() {
   if (!settingsOpen.value) {
     settingsCfg.agentUrl = localStorage.getItem(STORAGE_AGENT_URL) || AGENT_URL_DEFAULT
+    settingsCfg.provider = localStorage.getItem(STORAGE_PROVIDER) || 'deepseek'
+    settingsCfg.modelName = localStorage.getItem(STORAGE_MODEL_NAME) || ''
     settingsCfg.apiKey = localStorage.getItem(STORAGE_API_KEY) || ''
     settingsCfg.baseUrl = localStorage.getItem(STORAGE_BASE_URL) || ''
   }
@@ -148,6 +154,8 @@ function newSession() {
 
 function saveSettings() {
   localStorage.setItem(STORAGE_AGENT_URL, settingsCfg.agentUrl.trim() || AGENT_URL_DEFAULT)
+  localStorage.setItem(STORAGE_PROVIDER, settingsCfg.provider)
+  localStorage.setItem(STORAGE_MODEL_NAME, settingsCfg.modelName.trim())
   localStorage.setItem(STORAGE_API_KEY, settingsCfg.apiKey.trim())
   localStorage.setItem(STORAGE_BASE_URL, settingsCfg.baseUrl.trim())
   settingsOpen.value = false
@@ -156,11 +164,15 @@ function saveSettings() {
 
 function resetSettings() {
   settingsCfg.agentUrl = AGENT_URL_DEFAULT
+  settingsCfg.provider = 'deepseek'
+  settingsCfg.modelName = ''
   settingsCfg.apiKey = ''
   settingsCfg.baseUrl = ''
 }
 
 function getAgentUrl() { return localStorage.getItem(STORAGE_AGENT_URL) || AGENT_URL_DEFAULT }
+function getProvider() { return localStorage.getItem(STORAGE_PROVIDER) || 'deepseek' }
+function getModelName() { return localStorage.getItem(STORAGE_MODEL_NAME) || '' }
 function getApiKey() { return localStorage.getItem(STORAGE_API_KEY) || '' }
 function getBaseUrl() { return localStorage.getItem(STORAGE_BASE_URL) || '' }
 
@@ -391,6 +403,8 @@ async function sendMessage() {
   ws.send(JSON.stringify({
     type: 'user_message',
     content: text,
+    provider: getProvider() || undefined,
+    model_name: getModelName() || undefined,
     api_key: getApiKey() || undefined,
     base_url: getBaseUrl() || undefined,
   }))
@@ -449,6 +463,8 @@ onMounted(() => {
   }
 
   settingsCfg.agentUrl = localStorage.getItem(STORAGE_AGENT_URL) || AGENT_URL_DEFAULT
+  settingsCfg.provider = localStorage.getItem(STORAGE_PROVIDER) || 'deepseek'
+  settingsCfg.modelName = localStorage.getItem(STORAGE_MODEL_NAME) || ''
   settingsCfg.apiKey = localStorage.getItem(STORAGE_API_KEY) || ''
   settingsCfg.baseUrl = localStorage.getItem(STORAGE_BASE_URL) || ''
 

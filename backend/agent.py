@@ -3,7 +3,16 @@ import json
 import traceback
 
 from agentscope.agent import Agent, ContextConfig
-from agentscope.credential import OpenAICredential
+from agentscope.credential import (
+    OpenAICredential,
+    AnthropicCredential,
+    DashScopeCredential,
+    DeepSeekCredential,
+    GeminiCredential,
+    MoonshotCredential,
+    OllamaCredential,
+    XAICredential,
+)
 from agentscope.event import (
     ExternalExecutionResultEvent,
     RequireExternalExecutionEvent,
@@ -15,14 +24,98 @@ from agentscope.event import (
     ReplyEndEvent,
     ExceedMaxItersEvent,
 )
-from agentscope.formatter import DeepSeekChatFormatter
+from agentscope.formatter import (
+    OpenAIChatFormatter,
+    AnthropicChatFormatter,
+    DashScopeChatFormatter,
+    DeepSeekChatFormatter,
+    GeminiChatFormatter,
+    MoonshotChatFormatter,
+    OllamaChatFormatter,
+    XAIChatFormatter,
+)
 from agentscope.message import Msg, TextBlock, ToolResultBlock, ToolResultState
-from agentscope.model import OpenAIChatModel
+from agentscope.model import (
+    OpenAIChatModel,
+    AnthropicChatModel,
+    DashScopeChatModel,
+    DeepSeekChatModel,
+    GeminiChatModel,
+    MoonshotChatModel,
+    OllamaChatModel,
+    XAIChatModel,
+)
 from agentscope.skill import LocalSkillLoader
 from agentscope.tool import FunctionTool, Toolkit
 
-from config import DEEPSEEK_MODEL, SYSTEM_PROMPT, SKILLS_DIR
+from config import SYSTEM_PROMPT, SKILLS_DIR
 from session import Session, get_session, _current_session
+
+PROVIDER_REGISTRY = {
+    "deepseek": {
+        "credential_cls": DeepSeekCredential,
+        "credential_kwargs": lambda s: {"api_key": s.api_key, "base_url": s.base_url},
+        "model_cls": DeepSeekChatModel,
+        "default_model": "deepseek-chat",
+        "formatter_cls": DeepSeekChatFormatter,
+    },
+    "openai": {
+        "credential_cls": OpenAICredential,
+        "credential_kwargs": lambda s: {"api_key": s.api_key, "base_url": s.base_url or None},
+        "model_cls": OpenAIChatModel,
+        "default_model": "gpt-4.1",
+        "formatter_cls": OpenAIChatFormatter,
+    },
+    "anthropic": {
+        "credential_cls": AnthropicCredential,
+        "credential_kwargs": lambda s: {"api_key": s.api_key, "base_url": s.base_url or None},
+        "model_cls": AnthropicChatModel,
+        "default_model": "claude-sonnet-4-6",
+        "formatter_cls": AnthropicChatFormatter,
+    },
+    "dashscope": {
+        "credential_cls": DashScopeCredential,
+        "credential_kwargs": lambda s: {"api_key": s.api_key},
+        "model_cls": DashScopeChatModel,
+        "default_model": "qwen-plus",
+        "formatter_cls": DashScopeChatFormatter,
+    },
+    "gemini": {
+        "credential_cls": GeminiCredential,
+        "credential_kwargs": lambda s: {"api_key": s.api_key},
+        "model_cls": GeminiChatModel,
+        "default_model": "gemini-2.5-flash",
+        "formatter_cls": GeminiChatFormatter,
+    },
+    "moonshot": {
+        "credential_cls": MoonshotCredential,
+        "credential_kwargs": lambda s: {"api_key": s.api_key},
+        "model_cls": MoonshotChatModel,
+        "default_model": "moonshot-v1-8k",
+        "formatter_cls": MoonshotChatFormatter,
+    },
+    "ollama": {
+        "credential_cls": OllamaCredential,
+        "credential_kwargs": lambda s: {"host": s.base_url or None},
+        "model_cls": OllamaChatModel,
+        "default_model": "qwen3-14b",
+        "formatter_cls": OllamaChatFormatter,
+    },
+    "xai": {
+        "credential_cls": XAICredential,
+        "credential_kwargs": lambda s: {"api_key": s.api_key},
+        "model_cls": XAIChatModel,
+        "default_model": "grok-4.3",
+        "formatter_cls": XAIChatFormatter,
+    },
+    "custom": {
+        "credential_cls": OpenAICredential,
+        "credential_kwargs": lambda s: {"api_key": s.api_key, "base_url": s.base_url},
+        "model_cls": OpenAIChatModel,
+        "default_model": "",
+        "formatter_cls": OpenAIChatFormatter,
+    },
+}
 
 
 async def _send_event_async(event_type: str, **data):
@@ -98,14 +191,25 @@ def _get_or_create_agent(session: Session) -> Agent:
     if session.agent is not None:
         return session.agent
 
-    credential = OpenAICredential(
-        api_key=session.api_key,
-        base_url=session.base_url,
-    )
-    formatter = DeepSeekChatFormatter()
-    model = OpenAIChatModel(
+    provider = session.provider or "deepseek"
+    reg = PROVIDER_REGISTRY.get(provider)
+    if reg is None:
+        raise ValueError(f"不支持的模型提供商: {provider}")
+
+    if provider == "custom":
+        if not session.model_name:
+            raise ValueError("自定义提供商必须填写模型名称")
+        if not session.base_url:
+            raise ValueError("自定义提供商必须填写 BASE URL")
+        if not session.api_key:
+            raise ValueError("自定义提供商必须填写 API KEY")
+
+    credential = reg["credential_cls"](**reg["credential_kwargs"](session))
+    formatter = reg["formatter_cls"]()
+    model_name = session.model_name or reg["default_model"]
+    model = reg["model_cls"](
         credential=credential,
-        model=DEEPSEEK_MODEL,
+        model=model_name,
         stream=True,
         formatter=formatter,
     )

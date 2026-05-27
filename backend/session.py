@@ -18,6 +18,8 @@ class Session:
         self.pending: dict[str, asyncio.Future] = {}
         self.tool_counter = 0
         self.page_context: dict[str, str] = {}
+        self.provider: str = "deepseek"
+        self.model_name: str = ""
         self.api_key: str = DEEPSEEK_API_KEY
         self.base_url: str = DEEPSEEK_BASE_URL
         self.agent = None
