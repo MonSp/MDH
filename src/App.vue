@@ -219,6 +219,9 @@ function connectWs() {
       case 'tool_call':
         handleToolCall(msg)
         break
+      case 'confirm_request':
+        handleConfirmRequest(msg)
+        break
       case 'reply_text':
         handleReplyText(msg)
         break
@@ -316,6 +319,27 @@ function handleToolCall(msg) {
     ws.send(JSON.stringify({ type: 'tool_result', call_id, result: { error: err.message || '执行失败' } }))
     scheduleScroll()
   })
+}
+
+function handleConfirmRequest(msg) {
+  if (!activeConv) return
+  const { call_id, name, args } = msg
+  const stepName = getFriendlyName(name) || name
+
+  const step = {
+    callId: call_id,
+    name: stepName,
+    args,
+    status: 'done',
+    detail: '已确认',
+    duration: '',
+    resultText: '',
+    startTime: Date.now(),
+  }
+  activeConv.toolSteps.push(step)
+  scheduleScroll()
+
+  ws.send(JSON.stringify({ type: 'confirm_result', call_id, confirmed: true }))
 }
 
 function formatStepResult(result) {

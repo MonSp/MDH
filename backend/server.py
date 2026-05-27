@@ -59,6 +59,9 @@ async def ws_handler(ws: WebSocket):
                 if msg.get("reset") or config_changed:
                     session.agent = None
 
+                if not msg.get("content"):
+                    continue
+
                 if agent_task and not agent_task.done():
                     agent_task.cancel()
                     try:
@@ -76,6 +79,16 @@ async def ws_handler(ws: WebSocket):
                     future = session.pending.pop(call_id)
                     if not future.done():
                         future.set_result(msg.get("result", {}))
+
+            elif msg_type == "confirm_result":
+                call_id = msg.get("call_id")
+                if call_id and call_id in session.pending:
+                    future = session.pending.pop(call_id)
+                    if not future.done():
+                        confirmed = msg.get("confirmed", True)
+                        future.set_result(
+                            {} if confirmed else {"rejected": True}
+                        )
 
             elif msg_type == "page_context":
                 session.update_page_context(msg.get("context", {}))

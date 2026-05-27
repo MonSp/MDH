@@ -14,14 +14,31 @@ from agentscope.credential import (
     XAICredential,
 )
 from agentscope.event import (
+    ConfirmResult,
+    DataBlockDeltaEvent,
+    DataBlockEndEvent,
+    DataBlockStartEvent,
     ExternalExecutionResultEvent,
+    ModelCallEndEvent,
+    ModelCallStartEvent,
+    ReplyEndEvent,
+    ReplyStartEvent,
     RequireExternalExecutionEvent,
+    RequireUserConfirmEvent,
     TextBlockDeltaEvent,
     TextBlockEndEvent,
+    TextBlockStartEvent,
     ThinkingBlockDeltaEvent,
     ThinkingBlockEndEvent,
+    ThinkingBlockStartEvent,
+    ToolCallDeltaEvent,
     ToolCallEndEvent,
-    ReplyEndEvent,
+    ToolCallStartEvent,
+    ToolResultDataDeltaEvent,
+    ToolResultEndEvent,
+    ToolResultStartEvent,
+    ToolResultTextDeltaEvent,
+    UserConfirmResultEvent,
     ExceedMaxItersEvent,
 )
 from agentscope.formatter import (
@@ -203,6 +220,18 @@ def _get_or_create_agent(session: Session) -> Agent:
             raise ValueError("自定义提供商必须填写 BASE URL")
         if not session.api_key:
             raise ValueError("自定义提供商必须填写 API KEY")
+    elif provider != "ollama" and not session.api_key:
+        provider_labels = {
+            "deepseek": "DeepSeek",
+            "openai": "OpenAI",
+            "anthropic": "Anthropic",
+            "dashscope": "DashScope",
+            "gemini": "Gemini",
+            "moonshot": "Moonshot",
+            "xai": "xAI",
+        }
+        label = provider_labels.get(provider, provider)
+        raise ValueError(f"请在设置中填写 {label} 的 API KEY")
 
     credential = reg["credential_cls"](**reg["credential_kwargs"](session))
     formatter = reg["formatter_cls"]()
@@ -236,6 +265,7 @@ async def _stream_loop(agent: Agent, first_input):
 
     while True:
         exc_event: RequireExternalExecutionEvent | None = None
+        confirm_event: RequireUserConfirmEvent | None = None
 
         async for event in agent.reply_stream(inputs):
             if isinstance(event, ThinkingBlockDeltaEvent):
@@ -261,6 +291,10 @@ async def _stream_loop(agent: Agent, first_input):
                 exc_event = event
                 break
 
+            elif isinstance(event, RequireUserConfirmEvent):
+                confirm_event = event
+                break
+
             elif isinstance(event, ReplyEndEvent):
                 await _send_event_async("done")
                 return
@@ -274,10 +308,69 @@ async def _stream_loop(agent: Agent, first_input):
                 await _send_event_async("done", message=text)
                 return
 
+            elif isinstance(event, (
+                ReplyStartEvent,
+                ModelCallStartEvent,
+                ModelCallEndEvent,
+                TextBlockStartEvent,
+                ThinkingBlockStartEvent,
+                ToolCallStartEvent,
+                ToolCallDeltaEvent,
+                ToolResultStartEvent,
+                ToolResultTextDeltaEvent,
+                ToolResultDataDeltaEvent,
+                ToolResultEndEvent,
+                DataBlockStartEvent,
+                DataBlockDeltaEvent,
+                DataBlockEndEvent,
+            )):
+                pass
+
             else:
                 print(
                     f"[AgentScope] 未处理的流式事件: {type(event).__name__}"
                 )
+
+        if confirm_event is not None:
+            call_ids = []
+            for tc in confirm_event.tool_calls:
+                call_id = f"tc_{get_session().tool_counter}"
+                get_session().tool_counter += 1
+                call_ids.append(call_id)
+                try:
+                    tc_input = json.loads(tc.input) if tc.input else {}
+                except (json.JSONDecodeError, TypeError):
+                    tc_input = {}
+                await _send_event_async(
+                    "confirm_request",
+                    call_id=call_id,
+                    name=tc.name,
+                    args=tc_input,
+                )
+
+            confirm_results = []
+            for i, tc in enumerate(confirm_event.tool_calls):
+                call_id = call_ids[i]
+                future: asyncio.Future = asyncio.get_event_loop().create_future()
+                get_session().pending[call_id] = future
+                try:
+                    result = await asyncio.wait_for(future, timeout=120)
+                    confirmed = not (
+                        isinstance(result, dict) and result.get("rejected")
+                    )
+                except asyncio.TimeoutError:
+                    get_session().pending.pop(call_id, None)
+                    confirmed = True
+
+                confirm_results.append(
+                    ConfirmResult(confirmed=confirmed, tool_call=tc)
+                )
+
+            inputs = UserConfirmResultEvent(
+                reply_id=confirm_event.reply_id,
+                confirm_results=confirm_results,
+            )
+            continue
 
         if exc_event is None:
             await _send_event_async("done")
