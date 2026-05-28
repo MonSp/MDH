@@ -30,12 +30,16 @@ SKILLS_DIR = os.path.join(os.path.dirname(__file__), "skills")
 SKILL_MD_TEMPLATE = """---
 name: {name}
 description: {description}
+type: {skill_type}
 ---
 
 # {name}
 
 ## 说明
 {description}
+
+## 类型
+{type_label}
 
 ## 执行步骤
 {steps_section}

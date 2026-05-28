@@ -26,6 +26,9 @@
       @delete-skill="removeSkillByDir"
       @run-skill="runSkill"
       @cancel-edit="editingSkill = null"
+      @regenerate-summary="generateSummary(editingSkill?.steps, editingSkill?.skillType)"
+      @import-skill="importSkill"
+      @update:editing-skill="editingSkill = $event"
     />
 
     <ChatInput
@@ -242,6 +245,9 @@ function connectWs() {
           ws.send(JSON.stringify({ type: 'get_skills' }))
         }
         break
+      case 'skill_summary':
+        handleSkillSummary(msg)
+        break
     }
   }
 }
@@ -445,8 +451,11 @@ function openSkillEditor(conv) {
     description: '',
     params: params.map(p => ({ ...p })),
     steps,
+    skillType: 'strict',
+    generating: false,
   }
   skillPanelOpen.value = true
+  generateSummary(steps, 'strict')
 }
 
 function confirmSaveSkill() {
@@ -458,8 +467,44 @@ function confirmSaveSkill() {
     name: es.name.trim(),
     description: es.description.trim(),
     steps: es.steps,
+    skill_type: es.skillType || 'strict',
   }))
   editingSkill.value = null
+}
+
+function generateSummary(steps, skillType) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return
+  if (editingSkill.value) editingSkill.value.generating = true
+  ws.send(JSON.stringify({ type: 'generate_skill_summary', steps, skill_type: skillType || 'strict' }))
+}
+
+function handleSkillSummary(msg) {
+  if (!editingSkill.value) return
+  editingSkill.value.generating = false
+  if (msg.error) return
+  if (msg.name && !editingSkill.value.name) editingSkill.value.name = msg.name
+  if (msg.description && !editingSkill.value.description) editingSkill.value.description = msg.description
+}
+
+function importSkill(file) {
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result)
+      if (!data.steps || !Array.isArray(data.steps)) return
+      const params = extractSkillParams(data.steps)
+      editingSkill.value = {
+        name: data.name || '',
+        description: data.description || '',
+        params: params.map(p => ({ ...p })),
+        steps: data.steps,
+        skillType: data.skillType || 'strict',
+        generating: false,
+      }
+      skillPanelOpen.value = true
+    } catch {}
+  }
+  reader.readAsText(file)
 }
 
 function runSkill(skill) {

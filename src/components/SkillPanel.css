@@ -5,7 +5,7 @@
 }
 .skill-overlay.open { display: flex; }
 .skill-panel {
-  width: 380px; max-height: 70vh; overflow-y: auto;
+  width: 400px; max-height: 70vh; overflow-y: auto;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 12px; padding: 20px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.3);
@@ -14,7 +14,8 @@
 
 .skill-editor-field { margin-bottom: 14px; }
 .skill-editor-field label {
-  display: block; font-size: 11px; font-weight: 600; color: var(--text-dim);
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 600; color: var(--text-dim);
   margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;
 }
 .skill-editor-field input {
@@ -22,6 +23,55 @@
   background: var(--surface-dim); border: 1px solid var(--border);
   border-radius: 6px; color: var(--text); box-sizing: border-box;
 }
+
+.skill-type-selector {
+  display: flex; gap: 8px;
+}
+.skill-type-btn {
+  flex: 1; padding: 10px 12px; border-radius: 8px;
+  background: var(--surface-dim); border: 1.5px solid var(--border);
+  cursor: pointer; text-align: left; transition: all 0.2s;
+}
+.skill-type-btn:hover { border-color: var(--text-dim); }
+.skill-type-btn.active {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(77, 159, 255, 0.06), rgba(77, 159, 255, 0.02));
+}
+.skill-type-label {
+  display: block; font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 3px;
+}
+.skill-type-btn.active .skill-type-label { color: var(--accent); }
+.skill-type-desc {
+  display: block; font-size: 10px; color: var(--text-dim); line-height: 1.4;
+}
+
+.skill-gen-badge {
+  font-size: 10px; font-weight: 400; text-transform: none; letter-spacing: 0;
+  color: var(--accent); opacity: 0.8;
+  animation: skill-gen-pulse 1.5s ease-in-out infinite;
+}
+@keyframes skill-gen-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.skill-input-row {
+  display: flex; gap: 6px; align-items: center;
+}
+.skill-input-row input { flex: 1; }
+
+.skill-btn-icon {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-dim); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text-dim); cursor: pointer;
+  transition: all 0.2s;
+}
+.skill-btn-icon:hover:not(:disabled) {
+  color: var(--accent); border-color: var(--accent);
+}
+.skill-btn-icon:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .skill-param-row {
   display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
 }
@@ -29,15 +79,56 @@
   font-size: 12px; color: var(--text-dim); min-width: 60px; flex-shrink: 0;
 }
 .skill-param-row input { flex: 1; }
-.skill-step-preview {
-  display: flex; gap: 8px; align-items: center; padding: 4px 0;
-  font-size: 12px; color: var(--text-dim);
+
+.skill-step-list {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.skill-step-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 8px; border-radius: 6px;
+  background: var(--surface-dim); border: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+.skill-step-item:hover { border-color: var(--border); }
+
+.skill-step-main {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
 }
 .skill-step-index {
   width: 18px; height: 18px; border-radius: 50%;
   background: var(--surface-hover); display: flex; align-items: center;
   justify-content: center; font-size: 10px; flex-shrink: 0;
+  color: var(--text-dim);
 }
+.skill-step-cmd {
+  font-size: 12px; font-weight: 600; color: var(--text); flex-shrink: 0;
+}
+.skill-step-args {
+  font-size: 11px; color: var(--text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.skill-step-actions {
+  display: flex; gap: 2px; flex-shrink: 0; opacity: 0;
+  transition: opacity 0.2s;
+}
+.skill-step-item:hover .skill-step-actions { opacity: 1; }
+
+.skill-step-btn {
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--border);
+  border-radius: 4px; color: var(--text-dim); cursor: pointer;
+  font-size: 11px; transition: all 0.15s;
+}
+.skill-step-btn:hover:not(:disabled) {
+  color: var(--text); border-color: var(--text-dim);
+}
+.skill-step-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.skill-step-btn-del:hover:not(:disabled) {
+  color: var(--red); border-color: var(--red);
+}
+
 .skill-editor-actions {
   display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;
 }
@@ -50,6 +141,25 @@
   background: var(--accent); border: none; border-radius: 6px;
   color: #fff; cursor: pointer; font-weight: 600;
 }
+.skill-btn-secondary {
+  padding: 6px 14px; font-size: 12px; background: transparent;
+  border: 1px solid var(--border); border-radius: 6px; color: var(--text-dim); cursor: pointer;
+  margin-right: auto;
+}
+.skill-btn-secondary:hover {
+  color: var(--text); border-color: var(--text-dim);
+}
+
+.skill-list-actions {
+  display: flex; justify-content: flex-end; margin-bottom: 12px;
+}
+.skill-btn-import {
+  padding: 5px 12px; font-size: 11px; background: transparent;
+  border: 1px solid var(--border); border-radius: 6px; color: var(--text-dim); cursor: pointer;
+}
+.skill-btn-import:hover {
+  color: var(--text); border-color: var(--text-dim);
+}
 
 .skill-empty { text-align: center; padding: 20px 0; color: var(--text-dim); }
 .skill-empty p { margin: 4px 0; font-size: 13px; }
@@ -61,10 +171,21 @@
   display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;
 }
 .skill-card-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.skill-card-actions { display: flex; gap: 4px; align-items: center; }
+.skill-card-type {
+  font-size: 10px; padding: 1px 6px; border-radius: 4px;
+  background: rgba(167, 139, 250, 0.12); color: var(--purple);
+  font-weight: 500;
+}
 .skill-card-del {
   background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px;
   padding: 0; line-height: 1;
 }
+.skill-card-export {
+  background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px;
+  padding: 0; line-height: 1;
+}
+.skill-card-export:hover { color: var(--accent); }
 .skill-card-desc { font-size: 11px; color: var(--text-dim); margin-bottom: 8px; }
 .skill-card-run {
   width: 100%; padding: 6px 0; font-size: 12px; cursor: pointer;

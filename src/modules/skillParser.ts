@@ -64,3 +64,19 @@ export function stepsToServerFormat(toolSteps: ToolStep[]): Array<{ command: str
 export function buildSkillPrompt(skillName: string): string {
   return `请使用技能 "${skillName}" 帮我执行任务`
 }
+
+export function formatStepArgs(payload: Record<string, any>): string {
+  return Object.entries(payload)
+    .map(([k, v]) => `${k}=${typeof v === 'string' && v.length > 30 ? v.slice(0, 30) + '...' : v}`)
+    .join(', ')
+}
+
+const PARAM_LABELS: Record<string, string> = {
+  url: 'URL', query: '搜索关键词', button_label: '按钮文字',
+  field_name: '字段名', value: '输入内容', username: '用户名',
+  password: '密码', key: '按键', code: '代码',
+}
+
+export function getParamLabel(key: string): string {
+  return PARAM_LABELS[key] || key
+}

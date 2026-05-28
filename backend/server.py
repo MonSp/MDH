@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import SKILLS_DIR
 from session import Session
-from skills import list_skills_from_dir, save_skill_to_dir
+from skills import list_skills_from_dir, save_skill_to_dir, generate_skill_summary
 from agent import run_agent_stream
 
 logger = logging.getLogger("server")
@@ -116,10 +116,11 @@ async def ws_handler(ws: WebSocket):
                 name = msg.get("name", "")
                 desc = msg.get("description", "")
                 steps = msg.get("steps", [])
+                skill_type = msg.get("skill_type", "strict")
                 if name and steps:
-                    save_skill_to_dir(name, desc, steps)
+                    save_skill_to_dir(name, desc, steps, skill_type)
                     session.agent = None
-                    logger.info("技能已保存: name=%s", name)
+                    logger.info("技能已保存: name=%s type=%s", name, skill_type)
                     await ws.send_json({"type": "skill_saved", "name": name})
 
             elif msg_type == "get_skills":
@@ -135,6 +136,14 @@ async def ws_handler(ws: WebSocket):
                         session.agent = None
                         logger.info("技能已删除: dir=%s", skill_dir_name)
                 await ws.send_json({"type": "skill_deleted", "dir": skill_dir_name})
+
+            elif msg_type == "generate_skill_summary":
+                steps = msg.get("steps", [])
+                skill_type = msg.get("skill_type", "strict")
+                if steps:
+                    logger.info("生成技能摘要: session=%s steps=%d type=%s", session.session_id, len(steps), skill_type)
+                    result = await generate_skill_summary(session, steps, skill_type)
+                    await ws.send_json({"type": "skill_summary", **result})
 
     except WebSocketDisconnect:
         logger.info("WebSocket 断开: session=%s", session.session_id)
