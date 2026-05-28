@@ -5,9 +5,10 @@ const props = defineProps({
   wsStatus: { type: String, required: true },
   pageCtx: { type: Object, default: () => ({}) },
   theme: { type: String, required: true },
+  username: { type: String, default: '' },
 })
 
-const emit = defineEmits(['toggleTheme', 'toggleSettings', 'toggleSkills', 'newSession'])
+const emit = defineEmits(['toggleTheme', 'toggleSettings', 'toggleSkills', 'newSession', 'logout'])
 
 const wsStatusText = computed(() => {
   const map = { connected: '已连接', connecting: '连接中', disconnected: '未连接', error: '连接错误' }
@@ -28,6 +29,11 @@ const wsStatusText = computed(() => {
     <div class="header-right">
       <div class="header-status">
         <span :style="{ color: wsStatus === 'connected' ? 'var(--accent)' : '#f88' }">●</span> {{ wsStatusText }}
+      </div>
+      <div class="user-info" v-if="username">
+        <span class="user-icon">👤</span>
+        <span class="username">{{ username }}</span>
+        <button class="logout-btn" @click="emit('logout')" title="退出登录">退出</button>
       </div>
       <button
         class="theme-toggle-btn"

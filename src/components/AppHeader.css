@@ -146,3 +146,39 @@
   display: flex; align-items: center; justify-content: center;
 }
 .skills-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-input);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.user-icon {
+  font-size: 14px;
+}
+
+.username {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.logout-btn {
+  background: none;
+  border: 1px solid var(--border-card);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logout-btn:hover {
+  color: #ff6b6b;
+  border-color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+}

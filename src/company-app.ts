@@ -1,5 +1,34 @@
 import { TOOL_DEFINITIONS, DEFAULT_SYSTEM_PROMPT } from './prompt';
 
+const MOCK_SSO_URL = 'http://localhost:8766/login';
+const SSO_TOKEN_KEY = 'sso_auth_token';
+const SSO_USERNAME_KEY = 'sso_auth_username';
+
+function checkSSOAuth(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  const username = params.get('username');
+
+  if (token && username) {
+    localStorage.setItem(SSO_TOKEN_KEY, token);
+    localStorage.setItem(SSO_USERNAME_KEY, username);
+    window.history.replaceState({}, '', window.location.pathname);
+    return true;
+  }
+
+  return !!localStorage.getItem(SSO_TOKEN_KEY);
+}
+
+function redirectToSSO(): void {
+  const currentUrl = window.location.href;
+  const ssoUrl = `${MOCK_SSO_URL}?redirect=${encodeURIComponent(currentUrl)}&origin=${encodeURIComponent(window.location.origin)}`;
+  window.location.href = ssoUrl;
+}
+
+if (!checkSSOAuth()) {
+  redirectToSSO();
+}
+
 interface PendingRequest {
   command: string;
   payload: Record<string, unknown>;

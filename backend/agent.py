@@ -156,18 +156,27 @@ def _make_browser_tool(name: str, description: str) -> FunctionTool:
 def _build_browser_tools() -> list:
     return [
         _make_browser_tool("navigate", "导航到指定网页"),
+        _make_browser_tool("resolve_selector", "将 CSS/XPath 选择器解析为可复用的 target_ref"),
+        _make_browser_tool("query_target", "查询 target_ref 当前状态"),
+        _make_browser_tool("wait_for_element", "等待元素达到指定状态"),
         _make_browser_tool("search", "在页面中搜索内容"),
         _make_browser_tool("click_button", "点击页面上的按钮或元素"),
         _make_browser_tool("fill_field", "填写表单输入字段"),
+        _make_browser_tool("input_text", "在元素中输入文本"),
+        _make_browser_tool("hover", "悬停在元素上"),
         _make_browser_tool("scroll", "滚动页面（像素值）"),
+        _make_browser_tool("scroll_into_view", "滚动元素到视图中"),
         _make_browser_tool("wait", "等待指定毫秒数"),
         _make_browser_tool("get_screenshot", "获取当前页面的截图"),
+        _make_browser_tool("screenshot_element", "获取指定元素的截图"),
         _make_browser_tool("get_tabs", "获取所有打开的标签页列表"),
         _make_browser_tool("switch_tab", "切换到指定标签页"),
         _make_browser_tool("create_tab", "新建标签页"),
         _make_browser_tool("close_tab", "关闭指定标签页"),
         _make_browser_tool("press_key", "按下键盘按键"),
         _make_browser_tool("evaluate_js", "在当前页面执行 JavaScript 代码"),
+        _make_browser_tool("execute_step", "执行单个步骤"),
+        _make_browser_tool("execute_plan", "批量执行计划"),
     ]
 
 

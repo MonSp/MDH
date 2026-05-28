@@ -4,10 +4,12 @@
       :ws-status="wsStatus"
       :page-ctx="pageCtx"
       :theme="theme"
+      :username="ssoUsername"
       @toggle-theme="toggleTheme"
       @toggle-settings="toggleSettings"
       @toggle-skills="toggleSkills"
       @new-session="newSession"
+      @logout="logout"
     />
 
     <div class="conv-stream" ref="streamRef">
@@ -69,9 +71,13 @@ const STORAGE_PROVIDER = 'llm_provider'
 const STORAGE_MODEL_NAME = 'llm_model_name'
 const STORAGE_CONVERSATIONS = 'agent_conversations'
 
+const SSO_TOKEN_KEY = 'sso_auth_token'
+const SSO_USERNAME_KEY = 'sso_auth_username'
+
 const origin = window.location.origin
 const chatText = ref('')
 const isProcessing = ref(false)
+const ssoUsername = ref(localStorage.getItem(SSO_USERNAME_KEY) || '')
 const streamRef = ref(null)
 const settingsOpen = ref(false)
 const skillPanelOpen = ref(false)
@@ -516,6 +522,12 @@ function runSkill(skill) {
 function removeSkillByDir(dir) {
   if (!ws) return
   ws.send(JSON.stringify({ type: 'delete_skill', dir }))
+}
+
+function logout() {
+  localStorage.removeItem(SSO_TOKEN_KEY)
+  localStorage.removeItem(SSO_USERNAME_KEY)
+  window.location.reload()
 }
 
 onMounted(() => {

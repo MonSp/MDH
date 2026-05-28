@@ -33,7 +33,8 @@ const html = `<!DOCTYPE html>
   .status-label { font-family:var(--font-mono); font-size:0.6rem; font-weight:500; letter-spacing:1.2px; color:var(--text-secondary); text-transform:uppercase; }
   .status-label span { color:var(--accent-blue); }
   .status-right { display:flex; align-items:center; gap:16px; }
-  .badge { font-family:var(--font-mono); font-size:0.52rem; color:var(--text-muted); }
+  .test-link { font-family:var(--font-mono); font-size:0.55rem; font-weight:500; letter-spacing:0.8px; color:var(--text-muted); text-decoration:none; padding:3px 10px; border-radius:4px; border:1px solid transparent; transition:all 0.2s; }
+  .test-link:hover { border-color:var(--border-muted); color:var(--text-secondary); background:rgba(255,255,255,0.03); }
   .iframe-container { flex:1; position:relative; background:#04060a; overflow:hidden; }
   .iframe-container iframe { width:100%; height:100%; border:none; display:block; }
   .iframe-container::after { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(51,153,255,0.15),transparent); pointer-events:none; z-index:2; }
@@ -47,7 +48,7 @@ const html = `<!DOCTYPE html>
       <div class="status-label">Plugin <span>Shell</span></div>
     </div>
     <div class="status-right">
-      <span class="badge">Mock 模式</span>
+      <a href="test.html" class="test-link">测试面板</a>
     </div>
   </div>
   <div class="iframe-container">
