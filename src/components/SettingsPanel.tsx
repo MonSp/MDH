@@ -6,6 +6,7 @@ interface SettingsConfig {
   modelName: string;
   apiKey: string;
   baseUrl: string;
+  multimodal: boolean;
 }
 
 interface SettingsPanelProps {
@@ -87,6 +88,17 @@ export default function SettingsPanel({
             onChange={e => updateField('baseUrl', e.target.value)}
             placeholder="自定义 API 端点地址（可选）"
           />
+        </div>
+        <div className="settings-group">
+          <label className="settings-checkbox-label">
+            <input
+              type="checkbox"
+              checked={settingsCfg.multimodal}
+              onChange={e => onChangeCfg({ ...settingsCfg, multimodal: e.target.checked })}
+            />
+            <span>模型支持多模态（视觉理解）</span>
+          </label>
+          <p className="settings-hint">关闭后将禁用截图相关工具，适用于不支持图片输入的模型</p>
         </div>
         <div className="settings-actions">
           <button className="btn-secondary" onClick={onClose}>取消</button>

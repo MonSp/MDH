@@ -16,6 +16,7 @@ const STORAGE_API_KEY = 'deepseek_api_key';
 const STORAGE_BASE_URL = 'deepseek_base_url';
 const STORAGE_PROVIDER = 'llm_provider';
 const STORAGE_MODEL_NAME = 'llm_model_name';
+const STORAGE_MULTIMODAL = 'llm_multimodal';
 const STORAGE_CONVERSATIONS = 'agent_conversations';
 const SSO_TOKEN_KEY = 'sso_auth_token';
 const SSO_USERNAME_KEY = 'sso_auth_username';
@@ -46,6 +47,7 @@ interface SettingsConfig {
   modelName: string;
   apiKey: string;
   baseUrl: string;
+  multimodal: boolean;
 }
 
 export default function App() {
@@ -66,6 +68,7 @@ export default function App() {
     modelName: '',
     apiKey: '',
     baseUrl: '',
+    multimodal: true,
   });
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -292,6 +295,7 @@ export default function App() {
       modelName: localStorage.getItem(STORAGE_MODEL_NAME) || '',
       apiKey: localStorage.getItem(STORAGE_API_KEY) || '',
       baseUrl: localStorage.getItem(STORAGE_BASE_URL) || '',
+      multimodal: localStorage.getItem(STORAGE_MULTIMODAL) !== 'false',
     });
 
     connectWs();
@@ -386,6 +390,7 @@ export default function App() {
       model_name: localStorage.getItem(STORAGE_MODEL_NAME) || undefined,
       api_key: localStorage.getItem(STORAGE_API_KEY) || undefined,
       base_url: localStorage.getItem(STORAGE_BASE_URL) || undefined,
+      multimodal: localStorage.getItem(STORAGE_MULTIMODAL) !== 'false',
     }));
   }, [chatText, isProcessing, forceScrollToBottom]);
 
@@ -395,6 +400,7 @@ export default function App() {
     localStorage.setItem(STORAGE_MODEL_NAME, settingsCfg.modelName.trim());
     localStorage.setItem(STORAGE_API_KEY, settingsCfg.apiKey.trim());
     localStorage.setItem(STORAGE_BASE_URL, settingsCfg.baseUrl.trim());
+    localStorage.setItem(STORAGE_MULTIMODAL, String(settingsCfg.multimodal));
     setSettingsOpen(false);
     if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
     setTimeout(connectWs, 200);

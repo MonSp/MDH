@@ -153,8 +153,11 @@ def _make_browser_tool(name: str, description: str) -> FunctionTool:
     return tool
 
 
-def _build_browser_tools() -> list:
-    return [
+MULTIMODAL_TOOLS = {"get_screenshot", "screenshot_element"}
+
+
+def _build_browser_tools(multimodal: bool = True) -> list:
+    tools = [
         _make_browser_tool("navigate", "导航到指定网页"),
         _make_browser_tool("resolve_selector", "将 CSS/XPath 选择器解析为可复用的 target_ref"),
         _make_browser_tool("query_target", "查询 target_ref 当前状态"),
@@ -178,6 +181,9 @@ def _build_browser_tools() -> list:
         _make_browser_tool("execute_step", "执行单个步骤"),
         _make_browser_tool("execute_plan", "批量执行计划"),
     ]
+    if not multimodal:
+        tools = [t for t in tools if t.name not in MULTIMODAL_TOOLS]
+    return tools
 
 
 def _extract_text(msg: Msg) -> str:
@@ -258,7 +264,7 @@ def _get_or_create_agent(session: Session) -> Agent:
         formatter=formatter,
     )
     toolkit = Toolkit(
-        tools=_build_browser_tools(),
+        tools=_build_browser_tools(multimodal=session.multimodal),
         skills_or_loaders=[LocalSkillLoader(SKILLS_DIR)],
     )
     session.agent = Agent(

@@ -22,6 +22,7 @@ class Session:
         self.model_name: str = ""
         self.api_key: str = DEEPSEEK_API_KEY
         self.base_url: str = DEEPSEEK_BASE_URL
+        self.multimodal: bool = True
         self.agent = None
 
     def build_page_info(self) -> str:

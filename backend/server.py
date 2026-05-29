@@ -68,6 +68,10 @@ async def ws_handler(ws: WebSocket):
                     session.base_url = msg["base_url"]
                     config_changed = True
                     logger.info("BASE URL 变更: %s -> %s (session=%s)", old, msg["base_url"], session.session_id)
+                if "multimodal" in msg and msg["multimodal"] != session.multimodal:
+                    session.multimodal = bool(msg["multimodal"])
+                    config_changed = True
+                    logger.info("多模态支持变更: %s (session=%s)", session.multimodal, session.session_id)
                 if msg.get("reset") or config_changed:
                     session.agent = None
 
