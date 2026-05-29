@@ -1,12 +1,24 @@
 import { defineConfig } from 'vite';
-import vue from '@vitejs/plugin-vue';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [react()],
   server: {
     host: '0.0.0.0',
   },
   preview: {
     host: '0.0.0.0',
+  },
+  resolve: {
+    alias: {
+      '@': '/src',
+    },
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      loader: {
+        '.svg': 'dataurl',
+      },
+    },
   },
 });

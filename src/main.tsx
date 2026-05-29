@@ -1,16 +1,22 @@
-import { createApp } from 'vue';
-import App from './App.vue';
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { ConfigProvider, carbonTheme } from '@agentscope-ai/design';
+import App from './App';
 
-const SSO_PORT = '8766';
+import './theme-dark.css';
+import './theme-light.css';
+import './assets/base.css';
+
 const SSO_TOKEN_KEY = 'sso_auth_token';
 const SSO_USERNAME_KEY = 'sso_auth_username';
+const SSO_PORT = '8766';
 
 function getSSOUrl() {
   const hostname = window.location.hostname;
   return `http://${hostname}:${SSO_PORT}/login`;
 }
 
-function checkSSOAuth() {
+function checkSSOAuth(): boolean {
   const params = new URLSearchParams(window.location.search);
   const token = params.get('token');
   const username = params.get('username');
@@ -34,5 +40,12 @@ function redirectToSSO() {
 if (!checkSSOAuth()) {
   redirectToSSO();
 } else {
-  createApp(App).mount('#app');
+  const root = ReactDOM.createRoot(document.getElementById('app')!);
+  root.render(
+    <React.StrictMode>
+      <ConfigProvider {...carbonTheme} prefix="sps" prefixCls="sps">
+        <App />
+      </ConfigProvider>
+    </React.StrictMode>
+  );
 }

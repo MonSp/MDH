@@ -352,6 +352,20 @@
             <input type="text" id="textInput" class="tc-input" placeholder="输入文本..." value="Hello World">
             <button class="tc-btn primary" id="btnInputText">输入文本</button>
           </div>
+          <div class="tc-row" style="margin-top:6px;">
+            <select id="keySelect" class="tc-select">
+              <option value="Enter" selected>Enter</option>
+              <option value="Tab">Tab</option>
+              <option value="Escape">Escape</option>
+              <option value="Backspace">Backspace</option>
+              <option value="Delete">Delete</option>
+              <option value="ArrowUp">ArrowUp</option>
+              <option value="ArrowDown">ArrowDown</option>
+              <option value="ArrowLeft">ArrowLeft</option>
+              <option value="ArrowRight">ArrowRight</option>
+            </select>
+            <button class="tc-btn primary" id="btnPressKey">按键</button>
+          </div>
         </div>
 
         <div class="tc-section">
@@ -423,12 +437,17 @@
 </div>
 
 <script type="module">
-import { initShell, callParentHost, getCurrentManifestVersion } from './dist/plugin-shell.js';
+const PARENT_ORIGIN = 'chrome://ai-automation-side-panel.top-chrome';
+const isStandalone = window.parent === window;
 
 const logList = document.getElementById('logList');
 const logCount = document.getElementById('logCount');
 
 const sourceLabels = { iframe: 'App→Shell', parent: 'Parent→Shell', user: '用户操作' };
+
+let currentManifestVersion = '';
+let pendingCounter = 0;
+const pending = new Map();
 
 function addLog(entry) {
   const empty = logList.querySelector('.log-empty');
@@ -470,12 +489,73 @@ function addLog(entry) {
   logCount.textContent = logList.querySelectorAll('.log-entry').length;
 }
 
-initShell({
-  iframe: null,
-  appOrigin: window.location.origin,
-  parentOrigin: 'chrome://ai-automation-side-panel.top-chrome',
-  onLog: addLog,
+window.addEventListener('message', (event) => {
+  if (event.origin !== PARENT_ORIGIN) return;
+  const msg = event.data;
+  if (!msg || msg.type !== 'response') return;
+  const p = pending.get(msg.id);
+  if (!p) return;
+  pending.delete(msg.id);
+  if (msg.error) {
+    const err = new Error(msg.error.message || '失败');
+    err.code = msg.error.code;
+    p.reject(err);
+  } else {
+    p.resolve(msg.payload);
+  }
 });
+
+window.addEventListener('message', (event) => {
+  if (event.origin !== PARENT_ORIGIN) return;
+  const msg = event.data;
+  if (!msg || msg.type !== 'event') return;
+  addLog({ type: 'event', command: msg.command, payload: msg.payload, timestamp: Date.now(), source: 'parent' });
+  if (msg.command === 'manifest_push' || msg.command === 'manifest_update') {
+    currentManifestVersion = msg.payload?.manifest_version || msg.manifest_version || '';
+  }
+});
+
+function callParentHost(command, payload) {
+  if (isStandalone) return executeMockCommand(command, payload);
+  const id = `test_${++pendingCounter}_${Date.now()}`;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    window.parent.postMessage({ type: 'request', id, command, payload, timestamp: Date.now() }, PARENT_ORIGIN);
+    setTimeout(() => {
+      if (pending.has(id)) {
+        pending.delete(id);
+        reject(new Error('超时'));
+      }
+    }, 15000);
+  });
+}
+
+async function executeMockCommand(command, payload) {
+  await new Promise(r => setTimeout(r, Math.random() * 300 + 50));
+  const mocks = {
+    ping: { pong: true },
+    handshake: { success: true, protocol_version: '1.3', session_id: 'test_sess' },
+    get_tabs: { tabs: [{ id: 1, title: 'Demo', url: 'https://example.com', is_active: true, is_loading: false }] },
+    navigate: { success: true, url: payload.url },
+    scroll: { success: true, scroll_x: 0, scroll_y: 0 },
+    wait: { success: true, waited_ms: payload.timeout_ms ?? 0 },
+    get_screenshot: { success: true, mime_type: 'image/jpeg', width: 1920, height: 1080, data_base64: 'iVBORw0KGgo...' },
+    resolve_selector: { found: true, target_ref: `ref_${Date.now()}`, descriptor: { tag_name: 'div', is_visible: true, is_interactable: true } },
+    query_target: { found: true, target_ref: payload.target_ref, descriptor: { tag_name: 'div', is_visible: true } },
+    wait_for_element: { success: true, found: true },
+    click_button: { success: true, clicked: true },
+    input_text: { success: true, filled: true },
+    fill_field: { success: true, filled: true },
+    hover: { success: true },
+    screenshot_element: { success: true, mime_type: 'image/jpeg', width: 200, height: 100, data_base64: 'iVBORw0KGgo...' },
+    scroll_into_view: { success: true },
+    press_key: { success: true },
+    execute_step: { success: true, result: {}, manifest_version: 'v1', command: payload.command },
+    execute_plan: { overall_success: true, steps_completed: payload.steps?.length ?? 0, steps_total: payload.steps?.length ?? 0, results: [], total_duration_ms: 0 },
+  };
+  if (mocks[command]) return mocks[command];
+  throw Object.assign(new Error(`未知命令: ${command}`), { code: 'INVALID_COMMAND' });
+}
 
 let lastTargetRef = '';
 const targetRefDisplay = document.getElementById('targetRefDisplay');
@@ -536,6 +616,10 @@ document.getElementById('btnInputText').addEventListener('click', () => {
   const text = document.getElementById('textInput').value;
   withTargetRef(ref => doCommand('input_text', { target_ref: ref, text }));
 });
+document.getElementById('btnPressKey').addEventListener('click', () => {
+  const key = document.getElementById('keySelect').value;
+  withTargetRef(ref => doCommand('press_key', { target_ref: ref, key }));
+});
 
 document.getElementById('btnGetTabs').addEventListener('click', async () => {
   try {
@@ -588,7 +672,7 @@ document.getElementById('btnExecutePlan').addEventListener('click', () => {
     return;
   }
   if (!Array.isArray(steps)) { alert('步骤必须是数组'); return; }
-  const mv = getCurrentManifestVersion();
+  const mv = currentManifestVersion;
   if (!mv) {
     addLog({ type: 'error', command: 'execute_plan', payload: { code: 'NO_MANIFEST', message: '尚未完成 manifest 同步，请稍后再试' }, timestamp: Date.now(), source: 'user' });
   }
