@@ -102,14 +102,20 @@ export default function App() {
   }, []);
 
   const formatStepResult = useCallback((result: any): string => {
-    if (!result) return '';
+    if (result == null) return '';
     if (typeof result === 'string') return result;
+    if (typeof result === 'number' || typeof result === 'boolean') return String(result);
     try {
       const str = JSON.stringify(result, null, 2);
+      if (str === undefined) return '[undefined]';
       const lines = str.split('\n');
       return lines.length > 10 ? lines.slice(0, 10).join('\n') + '\n... 还有 ' + (lines.length - 10) + ' 行' : str;
     } catch {
-      return String(result);
+      try {
+        return Object.entries(result).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`).join('\n');
+      } catch {
+        return '[无法序列化的对象]';
+      }
     }
   }, []);
 
@@ -135,14 +141,16 @@ export default function App() {
 
   const handleThinking = useCallback((msg: any) => {
     if (!activeConvRef.current) return;
-    activeConvRef.current.thinking += msg.delta;
+    const delta = typeof msg.delta === 'string' ? msg.delta : JSON.stringify(msg.delta ?? '');
+    activeConvRef.current.thinking += delta;
     setConversations(prev => [...prev]);
     scheduleScroll();
   }, [scheduleScroll]);
 
   const handleReplyText = useCallback((msg: any) => {
     if (!activeConvRef.current) return;
-    activeConvRef.current.replyText += msg.delta;
+    const delta = typeof msg.delta === 'string' ? msg.delta : JSON.stringify(msg.delta ?? '');
+    activeConvRef.current.replyText += delta;
     setConversations(prev => [...prev]);
     scheduleScroll();
   }, [scheduleScroll]);
@@ -217,8 +225,9 @@ export default function App() {
   const handleDone = useCallback((msg: any) => {
     if (!activeConvRef.current) return;
     activeConvRef.current.status = 'done';
-    if (msg.message && !activeConvRef.current.replyText) {
-      activeConvRef.current.replyText = msg.message;
+    if (msg.message != null && !activeConvRef.current.replyText) {
+      const text = typeof msg.message === 'string' ? msg.message : JSON.stringify(msg.message);
+      activeConvRef.current.replyText = text;
     }
     setIsProcessing(false);
     activeConvRef.current = null;
@@ -229,7 +238,8 @@ export default function App() {
   const handleError = useCallback((msg: any) => {
     if (!activeConvRef.current) return;
     activeConvRef.current.status = 'error';
-    activeConvRef.current.errorMessage = msg.message || '执行错误';
+    const errMsg = typeof msg.message === 'string' ? msg.message : (msg.message ? JSON.stringify(msg.message) : '执行错误');
+    activeConvRef.current.errorMessage = errMsg;
     setIsProcessing(false);
     activeConvRef.current = null;
     setConversations(prev => [...prev]);

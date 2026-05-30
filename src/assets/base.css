@@ -303,6 +303,16 @@ body::after {
   margin-top: 2px;
 }
 
+.agent-bubble {
+  padding: 12px 16px;
+  margin: 4px 0;
+  border-radius: 12px;
+  background: var(--bg-card, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-card, rgba(255, 255, 255, 0.08));
+  max-width: 100%;
+  word-break: break-word;
+}
+
 .agent-reply {
   margin-top: 8px;
 }

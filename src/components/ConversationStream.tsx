@@ -60,62 +60,58 @@ function ConversationBlock({ conv, onOpenSkillEditor, onToggleThinkCollapse }: C
       content: conv.userMessage,
       placement: 'end' as const,
     },
-    {
-      key: conv.id + '-agent',
-      content: (
-        <div>
-          {conv.thinking && (
-            <details className="think-section" open={!conv.thinkCollapsed}>
-              <summary className="think-header" onClick={() => onToggleThinkCollapse(conv.id)}>
-                推理过程
-              </summary>
-              <div className="think-text">{conv.thinking}</div>
-            </details>
-          )}
-
-          <ToolTree steps={conv.toolSteps} />
-
-          {conv.replyText && (
-            <div className="agent-reply">
-              <Markdown>{conv.replyText}</Markdown>
-              {conv.status === 'running' && <span className="streaming-cursor">|</span>}
-            </div>
-          )}
-
-          {conv.status === 'done' && !conv.replyText && conv.toolSteps.length > 0 && (
-            <div className="agent-result">任务完成</div>
-          )}
-
-          {conv.status === 'done' && conv.toolSteps.filter(s => s.status === 'done').length > 0 && (
-            <div className="result-actions">
-              <span className="result-stats">
-                <strong>{conv.toolSteps.filter(s => s.status === 'done').length}</strong> 步骤
-              </span>
-              <button className="save-skill-btn" onClick={() => onOpenSkillEditor(conv)}>
-                保存为 Skill
-              </button>
-            </div>
-          )}
-
-          {conv.status === 'running' && !conv.replyText && !conv.thinking && conv.toolSteps.length === 0 && (
-            <div className="agent-loading">
-              <span className="loading-dot-pulse"></span>
-              <span>执行中...</span>
-            </div>
-          )}
-
-          {conv.status === 'error' && (
-            <div className="agent-error">
-              <span>⚠</span> {conv.errorMessage || '执行遇到错误，请重试'}
-            </div>
-          )}
-        </div>
-      ),
-      placement: 'start' as const,
-      loading: conv.status === 'running',
-      msgStatus: conv.status === 'running' ? 'generating' as const : 'finished' as const,
-    },
   ];
 
-  return <Bubble.List items={bubbleItems} />;
+  return (
+    <>
+      <Bubble.List items={bubbleItems} />
+      <div className="agent-bubble">
+        {conv.thinking && (
+          <details className="think-section" open={!conv.thinkCollapsed}>
+            <summary className="think-header" onClick={() => onToggleThinkCollapse(conv.id)}>
+              推理过程
+            </summary>
+            <div className="think-text">{conv.thinking}</div>
+          </details>
+        )}
+
+        <ToolTree steps={conv.toolSteps} />
+
+        {conv.replyText && (
+          <div className="agent-reply">
+            <Markdown>{conv.replyText}</Markdown>
+            {conv.status === 'running' && <span className="streaming-cursor">|</span>}
+          </div>
+        )}
+
+        {conv.status === 'done' && !conv.replyText && conv.toolSteps.length > 0 && (
+          <div className="agent-result">任务完成</div>
+        )}
+
+        {conv.status === 'done' && conv.toolSteps.filter(s => s.status === 'done').length > 0 && (
+          <div className="result-actions">
+            <span className="result-stats">
+              <strong>{conv.toolSteps.filter(s => s.status === 'done').length}</strong> 步骤
+            </span>
+            <button className="save-skill-btn" onClick={() => onOpenSkillEditor(conv)}>
+              保存为 Skill
+            </button>
+          </div>
+        )}
+
+        {conv.status === 'running' && !conv.replyText && !conv.thinking && conv.toolSteps.length === 0 && (
+          <div className="agent-loading">
+            <span className="loading-dot-pulse"></span>
+            <span>执行中...</span>
+          </div>
+        )}
+
+        {conv.status === 'error' && (
+          <div className="agent-error">
+            <span>⚠</span> {conv.errorMessage || '执行遇到错误，请重试'}
+          </div>
+        )}
+      </div>
+    </>
+  );
 }
