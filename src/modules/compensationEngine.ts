@@ -1,5 +1,7 @@
 import type { SubTask, TaskPlan } from './taskTypes'
 import { TaskStatus } from './taskTypes'
+import { configManager } from './configSchema'
+import type { CollaborationConfig } from './configSchema'
 
 export interface CompensationResult {
   taskId: string
@@ -21,6 +23,8 @@ export interface CompensationStats {
   successCount: number
   failureCount: number
   averageDurationMs: number
+  depthExceededCount: number
+  timeoutCount: number
 }
 
 export interface FailureEvent {
@@ -31,6 +35,8 @@ export interface FailureEvent {
   timestamp: number
 }
 
+export type CompensationAction = (task: SubTask) => Promise<boolean> | boolean
+
 export class CompensationEngine {
   private compensationLog: CompensationResult[]
   private failureHistory: FailureEvent[]
@@ -38,14 +44,33 @@ export class CompensationEngine {
   private maxDepth: number
   private timeoutMs: number
   private onFailure: 'abort' | 'skip' | 'manual'
+  private depthExceededCount: number
+  private timeoutCount: number
+  private actionExecutor: CompensationAction | null
+  private configListener: (config: CollaborationConfig) => void
 
   constructor(config?: CompensationConfig) {
+    const compConfig = configManager.getConfig().compensation
     this.compensationLog = []
     this.failureHistory = []
     this.listeners = []
-    this.maxDepth = config?.maxDepth ?? 10
-    this.timeoutMs = config?.timeoutMs ?? 30000
-    this.onFailure = config?.onFailure ?? 'abort'
+    this.maxDepth = config?.maxDepth ?? compConfig.maxDepth
+    this.timeoutMs = config?.timeoutMs ?? compConfig.timeoutMs
+    this.onFailure = config?.onFailure ?? compConfig.onFailure
+    this.depthExceededCount = 0
+    this.timeoutCount = 0
+    this.actionExecutor = null
+
+    this.configListener = (cfg: CollaborationConfig) => {
+      this.maxDepth = cfg.compensation.maxDepth
+      this.timeoutMs = cfg.compensation.timeoutMs
+      this.onFailure = cfg.compensation.onFailure
+    }
+    configManager.addListener(this.configListener)
+  }
+
+  setActionExecutor(executor: CompensationAction): void {
+    this.actionExecutor = executor
   }
 
   recordFailure(
@@ -100,24 +125,26 @@ export class CompensationEngine {
     return compensatable
   }
 
-  executeCompensation(task: SubTask, depth: number = 0): CompensationResult {
+  async executeCompensation(task: SubTask, depth: number = 0): Promise<CompensationResult> {
     const startTime = Date.now()
 
     if (depth >= this.maxDepth) {
+      this.depthExceededCount++
       const result: CompensationResult = {
         taskId: task.id,
         success: false,
         action: 'none',
-        details: 'Max compensation depth exceeded',
+        details: `Max compensation depth (${this.maxDepth}) exceeded at depth ${depth}`,
         timestamp: startTime,
         durationMs: 0,
       }
       this.compensationLog.push(result)
+      this.recordFailure(task.id, 'system', result.details, 'cascading')
       return result
     }
 
     if (!task.compensateAction) {
-      return {
+      const result: CompensationResult = {
         taskId: task.id,
         success: false,
         action: 'none',
@@ -125,20 +152,62 @@ export class CompensationEngine {
         timestamp: startTime,
         durationMs: Date.now() - startTime,
       }
+      this.compensationLog.push(result)
+      return result
     }
 
-    const result: CompensationResult = {
-      taskId: task.id,
-      success: true,
-      action: task.compensateAction.actionType,
-      details: `Executed compensation: ${task.compensateAction.description}`,
-      timestamp: startTime,
-      durationMs: Date.now() - startTime,
+    if (!this.actionExecutor) {
+      const result: CompensationResult = {
+        taskId: task.id,
+        success: false,
+        action: task.compensateAction.actionType,
+        details: 'No action executor configured',
+        timestamp: startTime,
+        durationMs: Date.now() - startTime,
+      }
+      this.compensationLog.push(result)
+      return this.handleFailure(result, task)
     }
 
-    this.compensationLog.push(result)
+    try {
+      const success = await this.executeWithTimeout(task)
+      const result: CompensationResult = {
+        taskId: task.id,
+        success,
+        action: task.compensateAction.actionType,
+        details: success
+          ? `Executed compensation: ${task.compensateAction.description}`
+          : `Compensation action returned failure`,
+        timestamp: startTime,
+        durationMs: Date.now() - startTime,
+      }
+      this.compensationLog.push(result)
 
-    return result
+      if (!success) {
+        return this.handleFailure(result, task)
+      }
+
+      return result
+    } catch (error) {
+      const isTimeout = error instanceof Error && error.message === 'COMPENSATION_TIMEOUT'
+      if (isTimeout) {
+        this.timeoutCount++
+      }
+
+      const result: CompensationResult = {
+        taskId: task.id,
+        success: false,
+        action: task.compensateAction.actionType,
+        details: isTimeout
+          ? `Compensation timed out after ${this.timeoutMs}ms`
+          : `Compensation failed: ${error instanceof Error ? error.message : String(error)}`,
+        timestamp: startTime,
+        durationMs: Date.now() - startTime,
+      }
+      this.compensationLog.push(result)
+      this.recordFailure(task.id, 'system', result.details, isTimeout ? 'cascading' : 'local')
+      return this.handleFailure(result, task)
+    }
   }
 
   getCompensationPlan(failedTaskId: string, plan: TaskPlan): SubTask[] {
@@ -176,6 +245,8 @@ export class CompensationEngine {
       successCount,
       failureCount,
       averageDurationMs: totalCompensations > 0 ? totalDuration / totalCompensations : 0,
+      depthExceededCount: this.depthExceededCount,
+      timeoutCount: this.timeoutCount,
     }
   }
 
@@ -194,6 +265,55 @@ export class CompensationEngine {
   clear(): void {
     this.compensationLog = []
     this.failureHistory = []
+    this.depthExceededCount = 0
+    this.timeoutCount = 0
+  }
+
+  destroy(): void {
+    this.clear()
+    configManager.removeListener(this.configListener)
+  }
+
+  private async executeWithTimeout(task: SubTask): Promise<boolean> {
+    if (!this.actionExecutor) return false
+
+    return new Promise<boolean>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('COMPENSATION_TIMEOUT'))
+      }, this.timeoutMs)
+
+      try {
+        const result = this.actionExecutor!(task)
+        if (result instanceof Promise) {
+          result.then(
+            (val) => { clearTimeout(timer); resolve(val) },
+            (err) => { clearTimeout(timer); reject(err) }
+          )
+        } else {
+          clearTimeout(timer)
+          resolve(result)
+        }
+      } catch (err) {
+        clearTimeout(timer)
+        reject(err)
+      }
+    })
+  }
+
+  private handleFailure(result: CompensationResult, task: SubTask): CompensationResult {
+    switch (this.onFailure) {
+      case 'abort':
+        result.details += ' [strategy: abort]'
+        break
+      case 'skip':
+        result.details += ' [strategy: skip]'
+        break
+      case 'manual':
+        result.details += ' [strategy: manual intervention required]'
+        this.recordFailure(task.id, 'system', 'Manual intervention required after compensation failure', 'critical')
+        break
+    }
+    return result
   }
 
   private buildDependencyGraph(plan: TaskPlan): Map<string, string[]> {

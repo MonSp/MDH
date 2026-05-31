@@ -1,3 +1,6 @@
+import { configManager } from './configSchema'
+import type { CollaborationConfig } from './configSchema'
+
 export interface TraceSpan {
   traceId: string
   spanId: string
@@ -24,13 +27,34 @@ export function generateSpanId(): string {
 export class TraceContextManager {
   private currentSpan: TraceSpan | null = null
   private spans: TraceSpan[] = []
+  private enabled: boolean
+  private sampleRate: number
+  private configListener: (config: CollaborationConfig) => void
+
+  constructor() {
+    const tracingConfig = configManager.getConfig().tracing
+    this.enabled = tracingConfig.enabled
+    this.sampleRate = tracingConfig.sampleRate
+
+    this.configListener = (config: CollaborationConfig) => {
+      this.enabled = config.tracing.enabled
+      this.sampleRate = config.tracing.sampleRate
+    }
+    configManager.addListener(this.configListener)
+  }
+
+  isEnabled(): boolean {
+    return this.enabled
+  }
 
   startSpan(label?: string): TraceSpan {
     const span: TraceSpan = {
-      traceId: generateTraceId(),
+      traceId: this.currentSpan?.traceId ?? generateTraceId(),
       spanId: generateSpanId(),
+      parentSpanId: this.currentSpan?.spanId,
       startTime: Date.now(),
       label,
+      sampled: this.shouldSample(),
     }
     this.currentSpan = span
     this.spans.push(span)
@@ -47,6 +71,7 @@ export class TraceContextManager {
       parentSpanId: this.currentSpan.spanId,
       startTime: Date.now(),
       label,
+      sampled: this.currentSpan.sampled,
     }
     this.currentSpan = span
     this.spans.push(span)
@@ -61,6 +86,7 @@ export class TraceContextManager {
       causalMessageId: messageId,
       startTime: Date.now(),
       label,
+      sampled: this.currentSpan?.sampled ?? this.shouldSample(),
     }
     this.currentSpan = span
     this.spans.push(span)
@@ -87,11 +113,16 @@ export class TraceContextManager {
     this.spans = []
   }
 
+  destroy(): void {
+    this.clear()
+    configManager.removeListener(this.configListener)
+  }
+
   getTraceparent(): string {
     const span = this.currentSpan
     const traceId = span?.traceId ?? generateTraceId()
     const spanId = span?.spanId ?? generateSpanId()
-    const flags = span?.sampled ? '01' : '00'
+    const flags = span?.sampled !== false ? '01' : '00'
     return `00-${traceId}-${spanId}-${flags}`
   }
 
@@ -108,12 +139,41 @@ export class TraceContextManager {
     }
   }
 
-  static inject(context: TraceContextManager, headers: Record<string, string>): void {
-    headers['traceparent'] = context.getTraceparent()
-    headers['tracestate'] = context.getTracestate()
+  inject(headers: Record<string, string>): void {
+    if (!this.enabled) return
+    headers['traceparent'] = this.getTraceparent()
+    headers['tracestate'] = this.getTracestate()
   }
 
-  static extract(headers: Record<string, string>): TraceSpan | null {
+  extract(headers: Record<string, string>): TraceSpan | null {
+    const traceparent = headers['traceparent']
+    if (!traceparent) {
+      return null
+    }
+    const parts = traceparent.split('-')
+    if (parts.length !== 4) {
+      return null
+    }
+    const [version, traceId, spanId, flags] = parts
+    if (version !== '00' || traceId.length !== 32 || spanId.length !== 16) {
+      return null
+    }
+    const span: TraceSpan = {
+      traceId,
+      spanId,
+      startTime: Date.now(),
+      sampled: flags === '01',
+    }
+    this.currentSpan = span
+    this.spans.push(span)
+    return span
+  }
+
+  static injectHeaders(context: TraceContextManager, headers: Record<string, string>): void {
+    context.inject(headers)
+  }
+
+  static extractFromHeaders(headers: Record<string, string>): TraceSpan | null {
     const traceparent = headers['traceparent']
     if (!traceparent) {
       return null
@@ -132,5 +192,9 @@ export class TraceContextManager {
       startTime: Date.now(),
       sampled: flags === '01',
     }
+  }
+
+  private shouldSample(): boolean {
+    return Math.random() < this.sampleRate
   }
 }

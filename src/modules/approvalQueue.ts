@@ -1,4 +1,6 @@
 import type { ApprovalRequestInfo, ApprovalStatus } from './meetingProtocol'
+import { configManager } from './configSchema'
+import type { CollaborationConfig } from './configSchema'
 
 export type EscalationStrategy = 'reject' | 'escalate' | 'auto_approve'
 
@@ -25,18 +27,28 @@ export class ApprovalQueue {
   private escalationStrategy: EscalationStrategy
   private priorityEscalationThreshold: number
   private maxBatchSize: number
-  private escalatedQueue: ApprovalQueueItem[]
+  private escalatedIds: Set<string>
+  private configListener: (config: CollaborationConfig) => void
 
   constructor(config: ApprovalQueueConfig = {}) {
+    const approvalConfig = configManager.getConfig().approval
     this.queue = []
     this.processedHistory = []
-    this.defaultTimeoutMs = config.defaultTimeoutMs ?? 5 * 60 * 1000
+    this.defaultTimeoutMs = config.defaultTimeoutMs ?? approvalConfig.defaultTimeoutMs
     this.listeners = []
     this.checkTimer = null
-    this.escalationStrategy = config.escalationStrategy ?? 'reject'
-    this.priorityEscalationThreshold = config.priorityEscalationThreshold ?? 3 * 60 * 1000
-    this.maxBatchSize = config.maxBatchSize ?? 50
-    this.escalatedQueue = []
+    this.escalationStrategy = config.escalationStrategy ?? approvalConfig.escalationStrategy
+    this.priorityEscalationThreshold = config.priorityEscalationThreshold ?? approvalConfig.priorityEscalationThreshold
+    this.maxBatchSize = config.maxBatchSize ?? approvalConfig.maxBatchSize
+    this.escalatedIds = new Set()
+
+    this.configListener = (cfg: CollaborationConfig) => {
+      this.defaultTimeoutMs = cfg.approval.defaultTimeoutMs
+      this.escalationStrategy = cfg.approval.escalationStrategy
+      this.priorityEscalationThreshold = cfg.approval.priorityEscalationThreshold
+      this.maxBatchSize = cfg.approval.maxBatchSize
+    }
+    configManager.addListener(this.configListener)
   }
 
   addRequest(request: ApprovalRequestInfo, priority = 0, timeoutMs?: number): void {
@@ -49,12 +61,8 @@ export class ApprovalQueue {
       priority,
     }
 
-    const insertIndex = this.queue.findIndex(q => q.priority < priority)
-    if (insertIndex === -1) {
-      this.queue.push(item)
-    } else {
-      this.queue.splice(insertIndex, 0, item)
-    }
+    this.queue.push(item)
+    this.sortQueue()
 
     for (const listener of this.listeners) {
       listener(item)
@@ -122,33 +130,22 @@ export class ApprovalQueue {
     const index = this.queue.findIndex(item => item.request.id === requestId)
     if (index === -1) return false
 
-    const item = this.queue.splice(index, 1)[0]
-    const escalatedItem: ApprovalQueueItem = {
-      request: item.request,
-      addedAt: item.addedAt,
-      expiresAt: null,
-      priority: item.priority + 1,
-    }
+    const item = this.queue[index]
+    this.escalatedIds.add(requestId)
+    item.priority += 1
+    item.expiresAt = null
 
-    this.escalatedQueue.push(escalatedItem)
-
-    const insertIndex = this.queue.findIndex(q => q.priority < escalatedItem.priority)
-    if (insertIndex === -1) {
-      this.queue.push(escalatedItem)
-    } else {
-      this.queue.splice(insertIndex, 0, escalatedItem)
-    }
-
+    this.sortQueue()
     return true
   }
 
-  batchApprove(requestIds: string[]): { succeeded: string[]; failed: string[] } {
+  batchApprove(requestIds: string[], reason?: string): { succeeded: string[]; failed: string[] } {
     const succeeded: string[] = []
     const failed: string[] = []
     const ids = requestIds.slice(0, this.maxBatchSize)
 
     for (const requestId of ids) {
-      if (this.approveRequest(requestId)) {
+      if (this.approveRequest(requestId, reason)) {
         succeeded.push(requestId)
       } else {
         failed.push(requestId)
@@ -158,13 +155,13 @@ export class ApprovalQueue {
     return { succeeded, failed }
   }
 
-  batchReject(requestIds: string[]): { succeeded: string[]; failed: string[] } {
+  batchReject(requestIds: string[], reason?: string): { succeeded: string[]; failed: string[] } {
     const succeeded: string[] = []
     const failed: string[] = []
     const ids = requestIds.slice(0, this.maxBatchSize)
 
     for (const requestId of ids) {
-      if (this.rejectRequest(requestId)) {
+      if (this.rejectRequest(requestId, reason)) {
         succeeded.push(requestId)
       } else {
         failed.push(requestId)
@@ -208,19 +205,10 @@ export class ApprovalQueue {
             resolvedAt: now,
           })
         } else if (this.escalationStrategy === 'escalate') {
-          const escalatedItem: ApprovalQueueItem = {
-            request: item.request,
-            addedAt: item.addedAt,
-            expiresAt: null,
-            priority: item.priority + 1,
-          }
-          this.escalatedQueue.push(escalatedItem)
-          const insertIndex = this.queue.findIndex(q => q.priority < escalatedItem.priority)
-          if (insertIndex === -1) {
-            this.queue.push(escalatedItem)
-          } else {
-            this.queue.splice(insertIndex, 0, escalatedItem)
-          }
+          this.escalatedIds.add(item.request.id)
+          item.priority += 1
+          item.expiresAt = null
+          this.queue.push(item)
         } else if (this.escalationStrategy === 'auto_approve') {
           this.processedHistory.push({
             request: { ...item.request, status: 'approved' },
@@ -229,11 +217,17 @@ export class ApprovalQueue {
           })
         }
       }
+      let needsSort = false
       for (const item of this.queue) {
         const waitTime = now - item.addedAt
-        if (waitTime > this.priorityEscalationThreshold) {
+        if (waitTime > this.priorityEscalationThreshold && !this.escalatedIds.has(item.request.id)) {
           item.priority += 1
+          this.escalatedIds.add(item.request.id)
+          needsSort = true
         }
+      }
+      if (needsSort) {
+        this.sortQueue()
       }
     }, intervalMs)
   }
@@ -248,6 +242,16 @@ export class ApprovalQueue {
   clear(): void {
     this.queue = []
     this.processedHistory = []
+    this.escalatedIds.clear()
     this.stopAutoExpiryCheck()
+  }
+
+  destroy(): void {
+    this.clear()
+    configManager.removeListener(this.configListener)
+  }
+
+  private sortQueue(): void {
+    this.queue.sort((a, b) => b.priority - a.priority)
   }
 }

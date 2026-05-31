@@ -1,3 +1,6 @@
+import { configManager } from './configSchema'
+import type { CollaborationConfig } from './configSchema'
+
 export type AgendaPhase = 'idle' | 'open_topic' | 'discussion' | 'proposal' | 'voting' | 'accepted' | 'rejected' | 'closed' | 'emergency'
 
 export interface AgendaTransition {
@@ -30,6 +33,9 @@ export interface StateTimeoutConfig {
   proposal?: number
   voting?: number
   emergency?: number
+  accepted?: number
+  rejected?: number
+  closed?: number
 }
 
 export interface AgendaSnapshot {
@@ -39,6 +45,8 @@ export interface AgendaSnapshot {
   eventHistory: AgendaEvent[]
   topic: string
   stateEnteredAt: number
+  stateTimeoutFired: boolean
+  tokenDurationMs: number
   serializedAt: number
 }
 
@@ -54,26 +62,45 @@ const VALID_TRANSITIONS: Record<AgendaPhase, AgendaPhase[]> = {
   closed: ['idle'],
 }
 
+export type TimeoutAction = (phase: AgendaPhase) => void
+
 export class AgendaStateMachine {
   private phase: AgendaPhase
   private currentToken: SpeakingToken | null
   private tokenQueue: SpeakingToken[]
   private eventHistory: AgendaEvent[]
-  private readonly TOKEN_DURATION_MS = 60000
+  private tokenDurationMs: number
   private listeners: ((event: AgendaEvent) => void)[]
   private topic: string
   private stateTimeouts: StateTimeoutConfig
   private stateEnteredAt: number
+  private stateTimeoutFired: boolean
+  private timeoutActions: Map<AgendaPhase, TimeoutAction>
+  private snapshotTimer: ReturnType<typeof setInterval> | null
+  private snapshotCallback: ((snapshot: AgendaSnapshot) => void) | null
+  private configListener: (config: CollaborationConfig) => void
 
-  constructor(stateTimeouts?: StateTimeoutConfig) {
+  constructor(stateTimeouts?: StateTimeoutConfig, tokenDurationMs?: number) {
+    const agendaConfig = configManager.getConfig().agenda
     this.phase = 'idle'
     this.currentToken = null
     this.tokenQueue = []
     this.eventHistory = []
     this.listeners = []
     this.topic = ''
-    this.stateTimeouts = stateTimeouts ?? {}
+    this.stateTimeouts = stateTimeouts ?? agendaConfig.stateTimeouts
     this.stateEnteredAt = Date.now()
+    this.tokenDurationMs = tokenDurationMs ?? agendaConfig.tokenDuration
+    this.stateTimeoutFired = false
+    this.timeoutActions = new Map()
+    this.snapshotTimer = null
+    this.snapshotCallback = null
+
+    this.configListener = (config: CollaborationConfig) => {
+      this.stateTimeouts = config.agenda.stateTimeouts
+      this.tokenDurationMs = config.agenda.tokenDuration
+    }
+    configManager.addListener(this.configListener)
   }
 
   getPhase(): AgendaPhase {
@@ -136,6 +163,7 @@ export class AgendaStateMachine {
     const from = this.phase
     this.phase = 'emergency'
     this.stateEnteredAt = Date.now()
+    this.stateTimeoutFired = false
     this.emit({
       type: 'emergency_declared',
       from,
@@ -158,7 +186,7 @@ export class AgendaStateMachine {
       this.currentToken = {
         agentId,
         grantedAt: now,
-        expiresAt: now + this.TOKEN_DURATION_MS,
+        expiresAt: now + this.tokenDurationMs,
         relevanceScore,
       }
       this.emit({
@@ -188,7 +216,7 @@ export class AgendaStateMachine {
       this.currentToken = {
         agentId: next.agentId,
         grantedAt: now,
-        expiresAt: now + this.TOKEN_DURATION_MS,
+        expiresAt: now + this.tokenDurationMs,
         relevanceScore: next.relevanceScore,
       }
       this.emit({
@@ -213,7 +241,7 @@ export class AgendaStateMachine {
     this.currentToken = {
       agentId,
       grantedAt: now,
-      expiresAt: now + this.TOKEN_DURATION_MS,
+      expiresAt: now + this.tokenDurationMs,
       relevanceScore: Infinity,
     }
     this.emit({
@@ -247,6 +275,7 @@ export class AgendaStateMachine {
     this.tokenQueue = []
     this.topic = ''
     this.stateEnteredAt = Date.now()
+    this.stateTimeoutFired = false
   }
 
   getRemainingTime(): number {
@@ -259,6 +288,43 @@ export class AgendaStateMachine {
 
   resetTimer(): void {
     this.stateEnteredAt = Date.now()
+    this.stateTimeoutFired = false
+  }
+
+  updateTimeouts(timeouts: StateTimeoutConfig): void {
+    this.stateTimeouts = { ...this.stateTimeouts, ...timeouts }
+  }
+
+  updateTokenDuration(durationMs: number): void {
+    this.tokenDurationMs = durationMs
+  }
+
+  setTimeoutAction(phase: AgendaPhase, action: TimeoutAction): void {
+    this.timeoutActions.set(phase, action)
+  }
+
+  startSnapshotTimer(callback: (snapshot: AgendaSnapshot) => void): void {
+    this.stopSnapshotTimer()
+    this.snapshotCallback = callback
+    const interval = configManager.getConfig().agenda.snapshotInterval
+    this.snapshotTimer = setInterval(() => {
+      if (this.snapshotCallback) {
+        this.snapshotCallback(this.serialize())
+      }
+    }, interval)
+  }
+
+  stopSnapshotTimer(): void {
+    if (this.snapshotTimer !== null) {
+      clearInterval(this.snapshotTimer)
+      this.snapshotTimer = null
+    }
+    this.snapshotCallback = null
+  }
+
+  destroy(): void {
+    this.stopSnapshotTimer()
+    configManager.removeListener(this.configListener)
   }
 
   serialize(): AgendaSnapshot {
@@ -269,18 +335,21 @@ export class AgendaStateMachine {
       eventHistory: this.eventHistory.map(e => ({ ...e })),
       topic: this.topic,
       stateEnteredAt: this.stateEnteredAt,
+      stateTimeoutFired: this.stateTimeoutFired,
+      tokenDurationMs: this.tokenDurationMs,
       serializedAt: Date.now(),
     }
   }
 
   static deserialize(snapshot: AgendaSnapshot, stateTimeouts?: StateTimeoutConfig): AgendaStateMachine {
-    const sm = new AgendaStateMachine(stateTimeouts)
+    const sm = new AgendaStateMachine(stateTimeouts, snapshot.tokenDurationMs)
     sm.phase = snapshot.phase
     sm.currentToken = snapshot.currentToken ? { ...snapshot.currentToken } : null
     sm.tokenQueue = snapshot.tokenQueue.map(t => ({ ...t }))
     sm.eventHistory = snapshot.eventHistory.map(e => ({ ...e }))
     sm.topic = snapshot.topic
     sm.stateEnteredAt = snapshot.stateEnteredAt
+    sm.stateTimeoutFired = snapshot.stateTimeoutFired ?? false
     return sm
   }
 
@@ -292,6 +361,7 @@ export class AgendaStateMachine {
     const from = this.phase
     this.phase = to
     this.stateEnteredAt = Date.now()
+    this.stateTimeoutFired = false
     this.emit({
       type: 'phase_change',
       from,
@@ -315,14 +385,20 @@ export class AgendaStateMachine {
   }
 
   private checkStateTimeout(): void {
+    if (this.stateTimeoutFired) return
     const timeout = this.stateTimeouts[this.phase]
-    if (timeout === undefined) return
+    if (timeout === undefined || timeout <= 0) return
     if (Date.now() - this.stateEnteredAt > timeout) {
+      this.stateTimeoutFired = true
       this.emit({
         type: 'state_timeout',
         to: this.phase,
         timestamp: Date.now(),
       })
+      const action = this.timeoutActions.get(this.phase)
+      if (action) {
+        action(this.phase)
+      }
     }
   }
 }

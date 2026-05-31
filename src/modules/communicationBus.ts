@@ -21,19 +21,26 @@ export class CommunicationBus {
   private messageHistory: Map<string, MessageEnvelope[]> = new Map()
   private processedMessageIds: Map<string, number> = new Map()
   private sequenceCounters: Map<string, number> = new Map()
+  private messageRetryCounts: Map<string, number> = new Map()
   private dlqThreshold: number
   private onDlqThresholdExceeded: ((count: number) => void) | null = null
   private DEDUP_TTL_MS: number
+  private maxRetries: number
+  private retryDelayMs: number
   private configListener: (config: CollaborationConfig) => void
 
   constructor() {
     const commConfig = configManager.getConfig().communication
     this.dlqThreshold = commConfig.dlqThreshold
     this.DEDUP_TTL_MS = commConfig.dedupTtlMs
+    this.maxRetries = commConfig.maxRetries
+    this.retryDelayMs = commConfig.retryDelayMs
 
     this.configListener = (config: CollaborationConfig) => {
       this.dlqThreshold = config.communication.dlqThreshold
       this.DEDUP_TTL_MS = config.communication.dedupTtlMs
+      this.maxRetries = config.communication.maxRetries
+      this.retryDelayMs = config.communication.retryDelayMs
     }
     configManager.addListener(this.configListener)
   }
@@ -183,13 +190,14 @@ export class CommunicationBus {
 
     message.status = MessageStatus.Sent
 
-    const sortedHandlers = this.sortHandlersByPriority(handlers, message.priority)
+    const sortedHandlers = this.sortHandlersByPriority(handlers)
 
     for (const handler of sortedHandlers) {
       try {
         const response = await handler.handler(message)
         message.status = MessageStatus.Processed
         this.processedMessageIds.set(message.id, Date.now())
+        this.messageRetryCounts.delete(message.id)
         this.sendAcknowledgement(message)
 
         if (response) {
@@ -205,6 +213,16 @@ export class CommunicationBus {
     }
 
     if (message.status !== MessageStatus.Processed) {
+      const retryCount = this.messageRetryCounts.get(message.id) ?? 0
+      if (retryCount < this.maxRetries) {
+        this.messageRetryCounts.set(message.id, retryCount + 1)
+        message.status = MessageStatus.Pending
+        setTimeout(() => {
+          this.processMessage(message)
+        }, this.retryDelayMs * (retryCount + 1))
+        return
+      }
+      this.messageRetryCounts.delete(message.id)
       message.status = MessageStatus.Failed
       this.deadLetterQueue.push(message)
       if (this.deadLetterQueue.length >= this.dlqThreshold && this.onDlqThresholdExceeded) {
@@ -215,7 +233,7 @@ export class CommunicationBus {
     this.removeFromPending(message.id)
   }
 
-  private sortHandlersByPriority(handlers: MessageHandler[], messagePriority: MessagePriority): MessageHandler[] {
+  private sortHandlersByPriority(handlers: MessageHandler[]): MessageHandler[] {
     return [...handlers]
   }
 
@@ -387,10 +405,11 @@ export class CommunicationBus {
   }
 
   updateConfig(config: Partial<CollaborationConfig['communication']>): void {
-    configManager.updateConfig({ communication: config })
+    configManager.updateConfig({ communication: config } as Partial<CollaborationConfig>)
   }
 
   destroy(): void {
+    this.messageRetryCounts.clear()
     configManager.removeListener(this.configListener)
   }
 }

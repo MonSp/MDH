@@ -77,6 +77,7 @@ export class PermissionManager {
   private policy: SecurityPolicy
   private operationCounts: Map<string, { count: number; windowStart: number }> = new Map()
   private pendingSignatures: Map<string, { request: OperationRequest; signers: string[] }> = new Map()
+  private agentRateLimits: Map<string, { capability: AgentCapability; maxOperations: number; windowMs: number }[]> = new Map()
   private configListener: (config: CollaborationConfig) => void
 
   constructor(policy?: Partial<SecurityPolicy>) {
@@ -226,7 +227,9 @@ export class PermissionManager {
   }
 
   getRateLimitStatus(agentId: string, capability: AgentCapability): RateLimitStatus {
-    const limitConfig = this.policy.rateLimit.find((r) => r.capability === capability)
+    const agentOverrides = this.agentRateLimits.get(agentId)
+    const agentLimit = agentOverrides?.find((r) => r.capability === capability)
+    const limitConfig = agentLimit ?? this.policy.rateLimit.find((r) => r.capability === capability)
     const key = `${agentId}:${capability}`
     const entry = this.operationCounts.get(key)
     const now = Date.now()
@@ -257,6 +260,45 @@ export class PermissionManager {
 
   updatePolicy(update: Partial<SecurityPolicy>): void {
     this.policy = { ...this.policy, ...update }
+    if (update.rateLimit) {
+      configManager.updateConfig({
+        security: {
+          rateLimits: update.rateLimit.map((rl) => ({
+            action: rl.capability,
+            maxPerWindow: rl.maxOperations,
+            windowMs: rl.windowMs,
+          })),
+        },
+      } as Partial<CollaborationConfig>)
+    }
+  }
+
+  setAgentRateLimit(agentId: string, capability: AgentCapability, maxOperations: number, windowMs: number): void {
+    const existing = this.agentRateLimits.get(agentId) ?? []
+    const idx = existing.findIndex((r) => r.capability === capability)
+    const entry = { capability, maxOperations, windowMs }
+    if (idx >= 0) {
+      existing[idx] = entry
+    } else {
+      existing.push(entry)
+    }
+    this.agentRateLimits.set(agentId, existing)
+  }
+
+  removeAgentRateLimit(agentId: string, capability: AgentCapability): boolean {
+    const existing = this.agentRateLimits.get(agentId)
+    if (!existing) return false
+    const idx = existing.findIndex((r) => r.capability === capability)
+    if (idx < 0) return false
+    existing.splice(idx, 1)
+    if (existing.length === 0) {
+      this.agentRateLimits.delete(agentId)
+    }
+    return true
+  }
+
+  getAgentRateLimits(agentId: string): Array<{ capability: AgentCapability; maxOperations: number; windowMs: number }> {
+    return this.agentRateLimits.get(agentId) ?? []
   }
 
   clear(): void {
@@ -264,6 +306,7 @@ export class PermissionManager {
     this.auditLog = []
     this.operationCounts.clear()
     this.pendingSignatures.clear()
+    this.agentRateLimits.clear()
   }
 
   destroy(): void {
@@ -271,7 +314,9 @@ export class PermissionManager {
   }
 
   private checkRateLimit(agentId: string, capability: AgentCapability): boolean {
-    const limitConfig = this.policy.rateLimit.find((r) => r.capability === capability)
+    const agentOverrides = this.agentRateLimits.get(agentId)
+    const agentLimit = agentOverrides?.find((r) => r.capability === capability)
+    const limitConfig = agentLimit ?? this.policy.rateLimit.find((r) => r.capability === capability)
     if (!limitConfig) return true
 
     const key = `${agentId}:${capability}`

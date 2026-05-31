@@ -1,3 +1,6 @@
+import { configManager } from './configSchema'
+import type { CollaborationConfig } from './configSchema'
+
 export type MetricType = 'counter' | 'gauge' | 'histogram'
 
 export interface MetricDefinition {
@@ -33,13 +36,21 @@ export class MetricsCollector {
   private gaugeValues: Map<string, number>
   private histogramData: Map<string, { buckets: Map<number, number>; sum: number; count: number }>
   private alertRules: Map<string, AlertRule[]>
+  private enabled: boolean
+  private exportTimer: ReturnType<typeof setInterval> | null
+  private exportCallback: ((data: string) => void) | null
+  private configListener: (config: CollaborationConfig) => void
 
   constructor() {
+    const metricsConfig = configManager.getConfig().metrics
     this.definitions = new Map()
     this.counterValues = new Map()
     this.gaugeValues = new Map()
     this.histogramData = new Map()
     this.alertRules = new Map()
+    this.enabled = metricsConfig.enabled
+    this.exportTimer = null
+    this.exportCallback = null
 
     this.registerMetric({ name: 'conversation_rounds', type: 'counter', help: '对话轮次' })
     this.registerMetric({ name: 'task_duration_ms', type: 'histogram', help: '任务完成时长' })
@@ -49,6 +60,17 @@ export class MetricsCollector {
     this.registerMetric({ name: 'approval_wait_time_ms', type: 'histogram', help: '审批等待时长' })
     this.registerMetric({ name: 'active_agents', type: 'gauge', help: '活跃 Agent 数量' })
     this.registerMetric({ name: 'pending_approvals', type: 'gauge', help: '待审批数量' })
+
+    this.configListener = (config: CollaborationConfig) => {
+      this.enabled = config.metrics.enabled
+      if (this.exportTimer !== null) {
+        this.stopAutoExport()
+        if (this.enabled && this.exportCallback) {
+          this.startAutoExport(this.exportCallback)
+        }
+      }
+    }
+    configManager.addListener(this.configListener)
   }
 
   private getLabelKey(labels?: Record<string, string>): string {
@@ -95,6 +117,7 @@ export class MetricsCollector {
   }
 
   recordCounter(name: string, value: number = 1, labels?: Record<string, string>): void {
+    if (!this.enabled) return
     const def = this.definitions.get(name)
     if (!def || def.type !== 'counter') return
     const key = `${name}|${this.getLabelKey(labels)}`
@@ -105,6 +128,7 @@ export class MetricsCollector {
   }
 
   recordGauge(name: string, value: number, labels?: Record<string, string>): void {
+    if (!this.enabled) return
     const def = this.definitions.get(name)
     if (!def || def.type !== 'gauge') return
     const key = `${name}|${this.getLabelKey(labels)}`
@@ -113,6 +137,7 @@ export class MetricsCollector {
   }
 
   recordHistogram(name: string, value: number, labels?: Record<string, string>): void {
+    if (!this.enabled) return
     const def = this.definitions.get(name)
     if (!def || def.type !== 'histogram') return
     const key = `${name}|${this.getLabelKey(labels)}`
@@ -282,6 +307,35 @@ export class MetricsCollector {
     this.counterValues.clear()
     this.gaugeValues.clear()
     this.histogramData.clear()
+  }
+
+  isEnabled(): boolean {
+    return this.enabled
+  }
+
+  startAutoExport(callback: (data: string) => void): void {
+    this.stopAutoExport()
+    this.exportCallback = callback
+    if (!this.enabled) return
+    const config = configManager.getConfig().metrics
+    const format = config.exportFormat
+    this.exportTimer = setInterval(() => {
+      if (!this.enabled) return
+      const data = format === 'prometheus' ? this.exportPrometheus() : JSON.stringify(this.exportJSON())
+      callback(data)
+    }, config.exportInterval)
+  }
+
+  stopAutoExport(): void {
+    if (this.exportTimer !== null) {
+      clearInterval(this.exportTimer)
+      this.exportTimer = null
+    }
+  }
+
+  destroy(): void {
+    this.stopAutoExport()
+    configManager.removeListener(this.configListener)
   }
 }
 

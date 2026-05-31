@@ -52,21 +52,21 @@ export interface CollaborationConfig {
 export const DEFAULT_CONFIG: CollaborationConfig = {
   agenda: {
     stateTimeouts: {
-      idle: 300_000,
-      open_topic: 120_000,
+      idle: 0,
+      open_topic: 300_000,
       discussion: 600_000,
-      proposal: 180_000,
-      voting: 120_000,
-      emergency: 60_000,
+      proposal: 120_000,
+      voting: 180_000,
+      emergency: 300_000,
     },
     tokenDuration: 60_000,
-    snapshotInterval: 30_000,
+    snapshotInterval: 300_000,
   },
   approval: {
     defaultTimeoutMs: 300_000,
     escalationStrategy: 'reject',
-    priorityEscalationThreshold: 8,
-    maxBatchSize: 50,
+    priorityEscalationThreshold: 120_000,
+    maxBatchSize: 10,
   },
   compensation: {
     maxDepth: 10,
@@ -88,7 +88,7 @@ export const DEFAULT_CONFIG: CollaborationConfig = {
   tracing: {
     enabled: true,
     propagationFormat: 'w3c',
-    sampleRate: 0.1,
+    sampleRate: 1.0,
   },
   metrics: {
     enabled: true,
@@ -122,8 +122,8 @@ function validateConfig(config: CollaborationConfig): boolean {
 
   const t = config.agenda.stateTimeouts
   for (const [key, val] of Object.entries(t)) {
-    if (typeof val !== 'number' || val <= 0) {
-      warnings.push(`agenda.stateTimeouts.${key} must be > 0`)
+    if (typeof val !== 'number' || val < 0) {
+      warnings.push(`agenda.stateTimeouts.${key} must be >= 0`)
     }
   }
   if (typeof config.agenda.tokenDuration !== 'number' || config.agenda.tokenDuration <= 0) {
@@ -139,8 +139,8 @@ function validateConfig(config: CollaborationConfig): boolean {
   if (!['reject', 'escalate', 'auto_approve'].includes(config.approval.escalationStrategy)) {
     warnings.push('approval.escalationStrategy must be "reject", "escalate", or "auto_approve"')
   }
-  if (typeof config.approval.priorityEscalationThreshold !== 'number' || config.approval.priorityEscalationThreshold < 0 || config.approval.priorityEscalationThreshold > 10) {
-    warnings.push('approval.priorityEscalationThreshold must be between 0 and 10')
+  if (typeof config.approval.priorityEscalationThreshold !== 'number' || config.approval.priorityEscalationThreshold < 0) {
+    warnings.push('approval.priorityEscalationThreshold must be >= 0')
   }
   if (typeof config.approval.maxBatchSize !== 'number' || config.approval.maxBatchSize <= 0) {
     warnings.push('approval.maxBatchSize must be > 0')
