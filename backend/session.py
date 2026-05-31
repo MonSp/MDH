@@ -24,6 +24,12 @@ class Session:
         self.base_url: str = DEEPSEEK_BASE_URL
         self.multimodal: bool = True
         self.agent = None
+        self.meeting_session = None
+        self.meeting_mode = False
+
+    def clear_meeting(self):
+        self.meeting_session = None
+        self.meeting_mode = False
 
     def build_page_info(self) -> str:
         if not self.page_context.get("url"):

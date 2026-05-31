@@ -71,7 +71,7 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting }: Mee
                   </span>
                   <span style={styles.msgTime}>{formatTime(msg.timestamp)}</span>
                 </div>
-                <div style={styles.msgContent}>{msg.content}</div>
+                <div style={styles.msgContent}>{msg.content}{(msg as any)._streaming && <span style={styles.streamingCursor}>▍</span>}</div>
               </div>
 
               {isBoss && (
@@ -188,5 +188,10 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#e2e8f0',
     lineHeight: 1.5,
     wordBreak: 'break-word',
+  },
+  streamingCursor: {
+    color: '#8b5cf6',
+    animation: 'blink 1s infinite',
+    marginLeft: '2px',
   },
 }

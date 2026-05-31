@@ -3,6 +3,8 @@ import json
 import logging
 import os
 import shutil
+import time
+import uuid
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +13,9 @@ from config import SKILLS_DIR
 from session import Session
 from skills import list_skills_from_dir, save_skill_to_dir, generate_skill_summary
 from agent import run_agent_stream
+from meeting import MeetingSession
+from meeting_coordinator import MeetingCoordinator
+from protocol import MeetingAgentStatus, meeting_agent_to_dict, meeting_task_to_dict, meeting_summary_to_dict
 
 logger = logging.getLogger("server")
 
@@ -149,11 +154,130 @@ async def ws_handler(ws: WebSocket):
                     result = await generate_skill_summary(session, steps, skill_type)
                     await ws.send_json({"type": "skill_summary", **result})
 
+            elif msg_type == "start_meeting":
+                if session.meeting_session and session.meeting_session.is_running():
+                    await ws.send_json({"type": "meeting_error", "message": "会议已在进行中"})
+                    continue
+
+                meeting_id = str(uuid.uuid4())[:8]
+                meeting = MeetingSession(meeting_id)
+                meeting.start()
+                session.meeting_session = meeting
+                session.meeting_mode = True
+
+                coordinator = MeetingCoordinator(
+                    meeting_session=meeting,
+                    provider=session.provider,
+                    model_name=session.model_name or "",
+                    api_key=session.api_key,
+                    base_url=session.base_url or "",
+                )
+                session._meeting_coordinator = coordinator
+
+                logger.info("会议已创建: meeting_id=%s session=%s", meeting_id, session.session_id)
+                await ws.send_json({
+                    "type": "meeting_started",
+                    "meeting_id": meeting_id,
+                    "agents": meeting.get_agents_dict(),
+                })
+
+            elif msg_type == "meeting_message":
+                if not session.meeting_session or not session.meeting_session.is_running():
+                    await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
+                    continue
+
+                content = msg.get("content", "")
+                if not content:
+                    continue
+
+                session.meeting_session.add_message("boss", content)
+                coordinator = getattr(session, "_meeting_coordinator", None)
+
+                async def send_agent_message(agent_id: str, text: str, delta: str):
+                    await ws.send_json({
+                        "type": "agent_message",
+                        "agent_id": agent_id,
+                        "content": text,
+                        "delta": delta,
+                    })
+
+                if coordinator:
+                    try:
+                        await coordinator.run_discussion(content, send_agent_message)
+                    except Exception:
+                        logger.exception("会议讨论异常: session=%s", session.session_id)
+                        await ws.send_json({"type": "meeting_error", "message": "会议讨论出错"})
+
+                await ws.send_json({"type": "meeting_message_ack", "content": content})
+
+            elif msg_type == "task_assign":
+                if not session.meeting_session or not session.meeting_session.is_running():
+                    await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
+                    continue
+
+                agent_id = msg.get("agent_id", "")
+                description = msg.get("description", "")
+                if not agent_id or not description:
+                    continue
+
+                task = session.meeting_session.add_task(agent_id, description)
+                session.meeting_session.update_task_status(task.id, "assigned")
+                session.meeting_session.update_agent_status(agent_id, MeetingAgentStatus.WORKING)
+                session.meeting_session.add_message("boss", f"任务已派发给 {agent_id}: {description}")
+
+                logger.info("任务已派发: task_id=%s agent_id=%s meeting=%s", task.id, agent_id, session.meeting_session.meeting_id)
+                await ws.send_json({
+                    "type": "task_assigned",
+                    "task_id": task.id,
+                    "agent_id": agent_id,
+                    "status": "assigned",
+                })
+
+                await ws.send_json({
+                    "type": "agent_status_update",
+                    "agent_id": agent_id,
+                    "status": "working",
+                    "current_task": task.id,
+                })
+
+            elif msg_type == "end_meeting":
+                if not session.meeting_session:
+                    await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
+                    continue
+
+                summary = session.meeting_session.get_summary()
+                session.meeting_session.stop()
+                session.meeting_session.cleanup()
+                meeting_id = session.meeting_session.meeting_id
+                session.clear_meeting()
+
+                logger.info("会议已结束: meeting_id=%s session=%s", meeting_id, session.session_id)
+                await ws.send_json({
+                    "type": "meeting_ended",
+                    "summary": summary,
+                })
+
+            elif msg_type == "get_meeting_status":
+                if not session.meeting_session:
+                    await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
+                    continue
+
+                await ws.send_json({
+                    "type": "meeting_status",
+                    "meeting_id": session.meeting_session.meeting_id,
+                    "agents": session.meeting_session.get_agents_dict(),
+                    "tasks": session.meeting_session.get_tasks_dict(),
+                    "is_running": session.meeting_session.is_running(),
+                })
+
     except WebSocketDisconnect:
         logger.info("WebSocket 断开: session=%s", session.session_id)
     except Exception:
         logger.exception("WebSocket 异常: session=%s", session.session_id)
     finally:
+        if session.meeting_session:
+            session.meeting_session.stop()
+            session.meeting_session.cleanup()
         if agent_task and not agent_task.done():
             agent_task.cancel()
             try:

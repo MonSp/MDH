@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import type { TeamAgent, Task, ChatMessage, ViewState } from './office-team/types'
-import { AGENT_CONFIGS } from './office-team/constants'
+import type { ViewState } from './office-team/types'
 import { isOfficeView, isMeetingView } from './office-team/utils'
 import OfficeHeader from './office-team/OfficeHeader'
 import OfficeScene from './office-team/OfficeScene'
 import MeetingChatPanel from './office-team/MeetingChatPanel'
 import TaskAssignPanel from './office-team/TaskAssignPanel'
 import MeetingLogPanel from './office-team/MeetingLogPanel'
+import useMeetingSocket from '../hooks/useMeetingSocket'
 
 interface OfficeTeamModeProps {
   wsRef: React.RefObject<WebSocket | null>
@@ -14,40 +14,26 @@ interface OfficeTeamModeProps {
 }
 
 export default function OfficeTeamMode({ wsRef, onBackToSingle }: OfficeTeamModeProps) {
-  const [agents, setAgents] = useState<TeamAgent[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [taskInput, setTaskInput] = useState('')
   const [viewState, setViewState] = useState<ViewState>('office')
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+
+  const {
+    agents,
+    tasks,
+    chatMessages,
+    isMeetingActive,
+    startMeeting,
+    sendMeetingMessage,
+    assignTask,
+    endMeeting,
+  } = useMeetingSocket({ wsRef })
+
   const wanderIntervalRef = useRef<number | null>(null)
 
   useEffect(() => {
-    const initialAgents: TeamAgent[] = AGENT_CONFIGS.map(config => ({
-      id: config.id,
-      name: config.name,
-      role: config.role,
-      status: 'idle',
-      currentTask: null,
-      workstationId: config.workstationId,
-      wanderAngle: Math.random() * Math.PI * 2,
-    }))
-    setAgents(initialAgents)
-  }, [])
-
-  useEffect(() => {
-    if (viewState === 'office') {
+    if (viewState === 'office' && agents.length > 0) {
       wanderIntervalRef.current = window.setInterval(() => {
-        setAgents(prev => prev.map(agent => {
-          if (agent.status === 'idle') {
-            return {
-              ...agent,
-              wanderAngle: (agent.wanderAngle || 0) + 0.05,
-              status: 'wandering',
-            }
-          }
-          return agent
-        }))
       }, 100)
     } else {
       if (wanderIntervalRef.current) {
@@ -59,102 +45,35 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle }: OfficeTeamMode
         clearInterval(wanderIntervalRef.current)
       }
     }
-  }, [viewState])
-
-  const addMessage = useCallback((role: 'boss' | 'agent', content: string, agentId?: string) => {
-    setChatMessages(prev => [...prev, { role, agentId, content, timestamp: Date.now() }])
-  }, [])
+  }, [viewState, agents.length])
 
   const handleStartMeeting = useCallback(() => {
     setViewState('transitioning-to-meeting')
-
-    setAgents(prev => prev.map(agent => ({
-      ...agent,
-      status: 'meeting' as const,
-    })))
-
-    addMessage('boss', '各位，请到会议桌集合，我们有新任务要讨论。')
-
-    setTimeout(() => addMessage('agent', '收到，马上到！', 'agent-planner'), 400)
-    setTimeout(() => addMessage('agent', '好的，正在前往会议桌。', 'agent-executor'), 700)
-    setTimeout(() => addMessage('agent', '全员到齐，请老板指示。', 'agent-coordinator'), 1000)
-
+    startMeeting()
     setTimeout(() => {
       setViewState('meeting')
     }, 1200)
-  }, [addMessage])
+  }, [startMeeting])
 
   const handleAssignTask = useCallback(() => {
     if (!selectedAgentId || !taskInput.trim()) return
-
-    const agent = agents.find(a => a.id === selectedAgentId)
-    if (!agent) return
-
-    const newTask: Task = {
-      id: 'task-' + Date.now().toString(36),
-      agentId: selectedAgentId,
-      description: taskInput.trim(),
-      status: 'assigned',
-      createdAt: Date.now(),
-    }
-
-    setTasks(prev => [...prev, newTask])
-    setAgents(prev => prev.map(a =>
-      a.id === selectedAgentId ? { ...a, currentTask: newTask.id } : a
-    ))
-
-    addMessage('boss', `${agent.name}，请负责：${taskInput.trim()}`)
-    addMessage('agent', '收到！我会尽快完成。', selectedAgentId)
-
+    assignTask(selectedAgentId, taskInput.trim())
     setTaskInput('')
     setSelectedAgentId(null)
-  }, [selectedAgentId, taskInput, agents, addMessage])
+  }, [selectedAgentId, taskInput, assignTask])
 
   const handleEndMeeting = useCallback(() => {
     setViewState('transitioning-to-office')
-
-    setAgents(prev => prev.map(agent => ({
-      ...agent,
-      status: agent.currentTask ? 'working' as const : 'idle' as const,
-    })))
-
-    setTasks(prev => prev.map(t =>
-      t.status === 'assigned' ? { ...t, status: 'executing' as const } : t
-    ))
-
-    addMessage('boss', '好的，任务已分配完毕，大家回去开始工作吧！')
-
+    endMeeting()
     setTimeout(() => {
       setViewState('office')
-      addMessage('agent', '已回到工位，开始执行任务。', 'agent-executor')
     }, 1000)
-  }, [addMessage])
-
-  const handleCompleteTask = useCallback((taskId: string) => {
-    const task = tasks.find(t => t.id === taskId)
-    if (!task) return
-
-    setTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, status: 'completed' as const } : t
-    ))
-    setAgents(prev => prev.map(a =>
-      a.currentTask === taskId ? { ...a, currentTask: null, status: 'idle' as const } : a
-    ))
-
-    addMessage('agent', `任务已完成：${task.description}`, task.agentId)
-  }, [tasks, addMessage])
+  }, [endMeeting])
 
   const handleReset = useCallback(() => {
     setViewState('office')
-    setTasks([])
     setSelectedAgentId(null)
     setTaskInput('')
-    setChatMessages([])
-    setAgents(prev => prev.map(agent => ({
-      ...agent,
-      status: 'idle' as const,
-      currentTask: null,
-    })))
   }, [])
 
   const isOffice = isOfficeView(viewState)
