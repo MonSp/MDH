@@ -10,6 +10,8 @@ import {
   isMessageExpired,
   createCommunicationChannel,
 } from './communicationProtocol'
+import { configManager } from './configSchema'
+import type { CollaborationConfig } from './configSchema'
 
 export class CommunicationBus {
   private channels: Map<string, CommunicationChannel> = new Map()
@@ -19,9 +21,22 @@ export class CommunicationBus {
   private messageHistory: Map<string, MessageEnvelope[]> = new Map()
   private processedMessageIds: Map<string, number> = new Map()
   private sequenceCounters: Map<string, number> = new Map()
-  private dlqThreshold: number = 10
+  private dlqThreshold: number
   private onDlqThresholdExceeded: ((count: number) => void) | null = null
-  private readonly DEDUP_TTL_MS = 5 * 60 * 1000
+  private DEDUP_TTL_MS: number
+  private configListener: (config: CollaborationConfig) => void
+
+  constructor() {
+    const commConfig = configManager.getConfig().communication
+    this.dlqThreshold = commConfig.dlqThreshold
+    this.DEDUP_TTL_MS = commConfig.dedupTtlMs
+
+    this.configListener = (config: CollaborationConfig) => {
+      this.dlqThreshold = config.communication.dlqThreshold
+      this.DEDUP_TTL_MS = config.communication.dedupTtlMs
+    }
+    configManager.addListener(this.configListener)
+  }
 
   createChannel(
     name: string,
@@ -369,5 +384,13 @@ export class CommunicationBus {
 
   setDlqAlertCallback(callback: (count: number) => void): void {
     this.onDlqThresholdExceeded = callback
+  }
+
+  updateConfig(config: Partial<CollaborationConfig['communication']>): void {
+    configManager.updateConfig({ communication: config })
+  }
+
+  destroy(): void {
+    configManager.removeListener(this.configListener)
   }
 }

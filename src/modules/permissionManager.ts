@@ -1,4 +1,6 @@
 import type { AgentCapability } from './agentTypes'
+import { configManager } from './configSchema'
+import type { CollaborationConfig } from './configSchema'
 
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
 
@@ -40,6 +42,15 @@ export interface OperationRequest {
   params?: Record<string, unknown>
 }
 
+export interface RateLimitStatus {
+  capability: AgentCapability
+  currentCount: number
+  maxOperations: number
+  windowMs: number
+  windowStart: number
+  isLimited: boolean
+}
+
 const DEFAULT_POLICY: SecurityPolicy = {
   highRiskCapabilities: [
     'browser_automation' as AgentCapability,
@@ -66,9 +77,32 @@ export class PermissionManager {
   private policy: SecurityPolicy
   private operationCounts: Map<string, { count: number; windowStart: number }> = new Map()
   private pendingSignatures: Map<string, { request: OperationRequest; signers: string[] }> = new Map()
+  private configListener: (config: CollaborationConfig) => void
 
   constructor(policy?: Partial<SecurityPolicy>) {
-    this.policy = { ...DEFAULT_POLICY, ...policy }
+    const configRateLimits = configManager.getConfig().security.rateLimits
+    const rateLimit = configRateLimits?.length
+      ? configRateLimits.map((rl) => ({
+          capability: rl.action as AgentCapability,
+          maxOperations: rl.maxPerWindow,
+          windowMs: rl.windowMs,
+        }))
+      : DEFAULT_POLICY.rateLimit
+
+    this.policy = { ...DEFAULT_POLICY, ...policy, rateLimit }
+
+    this.configListener = (config: CollaborationConfig) => {
+      const newRateLimits = config.security.rateLimits
+      if (newRateLimits?.length) {
+        this.policy.rateLimit = newRateLimits.map((rl) => ({
+          capability: rl.action as AgentCapability,
+          maxOperations: rl.maxPerWindow,
+          windowMs: rl.windowMs,
+        }))
+      }
+    }
+
+    configManager.addListener(this.configListener)
   }
 
   checkPermission(agentId: string, capability: AgentCapability): boolean {
@@ -191,6 +225,36 @@ export class PermissionManager {
     return { ...this.policy }
   }
 
+  getRateLimitStatus(agentId: string, capability: AgentCapability): RateLimitStatus {
+    const limitConfig = this.policy.rateLimit.find((r) => r.capability === capability)
+    const key = `${agentId}:${capability}`
+    const entry = this.operationCounts.get(key)
+    const now = Date.now()
+
+    const maxOperations = limitConfig?.maxOperations ?? 0
+    const windowMs = limitConfig?.windowMs ?? 0
+
+    if (!entry || now - entry.windowStart > windowMs) {
+      return {
+        capability,
+        currentCount: 0,
+        maxOperations,
+        windowMs,
+        windowStart: now,
+        isLimited: false,
+      }
+    }
+
+    return {
+      capability,
+      currentCount: entry.count,
+      maxOperations,
+      windowMs,
+      windowStart: entry.windowStart,
+      isLimited: entry.count >= maxOperations,
+    }
+  }
+
   updatePolicy(update: Partial<SecurityPolicy>): void {
     this.policy = { ...this.policy, ...update }
   }
@@ -200,6 +264,10 @@ export class PermissionManager {
     this.auditLog = []
     this.operationCounts.clear()
     this.pendingSignatures.clear()
+  }
+
+  destroy(): void {
+    configManager.removeListener(this.configListener)
   }
 
   private checkRateLimit(agentId: string, capability: AgentCapability): boolean {

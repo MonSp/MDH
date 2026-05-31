@@ -1,5 +1,14 @@
 import type { ApprovalRequestInfo, ApprovalStatus } from './meetingProtocol'
 
+export type EscalationStrategy = 'reject' | 'escalate' | 'auto_approve'
+
+export interface ApprovalQueueConfig {
+  defaultTimeoutMs?: number
+  escalationStrategy?: EscalationStrategy
+  priorityEscalationThreshold?: number
+  maxBatchSize?: number
+}
+
 export interface ApprovalQueueItem {
   request: ApprovalRequestInfo
   addedAt: number
@@ -13,13 +22,21 @@ export class ApprovalQueue {
   private defaultTimeoutMs: number
   private listeners: ((item: ApprovalQueueItem) => void)[]
   private checkTimer: ReturnType<typeof setInterval> | null
+  private escalationStrategy: EscalationStrategy
+  private priorityEscalationThreshold: number
+  private maxBatchSize: number
+  private escalatedQueue: ApprovalQueueItem[]
 
-  constructor(defaultTimeoutMs = 5 * 60 * 1000) {
+  constructor(config: ApprovalQueueConfig = {}) {
     this.queue = []
     this.processedHistory = []
-    this.defaultTimeoutMs = defaultTimeoutMs
+    this.defaultTimeoutMs = config.defaultTimeoutMs ?? 5 * 60 * 1000
     this.listeners = []
     this.checkTimer = null
+    this.escalationStrategy = config.escalationStrategy ?? 'reject'
+    this.priorityEscalationThreshold = config.priorityEscalationThreshold ?? 3 * 60 * 1000
+    this.maxBatchSize = config.maxBatchSize ?? 50
+    this.escalatedQueue = []
   }
 
   addRequest(request: ApprovalRequestInfo, priority = 0, timeoutMs?: number): void {
@@ -101,6 +118,76 @@ export class ApprovalQueue {
     }
   }
 
+  escalateRequest(requestId: string): boolean {
+    const index = this.queue.findIndex(item => item.request.id === requestId)
+    if (index === -1) return false
+
+    const item = this.queue.splice(index, 1)[0]
+    const escalatedItem: ApprovalQueueItem = {
+      request: item.request,
+      addedAt: item.addedAt,
+      expiresAt: null,
+      priority: item.priority + 1,
+    }
+
+    this.escalatedQueue.push(escalatedItem)
+
+    const insertIndex = this.queue.findIndex(q => q.priority < escalatedItem.priority)
+    if (insertIndex === -1) {
+      this.queue.push(escalatedItem)
+    } else {
+      this.queue.splice(insertIndex, 0, escalatedItem)
+    }
+
+    return true
+  }
+
+  batchApprove(requestIds: string[]): { succeeded: string[]; failed: string[] } {
+    const succeeded: string[] = []
+    const failed: string[] = []
+    const ids = requestIds.slice(0, this.maxBatchSize)
+
+    for (const requestId of ids) {
+      if (this.approveRequest(requestId)) {
+        succeeded.push(requestId)
+      } else {
+        failed.push(requestId)
+      }
+    }
+
+    return { succeeded, failed }
+  }
+
+  batchReject(requestIds: string[]): { succeeded: string[]; failed: string[] } {
+    const succeeded: string[] = []
+    const failed: string[] = []
+    const ids = requestIds.slice(0, this.maxBatchSize)
+
+    for (const requestId of ids) {
+      if (this.rejectRequest(requestId)) {
+        succeeded.push(requestId)
+      } else {
+        failed.push(requestId)
+      }
+    }
+
+    return { succeeded, failed }
+  }
+
+  getAverageWaitTime(): number {
+    if (this.processedHistory.length === 0) return 0
+
+    let totalWaitTime = 0
+    let count = 0
+
+    for (const entry of this.processedHistory) {
+      totalWaitTime += entry.resolvedAt - entry.request.createdAt
+      count++
+    }
+
+    return totalWaitTime / count
+  }
+
   startAutoExpiryCheck(intervalMs = 30000): void {
     this.stopAutoExpiryCheck()
     this.checkTimer = setInterval(() => {
@@ -114,11 +201,39 @@ export class ApprovalQueue {
         return true
       })
       for (const item of expired) {
-        this.processedHistory.push({
-          request: { ...item.request, status: 'expired' },
-          status: 'expired',
-          resolvedAt: now,
-        })
+        if (this.escalationStrategy === 'reject') {
+          this.processedHistory.push({
+            request: { ...item.request, status: 'rejected' },
+            status: 'rejected',
+            resolvedAt: now,
+          })
+        } else if (this.escalationStrategy === 'escalate') {
+          const escalatedItem: ApprovalQueueItem = {
+            request: item.request,
+            addedAt: item.addedAt,
+            expiresAt: null,
+            priority: item.priority + 1,
+          }
+          this.escalatedQueue.push(escalatedItem)
+          const insertIndex = this.queue.findIndex(q => q.priority < escalatedItem.priority)
+          if (insertIndex === -1) {
+            this.queue.push(escalatedItem)
+          } else {
+            this.queue.splice(insertIndex, 0, escalatedItem)
+          }
+        } else if (this.escalationStrategy === 'auto_approve') {
+          this.processedHistory.push({
+            request: { ...item.request, status: 'approved' },
+            status: 'approved',
+            resolvedAt: now,
+          })
+        }
+      }
+      for (const item of this.queue) {
+        const waitTime = now - item.addedAt
+        if (waitTime > this.priorityEscalationThreshold) {
+          item.priority += 1
+        }
       }
     }, intervalMs)
   }

@@ -15,12 +15,31 @@ export interface SpeakingToken {
 }
 
 export interface AgendaEvent {
-  type: 'phase_change' | 'token_granted' | 'token_revoked' | 'emergency_declared' | 'emergency_resolved'
+  type: 'phase_change' | 'token_granted' | 'token_revoked' | 'emergency_declared' | 'emergency_resolved' | 'state_timeout'
   from?: AgendaPhase
   to?: AgendaPhase
   agentId?: string
   timestamp: number
   reason?: string
+}
+
+export interface StateTimeoutConfig {
+  idle?: number
+  open_topic?: number
+  discussion?: number
+  proposal?: number
+  voting?: number
+  emergency?: number
+}
+
+export interface AgendaSnapshot {
+  phase: AgendaPhase
+  currentToken: SpeakingToken | null
+  tokenQueue: SpeakingToken[]
+  eventHistory: AgendaEvent[]
+  topic: string
+  stateEnteredAt: number
+  serializedAt: number
 }
 
 const VALID_TRANSITIONS: Record<AgendaPhase, AgendaPhase[]> = {
@@ -43,18 +62,23 @@ export class AgendaStateMachine {
   private readonly TOKEN_DURATION_MS = 60000
   private listeners: ((event: AgendaEvent) => void)[]
   private topic: string
+  private stateTimeouts: StateTimeoutConfig
+  private stateEnteredAt: number
 
-  constructor() {
+  constructor(stateTimeouts?: StateTimeoutConfig) {
     this.phase = 'idle'
     this.currentToken = null
     this.tokenQueue = []
     this.eventHistory = []
     this.listeners = []
     this.topic = ''
+    this.stateTimeouts = stateTimeouts ?? {}
+    this.stateEnteredAt = Date.now()
   }
 
   getPhase(): AgendaPhase {
     this.checkTokenExpiration()
+    this.checkStateTimeout()
     return this.phase
   }
 
@@ -111,6 +135,7 @@ export class AgendaStateMachine {
     if (!allowed.includes(this.phase)) return false
     const from = this.phase
     this.phase = 'emergency'
+    this.stateEnteredAt = Date.now()
     this.emit({
       type: 'emergency_declared',
       from,
@@ -221,6 +246,42 @@ export class AgendaStateMachine {
     this.currentToken = null
     this.tokenQueue = []
     this.topic = ''
+    this.stateEnteredAt = Date.now()
+  }
+
+  getRemainingTime(): number {
+    const timeout = this.stateTimeouts[this.phase]
+    if (timeout === undefined) return 0
+    const elapsed = Date.now() - this.stateEnteredAt
+    const remaining = timeout - elapsed
+    return remaining > 0 ? remaining : 0
+  }
+
+  resetTimer(): void {
+    this.stateEnteredAt = Date.now()
+  }
+
+  serialize(): AgendaSnapshot {
+    return {
+      phase: this.phase,
+      currentToken: this.currentToken ? { ...this.currentToken } : null,
+      tokenQueue: this.tokenQueue.map(t => ({ ...t })),
+      eventHistory: this.eventHistory.map(e => ({ ...e })),
+      topic: this.topic,
+      stateEnteredAt: this.stateEnteredAt,
+      serializedAt: Date.now(),
+    }
+  }
+
+  static deserialize(snapshot: AgendaSnapshot, stateTimeouts?: StateTimeoutConfig): AgendaStateMachine {
+    const sm = new AgendaStateMachine(stateTimeouts)
+    sm.phase = snapshot.phase
+    sm.currentToken = snapshot.currentToken ? { ...snapshot.currentToken } : null
+    sm.tokenQueue = snapshot.tokenQueue.map(t => ({ ...t }))
+    sm.eventHistory = snapshot.eventHistory.map(e => ({ ...e }))
+    sm.topic = snapshot.topic
+    sm.stateEnteredAt = snapshot.stateEnteredAt
+    return sm
   }
 
   private canTransition(to: AgendaPhase): boolean {
@@ -230,6 +291,7 @@ export class AgendaStateMachine {
   private transition(to: AgendaPhase, trigger: string): void {
     const from = this.phase
     this.phase = to
+    this.stateEnteredAt = Date.now()
     this.emit({
       type: 'phase_change',
       from,
@@ -249,6 +311,18 @@ export class AgendaStateMachine {
     if (!this.currentToken) return
     if (Date.now() >= this.currentToken.expiresAt) {
       this.releaseToken()
+    }
+  }
+
+  private checkStateTimeout(): void {
+    const timeout = this.stateTimeouts[this.phase]
+    if (timeout === undefined) return
+    if (Date.now() - this.stateEnteredAt > timeout) {
+      this.emit({
+        type: 'state_timeout',
+        to: this.phase,
+        timestamp: Date.now(),
+      })
     }
   }
 }

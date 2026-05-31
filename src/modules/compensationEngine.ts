@@ -7,6 +7,20 @@ export interface CompensationResult {
   action: string
   details: string
   timestamp: number
+  durationMs?: number
+}
+
+export interface CompensationConfig {
+  maxDepth?: number
+  timeoutMs?: number
+  onFailure?: 'abort' | 'skip' | 'manual'
+}
+
+export interface CompensationStats {
+  totalCompensations: number
+  successCount: number
+  failureCount: number
+  averageDurationMs: number
 }
 
 export interface FailureEvent {
@@ -21,11 +35,17 @@ export class CompensationEngine {
   private compensationLog: CompensationResult[]
   private failureHistory: FailureEvent[]
   private listeners: ((event: FailureEvent) => void)[]
+  private maxDepth: number
+  private timeoutMs: number
+  private onFailure: 'abort' | 'skip' | 'manual'
 
-  constructor() {
+  constructor(config?: CompensationConfig) {
     this.compensationLog = []
     this.failureHistory = []
     this.listeners = []
+    this.maxDepth = config?.maxDepth ?? 10
+    this.timeoutMs = config?.timeoutMs ?? 30000
+    this.onFailure = config?.onFailure ?? 'abort'
   }
 
   recordFailure(
@@ -80,14 +100,30 @@ export class CompensationEngine {
     return compensatable
   }
 
-  executeCompensation(task: SubTask): CompensationResult {
+  executeCompensation(task: SubTask, depth: number = 0): CompensationResult {
+    const startTime = Date.now()
+
+    if (depth >= this.maxDepth) {
+      const result: CompensationResult = {
+        taskId: task.id,
+        success: false,
+        action: 'none',
+        details: 'Max compensation depth exceeded',
+        timestamp: startTime,
+        durationMs: 0,
+      }
+      this.compensationLog.push(result)
+      return result
+    }
+
     if (!task.compensateAction) {
       return {
         taskId: task.id,
         success: false,
         action: 'none',
         details: 'No compensation action defined',
-        timestamp: Date.now(),
+        timestamp: startTime,
+        durationMs: Date.now() - startTime,
       }
     }
 
@@ -96,7 +132,8 @@ export class CompensationEngine {
       success: true,
       action: task.compensateAction.actionType,
       details: `Executed compensation: ${task.compensateAction.description}`,
-      timestamp: Date.now(),
+      timestamp: startTime,
+      durationMs: Date.now() - startTime,
     }
 
     this.compensationLog.push(result)
@@ -115,6 +152,31 @@ export class CompensationEngine {
 
   getCompensationLog(): CompensationResult[] {
     return [...this.compensationLog]
+  }
+
+  getCompensationStats(): CompensationStats {
+    const totalCompensations = this.compensationLog.length
+    let successCount = 0
+    let failureCount = 0
+    let totalDuration = 0
+
+    for (const entry of this.compensationLog) {
+      if (entry.success) {
+        successCount++
+      } else {
+        failureCount++
+      }
+      if (entry.durationMs !== undefined) {
+        totalDuration += entry.durationMs
+      }
+    }
+
+    return {
+      totalCompensations,
+      successCount,
+      failureCount,
+      averageDurationMs: totalCompensations > 0 ? totalDuration / totalCompensations : 0,
+    }
   }
 
   getFailureHistory(): FailureEvent[] {
