@@ -9,6 +9,9 @@ import ConversationStream, { type Conversation } from './components/Conversation
 import SettingsPanel from './components/SettingsPanel';
 import SkillPanel from './components/SkillPanel';
 import type { ToolStep } from './components/ToolTree';
+import OfficeTeamMode from './components/OfficeTeamMode';
+
+type AppMode = 'single' | 'team';
 
 const AGENT_URL_DEFAULT = `ws://${window.location.hostname}:8765/ws`;
 const STORAGE_AGENT_URL = 'agentscope_url';
@@ -62,6 +65,7 @@ export default function App() {
   const [wsStatus, setWsStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
   const [pageCtx, setPageCtx] = useState({ url: '', title: '' });
   const [ssoUsername] = useState(localStorage.getItem(SSO_USERNAME_KEY) || '');
+  const [appMode, setAppMode] = useState<AppMode>('single');
   const [settingsCfg, setSettingsCfg] = useState<SettingsConfig>({
     agentUrl: AGENT_URL_DEFAULT,
     provider: 'deepseek',
@@ -478,25 +482,50 @@ export default function App() {
         onLogout={logout}
       />
 
-      <div className="conv-stream" ref={streamRef}>
-        <ConversationStream
-          conversations={conversations}
-          onOpenSkillEditor={openSkillEditor}
-          onToggleThinkCollapse={toggleThinkCollapse}
-        />
-      </div>
+      {appMode === 'single' ? (
+        <>
+          <div className="conv-stream" ref={streamRef}>
+            <ConversationStream
+              conversations={conversations}
+              onOpenSkillEditor={openSkillEditor}
+              onToggleThinkCollapse={toggleThinkCollapse}
+            />
+          </div>
 
-      <div className="input-bar">
-        <Sender
-          value={chatText}
-          onChange={setChatText}
-          onSubmit={sendMessage}
-          disabled={isProcessing}
-          loading={isProcessing}
-          placeholder="输入指令，例如：打开 GitHub 搜索 vue..."
-          submitType="enter"
+          <div className="input-bar">
+            <Sender
+              value={chatText}
+              onChange={setChatText}
+              onSubmit={sendMessage}
+              disabled={isProcessing}
+              loading={isProcessing}
+              placeholder="输入指令，例如：打开 GitHub 搜索 vue..."
+              submitType="enter"
+            />
+            <div className="mode-switcher">
+              <button
+                className={`mode-btn active`}
+                onClick={() => setAppMode('single')}
+              >
+                <span className="mode-icon">🤖</span>
+                <span className="mode-label">单智能体</span>
+              </button>
+              <button
+                className={`mode-btn`}
+                onClick={() => setAppMode('team')}
+              >
+                <span className="mode-icon">👥</span>
+                <span className="mode-label">多智能体团队</span>
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <OfficeTeamMode
+          wsRef={wsRef}
+          onBackToSingle={() => setAppMode('single')}
         />
-      </div>
+      )}
 
       <SettingsPanel
         open={settingsOpen}

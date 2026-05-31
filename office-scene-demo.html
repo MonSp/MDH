@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>办公室场景 - 多Agent协作演示</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 48px;
+      animation: fadeInDown 0.8s ease;
+    }
+
+    .header h1 {
+      font-size: 42px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+      letter-spacing: 2px;
+    }
+
+    .header p {
+      font-size: 18px;
+      color: #a0a0b0;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .workflow-status {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 32px;
+      animation: fadeIn 0.8s ease 0.2s both;
+    }
+
+    .workflow-phase {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 24px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+    }
+
+    .phase-indicator {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #6b7280;
+      transition: all 0.3s ease;
+    }
+
+    .phase-indicator.active {
+      background: #10b981;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.6);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .phase-label {
+      font-size: 14px;
+      color: #808090;
+    }
+
+    .phase-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .office-container {
+      position: relative;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 40px;
+      margin-bottom: 32px;
+      min-height: 600px;
+      overflow: hidden;
+      animation: fadeIn 0.8s ease 0.4s both;
+    }
+
+    .office-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 40px;
+      height: 520px;
+      position: relative;
+    }
+
+    .workstation {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 16px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      animation: fadeInUp 0.6s ease both;
+    }
+
+    .workstation::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--ws-color, #6b7280);
+      opacity: 0.5;
+      transition: opacity 0.3s ease;
+    }
+
+    .workstation:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .workstation:hover::before {
+      opacity: 1;
+    }
+
+    .workstation.occupied {
+      border: 2px solid var(--ws-color, #6b7280);
+    }
+
+    .workstation.occupied::before {
+      opacity: 1;
+    }
+
+    .ws-icon {
+      font-size: 32px;
+      margin-bottom: 4px;
+    }
+
+    .ws-id {
+      font-size: 12px;
+      color: #888;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+
+    .ws-agent-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      text-align: center;
+    }
+
+    .ws-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .ws-status.idle {
+      background: #f0fdf4;
+      color: #16a34a;
+    }
+
+    .ws-status.busy {
+      background: #fef3c7;
+      color: #d97706;
+    }
+
+    .ws-status.meeting {
+      background: #dbeafe;
+      color: #2563eb;
+    }
+
+    .ws-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .ws-status.busy .ws-status-dot {
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .meeting-table {
+      grid-column: 2;
+      grid-row: 2;
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(236, 72, 153, 0.2) 100%);
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      border: 3px solid rgba(139, 92, 246, 0.4);
+      animation: fadeIn 0.8s ease 0.6s both;
+    }
+
+    .meeting-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .meeting-label {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .meeting-agents {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      max-width: 200px;
+    }
+
+    .meeting-agent-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--agent-color);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .agent-entities {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .agent-entity {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+    }
+
+    .agent-entity svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .agent-entity .agent-label {
+      position: absolute;
+      bottom: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      font-weight: 600;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 2px 8px;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+
+    .movement-paths {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .movement-path {
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-dasharray: 8 4;
+      opacity: 0.6;
+    }
+
+    .movement-path.animated {
+      animation: dash-flow 1s linear infinite;
+    }
+
+    @keyframes dash-flow {
+      to {
+        stroke-dashoffset: -12;
+      }
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      animation: fadeIn 0.8s ease 0.6s both;
+    }
+
+    .control-btn {
+      padding: 14px 28px;
+      border-radius: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.05);
+      color: #a0a0b0;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .control-btn:hover {
+      border-color: rgba(255, 255, 255, 0.4);
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-2px);
+    }
+
+    .control-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .control-btn.primary {
+      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+      border-color: transparent;
+      color: white;
+    }
+
+    .control-btn.primary:hover {
+      background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+    }
+
+    .control-btn.success {
+      background: linear-gradient(135deg, #10b981, #34d399);
+      border-color: transparent;
+      color: white;
+    }
+
+    .control-btn.success:hover {
+      background: linear-gradient(135deg, #059669, #10b981);
+    }
+
+    .control-btn.warning {
+      background: linear-gradient(135deg, #f59e0b, #fbbf24);
+      border-color: transparent;
+      color: white;
+    }
+
+    .control-btn.warning:hover {
+      background: linear-gradient(135deg, #d97706, #f59e0b);
+    }
+
+    .task-panel {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      padding: 32px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      animation: fadeIn 0.8s ease 0.8s both;
+    }
+
+    .task-panel h2 {
+      font-size: 22px;
+      color: #fff;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .task-form {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .task-select {
+      flex: 1;
+      padding: 14px 16px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .task-select option {
+      background: #1a1a2e;
+      color: #fff;
+    }
+
+    .task-input {
+      flex: 2;
+      padding: 14px 16px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .task-input::placeholder {
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .task-submit {
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+      border: none;
+      border-radius: 12px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .task-submit:hover {
+      background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+      transform: translateY(-2px);
+    }
+
+    .task-submit:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .task-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .task-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    .task-item:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .task-item-icon {
+      font-size: 24px;
+    }
+
+    .task-item-info {
+      flex: 1;
+    }
+
+    .task-item-agent {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .task-item-desc {
+      font-size: 13px;
+      color: #a0a0b0;
+    }
+
+    .task-item-status {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .task-item-status.pending {
+      background: rgba(107, 114, 128, 0.2);
+      color: #9ca3af;
+    }
+
+    .task-item-status.assigned {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+    }
+
+    .task-item-status.executing {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+    }
+
+    .task-item-status.completed {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+    }
+
+    .instructions {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      padding: 32px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      margin-top: 32px;
+      animation: fadeIn 0.8s ease 1s both;
+    }
+
+    .instructions h2 {
+      font-size: 22px;
+      color: #fff;
+      margin-bottom: 20px;
+    }
+
+    .instructions ul {
+      list-style: none;
+    }
+
+    .instructions li {
+      font-size: 15px;
+      color: #a0a0b0;
+      padding: 8px 0;
+      padding-left: 24px;
+      position: relative;
+    }
+
+    .instructions li::before {
+      content: '✨';
+      position: absolute;
+      left: 0;
+    }
+
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.2); opacity: 0.8; }
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 768px) {
+      .office-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        height: auto;
+      }
+
+      .meeting-table {
+        grid-column: 1;
+        grid-row: auto;
+        min-height: 200px;
+      }
+
+      .workflow-status {
+        flex-direction: column;
+      }
+
+      .task-form {
+        flex-direction: column;
+      }
+
+      .header h1 {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🏢 办公室场景 - 多Agent协作</h1>
+      <p>观察Agent在办公室环境中的协作流程：汇聚、讨论、派发任务、返回工位执行</p>
+    </div>
+
+    <div class="workflow-status" id="workflowStatus"></div>
+
+    <div class="controls" id="controls"></div>
+
+    <div class="office-container">
+      <div class="office-grid" id="officeGrid"></div>
+      <svg class="movement-paths" id="movementPaths"></svg>
+      <div class="agent-entities" id="agentEntities"></div>
+    </div>
+
+    <div class="task-panel">
+      <h2>📋 任务派发面板</h2>
+      <div class="task-form" id="taskForm"></div>
+      <div class="task-list" id="taskList"></div>
+    </div>
+
+    <div class="instructions">
+      <h2>🎮 交互说明</h2>
+      <ul>
+        <li>点击"开始会议"按钮，所有Agent将移动到中央会议桌</li>
+        <li>在会议状态下，选择Agent并输入任务描述，点击"派发任务"</li>
+        <li>点击"开始工作"按钮，Agent将返回各自工位执行任务</li>
+        <li>点击"完成任务"按钮，标记任务完成</li>
+        <li>观察Agent的移动路径动画和状态变化</li>
+        <li>工位状态会实时更新：空闲（绿色）、工作中（橙色）、会议中（蓝色）</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const avatarConfigs = {
+      planner: {
+        primaryColor: '#8b5cf6',
+        secondaryColor: '#a78bfa',
+        accessoryColor: '#fbbf24',
+        skinColor: '#ffd5b4',
+        hairColor: '#4a3728',
+      },
+      executor: {
+        primaryColor: '#f59e0b',
+        secondaryColor: '#fbbf24',
+        accessoryColor: '#3b82f6',
+        skinColor: '#ffe0c0',
+        hairColor: '#2d1f14',
+      },
+      monitor: {
+        primaryColor: '#10b981',
+        secondaryColor: '#34d399',
+        accessoryColor: '#f472b6',
+        skinColor: '#ffd5b4',
+        hairColor: '#8b4513',
+      },
+      reviewer: {
+        primaryColor: '#3b82f6',
+        secondaryColor: '#60a5fa',
+        accessoryColor: '#f59e0b',
+        skinColor: '#ffe0c0',
+        hairColor: '#1a1a2e',
+      },
+      coordinator: {
+        primaryColor: '#ec4899',
+        secondaryColor: '#f472b6',
+        accessoryColor: '#8b5cf6',
+        skinColor: '#ffd5b4',
+        hairColor: '#d2691e',
+      },
+    };
+
+    function getAvatarSVG(role, size = 60) {
+      const config = avatarConfigs[role];
+      const avatars = {
+        planner: `
+          <svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="58" fill="${config.primaryColor}" opacity="0.15" />
+            <path d="M60 110C60 110 30 95 30 70V60C30 55 35 50 40 50H80C85 50 90 55 90 60V70C90 95 60 110 60 110Z" fill="${config.primaryColor}" />
+            <circle cx="60" cy="38" r="22" fill="${config.skinColor}" />
+            <path d="M38 32C38 32 42 15 60 15C78 15 82 32 82 32C82 32 80 25 75 22C70 19 65 20 60 20C55 20 50 19 45 22C40 25 38 32 38 32Z" fill="${config.hairColor}" />
+            <circle cx="50" cy="38" r="8" stroke="${config.accessoryColor}" strokeWidth="2.5" fill="none" />
+            <circle cx="70" cy="38" r="8" stroke="${config.accessoryColor}" strokeWidth="2.5" fill="none" />
+            <circle cx="50" cy="38" r="3" fill="#1a1a2e" />
+            <circle cx="70" cy="38" r="3" fill="#1a1a2e" />
+            <ellipse cx="60" cy="18" rx="25" ry="5" fill="${config.accessoryColor}" />
+            <rect x="48" y="8" width="24" height="12" rx="2" fill="${config.accessoryColor}" />
+          </svg>`,
+        executor: `
+          <svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="58" fill="${config.primaryColor}" opacity="0.15" />
+            <path d="M60 110C60 110 30 95 30 70V60C30 55 35 50 40 50H80C85 50 90 55 90 60V70C90 95 60 110 60 110Z" fill="${config.primaryColor}" />
+            <circle cx="60" cy="38" r="22" fill="${config.skinColor}" />
+            <path d="M38 35C38 35 40 18 60 18C80 18 82 35 82 35C82 35 78 28 72 25C66 22 60 22 60 22C60 22 54 22 48 25C42 28 38 35 38 35Z" fill="${config.hairColor}" />
+            <path d="M35 30C35 30 38 12 60 12C82 12 85 30 85 30L80 35H40L35 30Z" fill="${config.accessoryColor}" />
+            <circle cx="50" cy="38" r="3" fill="#1a1a2e" />
+            <circle cx="70" cy="38" r="3" fill="#1a1a2e" />
+            <path d="M92 55L88 65H94L88 75" stroke="#ffd700" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>`,
+        monitor: `
+          <svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="58" fill="${config.primaryColor}" opacity="0.15" />
+            <path d="M60 110C60 110 25 90 25 65V55C25 50 30 45 35 45H85C90 45 95 50 95 55V65C95 90 60 110 60 110Z" fill="${config.primaryColor}" />
+            <circle cx="60" cy="35" r="22" fill="${config.skinColor}" />
+            <path d="M38 30C38 30 40 10 60 10C80 10 82 30 82 30V45C82 45 78 55 70 55H50C42 55 38 45 38 45V30Z" fill="${config.hairColor}" />
+            <circle cx="50" cy="35" r="4" fill="#1a1a2e" />
+            <circle cx="70" cy="35" r="4" fill="#1a1a2e" />
+            <rect x="42" y="55" width="36" height="24" rx="4" fill="${config.accessoryColor}" opacity="0.8" />
+            <rect x="46" y="59" width="28" height="16" rx="2" fill="#1a1a2e" />
+            <circle cx="60" cy="67" r="5" fill="${config.primaryColor}" />
+          </svg>`,
+        reviewer: `
+          <svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="58" fill="${config.primaryColor}" opacity="0.15" />
+            <path d="M60 110C60 110 30 95 30 70V60C30 55 35 50 40 50H80C85 50 90 55 90 60V70C90 95 60 110 60 110Z" fill="${config.primaryColor}" />
+            <circle cx="60" cy="38" r="22" fill="${config.skinColor}" />
+            <path d="M38 32C38 32 42 15 60 15C78 15 82 32 82 32C82 32 78 25 72 22C66 19 60 20 60 20C60 20 54 19 48 22C42 25 38 32 38 32Z" fill="${config.hairColor}" />
+            <circle cx="85" cy="35" r="12" stroke="${config.accessoryColor}" strokeWidth="3" fill="none" />
+            <path d="M94 44L105 55" stroke="${config.accessoryColor}" strokeWidth="4" strokeLinecap="round" />
+            <circle cx="50" cy="38" r="3" fill="#1a1a2e" />
+            <circle cx="70" cy="38" r="3" fill="#1a1a2e" />
+            <rect x="15" y="50" width="18" height="24" rx="2" fill="white" stroke="${config.accessoryColor}" strokeWidth="1.5" />
+          </svg>`,
+        coordinator: `
+          <svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="58" fill="${config.primaryColor}" opacity="0.15" />
+            <path d="M60 110C60 110 30 95 30 70V60C30 55 35 50 40 50H80C85 50 90 55 90 60V70C90 95 60 110 60 110Z" fill="${config.primaryColor}" />
+            <circle cx="60" cy="38" r="22" fill="${config.skinColor}" />
+            <path d="M38 35C38 35 40 15 60 15C80 15 82 35 82 35" fill="${config.hairColor}" />
+            <circle cx="42" cy="28" r="6" fill="${config.hairColor}" />
+            <circle cx="52" cy="20" r="7" fill="${config.hairColor}" />
+            <circle cx="62" cy="18" r="7" fill="${config.hairColor}" />
+            <circle cx="72" cy="22" r="6" fill="${config.hairColor}" />
+            <circle cx="78" cy="30" r="5" fill="${config.hairColor}" />
+            <circle cx="50" cy="38" r="4" fill="#1a1a2e" />
+            <circle cx="70" cy="38" r="4" fill="#1a1a2e" />
+            <path d="M90 40L110 20" stroke="${config.accessoryColor}" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="110" cy="20" r="4" fill="${config.accessoryColor}" />
+          </svg>`,
+      };
+      return avatars[role] || avatars.planner;
+    }
+
+    const workstations = [
+      { id: 'ws-1', name: '工位 1', position: { row: 1, col: 1 }, icon: '💻' },
+      { id: 'ws-2', name: '工位 2', position: { row: 1, col: 2 }, icon: '💻' },
+      { id: 'ws-3', name: '工位 3', position: { row: 1, col: 3 }, icon: '💻' },
+      { id: 'ws-4', name: '工位 4', position: { row: 3, col: 1 }, icon: '💻' },
+      { id: 'ws-5', name: '工位 5', position: { row: 3, col: 2 }, icon: '💻' },
+      { id: 'ws-6', name: '工位 6', position: { row: 3, col: 3 }, icon: '💻' },
+    ];
+
+    const agents = [
+      {
+        id: 'agent-1',
+        name: '规划者-Alpha',
+        role: 'planner',
+        emoji: '🧠',
+        themeColor: '#8b5cf6',
+        workstationId: 'ws-1',
+        status: 'idle',
+        currentTask: null,
+      },
+      {
+        id: 'agent-2',
+        name: '执行者-Beta',
+        role: 'executor',
+        emoji: '⚡',
+        themeColor: '#f59e0b',
+        workstationId: 'ws-2',
+        status: 'idle',
+        currentTask: null,
+      },
+      {
+        id: 'agent-3',
+        name: '监控者-Gamma',
+        role: 'monitor',
+        emoji: '👁',
+        themeColor: '#10b981',
+        workstationId: 'ws-3',
+        status: 'idle',
+        currentTask: null,
+      },
+      {
+        id: 'agent-4',
+        name: '审查者-Delta',
+        role: 'reviewer',
+        emoji: '🔍',
+        themeColor: '#3b82f6',
+        workstationId: 'ws-4',
+        status: 'idle',
+        currentTask: null,
+      },
+      {
+        id: 'agent-5',
+        name: '协调者-Epsilon',
+        role: 'coordinator',
+        emoji: '🎯',
+        themeColor: '#ec4899',
+        workstationId: 'ws-5',
+        status: 'idle',
+        currentTask: null,
+      },
+    ];
+
+    let workflowPhase = 'idle';
+    let tasks = [];
+    let selectedAgentForTask = null;
+    let agentPositions = {};
+    let animationInProgress = false;
+
+    function getWorkstationPosition(wsId) {
+      const ws = workstations.find(w => w.id === wsId);
+      if (!ws) return { x: 50, y: 50 };
+      const col = ws.position.col;
+      const row = ws.position.row;
+      const x = ((col - 0.5) / 3) * 100;
+      const y = ((row - 0.5) / 3) * 100;
+      return { x, y };
+    }
+
+    function getMeetingTablePosition() {
+      return { x: 50, y: 50 };
+    }
+
+    function initializeAgentPositions() {
+      agents.forEach(agent => {
+        const pos = getWorkstationPosition(agent.workstationId);
+        agentPositions[agent.id] = { ...pos };
+      });
+    }
+
+    function renderWorkflowStatus() {
+      const phases = [
+        { key: 'idle', label: '空闲', icon: '💤' },
+        { key: 'meeting', label: '会议中', icon: '🤝' },
+        { key: 'assigning', label: '派发任务', icon: '📋' },
+        { key: 'working', label: '执行中', icon: '⚙️' },
+        { key: 'done', label: '已完成', icon: '✅' },
+      ];
+
+      document.getElementById('workflowStatus').innerHTML = phases.map(p => `
+        <div class="workflow-phase">
+          <div class="phase-indicator ${workflowPhase === p.key ? 'active' : ''}"></div>
+          <div>
+            <div class="phase-label">${p.icon} ${p.label}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderControls() {
+      const controls = [];
+
+      if (workflowPhase === 'idle') {
+        controls.push(`
+          <button class="control-btn primary" onclick="startMeeting()" ${animationInProgress ? 'disabled' : ''}>
+            🤝 开始会议
+          </button>
+        `);
+      } else if (workflowPhase === 'meeting' || workflowPhase === 'assigning') {
+        controls.push(`
+          <button class="control-btn success" onclick="startWorking()" ${animationInProgress ? 'disabled' : ''}>
+            ⚙️ 开始工作
+          </button>
+        `);
+      } else if (workflowPhase === 'working') {
+        controls.push(`
+          <button class="control-btn warning" onclick="completeAllTasks()" ${animationInProgress ? 'disabled' : ''}>
+            ✅ 完成所有任务
+          </button>
+        `);
+      }
+
+      if (workflowPhase !== 'idle') {
+        controls.push(`
+          <button class="control-btn" onclick="resetScene()" ${animationInProgress ? 'disabled' : ''}>
+            🔄 重置场景
+          </button>
+        `);
+      }
+
+      document.getElementById('controls').innerHTML = controls.join('');
+    }
+
+    function renderOfficeGrid() {
+      const grid = document.getElementById('officeGrid');
+
+      const workstationsHTML = workstations.map(ws => {
+        const agent = agents.find(a => a.workstationId === ws.id);
+        const isOccupied = !!agent;
+        const status = agent ? agent.status : 'idle';
+        const statusLabels = { idle: '空闲', busy: '工作中', meeting: '会议中' };
+
+        return `
+          <div class="workstation ${isOccupied ? 'occupied' : ''}" 
+               style="--ws-color: ${agent ? agent.themeColor : '#6b7280'}; 
+                      grid-row: ${ws.position.row}; 
+                      grid-column: ${ws.position.col};
+                      animation-delay: ${(ws.position.row - 1) * 0.1 + (ws.position.col - 1) * 0.05}s;">
+            <div class="ws-icon">${ws.icon}</div>
+            <div class="ws-id">${ws.id.toUpperCase()}</div>
+            ${agent ? `
+              <div class="ws-agent-name">${agent.name}</div>
+              <div class="ws-status ${status}">
+                <div class="ws-status-dot"></div>
+                ${statusLabels[status] || '空闲'}
+              </div>
+            ` : `
+              <div class="ws-agent-name" style="color: #999;">空闲</div>
+            `}
+          </div>
+        `;
+      }).join('');
+
+      const meetingAgents = agents.filter(a => a.status === 'meeting');
+      const meetingHTML = `
+        <div class="meeting-table">
+          <div class="meeting-icon">🤝</div>
+          <div class="meeting-label">会议桌</div>
+          <div class="meeting-agents">
+            ${meetingAgents.map(a => `
+              <div class="meeting-agent-dot" style="--agent-color: ${a.themeColor};" title="${a.name}"></div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      grid.innerHTML = workstationsHTML + meetingHTML;
+    }
+
+    function renderAgentEntities() {
+      const container = document.getElementById('agentEntities');
+      container.innerHTML = agents.map(agent => {
+        const pos = agentPositions[agent.id] || { x: 50, y: 50 };
+        return `
+          <div class="agent-entity" 
+               id="entity-${agent.id}"
+               style="left: calc(${pos.x}% - 30px); top: calc(${pos.y}% - 30px);">
+            ${getAvatarSVG(agent.role, 60)}
+            <div class="agent-label">${agent.name.split('-')[0]}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderMovementPaths() {
+      const svg = document.getElementById('movementPaths');
+      svg.innerHTML = '';
+
+      if (workflowPhase === 'meeting' || workflowPhase === 'assigning') {
+        const meetingPos = getMeetingTablePosition();
+        agents.forEach(agent => {
+          const startPos = getWorkstationPosition(agent.workstationId);
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', `M ${startPos.x}% ${startPos.y}% Q ${(startPos.x + meetingPos.x) / 2}% ${Math.min(startPos.y, meetingPos.y) - 10}% ${meetingPos.x}% ${meetingPos.y}%`);
+          path.setAttribute('class', 'movement-path animated');
+          path.setAttribute('stroke', agent.themeColor);
+          svg.appendChild(path);
+        });
+      }
+    }
+
+    function renderTaskForm() {
+      const isMeetingState = workflowPhase === 'meeting' || workflowPhase === 'assigning';
+      const availableAgents = isMeetingState ? agents.filter(a => a.status === 'meeting') : [];
+
+      document.getElementById('taskForm').innerHTML = isMeetingState ? `
+        <select class="task-select" id="taskAgentSelect">
+          <option value="">选择Agent...</option>
+          ${availableAgents.map(a => `
+            <option value="${a.id}">${a.emoji} ${a.name}</option>
+          `).join('')}
+        </select>
+        <input class="task-input" id="taskDescription" type="text" placeholder="输入任务描述...">
+        <button class="task-submit" onclick="assignTask()" ${animationInProgress ? 'disabled' : ''}>
+          📋 派发任务
+        </button>
+      ` : `
+        <div style="color: #a0a0b0; font-size: 14px; padding: 14px;">
+          ${workflowPhase === 'idle' ? '请先开始会议，然后派发任务' : '任务派发阶段已结束'}
+        </div>
+      `;
+    }
+
+    function renderTaskList() {
+      if (tasks.length === 0) {
+        document.getElementById('taskList').innerHTML = `
+          <div style="text-align: center; color: #a0a0b0; padding: 32px;">
+            暂无任务
+          </div>
+        `;
+        return;
+      }
+
+      const statusLabels = {
+        pending: '待分配',
+        assigned: '已分配',
+        executing: '执行中',
+        completed: '已完成',
+      };
+
+      const statusIcons = {
+        pending: '⏳',
+        assigned: '📋',
+        executing: '⚙️',
+        completed: '✅',
+      };
+
+      document.getElementById('taskList').innerHTML = tasks.map(task => {
+        const agent = agents.find(a => a.id === task.agentId);
+        return `
+          <div class="task-item">
+            <div class="task-item-icon">${statusIcons[task.status]}</div>
+            <div class="task-item-info">
+              <div class="task-item-agent">${agent ? agent.name : '未分配'}</div>
+              <div class="task-item-desc">${task.description}</div>
+            </div>
+            <div class="task-item-status ${task.status}">${statusLabels[task.status]}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function moveAgentTo(agentId, targetPos, duration = 800) {
+      return new Promise(resolve => {
+        const entity = document.getElementById(`entity-${agentId}`);
+        if (!entity) {
+          resolve();
+          return;
+        }
+
+        const startPos = agentPositions[agentId] || { x: 50, y: 50 };
+        const startTime = performance.now();
+
+        function animate(currentTime) {
+          const elapsed = currentTime - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+
+          const eased = 1 - Math.pow(1 - progress, 3);
+
+          const currentX = startPos.x + (targetPos.x - startPos.x) * eased;
+          const currentY = startPos.y + (targetPos.y - startPos.y) * eased;
+
+          entity.style.left = `calc(${currentX}% - 30px)`;
+          entity.style.top = `calc(${currentY}% - 30px)`;
+
+          agentPositions[agentId] = { x: currentX, y: currentY };
+
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            resolve();
+          }
+        }
+
+        requestAnimationFrame(animate);
+      });
+    }
+
+    async function startMeeting() {
+      if (animationInProgress) return;
+      animationInProgress = true;
+
+      workflowPhase = 'meeting';
+      agents.forEach(a => a.status = 'meeting');
+
+      renderWorkflowStatus();
+      renderControls();
+      renderOfficeGrid();
+      renderMovementPaths();
+      renderTaskForm();
+
+      const meetingPos = getMeetingTablePosition();
+      const promises = agents.map((agent, index) => {
+        const offset = {
+          x: meetingPos.x + (index - 2) * 8,
+          y: meetingPos.y + (index % 2 === 0 ? -5 : 5),
+        };
+        return moveAgentTo(agent.id, offset, 1000 + index * 100);
+      });
+
+      await Promise.all(promises);
+
+      animationInProgress = false;
+      renderControls();
+    }
+
+    function assignTask() {
+      const agentSelect = document.getElementById('taskAgentSelect');
+      const taskInput = document.getElementById('taskDescription');
+
+      if (!agentSelect.value || !taskInput.value.trim()) {
+        alert('请选择Agent并输入任务描述');
+        return;
+      }
+
+      const task = {
+        id: 'task-' + Date.now().toString(36),
+        agentId: agentSelect.value,
+        description: taskInput.value.trim(),
+        status: 'assigned',
+      };
+
+      tasks.push(task);
+
+      const agent = agents.find(a => a.id === task.agentId);
+      if (agent) {
+        agent.currentTask = task.id;
+      }
+
+      workflowPhase = 'assigning';
+      renderWorkflowStatus();
+      renderTaskList();
+      renderTaskForm();
+
+      taskInput.value = '';
+    }
+
+    async function startWorking() {
+      if (animationInProgress) return;
+      animationInProgress = true;
+
+      workflowPhase = 'working';
+      agents.forEach(a => {
+        if (a.currentTask) {
+          a.status = 'busy';
+        } else {
+          a.status = 'idle';
+        }
+      });
+
+      tasks.forEach(t => {
+        if (t.status === 'assigned') {
+          t.status = 'executing';
+        }
+      });
+
+      renderWorkflowStatus();
+      renderControls();
+      renderOfficeGrid();
+      renderMovementPaths();
+      renderTaskForm();
+      renderTaskList();
+
+      const promises = agents.map((agent, index) => {
+        const targetPos = getWorkstationPosition(agent.workstationId);
+        return moveAgentTo(agent.id, targetPos, 1000 + index * 100);
+      });
+
+      await Promise.all(promises);
+
+      animationInProgress = false;
+      renderControls();
+    }
+
+    function completeAllTasks() {
+      tasks.forEach(t => {
+        if (t.status === 'executing') {
+          t.status = 'completed';
+        }
+      });
+
+      agents.forEach(a => {
+        a.currentTask = null;
+        a.status = 'idle';
+      });
+
+      workflowPhase = 'done';
+      renderWorkflowStatus();
+      renderControls();
+      renderOfficeGrid();
+      renderTaskList();
+      renderTaskForm();
+    }
+
+    function resetScene() {
+      workflowPhase = 'idle';
+      tasks = [];
+      agents.forEach(a => {
+        a.status = 'idle';
+        a.currentTask = null;
+      });
+
+      initializeAgentPositions();
+
+      renderWorkflowStatus();
+      renderControls();
+      renderOfficeGrid();
+      renderAgentEntities();
+      renderMovementPaths();
+      renderTaskForm();
+      renderTaskList();
+    }
+
+    function init() {
+      initializeAgentPositions();
+      renderWorkflowStatus();
+      renderControls();
+      renderOfficeGrid();
+      renderAgentEntities();
+      renderMovementPaths();
+      renderTaskForm();
+      renderTaskList();
+    }
+
+    init();
+  </script>
+</body>
+</html>
