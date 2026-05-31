@@ -12,6 +12,14 @@ export enum MessageType {
   ControlCommand = 'control_command',
   Heartbeat = 'heartbeat',
   Acknowledgement = 'acknowledgement',
+  AgendaUpdate = 'agenda_update',
+  Proposal = 'proposal',
+  Vote = 'vote',
+  VoteResult = 'vote_result',
+  CriticalBlocker = 'critical_blocker',
+  HumanApprovalRequest = 'human_approval_request',
+  HumanApprovalResponse = 'human_approval_response',
+  AuditLog = 'audit_log',
 }
 
 export enum MessagePriority {
@@ -45,6 +53,10 @@ export interface MessageEnvelope<T = unknown> {
   expiresAt: number | null
   payload: T
   metadata: Record<string, unknown>
+  traceId?: string
+  spanId?: string
+  causalMessageId?: string
+  sequenceNo?: number
 }
 
 export interface TaskAssignmentPayload {
@@ -141,6 +153,72 @@ export interface AcknowledgementPayload {
   reason?: string
 }
 
+export interface AgendaUpdatePayload {
+  phase: string
+  topic: string
+  currentSpeaker?: string
+  proposalId?: string
+}
+
+export interface ProposalPayload {
+  proposalId: string
+  proposerId: string
+  content: string
+  stance: 'support' | 'oppose' | 'modify' | 'neutral'
+  confidence: number
+  argumentRefs: Array<{ messageId: string; summary: string }>
+}
+
+export interface VotePayload {
+  proposalId: string
+  voterId: string
+  approve: boolean
+  weight: number
+  reason: string
+}
+
+export interface VoteResultPayload {
+  proposalId: string
+  strategy: string
+  totalVotes: number
+  approveCount: number
+  opposeCount: number
+  weightedApprove: number
+  weightedOppose: number
+  accepted: boolean
+}
+
+export interface CriticalBlockerPayload {
+  agentId: string
+  content: string
+  blockerType: string
+}
+
+export interface HumanApprovalRequestPayload {
+  requestId: string
+  requesterId: string
+  operation: string
+  description: string
+  riskLevel: 'low' | 'medium' | 'high' | 'critical'
+  confidence: number
+}
+
+export interface HumanApprovalResponsePayload {
+  requestId: string
+  approved: boolean
+  reason?: string
+}
+
+export interface AuditLogPayload {
+  entryId: string
+  agentId: string
+  operation: string
+  target: string
+  riskLevel: 'low' | 'medium' | 'high' | 'critical'
+  result: string
+  details: Record<string, unknown>
+}
+
 export type TypedMessage =
   | MessageEnvelope<TaskAssignmentPayload>
   | MessageEnvelope<TaskResultPayload>
@@ -153,6 +231,14 @@ export type TypedMessage =
   | MessageEnvelope<ControlCommandPayload>
   | MessageEnvelope<HeartbeatPayload>
   | MessageEnvelope<AcknowledgementPayload>
+  | MessageEnvelope<AgendaUpdatePayload>
+  | MessageEnvelope<ProposalPayload>
+  | MessageEnvelope<VotePayload>
+  | MessageEnvelope<VoteResultPayload>
+  | MessageEnvelope<CriticalBlockerPayload>
+  | MessageEnvelope<HumanApprovalRequestPayload>
+  | MessageEnvelope<HumanApprovalResponsePayload>
+  | MessageEnvelope<AuditLogPayload>
   | MessageEnvelope
 
 export interface CommunicationChannel {

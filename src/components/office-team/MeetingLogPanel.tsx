@@ -31,6 +31,24 @@ export default function MeetingLogPanel({ agents, messages, tasks, viewState }: 
                 {msg.role === 'boss' ? '👔' : ROLE_EMOJI[agent?.role || 'planner']}
               </span>
               <span style={styles.logText}>{msg.content}</span>
+              {(msg as any)._stance && (
+                <span style={{
+                  fontSize: '10px',
+                  padding: '1px 4px',
+                  borderRadius: '4px',
+                  background: (msg as any)._stance === 'support' ? 'rgba(16, 185, 129, 0.2)' :
+                              (msg as any)._stance === 'oppose' ? 'rgba(239, 68, 68, 0.2)' :
+                              'rgba(255, 255, 255, 0.1)',
+                  color: (msg as any)._stance === 'support' ? '#10b981' :
+                         (msg as any)._stance === 'oppose' ? '#ef4444' : '#9ca3af',
+                  marginLeft: '4px',
+                  flexShrink: 0,
+                }}>
+                  {(msg as any)._stance === 'support' ? '👍' :
+                   (msg as any)._stance === 'oppose' ? '👎' :
+                   (msg as any)._stance === 'modify' ? '✏️' : '➖'}
+                </span>
+              )}
             </div>
           )
         })}

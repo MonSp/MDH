@@ -120,6 +120,17 @@ export interface GlobalMetrics {
   peakConcurrency: number
 }
 
+export interface MonitorAlert {
+  id: string
+  agentId: string
+  alertType: 'deadlock' | 'resource_leak' | 'infinite_loop' | 'high_error_rate' | 'timeout'
+  severity: 'warning' | 'critical'
+  message: string
+  affectedTaskIds: string[]
+  timestamp: number
+  resolved: boolean
+}
+
 export interface CollaborationEvent {
   id: string
   sessionId: string
@@ -154,6 +165,10 @@ export enum CollaborationEventType {
   ErrorOccurred = 'error_occurred',
   HelpRequested = 'help_requested',
   HelpProvided = 'help_provided',
+  DeadlockDetected = 'deadlock_detected',
+  DeadlockResolved = 'deadlock_resolved',
+  MonitorAlert = 'monitor_alert',
+  TaskPausedByMonitor = 'task_paused_by_monitor',
 }
 
 export function createCollaborationSession(
@@ -258,6 +273,25 @@ export function createGlobalMetrics(): GlobalMetrics {
     totalTasksExecuted: 0,
     averageSessionDuration: 0,
     peakConcurrency: 0,
+  }
+}
+
+export function createMonitorAlert(
+  agentId: string,
+  alertType: MonitorAlert['alertType'],
+  severity: MonitorAlert['severity'],
+  message: string,
+  affectedTaskIds: string[] = [],
+): MonitorAlert {
+  return {
+    id: crypto.randomUUID(),
+    agentId,
+    alertType,
+    severity,
+    message,
+    affectedTaskIds,
+    timestamp: Date.now(),
+    resolved: false,
   }
 }
 

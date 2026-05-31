@@ -36,6 +36,8 @@ async def ws_handler(ws: WebSocket):
     await ws.accept()
     session = Session(ws)
     sessions[session.session_id] = session
+    session._message_buffer = []
+    session._sequence_no = 0
     logger.info("WebSocket 已连接: session=%s", session.session_id)
 
     await ws.send_json({
@@ -175,11 +177,17 @@ async def ws_handler(ws: WebSocket):
                 session._meeting_coordinator = coordinator
 
                 logger.info("会议已创建: meeting_id=%s session=%s", meeting_id, session.session_id)
-                await ws.send_json({
+                session._sequence_no += 1
+                msg_meeting_started = {
                     "type": "meeting_started",
                     "meeting_id": meeting_id,
                     "agents": meeting.get_agents_dict(),
-                })
+                    "sequence_no": session._sequence_no,
+                }
+                if len(session._message_buffer) >= 100:
+                    session._message_buffer.pop(0)
+                session._message_buffer.append(msg_meeting_started)
+                await ws.send_json(msg_meeting_started)
 
             elif msg_type == "meeting_message":
                 if not session.meeting_session or not session.meeting_session.is_running():
@@ -194,12 +202,18 @@ async def ws_handler(ws: WebSocket):
                 coordinator = getattr(session, "_meeting_coordinator", None)
 
                 async def send_agent_message(agent_id: str, text: str, delta: str):
-                    await ws.send_json({
+                    session._sequence_no += 1
+                    msg_with_seq = {
                         "type": "agent_message",
                         "agent_id": agent_id,
                         "content": text,
                         "delta": delta,
-                    })
+                        "sequence_no": session._sequence_no,
+                    }
+                    if len(session._message_buffer) >= 100:
+                        session._message_buffer.pop(0)
+                    session._message_buffer.append(msg_with_seq)
+                    await ws.send_json(msg_with_seq)
 
                 if coordinator:
                     try:
@@ -226,19 +240,31 @@ async def ws_handler(ws: WebSocket):
                 session.meeting_session.add_message("boss", f"任务已派发给 {agent_id}: {description}")
 
                 logger.info("任务已派发: task_id=%s agent_id=%s meeting=%s", task.id, agent_id, session.meeting_session.meeting_id)
-                await ws.send_json({
+                session._sequence_no += 1
+                msg_task_assigned = {
                     "type": "task_assigned",
                     "task_id": task.id,
                     "agent_id": agent_id,
                     "status": "assigned",
-                })
+                    "sequence_no": session._sequence_no,
+                }
+                if len(session._message_buffer) >= 100:
+                    session._message_buffer.pop(0)
+                session._message_buffer.append(msg_task_assigned)
+                await ws.send_json(msg_task_assigned)
 
-                await ws.send_json({
+                session._sequence_no += 1
+                msg_agent_status = {
                     "type": "agent_status_update",
                     "agent_id": agent_id,
                     "status": "working",
                     "current_task": task.id,
-                })
+                    "sequence_no": session._sequence_no,
+                }
+                if len(session._message_buffer) >= 100:
+                    session._message_buffer.pop(0)
+                session._message_buffer.append(msg_agent_status)
+                await ws.send_json(msg_agent_status)
 
             elif msg_type == "end_meeting":
                 if not session.meeting_session:
@@ -252,10 +278,16 @@ async def ws_handler(ws: WebSocket):
                 session.clear_meeting()
 
                 logger.info("会议已结束: meeting_id=%s session=%s", meeting_id, session.session_id)
-                await ws.send_json({
+                session._sequence_no += 1
+                msg_meeting_ended = {
                     "type": "meeting_ended",
                     "summary": summary,
-                })
+                    "sequence_no": session._sequence_no,
+                }
+                if len(session._message_buffer) >= 100:
+                    session._message_buffer.pop(0)
+                session._message_buffer.append(msg_meeting_ended)
+                await ws.send_json(msg_meeting_ended)
 
             elif msg_type == "get_meeting_status":
                 if not session.meeting_session:
@@ -269,6 +301,52 @@ async def ws_handler(ws: WebSocket):
                     "tasks": session.meeting_session.get_tasks_dict(),
                     "is_running": session.meeting_session.is_running(),
                 })
+
+            elif msg_type == "pause_task":
+                task_id = msg.get("task_id", "")
+                if session.meeting_session and task_id:
+                    session.meeting_session.update_task_status(task_id, "paused")
+                    await ws.send_json({
+                        "type": "task_paused",
+                        "task_id": task_id,
+                    })
+
+            elif msg_type == "resume_task":
+                task_id = msg.get("task_id", "")
+                if session.meeting_session and task_id:
+                    session.meeting_session.update_task_status(task_id, "assigned")
+                    await ws.send_json({
+                        "type": "task_resumed",
+                        "task_id": task_id,
+                    })
+
+            elif msg_type == "override_decision":
+                decision_id = msg.get("decision_id", "")
+                new_decision = msg.get("new_decision", "")
+                await ws.send_json({
+                    "type": "decision_overridden",
+                    "decision_id": decision_id,
+                    "new_decision": new_decision,
+                })
+
+            elif msg_type == "adjust_agent_weight":
+                agent_id = msg.get("agent_id", "")
+                weight = msg.get("weight", 1.0)
+                coordinator = getattr(session, "_meeting_coordinator", None)
+                if coordinator and hasattr(coordinator, 'negotiation'):
+                    coordinator.negotiation.set_agent_weight(agent_id, weight)
+                await ws.send_json({
+                    "type": "agent_weight_adjusted",
+                    "agent_id": agent_id,
+                    "weight": weight,
+                })
+
+            elif msg_type == "request_retransmit":
+                from_seq = msg.get("from_sequence_no", 0)
+                buffered = getattr(session, "_message_buffer", [])
+                for buffered_msg in buffered:
+                    if buffered_msg.get("sequence_no", 0) >= from_seq:
+                        await ws.send_json(buffered_msg)
 
     except WebSocketDisconnect:
         logger.info("WebSocket 断开: session=%s", session.session_id)

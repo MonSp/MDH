@@ -11,6 +11,10 @@ const WORKSTATION_MAP: Record<string, string> = {
   'agent-coordinator': 'ws-5',
 }
 
+const MAX_RECONNECT_ATTEMPTS = 5
+
+type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
+
 function mapAgentToTeamAgent(agent: MeetingAgentInfo): TeamAgent {
   return {
     id: agent.id,
@@ -24,16 +28,22 @@ function mapAgentToTeamAgent(agent: MeetingAgentInfo): TeamAgent {
 
 export default function useMeetingSocket({
   wsRef,
+  url,
 }: {
   wsRef: React.RefObject<WebSocket | null>
+  url?: string
 }) {
   const [meetingId, setMeetingId] = useState<string | null>(null)
   const [agents, setAgents] = useState<TeamAgent[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [isMeetingActive, setIsMeetingActive] = useState(false)
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected')
 
   const pendingMessages = useRef<Map<string, string>>(new Map())
+  const reconnectAttempts = useRef(0)
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSequenceNo = useRef(-1)
 
   const send = useCallback((data: Record<string, unknown>) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -57,6 +67,56 @@ export default function useMeetingSocket({
     send({ type: 'end_meeting' })
   }, [send])
 
+  const createReconnectSocket = useCallback(() => {
+    if (!url) return
+
+    if (wsRef.current) {
+      try {
+        wsRef.current.close()
+      } catch {}
+    }
+
+    setConnectionState('connecting')
+    const newWs = new WebSocket(url)
+    wsRef.current = newWs
+
+    const handleOpen = () => {
+      setConnectionState('connected')
+      reconnectAttempts.current = 0
+      lastSequenceNo.current = -1
+    }
+
+    const handleClose = () => {
+      if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000)
+        reconnectAttempts.current++
+        setConnectionState('reconnecting')
+        reconnectTimer.current = setTimeout(() => {
+          createReconnectSocket()
+        }, delay)
+      } else {
+        setConnectionState('disconnected')
+      }
+    }
+
+    const handleError = () => {
+      if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000)
+        reconnectAttempts.current++
+        setConnectionState('reconnecting')
+        reconnectTimer.current = setTimeout(() => {
+          createReconnectSocket()
+        }, delay)
+      } else {
+        setConnectionState('disconnected')
+      }
+    }
+
+    newWs.addEventListener('open', handleOpen)
+    newWs.addEventListener('close', handleClose)
+    newWs.addEventListener('error', handleError)
+  }, [url, wsRef])
+
   useEffect(() => {
     const ws = wsRef.current
     if (!ws) return
@@ -67,6 +127,16 @@ export default function useMeetingSocket({
         msg = JSON.parse(event.data)
       } catch {
         return
+      }
+
+      if (msg.sequenceNo !== undefined) {
+        if (msg.sequenceNo > lastSequenceNo.current + 1) {
+          send({
+            type: 'request_retransmit',
+            fromSequenceNo: lastSequenceNo.current + 1,
+          })
+        }
+        lastSequenceNo.current = msg.sequenceNo
       }
 
       switch (msg.type) {
@@ -172,7 +242,15 @@ export default function useMeetingSocket({
     return () => {
       ws.removeEventListener('message', handleMessage)
     }
-  }, [wsRef])
+  }, [wsRef, send])
+
+  useEffect(() => {
+    return () => {
+      if (reconnectTimer.current) {
+        clearTimeout(reconnectTimer.current)
+      }
+    }
+  }, [])
 
   return {
     meetingId,
@@ -180,6 +258,7 @@ export default function useMeetingSocket({
     tasks,
     chatMessages,
     isMeetingActive,
+    connectionState,
     startMeeting,
     sendMeetingMessage,
     assignTask,

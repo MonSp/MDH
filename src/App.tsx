@@ -3,11 +3,14 @@ import { Sender } from '@agentscope-ai/chat';
 import { getFriendlyName } from './modules/commands';
 import { retryWithBackoff } from './modules/retry';
 import { extractSkillParams, stepsToServerFormat, buildSkillPrompt } from './modules/skillParser';
+import { ApprovalQueue } from './modules/approvalQueue';
+import type { ApprovalRequestInfo, RiskLevel } from './modules/meetingProtocol';
 
 import AppHeader from './components/AppHeader';
 import ConversationStream, { type Conversation } from './components/ConversationStream';
 import SettingsPanel from './components/SettingsPanel';
 import SkillPanel from './components/SkillPanel';
+import ApprovalDialog from './components/ApprovalDialog';
 import type { ToolStep } from './components/ToolTree';
 import OfficeTeamMode from './components/OfficeTeamMode';
 
@@ -66,6 +69,10 @@ export default function App() {
   const [pageCtx, setPageCtx] = useState({ url: '', title: '' });
   const [ssoUsername] = useState(localStorage.getItem(SSO_USERNAME_KEY) || '');
   const [appMode, setAppMode] = useState<AppMode>('single');
+  const [currentApprovalRequest, setCurrentApprovalRequest] = useState<ApprovalRequestInfo | null>(null);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const approvalQueueRef = useRef<ApprovalQueue>(new ApprovalQueue());
+  const approvalCallbacksRef = useRef<Map<string, { resolve: (v: any) => void }>>(new Map());
   const [settingsCfg, setSettingsCfg] = useState<SettingsConfig>({
     agentUrl: AGENT_URL_DEFAULT,
     provider: 'deepseek',
@@ -207,15 +214,74 @@ export default function App() {
     });
   }, [executeCommand, formatStepResult, scheduleScroll]);
 
+  const processNextApproval = useCallback(() => {
+    const queue = approvalQueueRef.current
+    const next = queue.getNextRequest()
+    if (next) {
+      setCurrentApprovalRequest(next.request)
+    } else {
+      setCurrentApprovalRequest(null)
+    }
+    setPendingApprovalCount(queue.getPendingCount())
+  }, [])
+
+  const handleApprove = useCallback((requestId: string, reason?: string) => {
+    const queue = approvalQueueRef.current
+    queue.approveRequest(requestId, reason)
+    const cb = approvalCallbacksRef.current.get(requestId)
+    if (cb) {
+      cb.resolve({ confirmed: true, reason })
+      approvalCallbacksRef.current.delete(requestId)
+    }
+    processNextApproval()
+  }, [processNextApproval])
+
+  const handleReject = useCallback((requestId: string, reason?: string) => {
+    const queue = approvalQueueRef.current
+    queue.rejectRequest(requestId, reason)
+    const cb = approvalCallbacksRef.current.get(requestId)
+    if (cb) {
+      cb.resolve({ rejected: true, reason })
+      approvalCallbacksRef.current.delete(requestId)
+    }
+    processNextApproval()
+  }, [processNextApproval])
+
+  const handleCloseApproval = useCallback(() => {
+    setCurrentApprovalRequest(null)
+  }, [])
+
   const handleConfirmRequest = useCallback((msg: any) => {
     if (!activeConvRef.current) return;
     const { call_id, name, args } = msg;
+
+    const riskLevel: RiskLevel = args?.risk_level || 'medium'
+    const approvalRequest: ApprovalRequestInfo = {
+      id: call_id || crypto.randomUUID(),
+      requesterId: name || 'agent',
+      operation: getFriendlyName(name) || name,
+      description: args?.description || args?.reason || `确认操作: ${name}`,
+      riskLevel,
+      confidence: args?.confidence ?? 0.5,
+      status: 'pending',
+      createdAt: Date.now(),
+    }
+
+    const queue = approvalQueueRef.current
+    queue.addRequest(approvalRequest, riskLevel === 'critical' ? 100 : riskLevel === 'high' ? 80 : riskLevel === 'medium' ? 50 : 20)
+
+    if (!currentApprovalRequest) {
+      processNextApproval()
+    }
+
+    setPendingApprovalCount(queue.getPendingCount())
+
     const step: ToolStep = {
       callId: call_id,
       name: getFriendlyName(name) || name,
       args,
-      status: 'done',
-      detail: '已确认',
+      status: 'active',
+      detail: '等待审批...',
       duration: '',
       resultText: '',
       startTime: Date.now(),
@@ -223,8 +289,36 @@ export default function App() {
     activeConvRef.current.toolSteps.push(step);
     setConversations(prev => [...prev]);
     scheduleScroll();
-    wsRef.current?.send(JSON.stringify({ type: 'confirm_result', call_id, confirmed: true }));
-  }, [scheduleScroll]);
+
+    return new Promise<void>((resolve) => {
+      approvalCallbacksRef.current.set(approvalRequest.id, {
+        resolve: (result: any) => {
+          const idx = activeConvRef.current?.toolSteps.findIndex(s => s.callId === call_id)
+          if (idx !== undefined && idx >= 0 && activeConvRef.current) {
+            const s = activeConvRef.current.toolSteps[idx]
+            if (result.confirmed) {
+              s.status = 'done'
+              s.detail = '已批准'
+            } else {
+              s.status = 'error'
+              s.detail = '已拒绝'
+            }
+            s.duration = ((Date.now() - step.startTime) / 1000).toFixed(1) + 's'
+          }
+          wsRef.current?.send(JSON.stringify({
+            type: 'confirm_result',
+            call_id,
+            confirmed: !!result.confirmed,
+            rejected: !!result.rejected,
+            reason: result.reason,
+          }));
+          setConversations(prev => [...prev]);
+          scheduleScroll();
+          resolve();
+        },
+      });
+    });
+  }, [currentApprovalRequest, processNextApproval, scheduleScroll]);
 
   const handleDone = useCallback((msg: any) => {
     if (!activeConvRef.current) return;
@@ -352,6 +446,13 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_CONVERSATIONS, JSON.stringify(conversations));
   }, [conversations]);
+
+  useEffect(() => {
+    approvalQueueRef.current.startAutoExpiryCheck(30000)
+    return () => {
+      approvalQueueRef.current.stopAutoExpiryCheck()
+    }
+  }, []);
 
   const toggleTheme = useCallback(() => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
@@ -524,6 +625,20 @@ export default function App() {
         <OfficeTeamMode
           wsRef={wsRef}
           onBackToSingle={() => setAppMode('single')}
+          pendingApprovalCount={pendingApprovalCount}
+          onOpenApproval={() => {
+            const next = approvalQueueRef.current.getNextRequest()
+            if (next) setCurrentApprovalRequest(next.request)
+          }}
+        />
+      )}
+
+      {currentApprovalRequest && (
+        <ApprovalDialog
+          request={currentApprovalRequest}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onClose={handleCloseApproval}
         />
       )}
 

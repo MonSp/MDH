@@ -6,6 +6,7 @@ import {
   CommunicationChannel,
   MessageHandler,
   createMessage,
+  createReply,
   isMessageExpired,
   createCommunicationChannel,
 } from './communicationProtocol'
@@ -16,6 +17,11 @@ export class CommunicationBus {
   private pendingMessages: MessageEnvelope[] = []
   private deadLetterQueue: MessageEnvelope[] = []
   private messageHistory: Map<string, MessageEnvelope[]> = new Map()
+  private processedMessageIds: Map<string, number> = new Map()
+  private sequenceCounters: Map<string, number> = new Map()
+  private dlqThreshold: number = 10
+  private onDlqThresholdExceeded: ((count: number) => void) | null = null
+  private readonly DEDUP_TTL_MS = 5 * 60 * 1000
 
   createChannel(
     name: string,
@@ -84,6 +90,10 @@ export class CommunicationBus {
     })
 
     if (options?.channelId) {
+      const currentSeq = this.sequenceCounters.get(options.channelId) ?? 0
+      message.sequenceNo = currentSeq
+      this.sequenceCounters.set(options.channelId, currentSeq + 1)
+
       const channel = this.channels.get(options.channelId)
       if (channel) {
         message.sessionId = options.channelId
@@ -129,9 +139,18 @@ export class CommunicationBus {
   }
 
   private async processMessage(message: MessageEnvelope): Promise<void> {
+    const now = Date.now()
+    this.cleanupExpiredDedupEntries(now)
+    if (this.processedMessageIds.has(message.id)) {
+      return
+    }
+
     if (isMessageExpired(message)) {
       message.status = MessageStatus.Expired
       this.deadLetterQueue.push(message)
+      if (this.deadLetterQueue.length >= this.dlqThreshold && this.onDlqThresholdExceeded) {
+        this.onDlqThresholdExceeded(this.deadLetterQueue.length)
+      }
       this.removeFromPending(message.id)
       return
     }
@@ -140,6 +159,9 @@ export class CommunicationBus {
     if (handlers.length === 0) {
       message.status = MessageStatus.Failed
       this.deadLetterQueue.push(message)
+      if (this.deadLetterQueue.length >= this.dlqThreshold && this.onDlqThresholdExceeded) {
+        this.onDlqThresholdExceeded(this.deadLetterQueue.length)
+      }
       this.removeFromPending(message.id)
       return
     }
@@ -152,6 +174,8 @@ export class CommunicationBus {
       try {
         const response = await handler.handler(message)
         message.status = MessageStatus.Processed
+        this.processedMessageIds.set(message.id, Date.now())
+        this.sendAcknowledgement(message)
 
         if (response) {
           this.pendingMessages.push(response)
@@ -168,21 +192,33 @@ export class CommunicationBus {
     if (message.status !== MessageStatus.Processed) {
       message.status = MessageStatus.Failed
       this.deadLetterQueue.push(message)
+      if (this.deadLetterQueue.length >= this.dlqThreshold && this.onDlqThresholdExceeded) {
+        this.onDlqThresholdExceeded(this.deadLetterQueue.length)
+      }
     }
 
     this.removeFromPending(message.id)
   }
 
   private sortHandlersByPriority(handlers: MessageHandler[], messagePriority: MessagePriority): MessageHandler[] {
-    return [...handlers].sort((a, b) => {
-      const priorityOrder = {
-        [MessagePriority.Urgent]: 0,
-        [MessagePriority.High]: 1,
-        [MessagePriority.Normal]: 2,
-        [MessagePriority.Low]: 3,
-      }
-      return priorityOrder[messagePriority] - priorityOrder[messagePriority]
+    return [...handlers]
+  }
+
+  private sendAcknowledgement(message: MessageEnvelope): void {
+    const ack = createReply(message, MessageType.Acknowledgement, message.receiverId ?? message.senderId, {
+      originalMessageId: message.id,
+      status: 'acknowledged',
+      timestamp: Date.now(),
     })
+    this.pendingMessages.push(ack)
+  }
+
+  private cleanupExpiredDedupEntries(now: number): void {
+    for (const [id, timestamp] of this.processedMessageIds) {
+      if (now - timestamp > this.DEDUP_TTL_MS) {
+        this.processedMessageIds.delete(id)
+      }
+    }
   }
 
   private removeFromPending(messageId: string): void {
@@ -321,5 +357,17 @@ export class CommunicationBus {
       'direct',
       [agentId1, agentId2],
     )
+  }
+
+  getChannelSequenceNo(channelId: string): number {
+    return this.sequenceCounters.get(channelId) ?? 0
+  }
+
+  setDlqThreshold(threshold: number): void {
+    this.dlqThreshold = threshold
+  }
+
+  setDlqAlertCallback(callback: (count: number) => void): void {
+    this.onDlqThresholdExceeded = callback
   }
 }

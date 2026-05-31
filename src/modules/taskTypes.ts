@@ -46,6 +46,12 @@ export interface TaskArtifact {
   createdAt: number
 }
 
+export interface CompensateAction {
+  description: string
+  actionType: string
+  params: Record<string, unknown>
+}
+
 export interface SubTask {
   id: string
   title: string
@@ -69,6 +75,9 @@ export interface SubTask {
   completedAt: number | null
   estimatedDuration: number | null
   metadata: Record<string, unknown>
+  compensateAction: CompensateAction | null
+  rollbackCondition: string | null
+  failureImpact: 'none' | 'local' | 'cascading' | 'critical'
 }
 
 export interface TaskDependency {
@@ -162,6 +171,9 @@ export function createSubTask(
     completedAt: options?.completedAt ?? null,
     estimatedDuration: options?.estimatedDuration ?? null,
     metadata: options?.metadata ?? {},
+    compensateAction: options?.compensateAction ?? null,
+    rollbackCondition: options?.rollbackCondition ?? null,
+    failureImpact: options?.failureImpact ?? 'local',
   }
 }
 

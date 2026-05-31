@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import uuid
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
@@ -8,8 +9,10 @@ from agentscope.agent import Agent
 from agentscope.message import Msg
 
 from agent import PROVIDER_REGISTRY, _extract_text
-from protocol import AgentRole, MeetingAgentStatus
+from agenda import AgendaStateMachine, AgendaPhase
 from meeting import MeetingSession
+from negotiation import NegotiationEngine, ConsensusStrategy, Stance
+from protocol import AgentRole, MeetingAgentStatus
 
 AGENT_ROLE_PROMPTS = {
     AgentRole.PLANNER: "你是团队的规划者。你的职责是分析任务、制定计划、将复杂任务分解为可执行的子任务。请用简洁专业的语言发言。",
@@ -39,6 +42,8 @@ class MeetingCoordinator:
         self._models: Dict[str, Agent] = {}
         self._tasks: List[Dict[str, Any]] = []
         self.logger = logging.getLogger("meeting_coordinator")
+        self.agenda = AgendaStateMachine()
+        self.negotiation = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
 
     def _create_model(self, role: AgentRole) -> Agent:
         reg = PROVIDER_REGISTRY.get(self.provider)
@@ -110,44 +115,160 @@ class MeetingCoordinator:
         topic: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
     ) -> List[Dict[str, str]]:
+        self.agenda.open_topic(topic)
+        self.agenda.start_discussion()
+
+        results: List[Dict[str, Any]] = []
+
+        planning_roles = [AgentRole.PLANNER]
         discussion_roles = [
-            AgentRole.PLANNER,
             AgentRole.EXECUTOR,
             AgentRole.MONITOR,
             AgentRole.REVIEWER,
             AgentRole.COORDINATOR,
         ]
-        results = []
 
-        for role in discussion_roles:
-            agent_id = None
-            for a in self.meeting.agents:
-                if a.role == role:
-                    agent_id = a.id
-                    break
-
+        for role in planning_roles:
+            agent_id = self._find_agent_id(role)
             if agent_id is None:
                 continue
 
             self.meeting.update_agent_status(agent_id, MeetingAgentStatus.SPEAKING)
 
             model = self._get_model(role)
-            prompt = f"当前会议议题：{topic}\n请以{role.value}的身份发表你的看法和建议（2-3句话）。"
+            previous_context = self._build_previous_context(results)
+            prompt = (
+                f"当前会议议题：{topic}\n"
+                f"当前议程阶段：{self.agenda.get_phase().value}\n"
+                f"之前的讨论：\n{previous_context}\n\n"
+                f"请以{role.value}的身份发表你的看法和建议（2-3句话）。"
+                f"请在回复末尾用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注你的立场和置信度。"
+            )
             msg = Msg(name="user", role="user", content=prompt)
             response = await model.reply(msg)
             text = _extract_text(response)
+
+            self.agenda.request_token(agent_id, 0.8)
 
             await on_message(agent_id, text, text)
             self.meeting.add_message("agent", text, agent_id)
             self.meeting.update_agent_status(agent_id, MeetingAgentStatus.MEETING)
 
+            stance, confidence = self._parse_stance_from_response(text)
             results.append({
                 "agent_id": agent_id,
                 "role": role.value,
                 "content": text,
+                "parsed_stance": stance,
+                "parsed_confidence": confidence,
             })
 
+        for role in discussion_roles:
+            agent_id = self._find_agent_id(role)
+            if agent_id is None:
+                continue
+
+            self.meeting.update_agent_status(agent_id, MeetingAgentStatus.SPEAKING)
+
+            model = self._get_model(role)
+            previous_context = self._build_previous_context(results)
+            prompt = (
+                f"当前会议议题：{topic}\n"
+                f"当前议程阶段：{self.agenda.get_phase().value}\n"
+                f"之前的讨论：\n{previous_context}\n\n"
+                f"请以{role.value}的身份发表你的看法和建议（2-3句话）。"
+                f"请在回复末尾用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注你的立场和置信度。"
+            )
+            msg = Msg(name="user", role="user", content=prompt)
+            response = await model.reply(msg)
+            text = _extract_text(response)
+
+            self.agenda.request_token(agent_id, 0.8)
+
+            await on_message(agent_id, text, text)
+            self.meeting.add_message("agent", text, agent_id)
+            self.meeting.update_agent_status(agent_id, MeetingAgentStatus.MEETING)
+
+            stance, confidence = self._parse_stance_from_response(text)
+            results.append({
+                "agent_id": agent_id,
+                "role": role.value,
+                "content": text,
+                "parsed_stance": stance,
+                "parsed_confidence": confidence,
+            })
+
+        coordinator_id = self._find_agent_id(AgentRole.COORDINATOR)
+        if coordinator_id:
+            summary = "\n".join([
+                f"[{r['role']}]: {r['content']}" for r in results
+            ])
+            proposal = self.negotiation.create_proposal(coordinator_id, summary)
+            for r in results:
+                stance_str = r.get('parsed_stance', 'neutral')
+                self.negotiation.add_argument(
+                    proposal.id, r['agent_id'],
+                    Stance(stance_str),
+                    r.get('parsed_confidence', 0.5),
+                    r['content']
+                )
+            vote_result = self.negotiation.evaluate_consensus(proposal.id)
+            self.logger.info(f"Consensus result: {vote_result}")
+
+        self.agenda.close()
         return results
+
+    def _find_agent_id(self, role: AgentRole) -> Optional[str]:
+        for a in self.meeting.agents:
+            if a.role == role:
+                return a.id
+        return None
+
+    def _build_previous_context(self, results: List[Dict[str, Any]]) -> str:
+        if not results:
+            return "（尚无发言）"
+        return "\n".join([
+            f"[{r['role']}]: {r['content']}" for r in results
+        ])
+
+    def _parse_stance_from_response(self, text: str) -> tuple[str, float]:
+        stance_match = re.search(r'\[STANCE:(support|oppose|modify|neutral)\]', text, re.IGNORECASE)
+        confidence_match = re.search(r'\[CONFIDENCE:([\d.]+)\]', text)
+        stance = stance_match.group(1).lower() if stance_match else 'neutral'
+        confidence = min(1.0, max(0.0, float(confidence_match.group(1)))) if confidence_match else 0.5
+        return stance, confidence
+
+    async def handle_critical_blocker(
+        self,
+        agent_id: str,
+        content: str,
+        on_message: Callable[[str, str, str], Awaitable[None]],
+    ) -> None:
+        self.agenda.declare_emergency(f"Critical blocker from {agent_id}")
+
+        planner_id = None
+        for a in self.meeting.agents:
+            if a.role == AgentRole.PLANNER:
+                planner_id = a.id
+                break
+
+        if planner_id:
+            self.agenda.force_token(planner_id, "emergency response")
+            model = self._get_model(AgentRole.PLANNER)
+            prompt = (
+                f"紧急情况！{agent_id}报告了关键阻塞问题：\n{content}\n\n"
+                f"请作为规划者提出应急解决方案（2-3句话）。"
+            )
+            msg = Msg(name="user", role="user", content=prompt)
+            response = await model.reply(msg)
+            text = _extract_text(response)
+            await on_message(planner_id, text, text)
+            self.meeting.add_message("agent", text, planner_id)
+
+        if hasattr(self.agenda, 'resolveEmergency'):
+            self.agenda.resolveEmergency()
+        else:
+            self.agenda.resolve_emergency()
 
     async def assign_tasks(
         self, subtasks: List[Dict[str, Any]] = None

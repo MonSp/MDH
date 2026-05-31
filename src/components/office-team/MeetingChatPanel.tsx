@@ -9,9 +9,10 @@ interface MeetingChatPanelProps {
   agents: TeamAgent[]
   messages: ChatMessage[]
   onEndMeeting: () => void
+  agendaPhase?: string
 }
 
-export default function MeetingChatPanel({ agents, messages, onEndMeeting }: MeetingChatPanelProps) {
+export default function MeetingChatPanel({ agents, messages, onEndMeeting, agendaPhase }: MeetingChatPanelProps) {
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -24,6 +25,35 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting }: Mee
     <div style={styles.chatPanel}>
       <div style={styles.chatHeader}>
         <h3 style={styles.chatTitle}>💬 会议讨论</h3>
+        {agendaPhase && (
+          <span style={{
+            padding: '2px 8px',
+            borderRadius: '10px',
+            fontSize: '11px',
+            background: agendaPhase === 'emergency' ? 'rgba(239, 68, 68, 0.3)' :
+                        agendaPhase === 'voting' ? 'rgba(245, 158, 11, 0.3)' :
+                        agendaPhase === 'discussion' ? 'rgba(59, 130, 246, 0.3)' :
+                        'rgba(255, 255, 255, 0.1)',
+            color: agendaPhase === 'emergency' ? '#ef4444' :
+                   agendaPhase === 'voting' ? '#f59e0b' :
+                   agendaPhase === 'discussion' ? '#3b82f6' :
+                   '#9ca3af',
+            border: `1px solid ${agendaPhase === 'emergency' ? 'rgba(239, 68, 68, 0.5)' :
+                                  agendaPhase === 'voting' ? 'rgba(245, 158, 11, 0.5)' :
+                                  agendaPhase === 'discussion' ? 'rgba(59, 130, 246, 0.5)' :
+                                  'rgba(255, 255, 255, 0.1)'}`,
+          }}>
+            {agendaPhase === 'idle' && '⏸️ 待议'}
+            {agendaPhase === 'open_topic' && '📝 开题'}
+            {agendaPhase === 'discussion' && '💬 讨论中'}
+            {agendaPhase === 'proposal' && '📋 提案'}
+            {agendaPhase === 'voting' && '🗳️ 投票中'}
+            {agendaPhase === 'accepted' && '✅ 已通过'}
+            {agendaPhase === 'rejected' && '❌ 已否决'}
+            {agendaPhase === 'emergency' && '🚨 紧急'}
+            {agendaPhase === 'closed' && '🔒 已关闭'}
+          </span>
+        )}
         <div style={styles.chatActions}>
           <span style={styles.chatCount}>{messages.length} 条</span>
           <button style={styles.endMeetingBtn} onClick={onEndMeeting}>
@@ -72,6 +102,35 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting }: Mee
                   <span style={styles.msgTime}>{formatTime(msg.timestamp)}</span>
                 </div>
                 <div style={styles.msgContent}>{msg.content}{(msg as any)._streaming && <span style={styles.streamingCursor}>▍</span>}</div>
+                {(msg as any)._stance && (
+                  <div style={{
+                    display: 'flex',
+                    gap: '6px',
+                    marginTop: '4px',
+                    fontSize: '10px',
+                  }}>
+                    <span style={{
+                      padding: '1px 5px',
+                      borderRadius: '6px',
+                      background: (msg as any)._stance === 'support' ? 'rgba(16, 185, 129, 0.2)' :
+                                  (msg as any)._stance === 'oppose' ? 'rgba(239, 68, 68, 0.2)' :
+                                  (msg as any)._stance === 'modify' ? 'rgba(245, 158, 11, 0.2)' :
+                                  'rgba(107, 114, 128, 0.2)',
+                      color: (msg as any)._stance === 'support' ? '#10b981' :
+                             (msg as any)._stance === 'oppose' ? '#ef4444' :
+                             (msg as any)._stance === 'modify' ? '#f59e0b' : '#6b7280',
+                    }}>
+                      {(msg as any)._stance === 'support' ? '👍 支持' :
+                       (msg as any)._stance === 'oppose' ? '👎 反对' :
+                       (msg as any)._stance === 'modify' ? '✏️ 修改' : '➖ 中立'}
+                    </span>
+                    {(msg as any)._confidence != null && (
+                      <span style={{ color: '#9ca3af' }}>
+                        置信度 {Math.round((msg as any)._confidence * 100)}%
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {isBoss && (

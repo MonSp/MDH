@@ -3,7 +3,8 @@ dist/
 node_modules/
 
 backend/__pycache__/*
-backend/tests/__pycache__/*
+
+backend/*/__pycache__/*
 
 # Third-party dependencies (submodules)
 third_party/
