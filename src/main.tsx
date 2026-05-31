@@ -6,6 +6,7 @@ import App from './App';
 import './theme-dark.css';
 import './theme-light.css';
 import './assets/base.css';
+import './assets/collaboration.css';
 
 const SSO_TOKEN_KEY = 'sso_auth_token';
 const SSO_USERNAME_KEY = 'sso_auth_username';

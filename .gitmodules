@@ -1,3 +1,4 @@
 [submodule "third_party/agentscope"]
 	path = third_party/agentscope
 	url = https://github.com/agentscope-ai/agentscope.git
+	ignore = dirty
