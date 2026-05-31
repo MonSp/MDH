@@ -40,6 +40,7 @@ export interface AgentConfig {
     backoffMs: number
   }
   metadata: Record<string, unknown>
+  roleProfile?: AgentRoleProfile
 }
 
 export interface AgentInstance {
@@ -83,6 +84,7 @@ export function createAgentConfig(
     timeout: options?.timeout ?? 300_000,
     retryPolicy: options?.retryPolicy ?? { maxRetries: 3, backoffMs: 1000 },
     metadata: options?.metadata ?? {},
+    roleProfile: options?.roleProfile ?? DEFAULT_ROLE_PROFILES[role],
   }
 }
 
@@ -97,6 +99,70 @@ export function createAgentInstance(configId: string): AgentInstance {
     completedTaskCount: 0,
     failedTaskCount: 0,
   }
+}
+
+export interface AgentRoleProfile {
+  avatar: string
+  themeColor: string
+  gradientColors: [string, string]
+  personality: string
+  motto: string
+  description: string
+  specializations: string[]
+  emoji: string
+}
+
+export const DEFAULT_ROLE_PROFILES: Record<AgentRole, AgentRoleProfile> = {
+  [AgentRole.Planner]: {
+    avatar: 'planner',
+    themeColor: '#8b5cf6',
+    gradientColors: ['#8b5cf6', '#a78bfa'],
+    personality: '深思熟虑、高瞻远瞩',
+    motto: '运筹帷幄之中，决胜千里之外',
+    description: '负责分析复杂任务，制定详细计划，将宏大目标分解为可执行的步骤',
+    specializations: ['战略规划', '任务分解', '资源调配', '风险评估'],
+    emoji: '🧠',
+  },
+  [AgentRole.Executor]: {
+    avatar: 'executor',
+    themeColor: '#f59e0b',
+    gradientColors: ['#f59e0b', '#fbbf24'],
+    personality: '雷厉风行、精益求精',
+    motto: '行动是成功的阶梯',
+    description: '专注于任务执行，快速高效地完成分配的工作，确保代码质量和性能',
+    specializations: ['代码开发', '自动化测试', '性能优化', '问题排查'],
+    emoji: '⚡',
+  },
+  [AgentRole.Monitor]: {
+    avatar: 'monitor',
+    themeColor: '#10b981',
+    gradientColors: ['#10b981', '#34d399'],
+    personality: '细致入微、警觉敏锐',
+    motto: '防患于未然，监控保平安',
+    description: '持续监控系统状态和任务进度，及时发现并预警潜在问题',
+    specializations: ['状态监控', '异常检测', '性能分析', '日志审计'],
+    emoji: '👁',
+  },
+  [AgentRole.Reviewer]: {
+    avatar: 'reviewer',
+    themeColor: '#3b82f6',
+    gradientColors: ['#3b82f6', '#60a5fa'],
+    personality: '严谨认真、追求卓越',
+    motto: '细节决定成败，质量铸就未来',
+    description: '负责代码审查和质量把关，确保交付物符合标准和最佳实践',
+    specializations: ['代码审查', '质量检测', '标准验证', '最佳实践'],
+    emoji: '🔍',
+  },
+  [AgentRole.Coordinator]: {
+    avatar: 'coordinator',
+    themeColor: '#ec4899',
+    gradientColors: ['#ec4899', '#f472b6'],
+    personality: '协调有方、沟通高效',
+    motto: '团结协作，共创辉煌',
+    description: '协调各Agent之间的合作，确保信息流畅传递，任务高效完成',
+    specializations: ['任务协调', '资源调度', '冲突解决', '进度同步'],
+    emoji: '🎯',
+  },
 }
 
 export const DEFAULT_AGENT_CONFIGS: Record<AgentRole, Partial<AgentConfig>> = {

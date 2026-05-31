@@ -2,11 +2,14 @@ import React, { useMemo } from 'react';
 import type { AgentStatus } from '../modules/collaborationState';
 import { AgentInstanceStatus } from '../modules/agentTypes';
 import type { AgentRole, AgentCapability } from '../modules/agentTypes';
+import AgentRoleCard from './AgentRoleCard';
+import './AgentRoleCard.css';
 
 interface AgentStatusPanelProps {
   agents: AgentStatus[];
   onAgentClick?: (agent: AgentStatus) => void;
   selectedAgentId?: string | null;
+  useRoleCards?: boolean;
 }
 
 const statusColors: Record<AgentInstanceStatus, string> = {
@@ -58,6 +61,7 @@ export default function AgentStatusPanel({
   agents,
   onAgentClick,
   selectedAgentId,
+  useRoleCards = true,
 }: AgentStatusPanelProps) {
   const stats = useMemo(() => {
     const total = agents.length;
@@ -80,6 +84,17 @@ export default function AgentStatusPanel({
   };
 
   const renderAgentCard = (agent: AgentStatus) => {
+    if (useRoleCards) {
+      return (
+        <AgentRoleCard
+          key={agent.agentId}
+          agent={agent}
+          isSelected={selectedAgentId === agent.agentId}
+          onClick={onAgentClick}
+        />
+      );
+    }
+
     const isSelected = selectedAgentId === agent.agentId;
     const isActive = agent.status !== AgentInstanceStatus.Offline;
     

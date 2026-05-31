@@ -1,0 +1,450 @@
+.agent-role-card {
+  --theme-color: #8b5cf6;
+  --gradient-start: #8b5cf6;
+  --gradient-end: #a78bfa;
+
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border: 2px solid transparent;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.agent-role-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--gradient-start), var(--gradient-end));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.agent-role-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+  border-color: var(--theme-color);
+}
+
+.agent-role-card:hover::before {
+  opacity: 1;
+}
+
+.agent-role-card.selected {
+  border-color: var(--theme-color);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.agent-role-card.selected::before {
+  opacity: 1;
+}
+
+.agent-role-card.expanded {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+}
+
+.agent-role-card.offline {
+  opacity: 0.6;
+  filter: grayscale(30%);
+}
+
+.agent-role-card.error {
+  border-color: #ef4444;
+}
+
+.agent-role-card.error::before {
+  background: linear-gradient(90deg, #ef4444, #f87171);
+  opacity: 1;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.role-avatar {
+  flex-shrink: 0;
+  transition: transform 0.3s ease;
+}
+
+.agent-role-card:hover .role-avatar {
+  transform: scale(1.05);
+}
+
+.avatar-status-ring {
+  transition: all 0.3s ease;
+}
+
+.agent-identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-name {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  border-radius: 20px;
+  font-size: 12px;
+  color: white;
+}
+
+.role-emoji {
+  font-size: 14px;
+}
+
+.role-label {
+  font-weight: 500;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f9fafb;
+  border-radius: 20px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+.card-body {
+  margin-bottom: 16px;
+}
+
+.agent-motto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: linear-gradient(135deg, var(--theme-color)08, var(--theme-color)12);
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.motto-icon {
+  font-size: 16px;
+}
+
+.motto-text {
+  font-size: 14px;
+  color: #4b5563;
+  font-style: italic;
+}
+
+.task-progress-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.task-progress-indicator.active {
+  background: linear-gradient(135deg, var(--theme-color)10, var(--theme-color)20);
+  border-color: var(--theme-color);
+}
+
+.task-progress-indicator.waiting {
+  background: #fef3c7;
+  border-color: #f59e0b;
+}
+
+.task-icon {
+  font-size: 24px;
+  animation: spin 2s linear infinite;
+}
+
+.task-progress-indicator.idle .task-icon,
+.task-progress-indicator.waiting .task-icon {
+  animation: none;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.task-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.task-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.task-id {
+  font-size: 14px;
+  font-family: monospace;
+  color: #374151;
+}
+
+.task-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  width: 30%;
+  animation: progress-animation 2s ease-in-out infinite;
+}
+
+@keyframes progress-animation {
+  0% {
+    width: 20%;
+    margin-left: 0;
+  }
+  50% {
+    width: 60%;
+    margin-left: 20%;
+  }
+  100% {
+    width: 20%;
+    margin-left: 80%;
+  }
+}
+
+.expanded-content {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.agent-description {
+  margin-bottom: 16px;
+}
+
+.agent-description h4,
+.agent-specializations h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.agent-description p {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.agent-specializations {
+  margin-bottom: 16px;
+}
+
+.specialization-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.specialization-tag {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  color: white;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.capability-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.capability-tag {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.capability-tag:hover {
+  transform: scale(1.05);
+}
+
+.capability-more {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.agent-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 12px;
+}
+
+.metric-label {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.metric-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.metric-value.success {
+  color: #10b981;
+}
+
+.metric-value.error {
+  color: #ef4444;
+}
+
+.load-bar {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.load-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.agent-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  margin-top: 12px;
+}
+
+.error-icon {
+  font-size: 20px;
+}
+
+.error-message {
+  font-size: 14px;
+  color: #dc2626;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.last-heartbeat,
+.avg-duration {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.expand-hint {
+  font-size: 12px;
+  color: var(--theme-color);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.expand-hint:hover {
+  color: var(--gradient-start);
+}
+
+.agent-role-card.expanded .card-footer {
+  margin-top: 16px;
+  padding-top: 16px;
+}

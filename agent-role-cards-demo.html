@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent 角色卡片效果展示</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 48px;
+      animation: fadeInDown 0.8s ease;
+    }
+
+    .header h1 {
+      font-size: 42px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+      letter-spacing: 2px;
+    }
+
+    .header p {
+      font-size: 18px;
+      color: #a0a0b0;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .stats-bar {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin-bottom: 40px;
+      animation: fadeIn 0.8s ease 0.2s both;
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 24px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+    }
+
+    .stat-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: #808090;
+    }
+
+    .stat-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      gap: 24px;
+      margin-bottom: 48px;
+    }
+
+    .agent-card {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      padding: 24px;
+      cursor: pointer;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      animation: fadeInUp 0.6s ease both;
+    }
+
+    .agent-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--gradient);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .agent-card:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .agent-card:hover::before {
+      opacity: 1;
+    }
+
+    .agent-card.expanded {
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .role-avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: transform 0.3s ease;
+    }
+
+    .agent-card:hover .role-avatar {
+      transform: scale(1.1) rotate(5deg);
+    }
+
+    .avatar-ring {
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 3px solid var(--status-color);
+      animation: rotate 3s linear infinite;
+    }
+
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .agent-info {
+      flex: 1;
+    }
+
+    .agent-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+    }
+
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: var(--gradient);
+      border-radius: 20px;
+      font-size: 12px;
+      color: white;
+      font-weight: 500;
+    }
+
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: #f5f5f7;
+      border-radius: 20px;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--status-color);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .status-text {
+      font-size: 13px;
+      font-weight: 500;
+      color: #666;
+    }
+
+    .motto-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--bg-light) 0%, var(--bg-lighter) 100%);
+      border-radius: 14px;
+      margin-bottom: 20px;
+    }
+
+    .motto-icon {
+      font-size: 20px;
+    }
+
+    .motto-text {
+      font-size: 14px;
+      color: #555;
+      font-style: italic;
+    }
+
+    .task-indicator {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px;
+      background: #f8f9fa;
+      border-radius: 14px;
+      border: 1px solid #e9ecef;
+      margin-bottom: 20px;
+    }
+
+    .task-indicator.active {
+      background: linear-gradient(135deg, var(--bg-light) 0%, var(--bg-lighter) 100%);
+      border-color: var(--theme-color);
+    }
+
+    .task-icon {
+      font-size: 28px;
+    }
+
+    .task-indicator.active .task-icon {
+      animation: spin 2s linear infinite;
+    }
+
+    .task-info {
+      flex: 1;
+    }
+
+    .task-label {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+
+    .task-id {
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      color: #333;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: #e9ecef;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--gradient);
+      border-radius: 3px;
+      animation: progress-flow 2s ease-in-out infinite;
+    }
+
+    @keyframes progress-flow {
+      0% { width: 20%; margin-left: 0; }
+      50% { width: 60%; margin-left: 20%; }
+      100% { width: 20%; margin-left: 80%; }
+    }
+
+    .expanded-content {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .description-section {
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .description-text {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.7;
+    }
+
+    .specializations {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .spec-tag {
+      padding: 6px 14px;
+      background: var(--gradient);
+      color: white;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .capabilities {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .cap-tag {
+      padding: 6px 14px;
+      background: var(--bg-light);
+      color: var(--theme-color);
+      border: 1px solid var(--theme-color);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      transition: transform 0.2s ease;
+    }
+
+    .cap-tag:hover {
+      transform: scale(1.05);
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .metric-card {
+      text-align: center;
+      padding: 14px;
+      background: #f8f9fa;
+      border-radius: 12px;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1a1a2e;
+    }
+
+    .metric-value.success { color: #10b981; }
+    .metric-value.error { color: #ef4444; }
+
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #eee;
+    }
+
+    .footer-info {
+      font-size: 12px;
+      color: #999;
+    }
+
+    .expand-btn {
+      font-size: 12px;
+      color: var(--theme-color);
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 4px 8px;
+    }
+
+    .expand-btn:hover {
+      text-decoration: underline;
+    }
+
+    .error-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 12px;
+      margin-top: 16px;
+    }
+
+    .error-icon { font-size: 20px; }
+    .error-msg { font-size: 13px; color: #dc2626; }
+
+    .filter-bar {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      animation: fadeIn 0.8s ease 0.4s both;
+    }
+
+    .filter-btn {
+      padding: 10px 20px;
+      border-radius: 24px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.05);
+      color: #a0a0b0;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+    }
+
+    .filter-btn:hover {
+      border-color: rgba(255, 255, 255, 0.4);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .filter-btn.active {
+      border-color: var(--btn-color);
+      background: var(--btn-color);
+      color: white;
+    }
+
+    .instructions {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      padding: 32px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      animation: fadeIn 0.8s ease 0.6s both;
+    }
+
+    .instructions h2 {
+      font-size: 22px;
+      color: #fff;
+      margin-bottom: 20px;
+    }
+
+    .instructions ul {
+      list-style: none;
+    }
+
+    .instructions li {
+      font-size: 15px;
+      color: #a0a0b0;
+      padding: 8px 0;
+      padding-left: 24px;
+      position: relative;
+    }
+
+    .instructions li::before {
+      content: '✨';
+      position: absolute;
+      left: 0;
+    }
+
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.2); opacity: 0.8; }
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 768px) {
+      .cards-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .stats-bar {
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .header h1 {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🤖 Agent 角色卡片展示</h1>
+      <p>探索多Agent协作系统中各个智能体的角色形象、个性特征和实时工作状态</p>
+    </div>
+
+    <div class="stats-bar" id="statsBar"></div>
+
+    <div class="filter-bar" id="filterBar"></div>
+
+    <div class="cards-grid" id="cardsGrid"></div>
+
+    <div class="instructions">
+      <h2>🎮 交互说明</h2>
+      <ul>
+        <li>点击任意卡片可展开查看详细的角色信息</li>
+        <li>每个Agent都有独特的视觉形象、主题色彩和标志性图标</li>
+        <li>忙碌状态的Agent会显示动态旋转的进度指示器</li>
+        <li>使用上方的筛选按钮可按状态过滤显示的Agent</li>
+        <li>悬停卡片可看到流畅的放大和阴影效果</li>
+        <li>错误和离线状态的Agent会有特殊的视觉标识</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const avatarConfigs = {
+      planner: {
+        primaryColor: '#8b5cf6',
+        secondaryColor: '#a78bfa',
+        accessoryColor: '#fbbf24',
+        skinColor: '#ffd5b4',
+        hairColor: '#4a3728',
+      },
+      executor: {
+        primaryColor: '#f59e0b',
+        secondaryColor: '#fbbf24',
+        accessoryColor: '#3b82f6',
+        skinColor: '#ffe0c0',
+        hairColor: '#2d1f14',
+      },
+      monitor: {
+        primaryColor: '#10b981',
+        secondaryColor: '#34d399',
+        accessoryColor: '#f472b6',
+        skinColor: '#ffd5b4',
+        hairColor: '#8b4513',
+      },
+      reviewer: {
+        primaryColor: '#3b82f6',
+        secondaryColor: '#60a5fa',
+        accessoryColor: '#f59e0b',
+        skinColor: '#ffe0c0',
+        hairColor: '#1a1a2e',
+      },
+      coordinator: {
+        primaryColor: '#ec4899',
+        secondaryColor: '#f472b6',
+        accessoryColor: '#8b5cf6',
+        skinColor: '#ffd5b4',
+        hairColor: '#d2691e',
+      },
+    }
+
+    function getAvatarSVG(role, size = 72) {
+      const config = avatarConfigs[role]
+      const avatars = {
+        planner: `
+          <svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="58" fill="${config.primaryColor}" opacity="0.15" />
+            <path d="M60 110C60 110 30 95 30 70V60C30 55 35 50 40 50H80C85 50 90 55 90 60V70C90 95 60 110 60 110Z" fill="${config.primaryColor}" />
+            <path d="M50 55L60 65L70 55" stroke="${config.secondaryColor}" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="60" cy="38" r="22" fill="${config.skinColor}" />
+            <path d="M38 32C38 32 42 15 60 15C78 15 82 32 82 32C82 32 80 25 75 22C70 19 65 20 60 20C55 20 50 19 45 22C40 25 38 32 38 32Z" fill="${config.hairColor}" />
+            <circle cx="50" cy="38" r="8" stroke="${config.accessoryColor}" strokeWidth="2.5" fill="none" />
+            <circle cx="70" cy="38" r="8" stroke="${config.accessoryColor}" strokeWidth="2.5" fill="none" />
+            <path d="M58 38H62" stroke="${config.accessoryColor}" strokeWidth="2" />
+            <circle cx="50" cy="38" r="3" fill="#1a1a2e" />
+            <circle cx="70" cy="38" r="3" fill="#1a1a2e" />
+            <circle cx="51" cy="37" r="1" fill="white" />
+            <circle cx="71" cy="37" r="1" fill="white" />
+            <path d="M52 48C52 48 56 52 60 52C64 52 68 48 68 48" stroke="#1a1a2e" strokeWidth="2" strokeLinecap="round" fill="none" />
+            <ellipse cx="60" cy="18" rx="25" ry="5" fill="${config.accessoryColor}" />
+            <rect x="48" y="8" width="24" height="12" rx="2" fill="${config.accessoryColor}" />
+            <circle cx="90" cy="20" r="4" fill="${config.secondaryColor}" opacity="0.6" />
+            <circle cx="98" cy="12" r="6" fill="${config.secondaryColor}" opacity="0.4" />
+            <circle cx="108" cy="6" r="8" fill="${config.secondaryColor}" opacity="0.3" />
+          </svg>`,
+        executor: `
+          <svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="58" fill="${config.primaryColor}" opacity="0.15" />
+            <path d="M60 110C60 110 30 95 30 70V60C30 55 35 50 40 50H80C85 50 90 55 90 60V70C90 95 60 110 60 110Z" fill="${config.primaryColor}" />
+            <rect x="35" y="70" width="50" height="6" rx="3" fill="${config.accessoryColor}" />
+            <circle cx="45" cy="73" r="3" fill="#ffd700" />
+            <circle cx="55" cy="73" r="3" fill="#ffd700" />
+            <circle cx="65" cy="73" r="3" fill="#ffd700" />
+            <circle cx="60" cy="38" r="22" fill="${config.skinColor}" />
+            <path d="M38 35C38 35 40 18 60 18C80 18 82 35 82 35C82 35 78 28 72 25C66 22 60 22 60 22C60 22 54 22 48 25C42 28 38 35 38 35Z" fill="${config.hairColor}" />
+            <path d="M35 30C35 30 38 12 60 12C82 12 85 30 85 30L80 35H40L35 30Z" fill="${config.accessoryColor}" />
+            <rect x="35" y="28" width="50" height="5" rx="2" fill="${config.accessoryColor}" />
+            <path d="M45 36H55" stroke="#1a1a2e" strokeWidth="3" strokeLinecap="round" />
+            <path d="M65 36H75" stroke="#1a1a2e" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="50" cy="38" r="3" fill="#1a1a2e" />
+            <circle cx="70" cy="38" r="3" fill="#1a1a2e" />
+            <circle cx="51" cy="37" r="1" fill="white" />
+            <circle cx="71" cy="37" r="1" fill="white" />
+            <path d="M50 48C50 48 55 53 60 53C65 53 70 48 70 48" stroke="#1a1a2e" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+            <path d="M25 65C25 65 20 70 22 80L28 78" stroke="${config.skinColor}" strokeWidth="8" strokeLinecap="round" />
+            <path d="M95 65C95 65 100 70 98 80L92 78" stroke="${config.skinColor}" strokeWidth="8" strokeLinecap="round" />
+            <path d="M92 55L88 65H94L88 75" stroke="#ffd700" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>`,
+        monitor: `
+          <svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="58" fill="${config.primaryColor}" opacity="0.15" />
+            <path d="M60 110C60 110 25 90 25 65V55C25 50 30 45 35 45H85C90 45 95 50 95 55V65C95 90 60 110 60 110Z" fill="${config.primaryColor}" />
+            <path d="M35 45L60 55L85 45" stroke="${config.secondaryColor}" strokeWidth="2" />
+            <circle cx="60" cy="35" r="22" fill="${config.skinColor}" />
+            <path d="M38 30C38 30 40 10 60 10C80 10 82 30 82 30V45C82 45 78 55 70 55H50C42 55 38 45 38 45V30Z" fill="${config.hairColor}" />
+            <path d="M45 32L55 35L45 38" fill="#1a1a2e" />
+            <path d="M75 32L65 35L75 38" fill="#1a1a2e" />
+            <circle cx="50" cy="35" r="4" fill="#1a1a2e" />
+            <circle cx="70" cy="35" r="4" fill="#1a1a2e" />
+            <circle cx="51" cy="34" r="2" fill="white" />
+            <circle cx="71" cy="34" r="2" fill="white" />
+            <path d="M52 48H68" stroke="#1a1a2e" strokeWidth="2" strokeLinecap="round" />
+            <rect x="42" y="55" width="36" height="24" rx="4" fill="${config.accessoryColor}" opacity="0.8" />
+            <rect x="46" y="59" width="28" height="16" rx="2" fill="#1a1a2e" />
+            <circle cx="60" cy="67" r="5" fill="${config.primaryColor}" />
+            <circle cx="60" cy="67" r="2" fill="white" />
+          </svg>`,
+        reviewer: `
+          <svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="58" fill="${config.primaryColor}" opacity="0.15" />
+            <path d="M60 110C60 110 30 95 30 70V60C30 55 35 50 40 50H80C85 50 90 55 90 60V70C90 95 60 110 60 110Z" fill="${config.primaryColor}" />
+            <path d="M56 55L60 75L64 55" fill="${config.accessoryColor}" />
+            <rect x="55" y="50" width="10" height="6" fill="${config.accessoryColor}" />
+            <circle cx="60" cy="38" r="22" fill="${config.skinColor}" />
+            <path d="M38 32C38 32 42 15 60 15C78 15 82 32 82 32C82 32 78 25 72 22C66 19 60 20 60 20C60 20 54 19 48 22C42 25 38 32 38 32Z" fill="${config.hairColor}" />
+            <circle cx="85" cy="35" r="12" stroke="${config.accessoryColor}" strokeWidth="3" fill="none" />
+            <path d="M94 44L105 55" stroke="${config.accessoryColor}" strokeWidth="4" strokeLinecap="round" />
+            <circle cx="50" cy="38" r="5" fill="white" />
+            <circle cx="70" cy="38" r="5" fill="white" />
+            <circle cx="52" cy="38" r="3" fill="#1a1a2e" />
+            <circle cx="72" cy="38" r="3" fill="#1a1a2e" />
+            <circle cx="53" cy="37" r="1.5" fill="white" />
+            <circle cx="73" cy="37" r="1.5" fill="white" />
+            <path d="M44 30C44 30 47 28 55 30" stroke="#1a1a2e" strokeWidth="2" strokeLinecap="round" />
+            <path d="M76 30C76 30 73 28 65 30" stroke="#1a1a2e" strokeWidth="2" strokeLinecap="round" />
+            <path d="M52 50H68" stroke="#1a1a2e" strokeWidth="2" strokeLinecap="round" />
+            <rect x="15" y="50" width="18" height="24" rx="2" fill="white" stroke="${config.accessoryColor}" strokeWidth="1.5" />
+            <path d="M19 56L22 59L27 53" stroke="${config.primaryColor}" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M19 64L22 67L27 61" stroke="${config.primaryColor}" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M19 72L22 75L27 69" stroke="#ccc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>`,
+        coordinator: `
+          <svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none">
+            <circle cx="60" cy="60" r="58" fill="${config.primaryColor}" opacity="0.15" />
+            <path d="M60 110C60 110 30 95 30 70V60C30 55 35 50 40 50H80C85 50 90 55 90 60V70C90 95 60 110 60 110Z" fill="${config.primaryColor}" />
+            <path d="M45 50C45 50 50 60 55 65C60 70 65 65 65 60C65 55 60 50 60 50" stroke="${config.secondaryColor}" strokeWidth="6" strokeLinecap="round" fill="none" />
+            <circle cx="60" cy="38" r="22" fill="${config.skinColor}" />
+            <path d="M38 35C38 35 40 15 60 15C80 15 82 35 82 35" fill="${config.hairColor}" />
+            <circle cx="42" cy="28" r="6" fill="${config.hairColor}" />
+            <circle cx="52" cy="20" r="7" fill="${config.hairColor}" />
+            <circle cx="62" cy="18" r="7" fill="${config.hairColor}" />
+            <circle cx="72" cy="22" r="6" fill="${config.hairColor}" />
+            <circle cx="78" cy="30" r="5" fill="${config.hairColor}" />
+            <path d="M44 35C44 35 47 32 55 35" stroke="#1a1a2e" strokeWidth="2" strokeLinecap="round" />
+            <path d="M76 35C76 35 73 32 65 35" stroke="#1a1a2e" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="50" cy="38" r="4" fill="#1a1a2e" />
+            <circle cx="70" cy="38" r="4" fill="#1a1a2e" />
+            <circle cx="51" cy="37" r="2" fill="white" />
+            <circle cx="71" cy="37" r="2" fill="white" />
+            <path d="M48 48C48 48 54 55 60 55C66 55 72 48 72 48" stroke="#1a1a2e" strokeWidth="2" strokeLinecap="round" fill="none" />
+            <path d="M90 40L110 20" stroke="${config.accessoryColor}" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="110" cy="20" r="4" fill="${config.accessoryColor}" />
+            <circle cx="20" cy="50" r="5" fill="${config.secondaryColor}" opacity="0.5" />
+            <circle cx="20" cy="70" r="5" fill="${config.secondaryColor}" opacity="0.5" />
+            <circle cx="20" cy="90" r="5" fill="${config.secondaryColor}" opacity="0.5" />
+            <path d="M25 50H35" stroke="${config.secondaryColor}" strokeWidth="1.5" opacity="0.5" />
+            <path d="M25 70H35" stroke="${config.secondaryColor}" strokeWidth="1.5" opacity="0.5" />
+            <path d="M25 90H35" stroke="${config.secondaryColor}" strokeWidth="1.5" opacity="0.5" />
+          </svg>`,
+      }
+      return avatars[role] || avatars.planner
+    }
+
+    const agents = [
+      {
+        id: 'agent-1',
+        name: '规划者-Alpha',
+        role: 'planner',
+        emoji: '🧠',
+        themeColor: '#8b5cf6',
+        gradient: 'linear-gradient(135deg, #8b5cf6, #a78bfa)',
+        shadowColor: 'rgba(139, 92, 246, 0.4)',
+        bgLight: 'rgba(139, 92, 246, 0.1)',
+        bgLighter: 'rgba(139, 92, 246, 0.05)',
+        personality: '深思熟虑、高瞻远瞩',
+        motto: '运筹帷幄之中，决胜千里之外',
+        description: '负责分析复杂任务，制定详细计划，将宏大目标分解为可执行的步骤',
+        specializations: ['战略规划', '任务分解', '资源调配', '风险评估'],
+        capabilities: ['任务分解', '数据分析'],
+        status: 'idle',
+        statusLabel: '空闲',
+        statusColor: '#10b981',
+        currentTask: null,
+        load: 0.2,
+        completedTasks: 15,
+        failedTasks: 1,
+        lastHeartbeat: Date.now() - 120000,
+      },
+      {
+        id: 'agent-2',
+        name: '执行者-Beta',
+        role: 'executor',
+        emoji: '⚡',
+        themeColor: '#f59e0b',
+        gradient: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+        shadowColor: 'rgba(245, 158, 11, 0.4)',
+        bgLight: 'rgba(245, 158, 11, 0.1)',
+        bgLighter: 'rgba(245, 158, 11, 0.05)',
+        personality: '雷厉风行、精益求精',
+        motto: '行动是成功的阶梯',
+        description: '专注于任务执行，快速高效地完成分配的工作，确保代码质量和性能',
+        specializations: ['代码开发', '自动化测试', '性能优化', '问题排查'],
+        capabilities: ['代码生成', '浏览器自动化', '文件操作'],
+        status: 'busy',
+        statusLabel: '忙碌',
+        statusColor: '#f59e0b',
+        currentTask: 'task-abc12345',
+        load: 0.75,
+        completedTasks: 28,
+        failedTasks: 3,
+        lastHeartbeat: Date.now() - 30000,
+      },
+      {
+        id: 'agent-3',
+        name: '监控者-Gamma',
+        role: 'monitor',
+        emoji: '👁',
+        themeColor: '#10b981',
+        gradient: 'linear-gradient(135deg, #10b981, #34d399)',
+        shadowColor: 'rgba(16, 185, 129, 0.4)',
+        bgLight: 'rgba(16, 185, 129, 0.1)',
+        bgLighter: 'rgba(16, 185, 129, 0.05)',
+        personality: '细致入微、警觉敏锐',
+        motto: '防患于未然，监控保平安',
+        description: '持续监控系统状态和任务进度，及时发现并预警潜在问题',
+        specializations: ['状态监控', '异常检测', '性能分析', '日志审计'],
+        capabilities: ['监控', '数据分析'],
+        status: 'idle',
+        statusLabel: '空闲',
+        statusColor: '#10b981',
+        currentTask: null,
+        load: 0.1,
+        completedTasks: 42,
+        failedTasks: 0,
+        lastHeartbeat: Date.now() - 60000,
+      },
+      {
+        id: 'agent-4',
+        name: '审查者-Delta',
+        role: 'reviewer',
+        emoji: '🔍',
+        themeColor: '#3b82f6',
+        gradient: 'linear-gradient(135deg, #3b82f6, #60a5fa)',
+        shadowColor: 'rgba(59, 130, 246, 0.4)',
+        bgLight: 'rgba(59, 130, 246, 0.1)',
+        bgLighter: 'rgba(59, 130, 246, 0.05)',
+        personality: '严谨认真、追求卓越',
+        motto: '细节决定成败，质量铸就未来',
+        description: '负责代码审查和质量把关，确保交付物符合标准和最佳实践',
+        specializations: ['代码审查', '质量检测', '标准验证', '最佳实践'],
+        capabilities: ['代码审查', '测试'],
+        status: 'waiting',
+        statusLabel: '等待中',
+        statusColor: '#3b82f6',
+        currentTask: 'task-def67890',
+        load: 0.5,
+        completedTasks: 19,
+        failedTasks: 2,
+        lastHeartbeat: Date.now() - 45000,
+      },
+      {
+        id: 'agent-5',
+        name: '协调者-Epsilon',
+        role: 'coordinator',
+        emoji: '🎯',
+        themeColor: '#ec4899',
+        gradient: 'linear-gradient(135deg, #ec4899, #f472b6)',
+        shadowColor: 'rgba(236, 72, 153, 0.4)',
+        bgLight: 'rgba(236, 72, 153, 0.1)',
+        bgLighter: 'rgba(236, 72, 153, 0.05)',
+        personality: '协调有方、沟通高效',
+        motto: '团结协作，共创辉煌',
+        description: '协调各Agent之间的合作，确保信息流畅传递，任务高效完成',
+        specializations: ['任务协调', '资源调度', '冲突解决', '进度同步'],
+        capabilities: ['任务分解', '监控'],
+        status: 'busy',
+        statusLabel: '忙碌',
+        statusColor: '#f59e0b',
+        currentTask: 'task-ghi11223',
+        load: 0.9,
+        completedTasks: 35,
+        failedTasks: 1,
+        lastHeartbeat: Date.now() - 15000,
+      },
+      {
+        id: 'agent-6',
+        name: '执行者-Zeta',
+        role: 'executor',
+        emoji: '⚡',
+        themeColor: '#f59e0b',
+        gradient: 'linear-gradient(135deg, #f59e0b, #fbbf24)',
+        shadowColor: 'rgba(245, 158, 11, 0.4)',
+        bgLight: 'rgba(245, 158, 11, 0.1)',
+        bgLighter: 'rgba(245, 158, 11, 0.05)',
+        personality: '雷厉风行、精益求精',
+        motto: '行动是成功的阶梯',
+        description: '专注于任务执行，快速高效地完成分配的工作',
+        specializations: ['代码开发', '自动化测试', '性能优化', '问题排查'],
+        capabilities: ['网络搜索', '文档编写'],
+        status: 'error',
+        statusLabel: '错误',
+        statusColor: '#ef4444',
+        currentTask: null,
+        load: 0,
+        completedTasks: 8,
+        failedTasks: 5,
+        lastHeartbeat: Date.now() - 300000,
+        error: '任务执行超时，请检查网络连接',
+      },
+      {
+        id: 'agent-7',
+        name: '规划者-Eta',
+        role: 'planner',
+        emoji: '🧠',
+        themeColor: '#8b5cf6',
+        gradient: 'linear-gradient(135deg, #8b5cf6, #a78bfa)',
+        shadowColor: 'rgba(139, 92, 246, 0.4)',
+        bgLight: 'rgba(139, 92, 246, 0.1)',
+        bgLighter: 'rgba(139, 92, 246, 0.05)',
+        personality: '深思熟虑、高瞻远瞩',
+        motto: '运筹帷幄之中，决胜千里之外',
+        description: '负责分析复杂任务，制定详细计划',
+        specializations: ['战略规划', '任务分解', '资源调配', '风险评估'],
+        capabilities: ['任务分解'],
+        status: 'offline',
+        statusLabel: '离线',
+        statusColor: '#6b7280',
+        currentTask: null,
+        load: 0,
+        completedTasks: 12,
+        failedTasks: 0,
+        lastHeartbeat: Date.now() - 3600000,
+      },
+    ];
+
+    let selectedAgentId = null;
+    let filterStatus = 'all';
+
+    function formatTime(timestamp) {
+      const diff = Date.now() - timestamp;
+      if (diff < 60000) return '刚刚';
+      if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
+      if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
+      return `${Math.floor(diff / 86400000)} 天前`;
+    }
+
+    function getStatusCounts() {
+      const counts = { all: agents.length };
+      agents.forEach(a => {
+        counts[a.status] = (counts[a.status] || 0) + 1;
+      });
+      return counts;
+    }
+
+    function renderStats() {
+      const counts = getStatusCounts();
+      const stats = [
+        { label: '总计', value: counts.all, color: '#8b5cf6' },
+        { label: '空闲', value: counts.idle || 0, color: '#10b981' },
+        { label: '忙碌', value: counts.busy || 0, color: '#f59e0b' },
+        { label: '等待', value: counts.waiting || 0, color: '#3b82f6' },
+        { label: '错误', value: counts.error || 0, color: '#ef4444' },
+        { label: '离线', value: counts.offline || 0, color: '#6b7280' },
+      ];
+
+      document.getElementById('statsBar').innerHTML = stats.map(s => `
+        <div class="stat-item">
+          <div class="stat-dot" style="background: ${s.color}"></div>
+          <div>
+            <div class="stat-label">${s.label}</div>
+            <div class="stat-value">${s.value}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderFilters() {
+      const counts = getStatusCounts();
+      const filters = [
+        { key: 'all', label: '全部', color: '#8b5cf6', count: counts.all },
+        { key: 'idle', label: '空闲', color: '#10b981', count: counts.idle || 0 },
+        { key: 'busy', label: '忙碌', color: '#f59e0b', count: counts.busy || 0 },
+        { key: 'waiting', label: '等待中', color: '#3b82f6', count: counts.waiting || 0 },
+        { key: 'error', label: '错误', color: '#ef4444', count: counts.error || 0 },
+        { key: 'offline', label: '离线', color: '#6b7280', count: counts.offline || 0 },
+      ];
+
+      document.getElementById('filterBar').innerHTML = filters.map(f => `
+        <button 
+          class="filter-btn ${filterStatus === f.key ? 'active' : ''}"
+          style="--btn-color: ${f.color}"
+          onclick="setFilter('${f.key}')"
+        >
+          ${f.label} (${f.count})
+        </button>
+      `).join('');
+    }
+
+    function renderCards() {
+      const filtered = filterStatus === 'all' 
+        ? agents 
+        : agents.filter(a => a.status === filterStatus);
+
+      document.getElementById('cardsGrid').innerHTML = filtered.map((agent, i) => {
+        const isExpanded = selectedAgentId === agent.id;
+        const isActive = agent.status === 'busy';
+        const isWaiting = agent.status === 'waiting';
+        const isError = agent.status === 'error';
+        const isOffline = agent.status === 'offline';
+
+        return `
+          <div 
+            class="agent-card ${isExpanded ? 'expanded' : ''}"
+            style="
+              --gradient: ${agent.gradient};
+              --theme-color: ${agent.themeColor};
+              --shadow-color: ${agent.shadowColor};
+              --bg-light: ${agent.bgLight};
+              --bg-lighter: ${agent.bgLighter};
+              --status-color: ${agent.statusColor};
+              animation-delay: ${i * 0.1}s;
+              opacity: ${isOffline ? 0.6 : 1};
+              ${isError ? 'border: 2px solid #ef4444;' : ''}
+            "
+            onclick="toggleCard('${agent.id}')"
+          >
+            <div class="card-header">
+              <div class="role-avatar">
+                ${getAvatarSVG(agent.role, 72)}
+                <div class="avatar-ring" style="border-color: ${agent.statusColor}; opacity: ${isOffline ? 0.3 : 1}"></div>
+              </div>
+              <div class="agent-info">
+                <div class="agent-name">${agent.name}</div>
+                <div class="role-badge">${agent.personality}</div>
+              </div>
+              <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span class="status-text">${agent.statusLabel}</span>
+              </div>
+            </div>
+
+            <div class="motto-box">
+              <span class="motto-icon">💬</span>
+              <span class="motto-text">${agent.motto}</span>
+            </div>
+
+            <div class="task-indicator ${isActive || isWaiting ? 'active' : ''}">
+              <span class="task-icon">${isActive ? '⚙️' : isWaiting ? '⏳' : '💤'}</span>
+              <div class="task-info">
+                <div class="task-label">${agent.currentTask ? '正在执行' : '暂无任务'}</div>
+                ${agent.currentTask ? `<div class="task-id">${agent.currentTask.slice(0, 12)}...</div>` : ''}
+                ${isActive ? `
+                  <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+
+            ${isExpanded ? `
+              <div class="expanded-content">
+                <div class="description-section">
+                  <div class="section-title">角色描述</div>
+                  <div class="description-text">${agent.description}</div>
+                </div>
+
+                <div class="section-title">专业领域</div>
+                <div class="specializations">
+                  ${agent.specializations.map(s => `<span class="spec-tag">${s}</span>`).join('')}
+                </div>
+
+                <div class="section-title">能力标签</div>
+                <div class="capabilities">
+                  ${agent.capabilities.map(c => `<span class="cap-tag">${c}</span>`).join('')}
+                </div>
+
+                <div class="metrics-grid">
+                  <div class="metric-card">
+                    <div class="metric-label">负载</div>
+                    <div class="metric-value">${Math.round(agent.load * 100)}%</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">完成任务</div>
+                    <div class="metric-value success">${agent.completedTasks}</div>
+                  </div>
+                  <div class="metric-card">
+                    <div class="metric-label">失败任务</div>
+                    <div class="metric-value error">${agent.failedTasks}</div>
+                  </div>
+                </div>
+
+                ${agent.error ? `
+                  <div class="error-box">
+                    <span class="error-icon">⚠️</span>
+                    <span class="error-msg">${agent.error}</span>
+                  </div>
+                ` : ''}
+              </div>
+            ` : ''}
+
+            <div class="card-footer">
+              <span class="footer-info">最后心跳: ${formatTime(agent.lastHeartbeat)}</span>
+              <button class="expand-btn">${isExpanded ? '收起详情 ▲' : '展开详情 ▼'}</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleCard(id) {
+      selectedAgentId = selectedAgentId === id ? null : id;
+      renderCards();
+    }
+
+    function setFilter(status) {
+      filterStatus = status;
+      selectedAgentId = null;
+      renderFilters();
+      renderCards();
+    }
+
+    renderStats();
+    renderFilters();
+    renderCards();
+  </script>
+</body>
+</html>
