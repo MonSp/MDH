@@ -56,14 +56,6 @@ export interface DecisionNode {
   timestamp: number
 }
 
-function generateId(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = (Math.random() * 16) | 0
-    const v = c === 'x' ? r : (r & 0x3) | 0x8
-    return v.toString(16)
-  })
-}
-
 export class NegotiationEngine {
   private proposals: Map<string, Proposal>
   private votes: Map<string, Vote[]>
@@ -81,7 +73,7 @@ export class NegotiationEngine {
 
   createProposal(proposerId: string, content: string): Proposal {
     const proposal: Proposal = {
-      id: generateId(),
+      id: crypto.randomUUID(),
       proposerId,
       content,
       arguments: [],
@@ -104,7 +96,7 @@ export class NegotiationEngine {
     if (!proposal) return null
 
     const arg: Argument = {
-      id: generateId(),
+      id: crypto.randomUUID(),
       agentId,
       stance,
       confidence: Math.max(0, Math.min(1, confidence)),
@@ -218,7 +210,7 @@ export class NegotiationEngine {
     const opposers = proposalVotes.filter(v => !v.approve).map(v => v.voterId)
 
     const node: DecisionNode = {
-      id: generateId(),
+      id: crypto.randomUUID(),
       proposalId,
       decision: accepted ? 'accepted' : 'rejected',
       supporters,

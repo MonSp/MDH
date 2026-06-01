@@ -1,14 +1,22 @@
-import { reactive } from 'vue'
-
 export interface PageContext {
   url: string
   title: string
   tools: Array<{ tool: string; label: string }>
 }
 
-export function usePageContext() {
-  const pageContext = reactive<PageContext>({ url: '', title: '', tools: [] })
+type PageContextSubscriber = (context: PageContext) => void
 
+const subscribers: PageContextSubscriber[] = []
+
+function notify() {
+  for (const cb of subscribers) {
+    cb({ ...pageContext })
+  }
+}
+
+const pageContext: PageContext = { url: '', title: '', tools: [] }
+
+export function usePageContext() {
   function handleEvent(msg: any) {
     if (msg.command === 'manifest_push' || msg.command === 'manifest_update') {
       const meta = msg.payload?.page_metadata
@@ -22,12 +30,22 @@ export function usePageContext() {
           label: t.label,
         }))
       }
+      notify()
     } else if (msg.command === 'page_changed') {
       if (msg.payload?.new_url) {
         pageContext.url = msg.payload.new_url
+        notify()
       }
     }
   }
 
   return { pageContext, handleEvent }
+}
+
+export function subscribe(callback: PageContextSubscriber): () => void {
+  subscribers.push(callback)
+  return () => {
+    const idx = subscribers.indexOf(callback)
+    if (idx !== -1) subscribers.splice(idx, 1)
+  }
 }

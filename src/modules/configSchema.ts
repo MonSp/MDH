@@ -207,13 +207,18 @@ function validateConfig(config: CollaborationConfig): boolean {
 export class ConfigManager {
   private config: CollaborationConfig
   private listeners: ConfigListener[]
+  private persistKey?: string
 
-  constructor(initial?: Partial<CollaborationConfig>) {
+  constructor(initial?: Partial<CollaborationConfig>, options?: { persistKey?: string }) {
     this.listeners = []
+    this.persistKey = options?.persistKey ?? undefined
     if (initial) {
       this.config = deepMerge(DEFAULT_CONFIG as unknown as Record<string, unknown>, initial as unknown as Record<string, unknown>) as unknown as CollaborationConfig
     } else {
       this.config = structuredClone(DEFAULT_CONFIG)
+    }
+    if (this.persistKey) {
+      this.loadFromStorage()
     }
     validateConfig(this.config)
   }
@@ -229,6 +234,7 @@ export class ConfigManager {
       return
     }
     this.config = merged
+    this.saveToStorage()
     for (const listener of this.listeners) {
       listener(structuredClone(this.config))
     }
@@ -243,6 +249,36 @@ export class ConfigManager {
     if (idx !== -1) {
       this.listeners.splice(idx, 1)
     }
+  }
+
+  clearStorage(): void {
+    if (!this.persistKey) return
+    try {
+      localStorage.removeItem(this.persistKey)
+    } catch {}
+  }
+
+  private saveToStorage(): void {
+    if (!this.persistKey) return
+    try {
+      localStorage.setItem(this.persistKey, JSON.stringify(this.config))
+    } catch {}
+  }
+
+  private loadFromStorage(): void {
+    if (!this.persistKey) return
+    try {
+      const json = localStorage.getItem(this.persistKey)
+      if (json) {
+        const parsed = JSON.parse(json) as Partial<CollaborationConfig>
+        const merged = deepMerge(DEFAULT_CONFIG as unknown as Record<string, unknown>, parsed as unknown as Record<string, unknown>) as unknown as CollaborationConfig
+        if (validateConfig(merged)) {
+          this.config = merged
+        } else {
+          console.warn('[ConfigManager] Persisted config is invalid, using default')
+        }
+      }
+    } catch {}
   }
 }
 

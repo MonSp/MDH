@@ -40,6 +40,12 @@ export interface CoordinatorConfig {
   enableLoadBalancing: boolean
 }
 
+export interface CoordinatorDeps {
+  registry?: AgentRegistry
+  communicationBus?: CommunicationBus
+  taskAssigner?: TaskAssigner
+}
+
 export interface CoordinatorState {
   isRunning: boolean
   activeAgents: number
@@ -60,10 +66,10 @@ export class AgentCoordinator {
   private statusSyncTimer: ReturnType<typeof setTimeout> | null = null
   private taskTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map()
 
-  constructor(config?: Partial<CoordinatorConfig>) {
-    this.registry = new AgentRegistry()
-    this.communicationBus = new CommunicationBus()
-    this.taskAssigner = new TaskAssigner(this.registry, this.communicationBus)
+  constructor(config?: Partial<CoordinatorConfig>, deps?: CoordinatorDeps) {
+    this.registry = deps?.registry ?? new AgentRegistry()
+    this.communicationBus = deps?.communicationBus ?? new CommunicationBus()
+    this.taskAssigner = deps?.taskAssigner ?? new TaskAssigner(this.registry, this.communicationBus)
     this.config = {
       heartbeatInterval: config?.heartbeatInterval ?? 30000,
       statusSyncInterval: config?.statusSyncInterval ?? 10000,
