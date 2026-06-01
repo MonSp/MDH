@@ -268,7 +268,7 @@
   .log-entry.evt .log-type { color: var(--accent-purple); }
   .log-entry .log-icon { width: 14px; flex-shrink: 0; margin-top: 1px; }
   .log-entry .log-body { flex: 1; min-width: 0; }
-  .log-entry .log-line1 { display: flex; gap: 8px; align-items: baseline; }
+  .log-entry .log-line1 { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   .log-entry .log-type { font-weight: 600; flex-shrink: 0; }
   .log-entry .log-cmd { color: var(--text-primary); }
   .log-entry .log-time { color: var(--text-muted); font-size: 0.6rem; margin-left: auto; flex-shrink: 0; }
@@ -281,14 +281,45 @@
   .log-entry .log-source.iframe { background: rgba(48,209,88,0.15); color: var(--accent-green); }
   .log-entry .log-source.parent { background: rgba(191,90,242,0.15); color: var(--accent-purple); }
   .log-entry .log-source.user { background: rgba(10,132,255,0.15); color: var(--accent-blue); }
+  .log-entry .log-details {
+    margin-top: 4px;
+  }
+  .log-entry .log-summary {
+    color: var(--text-secondary);
+    font-size: 0.65rem;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .log-entry .log-summary::-webkit-details-marker { display: none; }
+  .log-entry .log-summary::before {
+    content: '▶';
+    display: inline-block;
+    margin-right: 6px;
+    color: var(--text-muted);
+    transition: transform 0.15s ease;
+  }
+  .log-entry .log-details[open] .log-summary::before {
+    transform: rotate(90deg);
+  }
   .log-entry .log-payload {
     color: var(--text-secondary);
     font-size: 0.65rem;
-    margin-top: 2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    margin-top: 6px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: rgba(255,255,255,0.02);
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow: auto;
+    max-height: 240px;
+    line-height: 1.45;
   }
+  .log-entry.err .log-payload { border-color: rgba(255,69,58,0.25); }
   .log-empty {
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
@@ -375,6 +406,10 @@
             <button class="tc-btn" id="btnGetActiveTab">当前活跃</button>
             <button class="tc-btn" id="btnClosePopup">关闭弹窗</button>
           </div>
+          <div class="tc-row" style="margin-top:6px;">
+            <input type="text" id="newTabUrl" class="tc-input" placeholder="新标签页 URL" value="https://example.com">
+            <button class="tc-btn primary" id="btnCreateTab">新建标签页</button>
+          </div>
           <div id="tabList" class="tc-tab-list">点击"获取标签页"加载</div>
         </div>
 
@@ -448,6 +483,47 @@ const sourceLabels = { iframe: 'App→Shell', parent: 'Parent→Shell', user: '�
 let currentManifestVersion = '';
 let pendingCounter = 0;
 const pending = new Map();
+let handshakeStarted = false;
+let handshakeCompleted = false;
+
+async function ensureHandshake() {
+  if (isStandalone || handshakeStarted || handshakeCompleted) return;
+  handshakeStarted = true;
+  try {
+    await doCommand('handshake', {
+      protocol_version: '4.7',
+      min_supported_version: '4.5',
+    });
+    handshakeCompleted = true;
+  } catch (err) {
+    handshakeStarted = false;
+    addLog({
+      type: 'error',
+      command: 'handshake',
+      payload: { code: err.code, message: err.message },
+      timestamp: Date.now(),
+      source: 'user',
+    });
+  }
+}
+
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function formatPayload(entry) {
+  if (entry.payload === undefined || entry.payload === null) return '';
+  try {
+    return JSON.stringify(entry.payload, null, 2);
+  } catch {
+    return String(entry.payload);
+  }
+}
 
 function addLog(entry) {
   const empty = logList.querySelector('.log-empty');
@@ -461,14 +537,19 @@ function addLog(entry) {
   const icon = iconMap[entry.type] ?? '●';
 
   const time = new Date(entry.timestamp).toLocaleTimeString('zh-CN', { hour12: false });
-
-  let payloadStr = '';
-  if (entry.payload) {
-    try { payloadStr = JSON.stringify(entry.payload).substring(0, 120); } catch {}
-  }
+  const payloadStr = formatPayload(entry);
+  const payloadPreview = payloadStr
+    ? payloadStr.replace(/\s+/g, ' ').trim().slice(0, 200)
+    : '';
 
   const sourceTag = entry.source
     ? `<span class="log-source ${entry.source}">${sourceLabels[entry.source] || entry.source}</span>`
+    : '';
+  const payloadMarkup = payloadStr
+    ? `<details class="log-details"${entry.type === 'error' ? ' open' : ''}>
+        <summary class="log-summary">${escapeHtml(payloadPreview || '(空 payload)')}</summary>
+        <pre class="log-payload">${escapeHtml(payloadStr)}</pre>
+      </details>`
     : '';
 
   div.innerHTML = `
@@ -480,7 +561,7 @@ function addLog(entry) {
         ${sourceTag}
         <span class="log-time">${time}</span>
       </div>
-      ${payloadStr ? `<div class="log-payload">${payloadStr}</div>` : ''}
+      ${payloadMarkup}
     </div>
   `;
 
@@ -510,8 +591,12 @@ window.addEventListener('message', (event) => {
   const msg = event.data;
   if (!msg || msg.type !== 'event') return;
   addLog({ type: 'event', command: msg.command, payload: msg.payload, timestamp: Date.now(), source: 'parent' });
+  if (msg.command === 'host_ready') {
+    void ensureHandshake();
+  }
   if (msg.command === 'manifest_push' || msg.command === 'manifest_update') {
     currentManifestVersion = msg.payload?.manifest_version || msg.manifest_version || '';
+    handshakeCompleted = true;
   }
 });
 
@@ -552,6 +637,7 @@ async function executeMockCommand(command, payload) {
     press_key: { success: true },
     execute_step: { success: true, result: {}, manifest_version: 'v1', command: payload.command },
     execute_plan: { overall_success: true, steps_completed: payload.steps?.length ?? 0, steps_total: payload.steps?.length ?? 0, results: [], total_duration_ms: 0 },
+    create_tab: { success: true, tab_id: Date.now(), url: payload.url, title: 'New Tab' },
   };
   if (mocks[command]) return mocks[command];
   throw Object.assign(new Error(`未知命令: ${command}`), { code: 'INVALID_COMMAND' });
@@ -645,8 +731,23 @@ document.getElementById('btnGetTabs').addEventListener('click', async () => {
     });
   } catch {}
 });
-document.getElementById('btnGetActiveTab').addEventListener('click', () => doCommand('get_active_tab', {}));
+document.getElementById('btnGetActiveTab').addEventListener('click', async () => {
+  const result = await doCommand('get_tabs', {});
+  const activeTab = result?.tabs?.find(tab => tab.is_active) || null;
+  addLog({
+    type: 'response',
+    command: 'get_active_tab(local)',
+    payload: activeTab,
+    timestamp: Date.now(),
+    source: 'user',
+  });
+});
 document.getElementById('btnClosePopup').addEventListener('click', () => doCommand('close_popup', {}));
+document.getElementById('btnCreateTab').addEventListener('click', () => {
+  const url = document.getElementById('newTabUrl').value.trim();
+  if (!url) return;
+  doCommand('create_tab', { url });
+});
 
 document.getElementById('btnExecuteStep').addEventListener('click', () => {
   const command = document.getElementById('stepCmdSelect').value;
@@ -675,9 +776,10 @@ document.getElementById('btnExecutePlan').addEventListener('click', () => {
   const mv = currentManifestVersion;
   if (!mv) {
     addLog({ type: 'error', command: 'execute_plan', payload: { code: 'NO_MANIFEST', message: '尚未完成 manifest 同步，请稍后再试' }, timestamp: Date.now(), source: 'user' });
+    return;
   }
   doCommand('execute_plan', {
-    manifest_version: mv || 'none',
+    manifest_version: mv,
     steps,
     stop_on_error: stopOnError,
     config: { plan_timeout_ms: planTimeout },
