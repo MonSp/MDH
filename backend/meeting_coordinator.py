@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import re
 import uuid
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -10,6 +11,8 @@ from agentscope.message import Msg
 
 from agent import PROVIDER_REGISTRY, _extract_text
 from agenda import AgendaStateMachine, AgendaPhase
+from collaboration.planner_agent import PlannerAgent, SubTask
+from dynamic_router import DynamicRouter, RouteEntry
 from meeting import MeetingSession
 from negotiation import NegotiationEngine, ConsensusStrategy, Stance
 from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict
@@ -34,6 +37,7 @@ class MeetingCoordinator:
         model_name: str,
         api_key: str,
         base_url: str = "",
+        data_dir: str = "data",
     ):
         self.meeting = meeting_session
         self.provider = provider
@@ -45,6 +49,15 @@ class MeetingCoordinator:
         self.logger = logging.getLogger("meeting_coordinator")
         self.agenda = AgendaStateMachine()
         self.negotiation = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
+
+        # DynamicRouter 初始化
+        routing_table_path = os.path.join(data_dir, "routing_table.json")
+        self._ensure_default_routing_table(routing_table_path)
+        self.router = DynamicRouter(routing_table_path)
+        self._task_routing: Dict[str, str] = {}  # task_id -> dept_id
+
+        # PlannerAgent 用于生成结构化验收反馈
+        self.planner = PlannerAgent(name="coordinator_planner")
 
     def _create_model(self, role: AgentRole) -> Agent:
         reg = PROVIDER_REGISTRY.get(self.provider)
@@ -246,6 +259,57 @@ class MeetingCoordinator:
             f"[{r['role']}]: {r['content']}" for r in results
         ])
 
+    def _ensure_default_routing_table(self, path: str) -> None:
+        """如果路由表文件不存在，自动创建默认路由表"""
+        if os.path.isfile(path):
+            return
+        dir_name = os.path.dirname(path)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
+        default_table = {
+            "departments": [
+                {
+                    "dept_id": "dept-software",
+                    "dept_name": "软件工程部",
+                    "capability_desc": "Web 应用开发、API 设计、数据库设计、代码编写与测试",
+                    "capability_keywords": ["代码", "编程", "开发", "web", "api", "python", "javascript", "react"],
+                    "tools": ["code_generator", "test_runner", "linter"],
+                    "success_rate": 0.85,
+                    "total_tasks": 0,
+                    "successful_tasks": 0,
+                    "last_active": "",
+                    "priority": 10,
+                },
+                {
+                    "dept_id": "dept-content",
+                    "dept_name": "内容演示部",
+                    "capability_desc": "PPT 制作、文档撰写、数据可视化、演示材料准备",
+                    "capability_keywords": ["ppt", "演示", "文档", "报告", "图表", "可视化"],
+                    "tools": ["ppt_generator", "chart_maker", "doc_writer"],
+                    "success_rate": 0.90,
+                    "total_tasks": 0,
+                    "successful_tasks": 0,
+                    "last_active": "",
+                    "priority": 8,
+                },
+                {
+                    "dept_id": "dept-data",
+                    "dept_name": "数据分析部",
+                    "capability_desc": "数据清洗、统计分析、机器学习、数据挖掘",
+                    "capability_keywords": ["数据", "分析", "统计", "机器学习", "模型", "预测"],
+                    "tools": ["data_cleaner", "statistical_analyzer", "ml_trainer"],
+                    "success_rate": 0.80,
+                    "total_tasks": 0,
+                    "successful_tasks": 0,
+                    "last_active": "",
+                    "priority": 7,
+                },
+            ]
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(default_table, f, ensure_ascii=False, indent=2)
+        self.logger.info("已创建默认路由表: %s", path)
+
     def _parse_stance_from_response(self, text: str) -> tuple[str, float]:
         stance_match = re.search(r'\[STANCE:(support|oppose|modify|neutral)\]', text, re.IGNORECASE)
         confidence_match = re.search(r'\[CONFIDENCE:([\d.]+)\]', text)
@@ -335,18 +399,40 @@ class MeetingCoordinator:
             model = self._get_model(role)
             prompt = f"请执行以下任务：\n{task.description}\n\n请给出你的执行方案和结果。"
             msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-            response = await model.reply(msg)
-            text = _extract_text(response)
 
-            self.logger.info("任务执行完成: task_id=%s agent=%s result_length=%d", task.id, task.agent_id, len(text))
-            self.meeting.update_task_status(task.id, "completed")
-            self.meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
+            try:
+                response = await model.reply(msg)
+                text = _extract_text(response)
 
-            results.append({
-                "task_id": task.id,
-                "agent_id": task.agent_id,
-                "result": text,
-            })
+                self.logger.info("任务执行完成: task_id=%s agent=%s result_length=%d", task.id, task.agent_id, len(text))
+                self.meeting.update_task_status(task.id, "completed")
+                self.meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
+
+                # 更新路由统计：任务成功
+                dept_id = self._task_routing.get(task.id)
+                if dept_id:
+                    self.router.update_stats(dept_id, success=True)
+
+                results.append({
+                    "task_id": task.id,
+                    "agent_id": task.agent_id,
+                    "result": text,
+                })
+            except Exception as e:
+                self.logger.error("任务执行失败: task_id=%s error=%s", task.id, e)
+                self.meeting.update_task_status(task.id, "failed")
+                self.meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
+
+                # 更新路由统计：任务失败
+                dept_id = self._task_routing.get(task.id)
+                if dept_id:
+                    self.router.update_stats(dept_id, success=False)
+
+                results.append({
+                    "task_id": task.id,
+                    "agent_id": task.agent_id,
+                    "result": f"任务执行失败: {e}",
+                })
 
         return results
 
@@ -435,11 +521,37 @@ class MeetingCoordinator:
             self.meeting.add_message("agent", coordinator_summary, coordinator_id)
             self.meeting.update_agent_status(coordinator_id, MeetingAgentStatus.MEETING)
 
+        # 使用 PlannerAgent 生成结构化验收反馈
+        structured_feedback = self._generate_structured_feedback(task_description, execution_result)
+
         return {
             "reviewer_feedback": reviewer_feedback,
             "monitor_feedback": monitor_feedback,
             "coordinator_summary": coordinator_summary,
+            "structured_feedback": structured_feedback,
         }
+
+    def _generate_structured_feedback(
+        self, task_description: str, execution_result: str
+    ) -> Dict[str, Any]:
+        """使用 PlannerAgent 生成结构化验收反馈，无 PlannerAgent 时降级。"""
+        if self.planner:
+            # 将任务描述转换为 SubTask 以便调用 generate_review_feedback
+            subtask = SubTask(
+                name=task_description[:100],
+                description=task_description,
+            )
+            feedback = self.planner.generate_review_feedback(
+                task=subtask,
+                output=execution_result,
+            )
+        else:
+            feedback = {
+                "status": "approved",
+                "issues": [],
+                "max_iterations": 3,
+            }
+        return feedback
 
     async def _evaluate_discussion_convergence(
         self,
@@ -491,23 +603,52 @@ class MeetingCoordinator:
         return "\n".join(lines)
 
     async def semantic_analyze(self, user_message: str) -> SemanticAnalysisResult:
+        """语义分析用户消息
+
+        流程：
+        1. 先用 DynamicRouter 做初步路由决策
+        2. 将路由结果作为上下文传给 LLM 进行最终决策
+        3. 如果 LLM 置信度高且与路由一致，直接使用路由结果
+        """
+        # 1. DynamicRouter 初步路由
+        routing_decision = self.router.route(user_message)
+        self._last_routing_decision = routing_decision
+        self.logger.info(
+            "DynamicRouter 路由: dept=%s confidence=%.4f reason=%s",
+            routing_decision.selected_dept, routing_decision.confidence, routing_decision.reason,
+        )
+
+        # 2. LLM 分析（将路由结果作为上下文）
         ceo_model = self._get_model(AgentRole.CEO)
         agent_list = self._build_agent_capability_list()
+        routing_context = ""
+        if routing_decision.selected_dept:
+            routing_context = (
+                f"\n动态路由建议：\n"
+                f"- 推荐部门：{routing_decision.selected_dept}\n"
+                f"- 置信度：{routing_decision.confidence:.2f}\n"
+                f"- 理由：{routing_decision.reason}\n"
+                f"- 匹配关键词：{', '.join(routing_decision.matched_keywords) or '无'}\n"
+            )
+
         prompt = (
             f"你是会议的CEO和组织者。请分析以下用户消息，判断其意图。\n\n"
-            f"用户消息：{user_message}\n\n"
+            f"用户消息：{user_message}\n"
+            f"{routing_context}\n"
             f"可用Agent：\n{agent_list}\n\n"
             f"请返回JSON格式分析结果：\n"
             f'{{"is_task": true/false, "intent": "task/discussion/question/feedback", '
             f'"task_description": "如果is_task为true，提取任务描述", '
             f'"target_agent_id": "最佳执行者的ID", '
             f'"reason": "选择该Agent的理由", '
+            f'"confidence": 0.0-1.0, '
             f'"discussion_topic": "如果is_task为false，提取讨论主题"}}\n\n'
             f"分析规则：\n"
             f"1. 如果消息包含明确的行动指令（如'帮我...'、'请执行...'、'分析...'），判定为任务\n"
             f"2. 如果消息是征求意见（如'大家觉得...'、'你们怎么看'），判定为讨论\n"
             f"3. 根据任务内容匹配Agent能力，选择最合适的执行者\n"
-            f"4. 只返回JSON，不要其他内容"
+            f"4. 参考动态路由建议，但可以覆盖它\n"
+            f"5. 只返回JSON，不要其他内容"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
         response = await ceo_model.reply(msg)
@@ -517,8 +658,18 @@ class MeetingCoordinator:
         if json_match:
             try:
                 data = json.loads(json_match.group())
+                llm_is_task = bool(data.get("is_task", False))
+                llm_confidence = float(data.get("confidence", 0.5))
+
+                # 3. 如果 LLM 置信度高且路由也认为是任务，使用路由建议
+                if (llm_is_task
+                        and routing_decision.selected_dept
+                        and routing_decision.confidence >= 0.5
+                        and llm_confidence >= 0.7):
+                    self.logger.info("LLM 与路由一致，使用路由建议: %s", routing_decision.selected_dept)
+
                 return SemanticAnalysisResult(
-                    is_task=bool(data.get("is_task", False)),
+                    is_task=llm_is_task,
                     intent=str(data.get("intent", "discussion")),
                     task_description=str(data.get("task_description", "")),
                     target_agent_id=str(data.get("target_agent_id", "")),
@@ -527,6 +678,17 @@ class MeetingCoordinator:
                 )
             except (json.JSONDecodeError, TypeError, KeyError):
                 pass
+
+        # 回退：如果路由置信度足够高，直接使用路由结果
+        if routing_decision.selected_dept and routing_decision.confidence >= 0.6:
+            self.logger.info("LLM 解析失败，回退到路由结果: %s", routing_decision.selected_dept)
+            return SemanticAnalysisResult(
+                is_task=True,
+                intent="task",
+                task_description=user_message,
+                target_agent_id=routing_decision.selected_dept,
+                reason=f"动态路由推荐: {routing_decision.reason}",
+            )
 
         return SemanticAnalysisResult(
             is_task=False,
@@ -550,6 +712,10 @@ class MeetingCoordinator:
         task = self.meeting.add_task(target_agent_id, task_description)
         self.meeting.update_task_status(task.id, "assigned")
         self.meeting.update_agent_status(target_agent_id, MeetingAgentStatus.WORKING)
+
+        # 记录路由部门，用于后续统计更新
+        if hasattr(self, '_last_routing_decision') and self._last_routing_decision.selected_dept:
+            self._task_routing[task.id] = self._last_routing_decision.selected_dept
 
         ceo_id = self._find_agent_id(AgentRole.CEO)
         if ceo_id:

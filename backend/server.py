@@ -5,8 +5,9 @@ import os
 import shutil
 import time
 import uuid
+from dataclasses import asdict
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import SKILLS_DIR
@@ -16,6 +17,11 @@ from agent import run_agent_stream
 from meeting import MeetingSession
 from meeting_coordinator import MeetingCoordinator
 from protocol import MeetingAgentStatus, meeting_agent_to_dict, meeting_task_to_dict, meeting_summary_to_dict, semantic_analysis_to_dict
+from skill_registry import SkillRegistry
+from project_manager import ProjectManager
+from experience_extractor import ExperienceExtractor
+from skill_packager import SkillPackager
+from dynamic_router import DynamicRouter, RouteEntry
 
 logger = logging.getLogger("server")
 
@@ -29,6 +35,319 @@ app.add_middleware(
 )
 
 sessions: dict[str, Session] = {}
+
+# ──────────────────── 服务实例初始化 ────────────────────
+
+_BASE_DIR = os.path.dirname(__file__)
+_DATA_DIR = os.path.join(_BASE_DIR, "data")
+
+skill_registry = SkillRegistry(base_dir=os.path.join(_DATA_DIR, "skill_packages"))
+skill_packager = SkillPackager(
+    output_dir=os.path.join(_DATA_DIR, "packages"),
+)
+project_manager = ProjectManager(
+    projects_dir=os.path.join(_DATA_DIR, "projects"),
+    skill_registry=skill_registry,
+    skill_packager=skill_packager,
+)
+experience_extractor = ExperienceExtractor(
+    incremental_dir=os.path.join(_DATA_DIR, "experience"),
+)
+dynamic_router = DynamicRouter(
+    routing_table_path=os.path.join(_DATA_DIR, "routing_table.json"),
+)
+
+
+def _ok(data=None):
+    return {"success": True, "data": data, "error": None}
+
+
+def _fail(error: str):
+    return {"success": False, "data": None, "error": error}
+
+
+# ──────────────────── SkillRegistry REST API ────────────────────
+
+
+@app.get("/api/skills")
+async def list_skills():
+    try:
+        return _ok(skill_registry.list_skills())
+    except Exception as e:
+        logger.exception("list_skills 失败")
+        return _fail(str(e))
+
+
+@app.post("/api/skills")
+async def register_skill(body: dict = Body(...)):
+    try:
+        skill_dir = body["skill_dir"]
+        pkg = skill_registry.register(skill_dir)
+        return _ok(asdict(pkg))
+    except KeyError:
+        return _fail("缺少必填字段: skill_dir")
+    except ValueError as e:
+        return _fail(str(e))
+
+
+@app.post("/api/skills/{skill_id}/clone")
+async def clone_skill(skill_id: str, body: dict = Body(...)):
+    try:
+        target_dir = body["target_dir"]
+        path = skill_registry.clone(skill_id, target_dir)
+        return _ok({"cloned_path": path})
+    except KeyError as e:
+        return _fail(str(e))
+    except ValueError as e:
+        return _fail(str(e))
+
+
+@app.get("/api/skills/{skill_id}/versions")
+async def get_skill_versions(skill_id: str):
+    try:
+        versions = skill_registry.get_versions(skill_id)
+        return _ok(versions)
+    except KeyError as e:
+        return _fail(str(e))
+
+
+@app.get("/api/skills/{skill_id}")
+async def get_skill(skill_id: str):
+    try:
+        pkg = skill_registry.get_skill(skill_id)
+        return _ok(asdict(pkg))
+    except KeyError as e:
+        return _fail(str(e))
+
+
+# ──────────────────── ProjectManager REST API ────────────────────
+
+
+@app.get("/api/projects")
+async def list_projects():
+    try:
+        return _ok(project_manager.list_projects())
+    except Exception as e:
+        logger.exception("list_projects 失败")
+        return _fail(str(e))
+
+
+@app.post("/api/projects")
+async def create_project(body: dict = Body(...)):
+    try:
+        name = body["name"]
+        brief = body.get("brief", {})
+        project = project_manager.create_project(name, brief)
+        return _ok(asdict(project))
+    except KeyError:
+        return _fail("缺少必填字段: name")
+    except ValueError as e:
+        return _fail(str(e))
+
+
+@app.get("/api/projects/{project_id}")
+async def get_project(project_id: str):
+    try:
+        project = project_manager.get_project(project_id)
+        return _ok(asdict(project))
+    except KeyError as e:
+        return _fail(str(e))
+
+
+@app.get("/api/projects/{project_id}/status")
+async def get_project_status(project_id: str):
+    try:
+        status = project_manager.get_project_status(project_id)
+        return _ok(status)
+    except KeyError as e:
+        return _fail(str(e))
+
+
+@app.post("/api/projects/{project_id}/instantiate")
+async def instantiate_project(project_id: str, body: dict = Body(...)):
+    try:
+        dag = body["dag"]
+        employees = project_manager.instantiate_project(project_id, dag)
+        return _ok([asdict(e) for e in employees])
+    except KeyError as e:
+        return _fail(str(e))
+    except ValueError as e:
+        return _fail(str(e))
+
+
+@app.post("/api/projects/{project_id}/archive")
+async def archive_project(project_id: str):
+    try:
+        result = project_manager.archive_project(project_id)
+        return _ok(result)
+    except KeyError as e:
+        return _fail(str(e))
+
+
+# ──────────────────── ExperienceExtractor REST API ────────────────────
+
+
+def _rule_to_dict(rule) -> dict:
+    return asdict(rule)
+
+
+@app.get("/api/experience/rules")
+async def get_all_rules():
+    try:
+        rules = experience_extractor.get_all_rules()
+        return _ok([_rule_to_dict(r) for r in rules])
+    except Exception as e:
+        logger.exception("get_all_rules 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/experience/rules/pending")
+async def get_pending_rules():
+    try:
+        rules = experience_extractor.get_pending_rules()
+        return _ok([_rule_to_dict(r) for r in rules])
+    except Exception as e:
+        logger.exception("get_pending_rules 失败")
+        return _fail(str(e))
+
+
+@app.post("/api/experience/rules/{rule_id}/approve")
+async def approve_rule(rule_id: str, body: dict = Body(...)):
+    try:
+        comment = body.get("comment", "")
+        success = experience_extractor.approve_rule(rule_id, comment)
+        if not success:
+            return _fail(f"规则不存在: {rule_id}")
+        return _ok({"rule_id": rule_id, "status": "approved"})
+    except Exception as e:
+        logger.exception("approve_rule 失败")
+        return _fail(str(e))
+
+
+@app.post("/api/experience/rules/{rule_id}/reject")
+async def reject_rule(rule_id: str, body: dict = Body(...)):
+    try:
+        reason = body.get("reason", "")
+        success = experience_extractor.reject_rule(rule_id, reason)
+        if not success:
+            return _fail(f"规则不存在: {rule_id}")
+        return _ok({"rule_id": rule_id, "status": "rejected"})
+    except Exception as e:
+        logger.exception("reject_rule 失败")
+        return _fail(str(e))
+
+
+@app.put("/api/experience/rules/{rule_id}")
+async def modify_rule(rule_id: str, body: dict = Body(...)):
+    try:
+        updates = body.get("updates", body)
+        success = experience_extractor.modify_rule(rule_id, updates)
+        if not success:
+            return _fail(f"规则不存在: {rule_id}")
+        return _ok({"rule_id": rule_id, "modified": True})
+    except Exception as e:
+        logger.exception("modify_rule 失败")
+        return _fail(str(e))
+
+
+# ──────────────────── SkillPackager REST API ────────────────────
+
+
+def _package_result_to_dict(result) -> dict:
+    return {
+        "package_path": result.package_path,
+        "readme_content": result.readme_content,
+        "desensitize_report": [asdict(issue) for issue in result.desensitize_report],
+        "diff_summary": result.diff_summary,
+        "skill_name": result.skill_name,
+        "base_version": result.base_version,
+        "output_version": result.output_version,
+    }
+
+
+@app.post("/api/skills/package")
+async def package_skill(body: dict = Body(...)):
+    try:
+        base_skill_path = body["base_skill_path"]
+        incremental_path = body["incremental_path"]
+        project_id = body["project_id"]
+        skill_name = body["skill_name"]
+        result = skill_packager.full_package(
+            base_skill_path=base_skill_path,
+            incremental_path=incremental_path,
+            project_id=project_id,
+            skill_name=skill_name,
+        )
+        return _ok(_package_result_to_dict(result))
+    except KeyError:
+        return _fail("缺少必填字段: base_skill_path, incremental_path, project_id, skill_name")
+    except FileNotFoundError as e:
+        return _fail(str(e))
+    except Exception as e:
+        logger.exception("package_skill 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/skills/package/preview")
+async def preview_package(base_skill_path: str, incremental_path: str):
+    try:
+        result = skill_packager.preview_package(base_skill_path, incremental_path)
+        return _ok(result)
+    except FileNotFoundError as e:
+        return _fail(str(e))
+    except Exception as e:
+        logger.exception("preview_package 失败")
+        return _fail(str(e))
+
+
+# ──────────────────── DynamicRouter REST API ────────────────────
+
+
+@app.get("/api/router/table")
+async def get_route_table():
+    try:
+        return _ok(dynamic_router.get_route_table())
+    except Exception as e:
+        logger.exception("get_route_table 失败")
+        return _fail(str(e))
+
+
+@app.put("/api/router/table")
+async def add_route_entry(body: dict = Body(...)):
+    try:
+        entry = RouteEntry(
+            dept_id=body["dept_id"],
+            dept_name=body["dept_name"],
+            capability_desc=body.get("capability_desc", ""),
+            capability_keywords=body.get("capability_keywords", []),
+            tools=body.get("tools", []),
+            success_rate=body.get("success_rate", 0.0),
+            total_tasks=body.get("total_tasks", 0),
+            successful_tasks=body.get("successful_tasks", 0),
+            last_active=body.get("last_active", ""),
+            priority=body.get("priority", 0),
+        )
+        success = dynamic_router.add_route_entry(entry)
+        if not success:
+            return _fail("保存路由表失败")
+        return _ok(asdict(entry))
+    except KeyError:
+        return _fail("缺少必填字段: dept_id, dept_name")
+    except Exception as e:
+        logger.exception("add_route_entry 失败")
+        return _fail(str(e))
+
+
+@app.delete("/api/router/table/{dept_id}")
+async def remove_route_entry(dept_id: str):
+    try:
+        success = dynamic_router.remove_route_entry(dept_id)
+        if not success:
+            return _fail(f"部门不存在: {dept_id}")
+        return _ok({"dept_id": dept_id, "removed": True})
+    except Exception as e:
+        logger.exception("remove_route_entry 失败")
+        return _fail(str(e))
 
 
 @app.websocket("/ws")

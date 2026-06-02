@@ -51,7 +51,7 @@ export class AgentRegistry {
     return this.getAllConfigs().filter(c => c.capabilities.includes(capability))
   }
 
-  spawnInstance(configId: string): AgentInstance | null {
+  spawnInstance(configId: string, skillOptions?: { skillId?: string; skillPath?: string }): AgentInstance | null {
     const config = this.configs.get(configId)
     if (!config) return null
 
@@ -64,7 +64,7 @@ export class AgentRegistry {
       return null
     }
 
-    const instance = createAgentInstance(configId)
+    const instance = createAgentInstance(configId, skillOptions)
     this.instances.set(instance.id, instance)
     return instance
   }
@@ -101,6 +101,10 @@ export class AgentRegistry {
       const config = this.configs.get(i.configId)
       return config?.capabilities.includes(capability)
     })
+  }
+
+  getInstancesBySkill(skillId: string): AgentInstance[] {
+    return this.getAllInstances().filter(i => i.skillId === skillId)
   }
 
   getAvailableInstances(): AgentInstance[] {

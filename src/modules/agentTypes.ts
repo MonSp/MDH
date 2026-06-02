@@ -53,6 +53,8 @@ export interface AgentInstance {
   lastActiveAt: number
   completedTaskCount: number
   failedTaskCount: number
+  skillId?: string | null
+  skillPath?: string | null
 }
 
 export enum AgentInstanceStatus {
@@ -89,7 +91,10 @@ export function createAgentConfig(
   }
 }
 
-export function createAgentInstance(configId: string): AgentInstance {
+export function createAgentInstance(
+  configId: string,
+  options?: { skillId?: string; skillPath?: string },
+): AgentInstance {
   return {
     id: crypto.randomUUID(),
     configId,
@@ -99,6 +104,8 @@ export function createAgentInstance(configId: string): AgentInstance {
     lastActiveAt: Date.now(),
     completedTaskCount: 0,
     failedTaskCount: 0,
+    skillId: options?.skillId ?? null,
+    skillPath: options?.skillPath ?? null,
   }
 }
 
@@ -211,4 +218,94 @@ export const DEFAULT_AGENT_CONFIGS: Record<AgentRole, Partial<AgentConfig>> = {
     maxConcurrentTasks: 1,
     timeout: 0,
   },
+}
+
+// ====== 技能进化系统类型 ======
+
+export interface SkillPackage {
+  skill_id: string
+  name: string
+  version: string
+  description: string
+  base_path: string
+  manifest: Record<string, any>
+  created_at: string
+  required_env: string[]
+  dependencies: string[]
+}
+
+export interface Project {
+  project_id: string
+  name: string
+  status: 'created' | 'instantiating' | 'running' | 'archiving' | 'archived' | 'failed'
+  brief: Record<string, any>
+  created_at: string
+  skill_packages: Array<{ skill_id: string; name: string }>
+  employees: EmployeeInstance[]
+}
+
+export interface EmployeeInstance {
+  employee_id: string
+  agent_id: string
+  skill_id: string
+  base_skill_path: string
+  incremental_path: string
+  status: 'idle' | 'working' | 'done' | 'terminated'
+  task_history: Array<Record<string, any>>
+}
+
+export interface ExperienceRule {
+  rule_id: string
+  trigger_condition: string
+  action: string
+  note: string
+  source_task_id: string
+  source_task_type: string
+  rule_type: 'success_pattern' | 'failure_avoidance' | 'correction_tip'
+  status: 'pending_review' | 'approved' | 'rejected'
+  keywords: string[]
+  created_at: string
+}
+
+export interface RouteEntry {
+  dept_id: string
+  dept_name: string
+  capability_desc: string
+  capability_keywords: string[]
+  tools: string[]
+  success_rate: number
+  total_tasks: number
+  successful_tasks: number
+  last_active: string
+  priority: number
+}
+
+export interface ProjectStatus {
+  project_id: string
+  name: string
+  status: string
+  employee_count: number
+  task_stats: { total: number; completed: number; failed: number }
+  iteration_stats: { total_iterations: number; avg_iterations_per_task: number }
+  skill_increment_stats: { total_rules: number; approved_rules: number }
+}
+
+export interface PackageResult {
+  package_path: string
+  readme_content: string
+  desensitize_report: Array<{
+    file_path: string
+    line_number: number
+    issue_type: string
+    original_content: string
+    redacted_content: string
+  }>
+  diff_summary: {
+    new_files: string[]
+    modified_files: string[]
+    new_rules: string[]
+  }
+  skill_name: string
+  base_version: string
+  output_version: string
 }
