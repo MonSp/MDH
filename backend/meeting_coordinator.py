@@ -119,97 +119,107 @@ class MeetingCoordinator:
         self,
         topic: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
+        max_rounds: int = 2,
     ) -> List[Dict[str, str]]:
         self.agenda.open_topic(topic)
         self.agenda.start_discussion()
 
-        results: List[Dict[str, Any]] = []
-
-        planning_roles = [AgentRole.PLANNER]
+        all_discussions: List[Dict[str, Any]] = []
         discussion_roles = [
+            AgentRole.PLANNER,
             AgentRole.EXECUTOR,
             AgentRole.MONITOR,
             AgentRole.REVIEWER,
-            AgentRole.COORDINATOR,
         ]
 
-        for role in planning_roles:
-            agent_id = self._find_agent_id(role)
-            if agent_id is None:
-                continue
+        for current_round in range(1, max_rounds + 1):
+            self.logger.info("讨论第 %d 轮", current_round)
+            round_results: List[Dict[str, Any]] = []
 
-            self.meeting.update_agent_status(agent_id, MeetingAgentStatus.SPEAKING)
+            for role in discussion_roles:
+                agent_id = self._find_agent_id(role)
+                if agent_id is None:
+                    continue
 
-            model = self._get_model(role)
-            previous_context = self._build_previous_context(results)
-            prompt = (
-                f"当前会议议题：{topic}\n"
-                f"当前议程阶段：{self.agenda.get_phase().value}\n"
-                f"之前的讨论：\n{previous_context}\n\n"
-                f"请以{role.value}的身份发表你的看法和建议（2-3句话）。"
-                f"请在回复末尾用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注你的立场和置信度。"
-            )
-            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-            response = await model.reply(msg)
-            text = _extract_text(response)
+                self.meeting.update_agent_status(agent_id, MeetingAgentStatus.SPEAKING)
+                model = self._get_model(role)
 
-            self.agenda.request_token(agent_id, 0.8)
+                if current_round == 1:
+                    previous_context = self._build_previous_context(all_discussions)
+                    prompt = (
+                        f"当前会议议题：{topic}\n"
+                        f"当前议程阶段：{self.agenda.get_phase().value}\n"
+                        f"之前的讨论：\n{previous_context}\n\n"
+                        f"请以{role.value}的身份发表你的看法和建议（2-3句话）。"
+                        f"请在回复末尾用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注你的立场和置信度。"
+                    )
+                else:
+                    previous_context = self._build_previous_context(all_discussions)
+                    prompt = (
+                        f"当前会议议题：{topic}\n"
+                        f"当前是第{current_round}轮讨论\n"
+                        f"之前的讨论：\n{previous_context}\n\n"
+                        f"请基于之前的讨论，以{role.value}的身份发表你的进一步看法。"
+                        f"你可以引用或回应其他同事的观点，提出补充建议或修正意见（2-3句话）。"
+                        f"请在回复末尾用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注你的立场和置信度。"
+                    )
 
-            await on_message(agent_id, text, text)
-            self.meeting.add_message("agent", text, agent_id)
-            self.meeting.update_agent_status(agent_id, MeetingAgentStatus.MEETING)
+                msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+                response = await model.reply(msg)
+                text = _extract_text(response)
 
-            stance, confidence = self._parse_stance_from_response(text)
-            results.append({
-                "agent_id": agent_id,
-                "role": role.value,
-                "content": text,
-                "parsed_stance": stance,
-                "parsed_confidence": confidence,
-            })
+                self.agenda.request_token(agent_id, 0.8)
 
-        for role in discussion_roles:
-            agent_id = self._find_agent_id(role)
-            if agent_id is None:
-                continue
+                await on_message(agent_id, text, "")
+                self.meeting.add_message("agent", text, agent_id)
+                self.meeting.update_agent_status(agent_id, MeetingAgentStatus.MEETING)
 
-            self.meeting.update_agent_status(agent_id, MeetingAgentStatus.SPEAKING)
+                stance, confidence = self._parse_stance_from_response(text)
+                entry = {
+                    "agent_id": agent_id,
+                    "role": role.value,
+                    "content": text,
+                    "parsed_stance": stance,
+                    "parsed_confidence": confidence,
+                    "round": current_round,
+                }
+                round_results.append(entry)
+                all_discussions.append(entry)
 
-            model = self._get_model(role)
-            previous_context = self._build_previous_context(results)
-            prompt = (
-                f"当前会议议题：{topic}\n"
-                f"当前议程阶段：{self.agenda.get_phase().value}\n"
-                f"之前的讨论：\n{previous_context}\n\n"
-                f"请以{role.value}的身份发表你的看法和建议（2-3句话）。"
-                f"请在回复末尾用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注你的立场和置信度。"
-            )
-            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-            response = await model.reply(msg)
-            text = _extract_text(response)
-
-            self.agenda.request_token(agent_id, 0.8)
-
-            await on_message(agent_id, text, text)
-            self.meeting.add_message("agent", text, agent_id)
-            self.meeting.update_agent_status(agent_id, MeetingAgentStatus.MEETING)
-
-            stance, confidence = self._parse_stance_from_response(text)
-            results.append({
-                "agent_id": agent_id,
-                "role": role.value,
-                "content": text,
-                "parsed_stance": stance,
-                "parsed_confidence": confidence,
-            })
+            if current_round < max_rounds:
+                should_continue = await self._evaluate_discussion_convergence(topic, all_discussions)
+                if not should_continue:
+                    self.logger.info("讨论已在第 %d 轮达成共识，无需继续", current_round)
+                    break
 
         coordinator_id = self._find_agent_id(AgentRole.COORDINATOR)
         if coordinator_id:
-            summary = "\n".join([
-                f"[{r['role']}]: {r['content']}" for r in results
-            ])
-            proposal = self.negotiation.create_proposal(coordinator_id, summary)
-            for r in results:
+            self.meeting.update_agent_status(coordinator_id, MeetingAgentStatus.SPEAKING)
+            model = self._get_model(AgentRole.COORDINATOR)
+            discussion_summary = self._build_previous_context(all_discussions)
+            prompt = (
+                f"你是团队的协调者。以下是关于「{topic}」的多轮讨论内容，请给出最终总结。\n\n"
+                f"讨论内容：\n{discussion_summary}\n\n"
+                f"请综合各方观点，给出简洁的总结和最终结论（3-4句话）。"
+            )
+            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+            response = await model.reply(msg)
+            summary_text = _extract_text(response)
+            await on_message(coordinator_id, summary_text, "")
+            self.meeting.add_message("agent", summary_text, coordinator_id)
+            self.meeting.update_agent_status(coordinator_id, MeetingAgentStatus.MEETING)
+
+            all_discussions.append({
+                "agent_id": coordinator_id,
+                "role": AgentRole.COORDINATOR.value,
+                "content": summary_text,
+                "parsed_stance": "neutral",
+                "parsed_confidence": 0.5,
+                "round": 0,
+            })
+
+            proposal = self.negotiation.create_proposal(coordinator_id, discussion_summary)
+            for r in all_discussions:
                 stance_str = r.get('parsed_stance', 'neutral')
                 self.negotiation.add_argument(
                     proposal.id, r['agent_id'],
@@ -221,7 +231,7 @@ class MeetingCoordinator:
             self.logger.info(f"Consensus result: {vote_result}")
 
         self.agenda.close()
-        return results
+        return all_discussions
 
     def _find_agent_id(self, role: AgentRole) -> Optional[str]:
         for a in self.meeting.agents:
@@ -267,7 +277,7 @@ class MeetingCoordinator:
             msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
             response = await model.reply(msg)
             text = _extract_text(response)
-            await on_message(planner_id, text, text)
+            await on_message(planner_id, text, "")
             self.meeting.add_message("agent", text, planner_id)
 
         if hasattr(self.agenda, 'resolveEmergency'):
@@ -339,6 +349,137 @@ class MeetingCoordinator:
             })
 
         return results
+
+    async def execute_and_review_task(
+        self,
+        task_description: str,
+        on_message: Callable[[str, str, str], Awaitable[None]],
+    ) -> None:
+        task_results = await self.execute_assigned_tasks()
+        for task_result in task_results:
+            await on_message(task_result["agent_id"], task_result["result"], "")
+
+        if task_results:
+            execution_result = task_results[0]["result"]
+            await self.review_task_execution(task_description, execution_result, on_message)
+
+    async def review_task_execution(
+        self,
+        task_description: str,
+        execution_result: str,
+        on_message: Callable[[str, str, str], Awaitable[None]],
+    ) -> Dict[str, Any]:
+        reviewer_id = self._find_agent_id(AgentRole.REVIEWER)
+        monitor_id = self._find_agent_id(AgentRole.MONITOR)
+        coordinator_id = self._find_agent_id(AgentRole.COORDINATOR)
+
+        reviewer_feedback = ""
+        if reviewer_id:
+            self.meeting.update_agent_status(reviewer_id, MeetingAgentStatus.SPEAKING)
+            model = self._get_model(AgentRole.REVIEWER)
+            prompt = (
+                f"你是团队的审查者。以下是一位同事的工作成果，请审查并提出改进建议。\n\n"
+                f"任务：{task_description}\n"
+                f"执行结果：{execution_result}\n\n"
+                f"请从以下角度审查：\n"
+                f"1. 方案的完整性和可行性\n"
+                f"2. 潜在的问题和风险\n"
+                f"3. 具体的改进建议\n\n"
+                f"请用 2-3 句话给出你的审查意见。"
+            )
+            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+            response = await model.reply(msg)
+            reviewer_feedback = _extract_text(response)
+            await on_message(reviewer_id, reviewer_feedback, "")
+            self.meeting.add_message("agent", reviewer_feedback, reviewer_id)
+            self.meeting.update_agent_status(reviewer_id, MeetingAgentStatus.MEETING)
+
+        monitor_feedback = ""
+        if monitor_id:
+            self.meeting.update_agent_status(monitor_id, MeetingAgentStatus.SPEAKING)
+            model = self._get_model(AgentRole.MONITOR)
+            prompt = (
+                f"你是团队的监控者。请评估以下任务的执行情况。\n\n"
+                f"任务：{task_description}\n"
+                f"执行结果：{execution_result}\n"
+                f"审查意见：{reviewer_feedback}\n\n"
+                f"请评估：\n"
+                f"1. 任务完成度\n"
+                f"2. 潜在风险\n"
+                f"3. 是否需要补充\n\n"
+                f"请用 2-3 句话给出你的评估。"
+            )
+            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+            response = await model.reply(msg)
+            monitor_feedback = _extract_text(response)
+            await on_message(monitor_id, monitor_feedback, "")
+            self.meeting.add_message("agent", monitor_feedback, monitor_id)
+            self.meeting.update_agent_status(monitor_id, MeetingAgentStatus.MEETING)
+
+        coordinator_summary = ""
+        if coordinator_id:
+            self.meeting.update_agent_status(coordinator_id, MeetingAgentStatus.SPEAKING)
+            model = self._get_model(AgentRole.COORDINATOR)
+            prompt = (
+                f"你是团队的协调者。请综合以下讨论内容，给出最终总结。\n\n"
+                f"任务：{task_description}\n"
+                f"执行结果：{execution_result}\n"
+                f"审查意见：{reviewer_feedback}\n"
+                f"监控评估：{monitor_feedback}\n\n"
+                f"请给出简洁的总结和最终结论。"
+            )
+            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+            response = await model.reply(msg)
+            coordinator_summary = _extract_text(response)
+            await on_message(coordinator_id, coordinator_summary, "")
+            self.meeting.add_message("agent", coordinator_summary, coordinator_id)
+            self.meeting.update_agent_status(coordinator_id, MeetingAgentStatus.MEETING)
+
+        return {
+            "reviewer_feedback": reviewer_feedback,
+            "monitor_feedback": monitor_feedback,
+            "coordinator_summary": coordinator_summary,
+        }
+
+    async def _evaluate_discussion_convergence(
+        self,
+        topic: str,
+        all_discussions: List[Dict[str, Any]],
+    ) -> bool:
+        ceo_id = self._find_agent_id(AgentRole.CEO)
+        if not ceo_id:
+            return False
+
+        discussion_summary = "\n".join([
+            f"[第{d.get('round', '?')}轮 - {d['role']}]: {d['content']}" for d in all_discussions
+        ])
+
+        self.meeting.update_agent_status(ceo_id, MeetingAgentStatus.SPEAKING)
+        model = self._get_model(AgentRole.CEO)
+        prompt = (
+            f"你是会议的CEO和组织者。请评估以下讨论是否已达成足够的共识。\n\n"
+            f"议题：{topic}\n\n"
+            f"讨论内容：\n{discussion_summary}\n\n"
+            f"请判断：\n"
+            f"1. 各方观点是否已经充分表达\n"
+            f"2. 是否存在重大分歧需要进一步讨论\n"
+            f"3. 是否可以进入总结阶段\n\n"
+            f'请只返回 JSON 格式：{{"continue_discussion": true/false, "reason": "理由"}}'
+        )
+        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+        response = await model.reply(msg)
+        text = _extract_text(response)
+        self.meeting.update_agent_status(ceo_id, MeetingAgentStatus.MEETING)
+
+        json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group())
+                return bool(data.get("continue_discussion", False))
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        return False
 
     def _build_agent_capability_list(self) -> str:
         lines = []
@@ -438,7 +579,7 @@ class MeetingCoordinator:
             f"CEO分析：意图={analysis.intent}"
             + (f"，任务={analysis.task_description}，指派给={analysis.target_agent_id}，理由={analysis.reason}" if analysis.is_task else f"，主题={analysis.discussion_topic}")
         )
-        await on_message(ceo_id, analysis_text, analysis_text)
+        await on_message(ceo_id, analysis_text, "")
         self.meeting.add_message("agent", analysis_text, ceo_id)
 
         if analysis.is_task and analysis.target_agent_id:

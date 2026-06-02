@@ -254,11 +254,10 @@ async def ws_handler(ws: WebSocket):
                             session._message_buffer.append(msg_auto_assigned)
                             await ws.send_json(msg_auto_assigned)
 
-                            logger.info("开始执行已分配的任务")
-                            task_results = await coordinator.execute_assigned_tasks()
-                            logger.info("任务执行完成，结果数量: %d", len(task_results))
-                            for task_result in task_results:
-                                await send_agent_message(task_result["agent_id"], task_result["result"], task_result["result"])
+                            task_description = assignment.get("description", "")
+                            logger.info("开始执行任务并审查: %s", task_description[:50])
+                            await coordinator.execute_and_review_task(task_description, send_agent_message)
+                            logger.info("任务执行和审查完成")
                     except Exception:
                         logger.exception("会议讨论异常: session=%s", session.session_id)
                         await ws.send_json({"type": "meeting_error", "message": "会议讨论出错"})
