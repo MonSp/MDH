@@ -10,7 +10,7 @@ import SkillEvolutionDashboard from './skill-evolution/SkillEvolutionDashboard'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 
 interface OfficeTeamModeProps {
-  wsRef: React.RefObject<WebSocket | null>
+  wsRef: React.MutableRefObject<WebSocket | null>
   onBackToSingle: () => void
   pendingApprovalCount?: number
   onOpenApproval?: () => void

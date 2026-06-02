@@ -2,12 +2,12 @@ import { AgentRole } from '../../modules/agentTypes'
 import type { AgentConfig, WorkstationConfig } from './types'
 
 export const AGENT_CONFIGS: AgentConfig[] = [
-  { id: 'agent-ceo', name: 'CEO-组织者', role: AgentRole.CEO, workstationId: 'ws-0' },
-  { id: 'agent-planner', name: '规划者-Alpha', role: AgentRole.Planner, workstationId: 'ws-1' },
-  { id: 'agent-executor', name: '执行者-Beta', role: AgentRole.Executor, workstationId: 'ws-2' },
-  { id: 'agent-monitor', name: '监控者-Gamma', role: AgentRole.Monitor, workstationId: 'ws-3' },
-  { id: 'agent-reviewer', name: '审查者-Delta', role: AgentRole.Reviewer, workstationId: 'ws-4' },
-  { id: 'agent-coordinator', name: '协调者-Epsilon', role: AgentRole.Coordinator, workstationId: 'ws-5' },
+  { id: 'agent-ceo', name: 'CTO-技术总监', role: AgentRole.CEO, workstationId: 'ws-0' },
+  { id: 'agent-planner', name: '架构师-Alpha', role: AgentRole.Planner, workstationId: 'ws-1' },
+  { id: 'agent-executor', name: '全栈开发-Beta', role: AgentRole.Executor, workstationId: 'ws-2' },
+  { id: 'agent-monitor', name: 'DevOps-Gamma', role: AgentRole.Monitor, workstationId: 'ws-3' },
+  { id: 'agent-reviewer', name: 'QA工程师-Delta', role: AgentRole.Reviewer, workstationId: 'ws-4' },
+  { id: 'agent-coordinator', name: '项目经理-Epsilon', role: AgentRole.Coordinator, workstationId: 'ws-5' },
 ]
 
 export const WORKSTATIONS: WorkstationConfig[] = [

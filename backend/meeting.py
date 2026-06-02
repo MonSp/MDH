@@ -16,39 +16,39 @@ from protocol import (
 DEFAULT_MEETING_AGENTS = [
     {
         "id": "agent-ceo",
-        "name": "CEO-组织者",
+        "name": "CTO-技术总监",
         "role": AgentRole.CEO,
-        "capabilities": ["semantic_analysis", "task_delegation", "meeting_coordination"],
+        "capabilities": ["semantic_analysis", "task_delegation", "meeting_coordination", "tech_architecture"],
     },
     {
         "id": "agent-planner",
-        "name": "规划者-Alpha",
+        "name": "架构师-Alpha",
         "role": AgentRole.PLANNER,
-        "capabilities": ["task_decomposition", "data_analysis"],
+        "capabilities": ["task_decomposition", "data_analysis", "system_design", "tech_spec"],
     },
     {
         "id": "agent-executor",
-        "name": "执行者-Beta",
+        "name": "全栈开发-Beta",
         "role": AgentRole.EXECUTOR,
-        "capabilities": ["browser_automation", "code_generation", "file_operation"],
+        "capabilities": ["code_generation", "file_operation", "browser_automation", "frontend_dev", "backend_dev"],
     },
     {
         "id": "agent-monitor",
-        "name": "监控者-Gamma",
+        "name": "DevOps-Gamma",
         "role": AgentRole.MONITOR,
-        "capabilities": ["monitoring", "data_analysis"],
+        "capabilities": ["monitoring", "data_analysis", "deployment", "performance_tuning"],
     },
     {
         "id": "agent-reviewer",
-        "name": "审查者-Delta",
+        "name": "QA工程师-Delta",
         "role": AgentRole.REVIEWER,
-        "capabilities": ["code_review", "testing"],
+        "capabilities": ["code_review", "testing", "bug_analysis", "quality_assurance"],
     },
     {
         "id": "agent-coordinator",
-        "name": "协调者-Epsilon",
+        "name": "项目经理-Epsilon",
         "role": AgentRole.COORDINATOR,
-        "capabilities": ["task_decomposition", "monitoring"],
+        "capabilities": ["task_decomposition", "monitoring", "progress_tracking", "risk_management"],
     },
 ]
 

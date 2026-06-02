@@ -31,7 +31,7 @@ export default function useMeetingSocket({
   wsRef,
   url,
 }: {
-  wsRef: React.RefObject<WebSocket | null>
+  wsRef: React.MutableRefObject<WebSocket | null>
   url?: string
 }) {
   const [meetingId, setMeetingId] = useState<string | null>(null)
