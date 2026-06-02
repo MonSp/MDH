@@ -26,11 +26,11 @@ export async function previewPackage(baseSkillPath: string, incrementalPath: str
   new_rules: Record<string, any>[]
   modified_files: string[]
 }> {
-  const res = await fetch(`${API_BASE}/preview`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ base_skill_path: baseSkillPath, incremental_path: incrementalPath }),
+  const params = new URLSearchParams({
+    base_skill_path: baseSkillPath,
+    incremental_path: incrementalPath,
   })
+  const res = await fetch(`${API_BASE}/preview?${params}`)
   const data = await res.json()
   if (!data.success) throw new Error(data.error)
   return data.data

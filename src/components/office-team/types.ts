@@ -1,4 +1,4 @@
-import type { AgentRole } from '../../modules/agentTypes'
+import type { AgentRole, StructuredFeedback, RoutingDecision, IterationStatus } from '../../modules/agentTypes'
 
 export interface TeamAgent {
   id: string
@@ -8,14 +8,19 @@ export interface TeamAgent {
   currentTask: string | null
   workstationId: string
   wanderAngle?: number
+  skillId?: string | null
+  skillName?: string | null
 }
 
 export interface Task {
   id: string
   agentId: string
   description: string
-  status: 'pending' | 'assigned' | 'executing' | 'completed' | 'failed'
+  status: 'pending' | 'assigned' | 'executing' | 'completed' | 'failed' | 'revision_required'
   createdAt: number
+  acceptanceCriteria?: string[]
+  requiredSkills?: string[]
+  iterationStatus?: IterationStatus
 }
 
 export interface ChatMessage {
@@ -23,9 +28,22 @@ export interface ChatMessage {
   agentId?: string
   content: string
   timestamp: number
+  _stance?: 'support' | 'oppose' | 'modify' | 'neutral'
+  _confidence?: number
+  _streaming?: boolean
+  /** 结构化反馈 */
+  _structuredFeedback?: StructuredFeedback
+  /** 路由决策信息 */
+  _routingDecision?: RoutingDecision
+  /** 迭代状态 */
+  _iterationStatus?: IterationStatus
+  /** 消息子类型：feedback / routing / experience / iteration */
+  _msgSubtype?: 'feedback' | 'routing' | 'experience' | 'iteration'
 }
 
 export type ViewState = 'office' | 'transitioning-to-meeting' | 'meeting' | 'transitioning-to-office'
+
+export type MeetingTab = 'chat' | 'skills' | 'projects' | 'rules' | 'routes'
 
 export interface WorkstationConfig {
   id: string

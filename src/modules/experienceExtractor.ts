@@ -1,6 +1,6 @@
 import type { ExperienceRule } from './agentTypes'
 
-const API_BASE = '/api/experience'
+const API_BASE = '/api/experience/rules'
 
 /** 获取所有经验规则 */
 export async function getAllRules(): Promise<ExperienceRule[]> {
@@ -45,7 +45,7 @@ export async function rejectRule(ruleId: string, reason: string): Promise<boolea
 /** 修改经验规则 */
 export async function modifyRule(ruleId: string, updates: Partial<ExperienceRule>): Promise<boolean> {
   const res = await fetch(`${API_BASE}/${ruleId}`, {
-    method: 'PATCH',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates),
   })

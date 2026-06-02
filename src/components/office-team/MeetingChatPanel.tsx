@@ -112,6 +112,171 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
             )
           }
 
+          const subtype = (msg as any)._msgSubtype as string | undefined
+          const isFeedback = subtype === 'feedback' || !!(msg as any)._structuredFeedback
+          const isRouting = subtype === 'routing' || !!(msg as any)._routingDecision
+          const isExperience = subtype === 'experience'
+          const isIteration = subtype === 'iteration' || !!(msg as any)._iterationStatus
+
+          // 结构化反馈消息的特殊渲染
+          if (isFeedback && (msg as any)._structuredFeedback) {
+            const fb = (msg as any)._structuredFeedback
+            const isApproved = fb.status === 'approved'
+            return (
+              <div key={index} style={{ ...styles.chatMessage, justifyContent: 'center' }}>
+                <div style={{
+                  maxWidth: '85%',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  background: isApproved
+                    ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(52, 211, 153, 0.15) 100%)'
+                    : 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%)',
+                  border: `1px solid ${isApproved ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <span style={{ fontSize: 14 }}>{isApproved ? '✅' : '⚠️'}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: isApproved ? '#065f46' : '#92400e' }}>
+                      结构化验收 ({fb.current_iteration}/{fb.max_iterations})
+                    </span>
+                    <span style={{
+                      padding: '1px 8px',
+                      borderRadius: 10,
+                      fontSize: 11,
+                      background: isApproved ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                      color: isApproved ? '#065f46' : '#92400e',
+                    }}>
+                      {isApproved ? '通过' : '需修改'}
+                    </span>
+                  </div>
+                  {fb.overall_comment && (
+                    <div style={{ fontSize: 12, color: '#374151', marginBottom: 6 }}>{fb.overall_comment}</div>
+                  )}
+                  {fb.issues?.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {fb.issues.map((issue: any, i: number) => (
+                        <div key={i} style={{
+                          padding: '4px 8px',
+                          background: 'rgba(0,0,0,0.05)',
+                          borderRadius: 6,
+                          fontSize: 11,
+                        }}>
+                          <span style={{
+                            padding: '1px 4px',
+                            borderRadius: 3,
+                            marginRight: 4,
+                            background: issue.type === 'logic_error' ? 'rgba(239, 68, 68, 0.2)' :
+                                        issue.type === 'missing_feature' ? 'rgba(245, 158, 11, 0.2)' :
+                                        'rgba(59, 130, 246, 0.2)',
+                            color: issue.type === 'logic_error' ? '#dc2626' :
+                                   issue.type === 'missing_feature' ? '#d97706' : '#2563eb',
+                          }}>
+                            {issue.type === 'logic_error' ? '逻辑' :
+                             issue.type === 'missing_feature' ? '缺失' :
+                             issue.type === 'performance' ? '性能' : '格式'}
+                          </span>
+                          <span style={{ color: '#374151' }}>{issue.detail}</span>
+                          {issue.suggestion && (
+                            <div style={{ color: '#6b7280', marginTop: 2 }}>💡 {issue.suggestion}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 4, fontSize: 10, color: 'rgba(0,0,0,0.3)' }}>{formatTime(msg.timestamp)}</div>
+                </div>
+              </div>
+            )
+          }
+
+          // 路由决策消息的特殊渲染
+          if (isRouting && (msg as any)._routingDecision) {
+            const rd = (msg as any)._routingDecision
+            return (
+              <div key={index} style={{ ...styles.chatMessage, justifyContent: 'center' }}>
+                <div style={{
+                  maxWidth: '85%',
+                  padding: '10px 14px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(99, 102, 241, 0.12) 100%)',
+                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <span style={{ fontSize: 14 }}>🧭</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#1e40af' }}>路由决策</span>
+                    <span style={{
+                      padding: '1px 8px',
+                      borderRadius: 10,
+                      fontSize: 11,
+                      background: 'rgba(59, 130, 246, 0.2)',
+                      color: '#1e40af',
+                    }}>
+                      置信度 {(rd.confidence * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#374151' }}>{rd.reason}</div>
+                  {rd.candidate_depts?.length > 0 && (
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                      {rd.candidate_depts.slice(0, 3).map((dept: any) => (
+                        <span key={dept.dept_id} style={{
+                          padding: '2px 8px',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          background: dept.dept_id === rd.selected_dept ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0,0,0,0.05)',
+                          color: dept.dept_id === rd.selected_dept ? '#1e40af' : '#6b7280',
+                          fontWeight: dept.dept_id === rd.selected_dept ? 600 : 400,
+                        }}>
+                          {dept.dept_name} ({(dept.score * 100).toFixed(1)}%)
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 4, fontSize: 10, color: 'rgba(0,0,0,0.3)' }}>{formatTime(msg.timestamp)}</div>
+                </div>
+              </div>
+            )
+          }
+
+          // 经验注入消息
+          if (isExperience) {
+            return (
+              <div key={index} style={{ ...styles.chatMessage, justifyContent: 'center' }}>
+                <div style={{
+                  maxWidth: '70%',
+                  padding: '6px 14px',
+                  borderRadius: 10,
+                  background: 'rgba(139, 92, 246, 0.1)',
+                  border: '1px solid rgba(139, 92, 246, 0.2)',
+                  textAlign: 'center',
+                  fontSize: 12,
+                  color: '#6b21a8',
+                }}>
+                  🧪 {msg.content}
+                </div>
+              </div>
+            )
+          }
+
+          // 迭代状态消息
+          if (isIteration && (msg as any)._iterationStatus) {
+            const it = (msg as any)._iterationStatus
+            return (
+              <div key={index} style={{ ...styles.chatMessage, justifyContent: 'center' }}>
+                <div style={{
+                  maxWidth: '70%',
+                  padding: '6px 14px',
+                  borderRadius: 10,
+                  background: it.status === 'approved' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                  border: `1px solid ${it.status === 'approved' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`,
+                  textAlign: 'center',
+                  fontSize: 12,
+                  color: it.status === 'approved' ? '#065f46' : '#92400e',
+                }}>
+                  🔄 {msg.content}
+                </div>
+              </div>
+            )
+          }
+
           return (
             <div
               key={index}

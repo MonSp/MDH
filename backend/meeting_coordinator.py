@@ -440,14 +440,17 @@ class MeetingCoordinator:
         self,
         task_description: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
-    ) -> None:
+    ) -> Dict[str, Any]:
         task_results = await self.execute_assigned_tasks()
         for task_result in task_results:
             await on_message(task_result["agent_id"], task_result["result"], "")
 
+        review_result = {}
         if task_results:
             execution_result = task_results[0]["result"]
-            await self.review_task_execution(task_description, execution_result, on_message)
+            review_result = await self.review_task_execution(task_description, execution_result, on_message)
+
+        return review_result
 
     async def review_task_execution(
         self,

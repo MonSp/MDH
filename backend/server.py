@@ -558,6 +558,16 @@ async def ws_handler(ws: WebSocket):
                         if result.get("type") == "task_auto_assigned":
                             session._sequence_no += 1
                             assignment = result.get("assignment", {})
+                            routing_decision = None
+                            if hasattr(coordinator, '_last_routing_decision') and coordinator._last_routing_decision:
+                                rd = coordinator._last_routing_decision
+                                routing_decision = {
+                                    "selected_dept": rd.selected_dept,
+                                    "confidence": rd.confidence,
+                                    "reason": rd.reason,
+                                    "candidate_depts": rd.candidate_depts,
+                                    "matched_keywords": rd.matched_keywords,
+                                }
                             msg_auto_assigned = {
                                 "type": "task_auto_assigned",
                                 "taskId": assignment.get("task_id", ""),
@@ -566,6 +576,7 @@ async def ws_handler(ws: WebSocket):
                                 "reason": assignment.get("reason", ""),
                                 "status": assignment.get("status", "assigned"),
                                 "analysis": result.get("analysis", {}),
+                                "routing_decision": routing_decision,
                                 "sequence_no": session._sequence_no,
                             }
                             if len(session._message_buffer) >= 100:
@@ -575,8 +586,45 @@ async def ws_handler(ws: WebSocket):
 
                             task_description = assignment.get("description", "")
                             logger.info("开始执行任务并审查: %s", task_description[:50])
-                            await coordinator.execute_and_review_task(task_description, send_agent_message)
+                            review_result = await coordinator.execute_and_review_task(task_description, send_agent_message)
                             logger.info("任务执行和审查完成")
+
+                            # 发送结构化反馈消息
+                            if review_result and review_result.get("structured_feedback"):
+                                session._sequence_no += 1
+                                feedback = review_result["structured_feedback"]
+                                msg_feedback = {
+                                    "type": "structured_feedback",
+                                    "taskId": assignment.get("task_id", ""),
+                                    "agentId": "agent-reviewer",
+                                    "feedback": feedback,
+                                    "sequence_no": session._sequence_no,
+                                }
+                                if len(session._message_buffer) >= 100:
+                                    session._message_buffer.pop(0)
+                                session._message_buffer.append(msg_feedback)
+                                await ws.send_json(msg_feedback)
+
+                                # 如果需要迭代修正，发送迭代状态更新
+                                if feedback.get("status") == "revision_required":
+                                    session._sequence_no += 1
+                                    msg_iteration = {
+                                        "type": "iteration_update",
+                                        "taskId": assignment.get("task_id", ""),
+                                        "agentId": assignment.get("agent_id", ""),
+                                        "iteration_status": {
+                                            "task_id": assignment.get("task_id", ""),
+                                            "current_iteration": feedback.get("current_iteration", 1),
+                                            "max_iterations": feedback.get("max_iterations", 3),
+                                            "status": feedback.get("status", "revision_required"),
+                                            "corrections": [],
+                                        },
+                                        "sequence_no": session._sequence_no,
+                                    }
+                                    if len(session._message_buffer) >= 100:
+                                        session._message_buffer.pop(0)
+                                    session._message_buffer.append(msg_iteration)
+                                    await ws.send_json(msg_iteration)
                     except Exception:
                         logger.exception("会议讨论异常: session=%s", session.session_id)
                         await ws.send_json({"type": "meeting_error", "message": "会议讨论出错"})

@@ -309,3 +309,49 @@ export interface PackageResult {
   base_version: string
   output_version: string
 }
+
+// ====== 结构化反馈系统类型（V4） ======
+
+export interface FeedbackIssue {
+  type: 'logic_error' | 'missing_feature' | 'performance' | 'style_issue' | string
+  location: string
+  detail: string
+  suggestion: string
+}
+
+export interface StructuredFeedback {
+  status: 'approved' | 'revision_required'
+  issues: FeedbackIssue[]
+  max_iterations: number
+  current_iteration: number
+  overall_comment: string
+}
+
+export interface IterationStatus {
+  task_id: string
+  current_iteration: number
+  max_iterations: number
+  status: 'approved' | 'revision_required' | 'max_iterations_reached'
+  corrections: Array<{
+    issue_type: string
+    location: string
+    detail: string
+    suggestion: string
+    applied: boolean
+  }>
+}
+
+// ====== 动态路由系统类型（V4） ======
+
+export interface RoutingDecision {
+  selected_dept: string
+  confidence: number
+  reason: string
+  candidate_depts: Array<{
+    dept_id: string
+    dept_name: string
+    score: number
+    matched_keywords: string[]
+  }>
+  matched_keywords: string[]
+}

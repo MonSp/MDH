@@ -260,6 +260,8 @@ export default function useMeetingSocket({
             agentId: 'agent-ceo',
             content: `任务已自动指派给 ${msg.agentId}：${msg.description}`,
             timestamp: Date.now(),
+            _routingDecision: msg.analysis ? undefined : undefined,
+            _msgSubtype: 'routing',
           }])
           const autoTask: Task = {
             id: msg.taskId,
@@ -269,6 +271,84 @@ export default function useMeetingSocket({
             createdAt: Date.now(),
           }
           setTasks(prev => [...prev, autoTask])
+
+          // 如果有路由决策信息，添加路由决策消息
+          if (msg.routing_decision) {
+            setChatMessages(prev => [...prev, {
+              role: 'ceo' as const,
+              agentId: 'agent-ceo',
+              content: `路由决策：推荐部门 ${msg.routing_decision.selected_dept}，置信度 ${(msg.routing_decision.confidence * 100).toFixed(1)}%`,
+              timestamp: Date.now(),
+              _routingDecision: msg.routing_decision,
+              _msgSubtype: 'routing',
+            }])
+          }
+          break
+        }
+        case 'structured_feedback': {
+          const feedback = msg.feedback
+          const feedbackStatus = feedback?.status === 'approved' ? '验收通过' : '需要修改'
+          const issueCount = feedback?.issues?.length ?? 0
+          const iterInfo = feedback ? ` (${feedback.current_iteration}/${feedback.max_iterations})` : ''
+
+          setChatMessages(prev => [...prev, {
+            role: 'agent' as const,
+            agentId: msg.agentId || 'agent-reviewer',
+            content: `结构化验收${iterInfo}：${feedbackStatus}${issueCount > 0 ? `，${issueCount} 个问题待解决` : ''}${feedback?.overall_comment ? '\n' + feedback.overall_comment : ''}`,
+            timestamp: Date.now(),
+            _structuredFeedback: feedback,
+            _msgSubtype: 'feedback',
+          }])
+
+          // 更新对应任务状态
+          if (msg.taskId) {
+            setTasks(prev => prev.map(t =>
+              t.id === msg.taskId
+                ? { ...t, status: feedback?.status === 'revision_required' ? 'revision_required' : 'completed' }
+                : t
+            ))
+          }
+          break
+        }
+        case 'iteration_update': {
+          const iterStatus = msg.iteration_status
+          if (iterStatus) {
+            setChatMessages(prev => [...prev, {
+              role: 'agent' as const,
+              agentId: msg.agentId || 'agent-executor',
+              content: `迭代修正 ${iterStatus.current_iteration}/${iterStatus.max_iterations}：${iterStatus.status === 'approved' ? '已通过' : iterStatus.status === 'max_iterations_reached' ? '已达最大迭代次数' : '修正中'}`,
+              timestamp: Date.now(),
+              _iterationStatus: iterStatus,
+              _msgSubtype: 'iteration',
+            }])
+
+            // 更新任务的迭代状态
+            if (msg.taskId) {
+              setTasks(prev => prev.map(t =>
+                t.id === msg.taskId
+                  ? { ...t, iterationStatus: iterStatus, status: iterStatus.status === 'approved' ? 'completed' : 'revision_required' }
+                  : t
+              ))
+            }
+          }
+          break
+        }
+        case 'experience_injected': {
+          setChatMessages(prev => [...prev, {
+            role: 'agent' as const,
+            agentId: msg.agentId || 'agent-executor',
+            content: `已注入 ${msg.rules_count ?? 0} 条经验规则${msg.keywords?.length ? '，关键词: ' + msg.keywords.join(', ') : ''}`,
+            timestamp: Date.now(),
+            _msgSubtype: 'experience',
+          }])
+          break
+        }
+        case 'skill_mounted': {
+          setAgents(prev => prev.map(a =>
+            a.id === msg.agentId
+              ? { ...a, skillId: msg.skill_id, skillName: msg.skill_name }
+              : a
+          ))
           break
         }
       }

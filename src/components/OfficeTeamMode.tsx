@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import type { ViewState } from './office-team/types'
+import type { ViewState, MeetingTab } from './office-team/types'
 import { isOfficeView, isMeetingView } from './office-team/utils'
 import OfficeHeader from './office-team/OfficeHeader'
 import OfficeScene from './office-team/OfficeScene'
 import MeetingChatPanel from './office-team/MeetingChatPanel'
 import TaskAssignPanel from './office-team/TaskAssignPanel'
 import MeetingLogPanel from './office-team/MeetingLogPanel'
+import SkillEvolutionDashboard from './skill-evolution/SkillEvolutionDashboard'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 
 interface OfficeTeamModeProps {
@@ -19,6 +20,7 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
   const [taskInput, setTaskInput] = useState('')
   const [viewState, setViewState] = useState<ViewState>('office')
   const [agendaPhase, setAgendaPhase] = useState<string>('discussion')
+  const [meetingTab, setMeetingTab] = useState<MeetingTab>('chat')
 
   const {
     agents,
@@ -142,33 +144,61 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
             ...(viewState === 'transitioning-to-meeting' ? styles.meetingPanelEntering : {}),
             ...(viewState === 'meeting' ? styles.meetingPanelActive : {}),
           }}>
-            <MeetingChatPanel
-              agents={agents}
-              messages={chatMessages}
-              onEndMeeting={handleEndMeeting}
-              agendaPhase={agendaPhase}
-            />
-            <div style={styles.agendaControlBar}>
-              <button style={styles.agendaBtn} onClick={handleAdvanceAgenda}>
-                ⏭️ 推进议程
+            {/* 会议选项卡栏 */}
+            <div style={styles.meetingTabBar}>
+              <button
+                style={{
+                  ...styles.meetingTabBtn,
+                  ...(meetingTab === 'chat' ? styles.meetingTabBtnActive : {}),
+                }}
+                onClick={() => setMeetingTab('chat')}
+              >
+                💬 会议
               </button>
-              <button style={styles.agendaBtn} onClick={handlePauseAgenda}>
-                ⏸️ 暂停
-              </button>
-              <button style={{
-                ...styles.agendaBtn,
-                background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                borderColor: 'rgba(239, 68, 68, 0.5)',
-              }} onClick={handleEmergency}>
-                🚨 紧急中断
+              <button
+                style={{
+                  ...styles.meetingTabBtn,
+                  ...(meetingTab === 'skills' ? styles.meetingTabBtnActive : {}),
+                }}
+                onClick={() => setMeetingTab('skills')}
+              >
+                🧬 技能进化
               </button>
             </div>
-            <TaskAssignPanel
-              agents={agents}
-              taskInput={taskInput}
-              onTaskInputChange={setTaskInput}
-              onSendMessage={handleSendMessage}
-            />
+
+            {meetingTab === 'chat' ? (
+              <>
+                <MeetingChatPanel
+                  agents={agents}
+                  messages={chatMessages}
+                  onEndMeeting={handleEndMeeting}
+                  agendaPhase={agendaPhase}
+                />
+                <div style={styles.agendaControlBar}>
+                  <button style={styles.agendaBtn} onClick={handleAdvanceAgenda}>
+                    ⏭️ 推进议程
+                  </button>
+                  <button style={styles.agendaBtn} onClick={handlePauseAgenda}>
+                    ⏸️ 暂停
+                  </button>
+                  <button style={{
+                    ...styles.agendaBtn,
+                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    borderColor: 'rgba(239, 68, 68, 0.5)',
+                  }} onClick={handleEmergency}>
+                    🚨 紧急中断
+                  </button>
+                </div>
+                <TaskAssignPanel
+                  agents={agents}
+                  taskInput={taskInput}
+                  onTaskInputChange={setTaskInput}
+                  onSendMessage={handleSendMessage}
+                />
+              </>
+            ) : (
+              <SkillEvolutionDashboard />
+            )}
           </div>
         )}
 
@@ -314,5 +344,31 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontFamily: 'inherit',
     transition: 'all 0.2s ease',
+  },
+  meetingTabBar: {
+    display: 'flex',
+    gap: '2px',
+    padding: '4px 16px',
+    background: 'rgba(0, 0, 0, 0.25)',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+  },
+  meetingTabBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '6px 14px',
+    background: 'transparent',
+    border: 'none',
+    borderRadius: '6px',
+    color: '#6b7280',
+    fontSize: '12px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    transition: 'all 0.15s ease',
+  },
+  meetingTabBtnActive: {
+    background: 'rgba(139, 92, 246, 0.15)',
+    color: '#a78bfa',
   },
 }
