@@ -15,6 +15,13 @@ const avatarConfigs: Record<AgentRole, {
   skinColor: string
   hairColor: string
 }> = {
+  ceo: {
+    primaryColor: '#e11d48',
+    secondaryColor: '#f43f5e',
+    accessoryColor: '#fbbf24',
+    skinColor: '#ffd5b4',
+    hairColor: '#1a1a2e',
+  },
   planner: {
     primaryColor: '#8b5cf6',
     secondaryColor: '#a78bfa',
@@ -51,6 +58,26 @@ const avatarConfigs: Record<AgentRole, {
     hairColor: '#d2691e',
   },
 }
+
+const CEOAvatar: React.FC<{ config: typeof avatarConfigs.ceo, size: number }> = ({ config, size }) => (
+  <svg width={size} height={size} viewBox="0 0 120 120" fill="none">
+    <circle cx="60" cy="60" r="58" fill={config.primaryColor} opacity="0.15" />
+    <path d="M60 110C60 110 30 95 30 70V60C30 55 35 50 40 50H80C85 50 90 55 90 60V70C90 95 60 110 60 110Z"
+          fill={config.primaryColor} />
+    <path d="M50 55L60 65L70 55" stroke={config.accessoryColor} strokeWidth="3" strokeLinecap="round" />
+    <circle cx="60" cy="38" r="22" fill={config.skinColor} />
+    <path d="M38 32C38 32 42 15 60 15C78 15 82 32 82 32C82 32 78 25 72 22C66 19 60 20 60 20C60 20 54 19 48 22C42 25 38 32 38 32Z"
+          fill={config.hairColor} />
+    <circle cx="50" cy="38" r="4" fill="#1a1a2e" />
+    <circle cx="70" cy="38" r="4" fill="#1a1a2e" />
+    <circle cx="51" cy="37" r="1.5" fill="white" />
+    <circle cx="71" cy="37" r="1.5" fill="white" />
+    <path d="M52 48C52 48 56 52 60 52C64 52 68 48 68 48" stroke="#1a1a2e" strokeWidth="2" strokeLinecap="round" fill="none" />
+    <path d="M40 20L60 8L80 20" fill={config.accessoryColor} />
+    <rect x="55" y="8" width="10" height="4" rx="2" fill={config.accessoryColor} />
+    <circle cx="60" cy="6" r="3" fill={config.accessoryColor} />
+  </svg>
+)
 
 const PlannerAvatar: React.FC<{ config: typeof avatarConfigs.planner, size: number }> = ({ config, size }) => (
   <svg width={size} height={size} viewBox="0 0 120 120" fill="none">
@@ -296,6 +323,8 @@ export default function RoleAvatar({ role, size = 80, status = 'idle', animate =
 
   const renderAvatar = () => {
     switch (role) {
+      case 'ceo':
+        return <CEOAvatar config={config} size={size} />
       case 'planner':
         return <PlannerAvatar config={config} size={size} />
       case 'executor':

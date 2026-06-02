@@ -12,9 +12,10 @@ from agent import PROVIDER_REGISTRY, _extract_text
 from agenda import AgendaStateMachine, AgendaPhase
 from meeting import MeetingSession
 from negotiation import NegotiationEngine, ConsensusStrategy, Stance
-from protocol import AgentRole, MeetingAgentStatus
+from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict
 
 AGENT_ROLE_PROMPTS = {
+    AgentRole.CEO: "你是会议的CEO和组织者。你的职责是分析用户需求、判断意图、将任务自动分配给最合适的团队成员。请用简洁果断的语言发言。",
     AgentRole.PLANNER: "你是团队的规划者。你的职责是分析任务、制定计划、将复杂任务分解为可执行的子任务。请用简洁专业的语言发言。",
     AgentRole.EXECUTOR: "你是团队的执行者。你的职责是评估任务的技术可行性、提出实施方案、负责具体执行。请用务实高效的语言发言。",
     AgentRole.MONITOR: "你是团队的监控者。你的职责是评估风险、监控进度、提出质量保障建议。请用严谨细致的语言发言。",
@@ -331,3 +332,124 @@ class MeetingCoordinator:
             })
 
         return results
+
+    def _build_agent_capability_list(self) -> str:
+        lines = []
+        for agent in self.meeting.agents:
+            if agent.role == AgentRole.CEO:
+                continue
+            caps = ", ".join(agent.capabilities) if agent.capabilities else "通用"
+            lines.append(f"- {agent.id} ({agent.name}, 角色:{agent.role.value}): 能力=[{caps}]")
+        return "\n".join(lines)
+
+    async def semantic_analyze(self, user_message: str) -> SemanticAnalysisResult:
+        ceo_model = self._get_model(AgentRole.CEO)
+        agent_list = self._build_agent_capability_list()
+        prompt = (
+            f"你是会议的CEO和组织者。请分析以下用户消息，判断其意图。\n\n"
+            f"用户消息：{user_message}\n\n"
+            f"可用Agent：\n{agent_list}\n\n"
+            f"请返回JSON格式分析结果：\n"
+            f'{{"is_task": true/false, "intent": "task/discussion/question/feedback", '
+            f'"task_description": "如果is_task为true，提取任务描述", '
+            f'"target_agent_id": "最佳执行者的ID", '
+            f'"reason": "选择该Agent的理由", '
+            f'"discussion_topic": "如果is_task为false，提取讨论主题"}}\n\n'
+            f"分析规则：\n"
+            f"1. 如果消息包含明确的行动指令（如'帮我...'、'请执行...'、'分析...'），判定为任务\n"
+            f"2. 如果消息是征求意见（如'大家觉得...'、'你们怎么看'），判定为讨论\n"
+            f"3. 根据任务内容匹配Agent能力，选择最合适的执行者\n"
+            f"4. 只返回JSON，不要其他内容"
+        )
+        msg = Msg(name="user", role="user", content=prompt)
+        response = await ceo_model.reply(msg)
+        text = _extract_text(response)
+
+        json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group())
+                return SemanticAnalysisResult(
+                    is_task=bool(data.get("is_task", False)),
+                    intent=str(data.get("intent", "discussion")),
+                    task_description=str(data.get("task_description", "")),
+                    target_agent_id=str(data.get("target_agent_id", "")),
+                    reason=str(data.get("reason", "")),
+                    discussion_topic=str(data.get("discussion_topic", "")),
+                )
+            except (json.JSONDecodeError, TypeError, KeyError):
+                pass
+
+        return SemanticAnalysisResult(
+            is_task=False,
+            intent="discussion",
+            discussion_topic=user_message,
+        )
+
+    async def auto_assign_task(
+        self,
+        task_description: str,
+        target_agent_id: str,
+        reason: str,
+    ) -> Dict[str, Any]:
+        agent_info = self.meeting.get_agent(target_agent_id)
+        if agent_info is None:
+            for agent in self.meeting.agents:
+                if agent.role != AgentRole.CEO:
+                    target_agent_id = agent.id
+                    break
+
+        task = self.meeting.add_task(target_agent_id, task_description)
+        self.meeting.update_task_status(task.id, "assigned")
+        self.meeting.update_agent_status(target_agent_id, MeetingAgentStatus.WORKING)
+
+        ceo_id = self._find_agent_id(AgentRole.CEO)
+        if ceo_id:
+            self.meeting.add_message(
+                "agent",
+                f"CEO分析：{reason}。已将任务分配给{target_agent_id}。",
+                ceo_id,
+            )
+
+        return {
+            "task_id": task.id,
+            "agent_id": target_agent_id,
+            "description": task_description,
+            "reason": reason,
+            "status": "assigned",
+        }
+
+    async def process_user_message(
+        self,
+        user_message: str,
+        on_message: Callable[[str, str, str], Awaitable[None]],
+    ) -> Dict[str, Any]:
+        analysis = await self.semantic_analyze(user_message)
+
+        ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
+        analysis_text = (
+            f"CEO分析：意图={analysis.intent}"
+            + (f"，任务={analysis.task_description}，指派给={analysis.target_agent_id}，理由={analysis.reason}" if analysis.is_task else f"，主题={analysis.discussion_topic}")
+        )
+        await on_message(ceo_id, analysis_text, analysis_text)
+        self.meeting.add_message("agent", analysis_text, ceo_id)
+
+        if analysis.is_task and analysis.target_agent_id:
+            assign_result = await self.auto_assign_task(
+                analysis.task_description or user_message,
+                analysis.target_agent_id,
+                analysis.reason,
+            )
+            return {
+                "type": "task_auto_assigned",
+                "analysis": semantic_analysis_to_dict(analysis),
+                "assignment": assign_result,
+            }
+        else:
+            topic = analysis.discussion_topic or user_message
+            discussion_results = await self.run_discussion(topic, on_message)
+            return {
+                "type": "discussion",
+                "analysis": semantic_analysis_to_dict(analysis),
+                "discussion_results": discussion_results,
+            }

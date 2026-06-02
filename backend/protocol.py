@@ -28,14 +28,27 @@ class MeetingMessageType(str, Enum):
     CHECKPOINT_RESTORE = "checkpoint_restore"
     AUDIT_LOG = "audit_log"
     REQUEST_RETRANSMIT = "request_retransmit"
+    SEMANTIC_ANALYSIS_RESULT = "semantic_analysis_result"
+    TASK_AUTO_ASSIGNED = "task_auto_assigned"
 
 
 class AgentRole(str, Enum):
+    CEO = "ceo"
     PLANNER = "planner"
     EXECUTOR = "executor"
     MONITOR = "monitor"
     REVIEWER = "reviewer"
     COORDINATOR = "coordinator"
+
+
+@dataclass
+class SemanticAnalysisResult:
+    is_task: bool
+    intent: str = "discussion"
+    task_description: str = ""
+    target_agent_id: str = ""
+    reason: str = ""
+    discussion_topic: str = ""
 
 
 class MeetingAgentStatus(str, Enum):
@@ -203,6 +216,17 @@ class CompensateAction:
     description: str
     action_type: str = ""
     params: dict = field(default_factory=dict)
+
+
+def semantic_analysis_to_dict(result: SemanticAnalysisResult) -> dict:
+    return {
+        "is_task": result.is_task,
+        "intent": result.intent,
+        "task_description": result.task_description,
+        "target_agent_id": result.target_agent_id,
+        "reason": result.reason,
+        "discussion_topic": result.discussion_topic,
+    }
 
 
 def meeting_agent_to_dict(agent: MeetingAgentInfo) -> dict:

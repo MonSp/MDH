@@ -1,3 +1,4 @@
+import './console-setup';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ConfigProvider, carbonTheme } from '@agentscope-ai/design';

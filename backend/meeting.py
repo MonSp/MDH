@@ -15,6 +15,12 @@ from protocol import (
 
 DEFAULT_MEETING_AGENTS = [
     {
+        "id": "agent-ceo",
+        "name": "CEO-组织者",
+        "role": AgentRole.CEO,
+        "capabilities": ["semantic_analysis", "task_delegation", "meeting_coordination"],
+    },
+    {
         "id": "agent-planner",
         "name": "规划者-Alpha",
         "role": AgentRole.PLANNER,

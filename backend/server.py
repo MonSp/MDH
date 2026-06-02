@@ -15,7 +15,7 @@ from skills import list_skills_from_dir, save_skill_to_dir, generate_skill_summa
 from agent import run_agent_stream
 from meeting import MeetingSession
 from meeting_coordinator import MeetingCoordinator
-from protocol import MeetingAgentStatus, meeting_agent_to_dict, meeting_task_to_dict, meeting_summary_to_dict
+from protocol import MeetingAgentStatus, meeting_agent_to_dict, meeting_task_to_dict, meeting_summary_to_dict, semantic_analysis_to_dict
 
 logger = logging.getLogger("server")
 
@@ -217,7 +217,19 @@ async def ws_handler(ws: WebSocket):
 
                 if coordinator:
                     try:
-                        await coordinator.run_discussion(content, send_agent_message)
+                        result = await coordinator.process_user_message(content, send_agent_message)
+                        if result.get("type") == "task_auto_assigned":
+                            session._sequence_no += 1
+                            msg_auto_assigned = {
+                                "type": "task_auto_assigned",
+                                "analysis": result.get("analysis", {}),
+                                "assignment": result.get("assignment", {}),
+                                "sequence_no": session._sequence_no,
+                            }
+                            if len(session._message_buffer) >= 100:
+                                session._message_buffer.pop(0)
+                            session._message_buffer.append(msg_auto_assigned)
+                            await ws.send_json(msg_auto_assigned)
                     except Exception:
                         logger.exception("会议讨论异常: session=%s", session.session_id)
                         await ws.send_json({"type": "meeting_error", "message": "会议讨论出错"})

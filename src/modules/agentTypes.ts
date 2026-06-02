@@ -1,4 +1,5 @@
 export enum AgentRole {
+  CEO = 'ceo',
   Planner = 'planner',
   Executor = 'executor',
   Monitor = 'monitor',
@@ -113,6 +114,16 @@ export interface AgentRoleProfile {
 }
 
 export const DEFAULT_ROLE_PROFILES: Record<AgentRole, AgentRoleProfile> = {
+  [AgentRole.CEO]: {
+    avatar: 'ceo',
+    themeColor: '#e11d48',
+    gradientColors: ['#e11d48', '#f43f5e'],
+    personality: '高瞻远瞩、运筹帷幄',
+    motto: '统揽全局，智领团队',
+    description: '作为会议组织者，分析用户需求语义，智能调度团队成员，自动分配任务',
+    specializations: ['语义分析', '任务委派', '会议协调', '决策统筹'],
+    emoji: '👔',
+  },
   [AgentRole.Planner]: {
     avatar: 'planner',
     themeColor: '#8b5cf6',
@@ -166,6 +177,11 @@ export const DEFAULT_ROLE_PROFILES: Record<AgentRole, AgentRoleProfile> = {
 }
 
 export const DEFAULT_AGENT_CONFIGS: Record<AgentRole, Partial<AgentConfig>> = {
+  [AgentRole.CEO]: {
+    capabilities: [AgentCapability.TaskDecomposition, AgentCapability.DataAnalysis],
+    maxConcurrentTasks: 1,
+    timeout: 600_000,
+  },
   [AgentRole.Planner]: {
     capabilities: [AgentCapability.TaskDecomposition, AgentCapability.DataAnalysis],
     maxConcurrentTasks: 1,

@@ -19,7 +19,7 @@ export interface Task {
 }
 
 export interface ChatMessage {
-  role: 'boss' | 'agent'
+  role: 'boss' | 'agent' | 'ceo'
   agentId?: string
   content: string
   timestamp: number

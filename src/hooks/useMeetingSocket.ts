@@ -4,6 +4,7 @@ import type { TeamAgent, Task, ChatMessage } from '../components/office-team/typ
 import { AgentRole } from '../modules/agentTypes'
 
 const WORKSTATION_MAP: Record<string, string> = {
+  'agent-ceo': 'ws-0',
   'agent-planner': 'ws-1',
   'agent-executor': 'ws-2',
   'agent-monitor': 'ws-3',
@@ -233,6 +234,32 @@ export default function useMeetingSocket({
             content: `会议错误：${msg.message}`,
             timestamp: Date.now(),
           }])
+          break
+        }
+        case 'semantic_analysis_result': {
+          setChatMessages(prev => [...prev, {
+            role: 'ceo' as const,
+            agentId: 'agent-ceo',
+            content: msg.analysisResult,
+            timestamp: Date.now(),
+          }])
+          break
+        }
+        case 'task_auto_assigned': {
+          setChatMessages(prev => [...prev, {
+            role: 'ceo' as const,
+            agentId: 'agent-ceo',
+            content: `任务已自动指派给 ${msg.agentId}：${msg.description}`,
+            timestamp: Date.now(),
+          }])
+          const autoTask: Task = {
+            id: msg.taskId,
+            agentId: msg.agentId,
+            description: msg.description,
+            status: msg.status,
+            createdAt: Date.now(),
+          }
+          setTasks(prev => [...prev, autoTask])
           break
         }
       }

@@ -16,7 +16,6 @@ interface OfficeTeamModeProps {
 }
 
 export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalCount = 0, onOpenApproval }: OfficeTeamModeProps) {
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [taskInput, setTaskInput] = useState('')
   const [viewState, setViewState] = useState<ViewState>('office')
   const [agendaPhase, setAgendaPhase] = useState<string>('discussion')
@@ -58,12 +57,11 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     }, 1200)
   }, [startMeeting])
 
-  const handleAssignTask = useCallback(() => {
-    if (!selectedAgentId || !taskInput.trim()) return
-    assignTask(selectedAgentId, taskInput.trim())
+  const handleSendMessage = useCallback(() => {
+    if (!taskInput.trim()) return
+    assignTask('agent-ceo', taskInput.trim())
     setTaskInput('')
-    setSelectedAgentId(null)
-  }, [selectedAgentId, taskInput, assignTask])
+  }, [taskInput, assignTask])
 
   const handleEndMeeting = useCallback(() => {
     setViewState('transitioning-to-office')
@@ -75,7 +73,6 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
 
   const handleReset = useCallback(() => {
     setViewState('office')
-    setSelectedAgentId(null)
     setTaskInput('')
   }, [])
 
@@ -168,11 +165,9 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
             </div>
             <TaskAssignPanel
               agents={agents}
-              selectedAgentId={selectedAgentId}
               taskInput={taskInput}
-              onSelectAgent={setSelectedAgentId}
               onTaskInputChange={setTaskInput}
-              onAssignTask={handleAssignTask}
+              onSendMessage={handleSendMessage}
             />
           </div>
         )}

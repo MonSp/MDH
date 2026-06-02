@@ -439,7 +439,17 @@ export default function App() {
     return () => {
       window.removeEventListener('message', handleBridgeEvent);
       if (wsReconnectTimerRef.current) clearTimeout(wsReconnectTimerRef.current);
-      if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
+      if (wsRef.current) {
+        const ws = wsRef.current;
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.onopen = null;
+        ws.onmessage = null;
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        }
+        wsRef.current = null;
+      }
     };
   }, []);
 

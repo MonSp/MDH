@@ -18,7 +18,7 @@
     "@agentscope-ai/chat": "^1.1.65",
     "@agentscope-ai/design": "^1.0.32",
     "@ant-design/icons": "^5.0.0",
-    "antd": "^5.18.0",
+    "antd": "^6.4.3",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },

@@ -66,16 +66,61 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
         {messages.map((msg, index) => {
           const agent = getAgentById(msg.agentId)
           const isBoss = msg.role === 'boss'
+          const isCeo = msg.agentId === 'agent-ceo' || msg.role === 'ceo'
+          const isAssignmentNotification = msg.content.includes('CEO分析') || msg.content.includes('已将任务分配给')
+
+          if (isAssignmentNotification) {
+            const assignMatch = msg.content.match(/已将任务分配给(.+?)(?:[。！]|$)/)
+            const ceoAnalysisMatch = msg.content.match(/CEO分析[：:]\s*(.+)/)
+            const assignee = assignMatch ? assignMatch[1].trim() : ''
+            const analysis = ceoAnalysisMatch ? ceoAnalysisMatch[1].trim() : ''
+
+            return (
+              <div
+                key={index}
+                style={{
+                  ...styles.chatMessage,
+                  justifyContent: 'center',
+                }}
+              >
+                <div style={styles.assignmentNotification}>
+                  <div style={styles.assignmentHeader}>
+                    <span style={styles.assignmentIcon}>📋</span>
+                    <span style={styles.assignmentTitle}>任务指派通知</span>
+                  </div>
+                  <div style={styles.assignmentBody}>
+                    {analysis && (
+                      <div style={styles.assignmentAnalysis}>
+                        <span style={styles.assignmentAnalysisLabel}>🧠 CEO分析：</span>
+                        <span style={styles.assignmentAnalysisText}>{analysis}</span>
+                      </div>
+                    )}
+                    {assignee && (
+                      <div style={styles.assignmentTarget}>
+                        <span style={styles.assignmentTargetIcon}>👉</span>
+                        <span>已将任务分配给 </span>
+                        <span style={styles.assignmentTargetName}>{assignee}</span>
+                      </div>
+                    )}
+                    {!assignee && !analysis && (
+                      <div style={styles.assignmentContent}>{msg.content}</div>
+                    )}
+                  </div>
+                  <div style={styles.assignmentTime}>{formatTime(msg.timestamp)}</div>
+                </div>
+              </div>
+            )
+          }
 
           return (
             <div
               key={index}
               style={{
                 ...styles.chatMessage,
-                justifyContent: isBoss ? 'flex-end' : 'flex-start',
+                justifyContent: isBoss || isCeo ? 'flex-end' : 'flex-start',
               }}
             >
-              {!isBoss && msg.agentId && (
+              {!isBoss && !isCeo && msg.agentId && (
                 <div style={styles.msgAvatar}>
                   <RoleAvatar
                     role={agent?.role || AgentRole.Planner}
@@ -88,14 +133,18 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
                 ...styles.msgBubble,
                 background: isBoss
                   ? 'linear-gradient(135deg, #4d9fff 0%, #3b82f6 100%)'
+                  : isCeo
+                  ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
                   : 'rgba(255, 255, 255, 0.08)',
-                borderBottomRightRadius: isBoss ? '4px' : '14px',
-                borderBottomLeftRadius: !isBoss ? '4px' : '14px',
+                borderBottomRightRadius: isBoss || isCeo ? '4px' : '14px',
+                borderBottomLeftRadius: !isBoss && !isCeo ? '4px' : '14px',
               }}>
                 <div style={styles.msgHeader}>
                   <span style={styles.msgSender}>
                     {isBoss
                       ? '👔 老板'
+                      : isCeo
+                      ? '🧠 CEO分析'
                       : `${ROLE_EMOJI[agent?.role || AgentRole.Planner]} ${agent?.name?.split('-')[0] || 'Agent'}`
                     }
                   </span>
@@ -133,8 +182,8 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
                 )}
               </div>
 
-              {isBoss && (
-                <div style={styles.msgAvatarEmoji}>👔</div>
+              {(isBoss || isCeo) && (
+                <div style={styles.msgAvatarEmoji}>{isBoss ? '👔' : '🧠'}</div>
               )}
             </div>
           )
@@ -252,5 +301,75 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#8b5cf6',
     animation: 'blink 1s infinite',
     marginLeft: '2px',
+  },
+  assignmentNotification: {
+    maxWidth: '85%',
+    padding: '12px 16px',
+    borderRadius: '12px',
+    background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%)',
+    border: '1px solid rgba(139, 92, 246, 0.3)',
+    textAlign: 'center',
+  },
+  assignmentHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    marginBottom: '8px',
+  },
+  assignmentIcon: {
+    fontSize: '16px',
+  },
+  assignmentTitle: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#a78bfa',
+  },
+  assignmentBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    fontSize: '12px',
+    color: '#e2e8f0',
+  },
+  assignmentAnalysis: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '4px',
+    textAlign: 'left',
+  },
+  assignmentAnalysisLabel: {
+    flexShrink: 0,
+    color: '#a78bfa',
+    fontWeight: 600,
+  },
+  assignmentAnalysisText: {
+    color: '#d1d5db',
+    lineHeight: 1.4,
+  },
+  assignmentTarget: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    padding: '6px 10px',
+    borderRadius: '8px',
+    background: 'rgba(139, 92, 246, 0.15)',
+  },
+  assignmentTargetIcon: {
+    fontSize: '12px',
+  },
+  assignmentTargetName: {
+    color: '#a78bfa',
+    fontWeight: 600,
+  },
+  assignmentContent: {
+    color: '#d1d5db',
+    lineHeight: 1.4,
+  },
+  assignmentTime: {
+    marginTop: '6px',
+    fontSize: '10px',
+    color: 'rgba(255, 255, 255, 0.3)',
   },
 }
