@@ -59,9 +59,9 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
 
   const handleSendMessage = useCallback(() => {
     if (!taskInput.trim()) return
-    assignTask('agent-ceo', taskInput.trim())
+    sendMeetingMessage(taskInput.trim())
     setTaskInput('')
-  }, [taskInput, assignTask])
+  }, [taskInput, sendMeetingMessage])
 
   const handleEndMeeting = useCallback(() => {
     setViewState('transitioning-to-office')

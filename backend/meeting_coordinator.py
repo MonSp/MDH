@@ -51,6 +51,10 @@ class MeetingCoordinator:
         if reg is None:
             raise ValueError(f"不支持的模型提供商: {self.provider}")
 
+        self.logger.info("创建模型: role=%s provider=%s model=%s api_key=%s",
+                        role.value, self.provider, self.model_name or "(默认)",
+                        "已设置" if self.api_key else "未设置")
+
         class _Session:
             pass
 
@@ -89,7 +93,7 @@ class MeetingCoordinator:
             f"任务：{task_description}\n\n"
             f"请只返回JSON数组，不要其他内容。"
         )
-        msg = Msg(name="user", role="user", content=prompt)
+        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
         response = await planner.reply(msg)
         text = _extract_text(response)
 
@@ -145,7 +149,7 @@ class MeetingCoordinator:
                 f"请以{role.value}的身份发表你的看法和建议（2-3句话）。"
                 f"请在回复末尾用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注你的立场和置信度。"
             )
-            msg = Msg(name="user", role="user", content=prompt)
+            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
             response = await model.reply(msg)
             text = _extract_text(response)
 
@@ -180,7 +184,7 @@ class MeetingCoordinator:
                 f"请以{role.value}的身份发表你的看法和建议（2-3句话）。"
                 f"请在回复末尾用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注你的立场和置信度。"
             )
-            msg = Msg(name="user", role="user", content=prompt)
+            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
             response = await model.reply(msg)
             text = _extract_text(response)
 
@@ -260,7 +264,7 @@ class MeetingCoordinator:
                 f"紧急情况！{agent_id}报告了关键阻塞问题：\n{content}\n\n"
                 f"请作为规划者提出应急解决方案（2-3句话）。"
             )
-            msg = Msg(name="user", role="user", content=prompt)
+            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
             response = await model.reply(msg)
             text = _extract_text(response)
             await on_message(planner_id, text, text)
@@ -313,15 +317,18 @@ class MeetingCoordinator:
 
             agent_info = self.meeting.get_agent(task.agent_id)
             if agent_info is None:
+                self.logger.warning("找不到 agent: %s", task.agent_id)
                 continue
 
             role = AgentRole(agent_info.role.value)
+            self.logger.info("执行任务: task_id=%s agent=%s role=%s", task.id, task.agent_id, role.value)
             model = self._get_model(role)
             prompt = f"请执行以下任务：\n{task.description}\n\n请给出你的执行方案和结果。"
-            msg = Msg(name="user", role="user", content=prompt)
+            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
             response = await model.reply(msg)
             text = _extract_text(response)
 
+            self.logger.info("任务执行完成: task_id=%s agent=%s result_length=%d", task.id, task.agent_id, len(text))
             self.meeting.update_task_status(task.id, "completed")
             self.meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
 
@@ -361,7 +368,7 @@ class MeetingCoordinator:
             f"3. 根据任务内容匹配Agent能力，选择最合适的执行者\n"
             f"4. 只返回JSON，不要其他内容"
         )
-        msg = Msg(name="user", role="user", content=prompt)
+        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
         response = await ceo_model.reply(msg)
         text = _extract_text(response)
 
@@ -435,11 +442,13 @@ class MeetingCoordinator:
         self.meeting.add_message("agent", analysis_text, ceo_id)
 
         if analysis.is_task and analysis.target_agent_id:
+            self.logger.info("任务模式: 指派给 %s", analysis.target_agent_id)
             assign_result = await self.auto_assign_task(
                 analysis.task_description or user_message,
                 analysis.target_agent_id,
                 analysis.reason,
             )
+
             return {
                 "type": "task_auto_assigned",
                 "analysis": semantic_analysis_to_dict(analysis),

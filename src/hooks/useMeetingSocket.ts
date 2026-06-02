@@ -48,12 +48,21 @@ export default function useMeetingSocket({
 
   const send = useCallback((data: Record<string, unknown>) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log('[MeetingSocket] 发送消息:', data)
       wsRef.current.send(JSON.stringify(data))
+    } else {
+      console.warn('[MeetingSocket] WebSocket 未就绪，无法发送:', data)
     }
   }, [wsRef])
 
   const startMeeting = useCallback(() => {
-    send({ type: 'start_meeting' })
+    send({
+      type: 'start_meeting',
+      provider: localStorage.getItem('llm_provider') || undefined,
+      model_name: localStorage.getItem('llm_model_name') || undefined,
+      api_key: localStorage.getItem('deepseek_api_key') || undefined,
+      base_url: localStorage.getItem('deepseek_base_url') || undefined,
+    })
   }, [send])
 
   const sendMeetingMessage = useCallback((content: string) => {
