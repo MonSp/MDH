@@ -14,8 +14,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from backend.skill_registry import SkillRegistry
-from backend.skill_packager import SkillPackager
+from skill_registry import SkillRegistry
+from skill_packager import SkillPackager
 
 logger = logging.getLogger(__name__)
 

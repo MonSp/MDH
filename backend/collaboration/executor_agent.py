@@ -10,7 +10,7 @@ from datetime import datetime
 from .communication import CommunicationInterface, CommunicationManager, Message, MessageType
 
 try:
-    from backend.experience_extractor import ExecutionLog, ExperienceExtractor
+    from experience_extractor import ExecutionLog, ExperienceExtractor
 except ImportError:
     ExecutionLog = None
     ExperienceExtractor = None

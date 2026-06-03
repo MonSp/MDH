@@ -7,6 +7,7 @@ import MeetingChatPanel from './office-team/MeetingChatPanel'
 import TaskAssignPanel from './office-team/TaskAssignPanel'
 import MeetingLogPanel from './office-team/MeetingLogPanel'
 import SkillEvolutionDashboard from './skill-evolution/SkillEvolutionDashboard'
+import TechTowerView from './TechTowerView'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 
 interface OfficeTeamModeProps {
@@ -18,7 +19,7 @@ interface OfficeTeamModeProps {
 
 export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalCount = 0, onOpenApproval }: OfficeTeamModeProps) {
   const [taskInput, setTaskInput] = useState('')
-  const [viewState, setViewState] = useState<ViewState>('office')
+  const [viewState, setViewState] = useState<ViewState>('tower')
   const [agendaPhase, setAgendaPhase] = useState<string>('discussion')
   const [meetingTab, setMeetingTab] = useState<MeetingTab>('chat')
 
@@ -65,16 +66,8 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     setTaskInput('')
   }, [taskInput, sendMeetingMessage])
 
-  const handleEndMeeting = useCallback(() => {
-    setViewState('transitioning-to-office')
-    endMeeting()
-    setTimeout(() => {
-      setViewState('office')
-    }, 1000)
-  }, [endMeeting])
-
   const handleReset = useCallback(() => {
-    setViewState('office')
+    setViewState('tower')
     setTaskInput('')
   }, [])
 
@@ -97,8 +90,48 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     setAgendaPhase('emergency')
   }, [sendMeetingMessage])
 
+  /* 从大楼屋顶办公室发送任务 → 直接进入会议并提交 */
+  const handleTowerSendTask = useCallback((description: string) => {
+    setViewState('transitioning-to-meeting')
+    startMeeting()
+    setTimeout(() => {
+      setViewState('meeting')
+      sendMeetingMessage(description)
+    }, 1200)
+  }, [startMeeting, sendMeetingMessage])
+
+  /* 从大楼楼层进入会议 */
+  const handleTowerEnterMeeting = useCallback(() => {
+    setViewState('transitioning-to-meeting')
+    startMeeting()
+    setTimeout(() => {
+      setViewState('meeting')
+    }, 1200)
+  }, [startMeeting])
+
+  /* 结束会议后回到大楼 */
+  const handleEndMeeting = useCallback(() => {
+    setViewState('transitioning-to-office')
+    endMeeting()
+    setTimeout(() => {
+      setViewState('tower')
+    }, 1000)
+  }, [endMeeting])
+
+  const isTower = viewState === 'tower'
   const isOffice = isOfficeView(viewState)
   const isMeeting = isMeetingView(viewState)
+
+  /* ─── 大楼视图 ─── */
+  if (isTower) {
+    return (
+      <TechTowerView
+        onStartMeeting={handleTowerEnterMeeting}
+        onSendTask={handleTowerSendTask}
+        onBackToSingle={onBackToSingle}
+      />
+    )
+  }
 
   return (
     <div style={styles.container}>
