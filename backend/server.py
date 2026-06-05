@@ -16,7 +16,7 @@ from skills import list_skills_from_dir, save_skill_to_dir, generate_skill_summa
 from agent import run_agent_stream
 from meeting import MeetingSession
 from meeting_coordinator import MeetingCoordinator
-from protocol import MeetingAgentStatus, meeting_agent_to_dict, meeting_task_to_dict, meeting_summary_to_dict, semantic_analysis_to_dict
+from protocol import MeetingAgentStatus, meeting_agent_to_dict, meeting_task_to_dict, meeting_summary_to_dict, semantic_analysis_to_dict, workflow_execution_to_dict, workflow_definition_to_dict
 from skill_registry import SkillRegistry
 from project_manager import ProjectManager
 from experience_extractor import ExperienceExtractor
@@ -625,6 +625,22 @@ async def ws_handler(ws: WebSocket):
                                         session._message_buffer.pop(0)
                                     session._message_buffer.append(msg_iteration)
                                     await ws.send_json(msg_iteration)
+                        elif result.get("type") == "workflow_executed":
+                            session._sequence_no += 1
+                            workflow_result = result.get("workflow_result", {})
+                            msg_workflow = {
+                                "type": "workflow_executed",
+                                "workflow_id": workflow_result.get("execution_id", ""),
+                                "status": workflow_result.get("status", ""),
+                                "results": workflow_result.get("results", {}),
+                                "analysis": result.get("analysis", {}),
+                                "sequence_no": session._sequence_no,
+                            }
+                            if len(session._message_buffer) >= 100:
+                                session._message_buffer.pop(0)
+                            session._message_buffer.append(msg_workflow)
+                            await ws.send_json(msg_workflow)
+
                     except Exception:
                         logger.exception("会议讨论异常: session=%s", session.session_id)
                         await ws.send_json({"type": "meeting_error", "message": "会议讨论出错"})

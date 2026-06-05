@@ -8,6 +8,7 @@ import TaskAssignPanel from './office-team/TaskAssignPanel'
 import MeetingLogPanel from './office-team/MeetingLogPanel'
 import SkillEvolutionDashboard from './skill-evolution/SkillEvolutionDashboard'
 import TechTowerView from './TechTowerView'
+import WorkflowPanel from './WorkflowPanel'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 
 interface OfficeTeamModeProps {
@@ -28,6 +29,8 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     tasks,
     chatMessages,
     isMeetingActive,
+    lastWorkflow,
+    clearWorkflow,
     startMeeting,
     sendMeetingMessage,
     assignTask,
@@ -244,6 +247,12 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
           />
         )}
       </div>
+
+      {/* 工作流弹窗 - 对话触发后弹出 */}
+      <WorkflowPanel
+        workflow={lastWorkflow}
+        onClose={clearWorkflow}
+      />
     </div>
   )
 }

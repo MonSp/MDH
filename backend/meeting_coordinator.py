@@ -15,7 +15,8 @@ from collaboration.planner_agent import PlannerAgent, SubTask
 from dynamic_router import DynamicRouter, RouteEntry
 from meeting import MeetingSession
 from negotiation import NegotiationEngine, ConsensusStrategy, Stance
-from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict
+from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict, WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowNodeStatus
+from workflow_engine import WorkflowEngine
 
 AGENT_ROLE_PROMPTS = {
     AgentRole.CEO: "你是编程团队的CTO（技术总监）。你的职责是分析用户技术需求、判断技术意图、将开发任务自动分配给最合适的团队成员。你熟悉前后端技术栈、系统架构和团队成员能力。请用简洁果断的技术语言发言。",
@@ -58,6 +59,82 @@ class MeetingCoordinator:
 
         # PlannerAgent 用于生成结构化验收反馈
         self.planner = PlannerAgent(name="coordinator_planner")
+
+        # WorkflowEngine 初始化
+        self.workflow_engine = WorkflowEngine()
+        self._setup_workflow_engine()
+
+    def _setup_workflow_engine(self):
+        """配置WorkflowEngine的节点执行器和回调函数"""
+        # 注册各部门的节点执行器
+        self.workflow_engine.register_node_executor("dept-frontend", self._execute_workflow_node)
+        self.workflow_engine.register_node_executor("dept-backend", self._execute_workflow_node)
+        self.workflow_engine.register_node_executor("dept-qa", self._execute_workflow_node)
+        self.workflow_engine.register_node_executor("dept-devops", self._execute_workflow_node)
+        self.workflow_engine.register_node_executor("dept-data", self._execute_workflow_node)
+        self.workflow_engine.register_node_executor("dept-docs", self._execute_workflow_node)
+        self.workflow_engine.register_node_executor("dept-fullstack", self._execute_workflow_node)
+
+        # 设置状态变化回调
+        self.workflow_engine.set_status_change_callback(self._on_workflow_status_change)
+        self.workflow_engine.set_node_status_change_callback(self._on_workflow_node_status_change)
+
+    async def _execute_workflow_node(self, node: WorkflowNode, input_data: dict) -> dict:
+        """执行工作流节点
+
+        Args:
+            node: 工作流节点
+            input_data: 输入数据
+
+        Returns:
+            执行结果
+        """
+        self.logger.info("执行工作流节点: %s (部门: %s)", node.node_id, node.dept_id)
+
+        # 根据部门ID选择对应的Agent角色
+        role_map = {
+            "dept-frontend": AgentRole.EXECUTOR,
+            "dept-backend": AgentRole.EXECUTOR,
+            "dept-qa": AgentRole.REVIEWER,
+            "dept-devops": AgentRole.MONITOR,
+            "dept-data": AgentRole.EXECUTOR,
+            "dept-docs": AgentRole.COORDINATOR,
+            "dept-fullstack": AgentRole.EXECUTOR,
+        }
+
+        role = role_map.get(node.dept_id, AgentRole.EXECUTOR)
+        model = self._get_model(role)
+
+        # 构建提示词
+        prompt = (
+            f"请执行以下任务：\n"
+            f"任务描述：{node.task_description}\n"
+            f"输入数据：{json.dumps(input_data, ensure_ascii=False)}\n\n"
+            f"请给出你的执行方案和结果。"
+        )
+
+        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+        response = await model.reply(msg)
+        result_text = _extract_text(response)
+
+        return {
+            "result": result_text,
+            "node_id": node.node_id,
+            "dept_id": node.dept_id,
+        }
+
+    async def _on_workflow_status_change(self, execution):
+        """工作流状态变化回调"""
+        self.logger.info("工作流状态变化: %s -> %s", execution.execution_id, execution.status.value)
+        # 这里可以推送状态更新到前端
+        # 暂时只记录日志
+
+    async def _on_workflow_node_status_change(self, execution, node_id):
+        """工作流节点状态变化回调"""
+        node_status = execution.node_states.get(node_id)
+        self.logger.info("工作流节点状态变化: %s -> %s", node_id, node_status.value if node_status else "unknown")
+        # 这里可以推送节点状态更新到前端
+        # 暂时只记录日志
 
     def _create_model(self, role: AgentRole) -> Agent:
         reg = PROVIDER_REGISTRY.get(self.provider)
@@ -653,13 +730,145 @@ class MeetingCoordinator:
             lines.append(f"- {agent.id} ({agent.name}, 角色:{agent.role.value}): 能力=[{caps}]")
         return "\n".join(lines)
 
+    def _detect_complex_task(self, user_message: str) -> bool:
+        """检测用户消息是否为跨部门复杂任务
+
+        Args:
+            user_message: 用户消息
+
+        Returns:
+            是否为复杂任务
+        """
+        # 复杂任务的关键词模式
+        complex_patterns = [
+            # 多步骤任务
+            r'首先.*然后.*最后',
+            r'第一步.*第二步.*第三步',
+            r'先.*再.*后',
+            # 多部门协作
+            r'前端.*后端.*测试',
+            r'设计.*开发.*部署',
+            r'分析.*实现.*验证',
+            # 依赖关系
+            r'完成后.*开始',
+            r'依赖.*之后',
+            r'等待.*后.*执行',
+            # 工作流相关
+            r'工作流',
+            r'流程',
+            r'步骤.*顺序',
+        ]
+
+        for pattern in complex_patterns:
+            if re.search(pattern, user_message, re.IGNORECASE):
+                return True
+
+        # 检查是否包含多个动词（可能表示多步骤）
+        verbs = ['设计', '开发', '实现', '测试', '部署', '分析', '创建', '编写', '优化', '修复']
+        verb_count = sum(1 for verb in verbs if verb in user_message)
+        if verb_count >= 3:
+            return True
+
+        return False
+
+    def _generate_workflow_definition(self, user_message: str, routing_decision) -> WorkflowDefinition:
+        """根据用户消息生成工作流定义
+
+        Args:
+            user_message: 用户消息
+            routing_decision: 路由决策
+
+        Returns:
+            工作流定义
+        """
+        workflow_id = str(uuid.uuid4())[:8]
+
+        # 使用LLM分析任务步骤
+        # 这里简化处理，实际应该调用LLM进行分析
+        # 暂时使用简单的规则生成工作流
+
+        nodes = []
+        edges = []
+
+        # 根据关键词生成节点
+        if '前端' in user_message or 'frontend' in user_message:
+            nodes.append(WorkflowNode(
+                node_id=f"node-{str(uuid.uuid4())[:4]}",
+                task_description="前端开发任务",
+                dept_id="dept-frontend",
+                status=WorkflowNodeStatus.PENDING,
+            ))
+
+        if '后端' in user_message or 'backend' in user_message or 'api' in user_message.lower():
+            nodes.append(WorkflowNode(
+                node_id=f"node-{str(uuid.uuid4())[:4]}",
+                task_description="后端开发任务",
+                dept_id="dept-backend",
+                status=WorkflowNodeStatus.PENDING,
+            ))
+
+        if '测试' in user_message or 'test' in user_message:
+            nodes.append(WorkflowNode(
+                node_id=f"node-{str(uuid.uuid4())[:4]}",
+                task_description="测试任务",
+                dept_id="dept-qa",
+                status=WorkflowNodeStatus.PENDING,
+            ))
+
+        if '部署' in user_message or 'deploy' in user_message:
+            nodes.append(WorkflowNode(
+                node_id=f"node-{str(uuid.uuid4())[:4]}",
+                task_description="部署任务",
+                dept_id="dept-devops",
+                status=WorkflowNodeStatus.PENDING,
+            ))
+
+        # 如果没有匹配到特定部门，使用路由建议
+        if not nodes and routing_decision.selected_dept:
+            nodes.append(WorkflowNode(
+                node_id=f"node-{str(uuid.uuid4())[:4]}",
+                task_description=user_message[:100],
+                dept_id=routing_decision.selected_dept,
+                status=WorkflowNodeStatus.PENDING,
+            ))
+
+        # 如果还是没有节点，创建一个默认节点
+        if not nodes:
+            nodes.append(WorkflowNode(
+                node_id=f"node-{str(uuid.uuid4())[:4]}",
+                task_description=user_message[:100],
+                dept_id="dept-fullstack",
+                status=WorkflowNodeStatus.PENDING,
+            ))
+
+        # 生成边（依赖关系）
+        # 假设顺序执行：前端 -> 后端 -> 测试 -> 部署
+        dept_order = ["dept-frontend", "dept-backend", "dept-qa", "dept-devops"]
+        sorted_nodes = sorted(nodes, key=lambda n: dept_order.index(n.dept_id) if n.dept_id in dept_order else 999)
+
+        for i in range(len(sorted_nodes) - 1):
+            edges.append(WorkflowEdge(
+                source_node_id=sorted_nodes[i].node_id,
+                target_node_id=sorted_nodes[i + 1].node_id,
+            ))
+
+        return WorkflowDefinition(
+            workflow_id=workflow_id,
+            name=f"工作流-{user_message[:30]}",
+            description=user_message,
+            nodes=nodes,
+            edges=edges,
+            execution_strategy="mixed",
+        )
+
     async def semantic_analyze(self, user_message: str) -> SemanticAnalysisResult:
         """语义分析用户消息
 
         流程：
         1. 先用 DynamicRouter 做初步路由决策
-        2. 将路由结果作为上下文传给 LLM 进行最终决策
-        3. 如果 LLM 置信度高且与路由一致，直接使用路由结果
+        2. 检测是否为复杂任务
+        3. 如果是复杂任务，生成工作流定义
+        4. 否则，将路由结果作为上下文传给 LLM 进行最终决策
         """
         # 1. DynamicRouter 初步路由
         routing_decision = self.router.route(user_message)
@@ -669,7 +878,22 @@ class MeetingCoordinator:
             routing_decision.selected_dept, routing_decision.confidence, routing_decision.reason,
         )
 
-        # 2. LLM 分析（将路由结果作为上下文）
+        # 2. 检测是否为复杂任务
+        is_complex = self._detect_complex_task(user_message)
+        if is_complex:
+            self.logger.info("检测到复杂任务，生成工作流定义")
+            workflow_definition = self._generate_workflow_definition(user_message, routing_decision)
+            return SemanticAnalysisResult(
+                is_task=True,
+                is_workflow=True,
+                intent="workflow",
+                task_description=user_message,
+                target_agent_id="",  # 工作流模式下不需要单个目标
+                reason="检测到跨部门复杂任务，生成工作流",
+                workflow_definition=workflow_definition,
+            )
+
+        # 3. LLM 分析（将路由结果作为上下文）
         ceo_model = self._get_model(AgentRole.CEO)
         agent_list = self._build_agent_capability_list()
         routing_context = ""
@@ -712,7 +936,7 @@ class MeetingCoordinator:
                 llm_is_task = bool(data.get("is_task", False))
                 llm_confidence = float(data.get("confidence", 0.5))
 
-                # 3. 如果 LLM 置信度高且路由也认为是任务，使用路由建议
+                # 4. 如果 LLM 置信度高且路由也认为是任务，使用路由建议
                 if (llm_is_task
                         and routing_decision.selected_dept
                         and routing_decision.confidence >= 0.5
@@ -792,31 +1016,116 @@ class MeetingCoordinator:
         analysis = await self.semantic_analyze(user_message)
 
         ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
-        analysis_text = (
-            f"CEO分析：意图={analysis.intent}"
-            + (f"，任务={analysis.task_description}，指派给={analysis.target_agent_id}，理由={analysis.reason}" if analysis.is_task else f"，主题={analysis.discussion_topic}")
-        )
-        await on_message(ceo_id, analysis_text, "")
-        self.meeting.add_message("agent", analysis_text, ceo_id)
 
-        if analysis.is_task and analysis.target_agent_id:
-            self.logger.info("任务模式: 指派给 %s", analysis.target_agent_id)
-            assign_result = await self.auto_assign_task(
-                analysis.task_description or user_message,
-                analysis.target_agent_id,
-                analysis.reason,
+        # 检查是否为工作流模式
+        if analysis.is_workflow and analysis.workflow_definition:
+            self.logger.info("工作流模式: 创建并执行工作流")
+            analysis_text = (
+                f"CEO分析：检测到跨部门复杂任务，已创建工作流。\n"
+                f"工作流名称：{analysis.workflow_definition.name}\n"
+                f"节点数量：{len(analysis.workflow_definition.nodes)}\n"
+                f"执行策略：{analysis.workflow_definition.execution_strategy}"
             )
+            await on_message(ceo_id, analysis_text, "")
+            self.meeting.add_message("agent", analysis_text, ceo_id)
+
+            # 创建并执行工作流
+            workflow_result = await self._execute_workflow(analysis.workflow_definition, on_message)
 
             return {
-                "type": "task_auto_assigned",
+                "type": "workflow_executed",
                 "analysis": semantic_analysis_to_dict(analysis),
-                "assignment": assign_result,
+                "workflow_result": workflow_result,
             }
         else:
-            topic = analysis.discussion_topic or user_message
-            discussion_results = await self.run_discussion(topic, on_message)
+            analysis_text = (
+                f"CEO分析：意图={analysis.intent}"
+                + (f"，任务={analysis.task_description}，指派给={analysis.target_agent_id}，理由={analysis.reason}" if analysis.is_task else f"，主题={analysis.discussion_topic}")
+            )
+            await on_message(ceo_id, analysis_text, "")
+            self.meeting.add_message("agent", analysis_text, ceo_id)
+
+            if analysis.is_task and analysis.target_agent_id:
+                self.logger.info("任务模式: 指派给 %s", analysis.target_agent_id)
+                assign_result = await self.auto_assign_task(
+                    analysis.task_description or user_message,
+                    analysis.target_agent_id,
+                    analysis.reason,
+                )
+
+                return {
+                    "type": "task_auto_assigned",
+                    "analysis": semantic_analysis_to_dict(analysis),
+                    "assignment": assign_result,
+                }
+            else:
+                topic = analysis.discussion_topic or user_message
+                discussion_results = await self.run_discussion(topic, on_message)
+                return {
+                    "type": "discussion",
+                    "analysis": semantic_analysis_to_dict(analysis),
+                    "discussion_results": discussion_results,
+                }
+
+    async def _execute_workflow(
+        self,
+        workflow_definition: WorkflowDefinition,
+        on_message: Callable[[str, str, str], Awaitable[None]],
+    ) -> Dict[str, Any]:
+        """执行工作流
+
+        Args:
+            workflow_definition: 工作流定义
+            on_message: 消息回调函数
+
+        Returns:
+            工作流执行结果
+        """
+        try:
+            # 创建工作流执行实例
+            execution = self.workflow_engine.create_workflow(workflow_definition)
+
+            # 推送工作流创建消息
+            ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
+            create_msg = f"工作流已创建: {workflow_definition.name} (ID: {execution.execution_id})"
+            await on_message(ceo_id, create_msg, "")
+            self.meeting.add_message("agent", create_msg, ceo_id)
+
+            # 执行工作流
+            await self.workflow_engine.execute_workflow(execution.execution_id)
+
+            # 获取执行结果
+            status = self.workflow_engine.get_workflow_status(execution.execution_id)
+
+            # 推送工作流完成消息
+            complete_msg = f"工作流执行完成: {status.status.value}"
+            await on_message(ceo_id, complete_msg, "")
+            self.meeting.add_message("agent", complete_msg, ceo_id)
+
+            # 汇总结果
+            results_summary = []
+            for node_id, result in status.results.items():
+                if isinstance(result, dict) and "result" in result:
+                    results_summary.append(f"- {node_id}: {result['result'][:100]}...")
+
+            if results_summary:
+                summary_msg = "工作流执行结果汇总:\n" + "\n".join(results_summary)
+                await on_message(ceo_id, summary_msg, "")
+                self.meeting.add_message("agent", summary_msg, ceo_id)
+
             return {
-                "type": "discussion",
-                "analysis": semantic_analysis_to_dict(analysis),
-                "discussion_results": discussion_results,
+                "execution_id": execution.execution_id,
+                "status": status.status.value,
+                "results": status.results,
+            }
+
+        except Exception as e:
+            self.logger.error("工作流执行失败: %s", str(e))
+            ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
+            error_msg = f"工作流执行失败: {str(e)}"
+            await on_message(ceo_id, error_msg, "")
+            self.meeting.add_message("agent", error_msg, ceo_id)
+
+            return {
+                "error": str(e),
             }

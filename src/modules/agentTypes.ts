@@ -355,3 +355,62 @@ export interface RoutingDecision {
   }>
   matched_keywords: string[]
 }
+
+// ====== 工作流系统类型（V5） ======
+
+export enum WorkflowNodeStatus {
+  Pending = 'pending',
+  Running = 'running',
+  Completed = 'completed',
+  Failed = 'failed',
+  Skipped = 'skipped',
+}
+
+export enum WorkflowExecutionStatus {
+  Created = 'created',
+  Running = 'running',
+  Paused = 'paused',
+  Completed = 'completed',
+  Failed = 'failed',
+  Cancelled = 'cancelled',
+}
+
+export interface WorkflowNode {
+  node_id: string
+  task_description: string
+  dept_id: string
+  input_spec: Record<string, any>
+  output_spec: Record<string, any>
+  status: WorkflowNodeStatus
+  result: Record<string, any> | null
+}
+
+export interface WorkflowEdge {
+  source_node_id: string
+  target_node_id: string
+  condition: string | null
+}
+
+export interface WorkflowDefinition {
+  workflow_id: string
+  name: string
+  description: string
+  nodes: WorkflowNode[]
+  edges: WorkflowEdge[]
+  execution_strategy: 'sequential' | 'parallel' | 'mixed'
+}
+
+export interface WorkflowExecution {
+  execution_id: string
+  workflow_id: string
+  status: WorkflowExecutionStatus
+  started_at: string
+  completed_at: string | null
+  node_states: Record<string, WorkflowNodeStatus>
+  results: Record<string, any>
+}
+
+export interface WorkflowVisualization {
+  execution: WorkflowExecution
+  definition: WorkflowDefinition
+}

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import type { MeetingAgentInfo, MeetingSummary } from '../modules/meetingProtocol'
 import type { TeamAgent, Task, ChatMessage } from '../components/office-team/types'
 import { AgentRole } from '../modules/agentTypes'
+import type { WorkflowExecution, WorkflowDefinition } from '../modules/agentTypes'
 
 const WORKSTATION_MAP: Record<string, string> = {
   'agent-ceo': 'ws-0',
@@ -40,6 +41,7 @@ export default function useMeetingSocket({
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [isMeetingActive, setIsMeetingActive] = useState(false)
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected')
+  const [lastWorkflow, setLastWorkflow] = useState<WorkflowExecution | null>(null)
 
   const pendingMessages = useRef<Map<string, string>>(new Map())
   const reconnectAttempts = useRef(0)
@@ -351,6 +353,47 @@ export default function useMeetingSocket({
           ))
           break
         }
+        case 'workflow_executed': {
+          const workflowResult = msg.workflow_result || {}
+          const workflowStatus = workflowResult.status || 'unknown'
+          const workflowId = workflowResult.execution_id || msg.workflow_id || ''
+
+          // 更新lastWorkflow状态，触发WorkflowPanel弹出
+          setLastWorkflow({
+            execution_id: workflowId,
+            workflow_id: workflowResult.workflow_id || '',
+            status: workflowStatus,
+            started_at: workflowResult.started_at || '',
+            completed_at: workflowResult.completed_at || null,
+            node_states: workflowResult.node_states || {},
+            results: workflowResult.results || {},
+          })
+
+          setChatMessages(prev => [...prev, {
+            role: 'ceo' as const,
+            agentId: 'agent-ceo',
+            content: `工作流执行完成：${workflowStatus} (ID: ${workflowId})`,
+            timestamp: Date.now(),
+            _workflowResult: workflowResult,
+            _msgSubtype: 'workflow',
+          }])
+
+          // 如果有结果汇总，添加详细信息
+          if (workflowResult.results && Object.keys(workflowResult.results).length > 0) {
+            const resultSummary = Object.entries(workflowResult.results)
+              .map(([nodeId, result]: [string, any]) => `- ${nodeId}: ${result?.result?.substring(0, 100) || '无结果'}...`)
+              .join('\n')
+
+            setChatMessages(prev => [...prev, {
+              role: 'ceo' as const,
+              agentId: 'agent-ceo',
+              content: `工作流执行结果汇总:\n${resultSummary}`,
+              timestamp: Date.now(),
+              _msgSubtype: 'workflow_summary',
+            }])
+          }
+          break
+        }
       }
     }
 
@@ -368,6 +411,8 @@ export default function useMeetingSocket({
     }
   }, [])
 
+  const clearWorkflow = useCallback(() => setLastWorkflow(null), [])
+
   return {
     meetingId,
     agents,
@@ -375,6 +420,8 @@ export default function useMeetingSocket({
     chatMessages,
     isMeetingActive,
     connectionState,
+    lastWorkflow,
+    clearWorkflow,
     startMeeting,
     sendMeetingMessage,
     assignTask,

@@ -243,9 +243,9 @@ function GlassCurtainWall() {
         <bufferGeometry>
           <bufferAttribute
             attach="attributes-position"
-            count={20}
+            count={12}
             array={new Float32Array([
-              // 水平楼层线 (4条 × 4顶点)
+              // 水平楼层线 (6条线段 × 2顶点 = 12顶点)
               -BUILDING_W/2, FLOOR_H*2, BUILDING_D/2, BUILDING_W/2, FLOOR_H*2, BUILDING_D/2,
               -BUILDING_W/2, FLOOR_H*4, BUILDING_D/2, BUILDING_W/2, FLOOR_H*4, BUILDING_D/2,
               -BUILDING_W/2, FLOOR_H*6, BUILDING_D/2, BUILDING_W/2, FLOOR_H*6, BUILDING_D/2,
@@ -605,7 +605,7 @@ function BreathingRing({ position, color }: { position: [number, number, number]
 /* ───────── 可点击楼层标记 ───────── */
 
 function FloorClickMarker({
-  position, rotation, label, sublabel, color, onClick, onFocus, index, width, children, faceType,
+  position, rotation, label, sublabel, color, onClick, onFocus, index, width, children, faceType, previewContent,
 }: {
   position: [number, number, number]
   rotation: [number, number, number]
@@ -613,7 +613,7 @@ function FloorClickMarker({
   sublabel: string
   color: string
   onClick: () => void
-  onFocus?: (worldPos: [number, number, number]) => void
+  onFocus?: (cameraPos: [number, number, number], target: [number, number, number]) => void
   index: number
   width?: number
   children?: React.ReactNode
@@ -640,10 +640,21 @@ function FloorClickMarker({
     <group position={position} rotation={rotation}>
       <mesh
         ref={meshRef}
-        onClick={(e) => { e.stopPropagation(); onClick(); onFocus?.(position) }}
-        tabIndex={0}
-        aria-label={`${label} - ${sublabel}`}
-        onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onClick(); onFocus?.(position) } }}
+        onClick={(e) => {
+          e.stopPropagation(); onClick()
+          if (onFocus) {
+            const target: [number, number, number] = [position[0], position[1], position[2]]
+            if (faceType === 'right') {
+              // 右侧面：相机从右侧看过来，水平偏移
+              const dist = 12
+              onFocus([position[0] + dist, position[1] + 2, position[2]], target)
+            } else {
+              // 正面：相机从正面看过来，Z轴偏移
+              const dist = 12
+              onFocus([position[0], position[1] + 2, position[2] + dist], target)
+            }
+          }
+        }}
         onPointerOver={() => { setHovered(true); document.body.style.cursor = 'pointer' }}
         onPointerOut={() => { setHovered(false); document.body.style.cursor = 'auto' }}
       >
@@ -728,7 +739,7 @@ function TeamFigure({ x, color, delay }: { x: number; color: string; delay: numb
 /* ───────── 前面：项目工作间 ───────── */
 
 function FrontFaceProjects({ projects, onSelect, onFocusFloor }: {
-  projects: Project[]; onSelect: (p: Project) => void; onFocusFloor?: (pos: [number, number, number]) => void
+  projects: Project[]; onSelect: (p: Project) => void; onFocusFloor?: (cameraPos: [number, number, number], target: [number, number, number]) => void
 }) {
   const COLS = 3
   const GAP = 0.15
@@ -794,7 +805,7 @@ function RightFaceDepts({ depts, customTeams, onSelectDept, onSelectTeam, onCrea
   onSelectDept: (d: ProjectDept) => void
   onSelectTeam: (t: { id: string; name: string; members: TeamMember[] }) => void
   onCreateTeam: () => void
-  onFocusFloor?: (pos: [number, number, number]) => void
+  onFocusFloor?: (cameraPos: [number, number, number], target: [number, number, number]) => void
 }) {
   const COLS = 3
   const GAP = 0.12
@@ -1344,7 +1355,7 @@ function Scene({ projects, customTeams, onSelectProject, onSelectDept, onSelectT
   onSelectTeam: (t: { id: string; name: string; members: TeamMember[] }) => void
   onCreateTeam: () => void
   cameraNav?: { pos: [number, number, number]; target: [number, number, number] } | null
-  onFocusFloor?: (pos: [number, number, number]) => void
+  onFocusFloor?: (cameraPos: [number, number, number], target: [number, number, number]) => void
   activeDeptColor?: string
 }) {
   const [hovering, setHovering] = useState(false)
@@ -1352,15 +1363,33 @@ function Scene({ projects, customTeams, onSelectProject, onSelectDept, onSelectT
   const onLeave = useCallback(() => setHovering(false), [])
 
   const cameraRef = useRef<THREE.Camera>(null!)
+  const controlsRef = useRef<any>(null)
   const navPosRef = useRef(new THREE.Vector3(30, 38, 30))
   const navTargetRef = useRef(new THREE.Vector3(0, PENTHOUSE_Y, 0))
+  const navActive = useRef(false)
 
-  useFrame(({ camera }, delta) => {
+  // 当 cameraNav 变化时，设置目标并激活导航
+  useEffect(() => {
     if (cameraNav) {
       navPosRef.current.set(...cameraNav.pos)
       navTargetRef.current.set(...cameraNav.target)
+      navActive.current = true
     }
-    camera.position.lerp(navPosRef.current, Math.min(delta * 2, 0.05))
+  }, [cameraNav])
+
+  useFrame(({ camera }) => {
+    if (!navActive.current) return
+
+    camera.position.lerp(navPosRef.current, 0.08)
+    if (controlsRef.current) {
+      controlsRef.current.target.lerp(navTargetRef.current, 0.08)
+      controlsRef.current.update()
+    }
+
+    // 到达目标后停止导航，释放控制权给用户
+    if (camera.position.distanceTo(navPosRef.current) < 0.1) {
+      navActive.current = false
+    }
   })
 
   const totalIterations = projects.reduce((sum, p) => sum + p.iterations, 0)
@@ -1384,12 +1413,12 @@ function Scene({ projects, customTeams, onSelectProject, onSelectDept, onSelectT
       <pointLight position={[0, 28, 5]} intensity={0.8} color="#64d2ff" distance={15} />
 
       <OrbitControls
-        target={[0, PENTHOUSE_Y, 0]}
+        ref={controlsRef}
         enablePan={hovering}
         enableRotate={!hovering}
         panSpeed={1.5}
         rotateSpeed={0.8}
-        minDistance={10}
+        minDistance={8}
         maxDistance={60}
         minPolarAngle={0.2}
         maxPolarAngle={Math.PI / 2.1}
@@ -1545,8 +1574,8 @@ export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSing
     setCameraNav({ pos, target })
   }, [])
 
-  const handleFocusFloor = useCallback((pos: [number, number, number]) => {
-    setCameraNav({ pos: [pos[0], pos[1], pos[2] + 15], target: pos })
+  const handleFocusFloor = useCallback((cameraPos: [number, number, number], target: [number, number, number]) => {
+    setCameraNav({ pos: cameraPos, target })
   }, [])
 
   const handleSelectProject = useCallback((p: Project) => setPanel({ type: 'project', data: p }), [])

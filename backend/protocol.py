@@ -3,6 +3,76 @@ from enum import Enum
 from typing import List
 
 
+# ============================================================================
+# 工作流相关数据结构（必须在SemanticAnalysisResult之前定义）
+# ============================================================================
+
+class WorkflowNodeStatus(str, Enum):
+    """工作流节点状态"""
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
+
+
+class WorkflowExecutionStatus(str, Enum):
+    """工作流执行状态"""
+    CREATED = "created"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+@dataclass
+class WorkflowNode:
+    """工作流节点定义"""
+    node_id: str
+    task_description: str
+    dept_id: str  # 负责部门ID
+    input_spec: dict = field(default_factory=dict)
+    output_spec: dict = field(default_factory=dict)
+    status: WorkflowNodeStatus = WorkflowNodeStatus.PENDING
+    result: dict | None = None
+
+
+@dataclass
+class WorkflowEdge:
+    """工作流边定义，表示节点间的依赖关系"""
+    source_node_id: str
+    target_node_id: str
+    condition: str | None = None  # 条件表达式
+
+
+@dataclass
+class WorkflowDefinition:
+    """工作流定义"""
+    workflow_id: str
+    name: str
+    description: str
+    nodes: List[WorkflowNode] = field(default_factory=list)
+    edges: List[WorkflowEdge] = field(default_factory=list)
+    execution_strategy: str = "sequential"  # sequential, parallel, mixed
+
+
+@dataclass
+class WorkflowExecution:
+    """工作流执行实例"""
+    execution_id: str
+    workflow_id: str
+    status: WorkflowExecutionStatus = WorkflowExecutionStatus.CREATED
+    started_at: str = ""
+    completed_at: str | None = None
+    node_states: dict = field(default_factory=dict)  # node_id -> WorkflowNodeStatus
+    results: dict = field(default_factory=dict)  # node_id -> result
+
+
+# ============================================================================
+# 其他数据结构
+# ============================================================================
+
 class MeetingMessageType(str, Enum):
     START_MEETING = "start_meeting"
     END_MEETING = "end_meeting"
@@ -31,6 +101,12 @@ class MeetingMessageType(str, Enum):
     SEMANTIC_ANALYSIS_RESULT = "semantic_analysis_result"
     TASK_AUTO_ASSIGNED = "task_auto_assigned"
 
+    # 工作流相关消息类型
+    WORKFLOW_CREATED = "workflow_created"
+    WORKFLOW_STATUS_UPDATE = "workflow_status_update"
+    WORKFLOW_COMPLETED = "workflow_completed"
+    WORKFLOW_NODE_STATUS_UPDATE = "workflow_node_status_update"
+
 
 class AgentRole(str, Enum):
     CEO = "ceo"
@@ -49,6 +125,8 @@ class SemanticAnalysisResult:
     target_agent_id: str = ""
     reason: str = ""
     discussion_topic: str = ""
+    is_workflow: bool = False  # 是否为跨部门复杂任务
+    workflow_definition: WorkflowDefinition | None = None  # 工作流定义
 
 
 class MeetingAgentStatus(str, Enum):
@@ -226,6 +304,8 @@ def semantic_analysis_to_dict(result: SemanticAnalysisResult) -> dict:
         "target_agent_id": result.target_agent_id,
         "reason": result.reason,
         "discussion_topic": result.discussion_topic,
+        "is_workflow": result.is_workflow,
+        "workflow_definition": workflow_definition_to_dict(result.workflow_definition) if result.workflow_definition else None,
     }
 
 
@@ -463,4 +543,106 @@ def dict_to_compensate_action(data: dict) -> CompensateAction:
         description=data["description"],
         action_type=data.get("action_type", ""),
         params=data.get("params", {}),
+    )
+
+
+def workflow_node_status_to_dict(status: WorkflowNodeStatus) -> dict:
+    return {"status": status.value}
+
+
+def workflow_execution_status_to_dict(status: WorkflowExecutionStatus) -> dict:
+    return {"status": status.value}
+
+
+def workflow_node_to_dict(node: WorkflowNode) -> dict:
+    return {
+        "node_id": node.node_id,
+        "task_description": node.task_description,
+        "dept_id": node.dept_id,
+        "input_spec": node.input_spec,
+        "output_spec": node.output_spec,
+        "status": node.status.value,
+        "result": node.result,
+    }
+
+
+def workflow_edge_to_dict(edge: WorkflowEdge) -> dict:
+    return {
+        "source_node_id": edge.source_node_id,
+        "target_node_id": edge.target_node_id,
+        "condition": edge.condition,
+    }
+
+
+def workflow_definition_to_dict(definition: WorkflowDefinition) -> dict:
+    return {
+        "workflow_id": definition.workflow_id,
+        "name": definition.name,
+        "description": definition.description,
+        "nodes": [workflow_node_to_dict(n) for n in definition.nodes],
+        "edges": [workflow_edge_to_dict(e) for e in definition.edges],
+        "execution_strategy": definition.execution_strategy,
+    }
+
+
+def workflow_execution_to_dict(execution: WorkflowExecution) -> dict:
+    return {
+        "execution_id": execution.execution_id,
+        "workflow_id": execution.workflow_id,
+        "status": execution.status.value,
+        "started_at": execution.started_at,
+        "completed_at": execution.completed_at,
+        "node_states": {k: v.value for k, v in execution.node_states.items()},
+        "results": execution.results,
+    }
+
+
+def dict_to_workflow_node_status(data: str) -> WorkflowNodeStatus:
+    return WorkflowNodeStatus(data)
+
+
+def dict_to_workflow_execution_status(data: str) -> WorkflowExecutionStatus:
+    return WorkflowExecutionStatus(data)
+
+
+def dict_to_workflow_node(data: dict) -> WorkflowNode:
+    return WorkflowNode(
+        node_id=data["node_id"],
+        task_description=data["task_description"],
+        dept_id=data["dept_id"],
+        input_spec=data.get("input_spec", {}),
+        output_spec=data.get("output_spec", {}),
+        status=WorkflowNodeStatus(data["status"]) if "status" in data else WorkflowNodeStatus.PENDING,
+        result=data.get("result"),
+    )
+
+
+def dict_to_workflow_edge(data: dict) -> WorkflowEdge:
+    return WorkflowEdge(
+        source_node_id=data["source_node_id"],
+        target_node_id=data["target_node_id"],
+        condition=data.get("condition"),
+    )
+
+
+def dict_to_workflow_definition(data: dict) -> WorkflowDefinition:
+    return WorkflowDefinition(
+        workflow_id=data["workflow_id"],
+        name=data["name"],
+        description=data["description"],
+        nodes=[dict_to_workflow_node(n) for n in data.get("nodes", [])],
+        edges=[dict_to_workflow_edge(e) for e in data.get("edges", [])],
+        execution_strategy=data.get("execution_strategy", "sequential"),
+    )
+
+
+def dict_to_workflow_execution(data: dict) -> WorkflowExecution:
+    return WorkflowExecution(
+        execution_id=data["execution_id"],
+        workflow_id=data["workflow_id"],
+        status=WorkflowExecutionStatus(data["status"]) if "status" in data else WorkflowExecutionStatus.CREATED,
+        started_at=data.get("started_at", ""),
+        completed_at=data.get("completed_at"),
+        node_states={k: WorkflowNodeStatus(v) for k, v in data.get("node_states", {}).items()},
+        results=data.get("results", {}),
     )
