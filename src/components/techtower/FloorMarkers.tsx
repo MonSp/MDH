@@ -1,9 +1,10 @@
 import React, { useRef, useState } from 'react'
-import { useFrame, useThree } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
 import { Text, Billboard, Float, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import type { Project, ProjectDept, CustomTeam } from './types'
 import { DEFAULT_DEPTS, BUILDING_W, BUILDING_D, FLOOR_H, BUILDING_H, PENTHOUSE_H, FLOOR_LABELS } from './constants'
+import { TeamMemberFigure as TeamFigure } from './characters'
 
 /* ───────── 呼吸光晕 ───────── */
 
@@ -117,45 +118,9 @@ export function FloorClickMarker({
   )
 }
 
-/* ───────── 动态小人 ───────── */
+/* ───────── 动态小人（已迁移至 characters/TeamMemberFigure） ───────── */
 
-export function TeamFigure({ x, color, delay }: { x: number; color: string; delay: number }) {
-  const ref = useRef<THREE.Group>(null!)
-  const { camera } = useThree()
-  const isNear = useRef(true)
-  useFrame(({ clock }) => {
-    if (ref.current) {
-      const dist = camera.position.distanceTo(ref.current.position)
-      isNear.current = dist < 40
-
-      const t = clock.elapsedTime
-      if (isNear.current) {
-        ref.current.position.y = -0.5 + Math.sin(t * 2 + delay) * 0.03
-        ref.current.position.x = x + Math.sin(t * 0.5 + delay) * 0.3
-        ref.current.rotation.y = Math.sin(t * 0.5 + delay) > 0 ? 0.4 : -0.4
-      } else {
-        ref.current.position.y = -0.5
-        ref.current.position.x = x
-        ref.current.rotation.y = 0
-      }
-
-      const targetScale = isNear.current ? 1 : 0.3
-      ref.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1)
-    }
-  })
-  return (
-    <group ref={ref} position={[x, -0.5, 0.08]}>
-      <mesh castShadow>
-        <capsuleGeometry args={[0.05, 0.12, 4, 8]} />
-        <meshStandardMaterial color={color} roughness={0.6} />
-      </mesh>
-      <mesh position={[0, 0.14, 0]} castShadow>
-        <sphereGeometry args={[0.05, 8, 8]} />
-        <meshStandardMaterial color="#e8c4a0" roughness={0.8} />
-      </mesh>
-    </group>
-  )
-}
+export { TeamMemberFigure as TeamFigure } from './characters'
 
 /* ───────── 前面：项目工作间 ───────── */
 

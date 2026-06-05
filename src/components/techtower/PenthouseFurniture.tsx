@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { Float, Text } from '@react-three/drei'
 import * as THREE from 'three'
 import { BUILDING_H, PENTHOUSE_Y } from './constants'
+import { CEOCharacter } from './characters'
 
 /* ───────── 家具 ───────── */
 
@@ -123,31 +124,9 @@ export function Plant() {
   )
 }
 
-export function CEOPerson() {
-  const ref = useRef<THREE.Group>(null!)
-  useFrame(({ clock }) => {
-    if (ref.current) {
-      ref.current.position.y = BUILDING_H + 1.7 + Math.sin(clock.elapsedTime * 1.5) * 0.03
-    }
-  })
+/* ───────── CEO 角色（已迁移至 characters/CEOCharacter） ───────── */
 
-  return (
-    <group ref={ref} position={[0, BUILDING_H + 1.7, 0.7]}>
-      <mesh castShadow>
-        <capsuleGeometry args={[0.2, 0.6, 8, 16]} />
-        <meshStandardMaterial color="#1a1a30" roughness={0.6} />
-      </mesh>
-      <mesh position={[0, 0.55, 0]} castShadow>
-        <sphereGeometry args={[0.18, 12, 12]} />
-        <meshStandardMaterial color="#e8c4a0" roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 0.05, 0.2]}>
-        <boxGeometry args={[0.06, 0.3, 0.02]} />
-        <meshStandardMaterial color="#bf5af2" emissive="#bf5af2" emissiveIntensity={0.3} />
-      </mesh>
-    </group>
-  )
-}
+export { CEOCharacter as CEOPerson } from './characters'
 
 /* ───────── 全息AI助手 ───────── */
 

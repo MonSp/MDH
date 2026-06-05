@@ -1,0 +1,5 @@
+export { default as PersonFigure, DEFAULT_PERSON_COLORS } from './PersonFigure'
+export type { PersonFigureProps, Accessory } from './PersonFigure'
+export { default as TeamMemberFigure } from './TeamMemberFigure'
+export type { TeamMemberFigureProps } from './TeamMemberFigure'
+export { default as CEOCharacter } from './CEOCharacter'
