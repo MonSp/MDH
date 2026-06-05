@@ -50,10 +50,10 @@ export default function CyberRain() {
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.06}
-        color="#4488cc"
+        size={0.08}
+        color="#66aaee"
         transparent
-        opacity={0.4}
+        opacity={0.5}
         sizeAttenuation
         depthWrite={false}
       />

@@ -65,17 +65,17 @@ function FlyingVehicle({ data }: { data: VehicleData }) {
         {/* 车身 */}
         <mesh castShadow>
           <boxGeometry args={[data.size * 2, data.size * 0.5, data.size]} />
-          <meshStandardMaterial color="#1a1a30" roughness={0.4} metalness={0.6} />
+          <meshStandardMaterial color="#2a2a48" roughness={0.3} metalness={0.7} />
         </mesh>
         {/* 挡风玻璃 */}
         <mesh position={[data.size * 0.4, data.size * 0.2, 0]}>
           <boxGeometry args={[data.size * 0.6, data.size * 0.3, data.size * 0.9]} />
           <meshPhysicalMaterial
-            color="#4488cc"
-            transmission={0.5}
+            color="#55aaff"
+            transmission={0.6}
             roughness={0.1}
             transparent
-            opacity={0.4}
+            opacity={0.5}
           />
         </mesh>
         {/* 尾灯 */}
@@ -119,7 +119,7 @@ function FlyingVehicle({ data }: { data: VehicleData }) {
       {/* 机身 */}
       <mesh castShadow>
         <cylinderGeometry args={[data.size, data.size, data.size * 0.4, 6]} />
-        <meshStandardMaterial color="#1a1a2a" roughness={0.5} metalness={0.5} />
+        <meshStandardMaterial color="#2a2a45" roughness={0.4} metalness={0.6} />
       </mesh>
       {/* 四个旋翼臂 */}
       {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([dx, dz], i) => (

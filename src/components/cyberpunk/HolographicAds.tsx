@@ -96,8 +96,8 @@ function HolographicAd({ data }: { data: AdData }) {
     // 辉光脉冲
     if (glowRef.current) {
       const m = glowRef.current.material as THREE.MeshStandardMaterial
-      m.emissiveIntensity = 0.3 + Math.sin(t * 2 + data.id) * 0.2
-      m.opacity = 0.08 + Math.sin(t * 2.5 + data.id) * 0.05
+      m.emissiveIntensity = 0.5 + Math.sin(t * 2 + data.id) * 0.3
+      m.opacity = 0.15 + Math.sin(t * 2.5 + data.id) * 0.08
     }
   })
 
@@ -107,9 +107,9 @@ function HolographicAd({ data }: { data: AdData }) {
       <mesh>
         <planeGeometry args={[data.width, data.height]} />
         <meshStandardMaterial
-          color="#0a0a1a"
+          color="#151530"
           transparent
-          opacity={data.type === 'hologram' ? 0.1 : 0.6}
+          opacity={data.type === 'hologram' ? 0.15 : 0.7}
           side={THREE.DoubleSide}
         />
       </mesh>
@@ -133,13 +133,13 @@ function HolographicAd({ data }: { data: AdData }) {
 
       {/* 辉光背景 */}
       <mesh ref={glowRef} position={[0, 0, -0.02]}>
-        <planeGeometry args={[data.width + 0.5, data.height + 0.5]} />
+        <planeGeometry args={[data.width + 0.8, data.height + 0.8]} />
         <meshStandardMaterial
           color={data.color}
           emissive={data.color}
-          emissiveIntensity={0.3}
+          emissiveIntensity={0.5}
           transparent
-          opacity={0.1}
+          opacity={0.15}
           side={THREE.DoubleSide}
         />
       </mesh>
@@ -162,7 +162,7 @@ function HolographicAd({ data }: { data: AdData }) {
       {data.type === 'sign' && (
         <mesh position={[0, -data.height / 2 - 0.5, -0.1]}>
           <cylinderGeometry args={[0.03, 0.03, 1, 4]} />
-          <meshStandardMaterial color="#2a2a3a" />
+          <meshStandardMaterial color="#3a3a5a" roughness={0.5} metalness={0.4} />
         </mesh>
       )}
     </group>

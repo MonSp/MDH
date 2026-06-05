@@ -32,7 +32,7 @@ function FloorLines() {
 export function BuildingBody() {
   const boxGeo = useMemo(() => new THREE.BoxGeometry(BUILDING_W, BUILDING_H, BUILDING_D), [])
   const bodyMat = useMemo(() => new THREE.MeshStandardMaterial({
-    color: '#0a0a1a', roughness: 0.8, metalness: 0.2,
+    color: '#181830', roughness: 0.7, metalness: 0.3,
   }), [])
 
   return (
@@ -122,7 +122,7 @@ export function GlassCurtainWall() {
             itemSize={3}
           />
         </bufferGeometry>
-        <lineBasicMaterial color="#64d2ff" transparent opacity={0.3} />
+        <lineBasicMaterial color="#64d2ff" transparent opacity={0.5} />
       </lineSegments>
     </group>
   )
@@ -182,7 +182,7 @@ export function NeonEdges() {
   useFrame(({ clock }) => {
     if (ref.current) {
       const m = ref.current.material as THREE.LineBasicMaterial
-      m.opacity = 0.4 + Math.sin(clock.elapsedTime * 1.5) * 0.3
+      m.opacity = 0.6 + Math.sin(clock.elapsedTime * 1.5) * 0.3
     }
   })
 

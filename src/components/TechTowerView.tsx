@@ -55,7 +55,7 @@ export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSing
   }, [onSendTask])
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#050510', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080818', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       <Canvas
         shadows
         camera={{ position: [30, 38, 30], fov: 40 }}

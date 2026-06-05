@@ -57,10 +57,10 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
   return (
     <>
-      <ambientLight intensity={0.15} color="#1a1a3a" />
+      <ambientLight intensity={0.35} color="#2a2a5a" />
       <directionalLight
         position={[15, 30, 10]}
-        intensity={0.8}
+        intensity={1.0}
         color="#e0e0ff"
         castShadow
         shadow-mapSize-width={1024}
@@ -70,13 +70,17 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
         shadow-camera-top={20}
         shadow-camera-bottom={-20}
       />
-      <pointLight position={[0, 32, 0]} intensity={1.2} color="#bf5af2" distance={20} />
-      <pointLight position={[0, 28, 5]} intensity={0.8} color="#64d2ff" distance={15} />
+      <hemisphereLight intensity={0.3} color="#4a3a8a" groundColor="#1a2a4a" />
+      <pointLight position={[0, 32, 0]} intensity={1.5} color="#bf5af2" distance={25} />
+      <pointLight position={[0, 28, 5]} intensity={1.0} color="#64d2ff" distance={18} />
 
       {/* 赛博朋克氛围灯光 */}
-      <pointLight position={[-15, 5, 15]} intensity={0.5} color="#ff375f" distance={25} />
-      <pointLight position={[15, 8, -15]} intensity={0.5} color="#0a84ff" distance={25} />
-      <pointLight position={[0, 2, 0]} intensity={0.4} color="#bf5af2" distance={30} />
+      <pointLight position={[-15, 5, 15]} intensity={0.8} color="#ff375f" distance={30} />
+      <pointLight position={[15, 8, -15]} intensity={0.8} color="#0a84ff" distance={30} />
+      <pointLight position={[0, 2, 0]} intensity={0.6} color="#bf5af2" distance={35} />
+      <pointLight position={[-20, 12, -20]} intensity={0.6} color="#ff9f0a" distance={25} />
+      <pointLight position={[20, 10, 20]} intensity={0.5} color="#30d158" distance={25} />
+      <pointLight position={[0, 3, -20]} intensity={0.5} color="#64d2ff" distance={20} />
 
       <OrbitControls
         ref={controlsRef}
@@ -94,10 +98,11 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
         }}
       />
 
-      <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade speed={0.5} />
+      <Stars radius={100} depth={50} count={3000} factor={4} saturation={0.5} fade speed={0.5} />
 
       {/* 赛博朋克大气雾 */}
-      <fog attach="fog" args={['#050510', 30, 120]} />
+      <fog attach="fog" args={['#141430', 50, 160]} />
+      <color attach="background" args={['#141430']} />
 
       <Ground />
       <BuildingBody />

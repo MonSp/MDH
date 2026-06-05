@@ -17,7 +17,7 @@ function NeonTube({ points, color, radius = 0.04, pulseSpeed = 2 }: NeonTubeProp
   useFrame(({ clock }) => {
     if (ref.current) {
       const m = ref.current.material as THREE.MeshStandardMaterial
-      m.emissiveIntensity = 0.8 + Math.sin(clock.elapsedTime * pulseSpeed) * 0.4
+      m.emissiveIntensity = 1.2 + Math.sin(clock.elapsedTime * pulseSpeed) * 0.6
     }
   })
 
@@ -36,9 +36,9 @@ function NeonTube({ points, color, radius = 0.04, pulseSpeed = 2 }: NeonTubeProp
       <meshStandardMaterial
         color={color}
         emissive={color}
-        emissiveIntensity={1}
+        emissiveIntensity={1.5}
         transparent
-        opacity={0.8}
+        opacity={0.9}
       />
     </mesh>
   )
@@ -59,6 +59,17 @@ export default function NeonLights() {
     // 高处连接线
     { points: [[-6, 15, -10], [0, 20, -5], [6, 15, -10]] as [number, number, number][], color: '#ff375f', pulseSpeed: 0.8 },
     { points: [[-10, 12, 6], [0, 18, 3], [10, 12, 6]] as [number, number, number][], color: '#bf5af2', pulseSpeed: 1.0 },
+    // 额外的地面霓虹装饰
+    { points: [[-18, 0.05, -12], [-10, 0.05, -12], [-10, 0.05, -6]] as [number, number, number][], color: '#ff9f0a', pulseSpeed: 1.4 },
+    { points: [[18, 0.05, 12], [10, 0.05, 12], [10, 0.05, 6]] as [number, number, number][], color: '#0a84ff', pulseSpeed: 2.2 },
+    // 中层环绕灯管
+    { points: [[-5, 8, 12], [5, 8, 12], [5, 8, 8], [-5, 8, 8]] as [number, number, number][], color: '#64d2ff', pulseSpeed: 1.0 },
+    { points: [[-14, 6, -6], [-14, 6, 6], [-8, 6, 6]] as [number, number, number][], color: '#30d158', pulseSpeed: 1.8 },
+    // 竖向霓虹柱
+    { points: [[-20, 0.1, 0], [-20, 8, 0]] as [number, number, number][], color: '#bf5af2', pulseSpeed: 2.0 },
+    { points: [[20, 0.1, 0], [20, 8, 0]] as [number, number, number][], color: '#ff375f', pulseSpeed: 2.0 },
+    { points: [[0, 0.1, -18], [0, 6, -18]] as [number, number, number][], color: '#ff9f0a', pulseSpeed: 1.5 },
+    { points: [[0, 0.1, 18], [0, 6, 18]] as [number, number, number][], color: '#0a84ff', pulseSpeed: 1.5 },
   ], [])
 
   return (

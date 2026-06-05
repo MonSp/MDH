@@ -18,6 +18,21 @@ function CyberBuilding({ position, width, depth, height, color, neonColor, windo
   const groupRef = useRef<THREE.Group>(null!)
   const windowCount = Math.floor(width * height * windowDensity * 2)
 
+  // 缓存边框几何体，避免每次渲染创建新对象导致内存泄漏
+  const topEdgeGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(width + 0.1, 0.05, depth + 0.1)), [width, depth])
+  const bottomEdgeGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(width + 0.1, 0.1, depth + 0.1)), [width, depth])
+  const midEdgeGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(width + 0.15, 0.08, depth + 0.15)), [width, depth])
+
+  // 竖向霓虹边线几何体
+  const vertLineGeo = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array([
+      -width / 2, -height / 2, -depth / 2, -width / 2, height / 2, -depth / 2,
+      width / 2, -height / 2, -depth / 2, width / 2, height / 2, -depth / 2,
+    ]), 3))
+    return g
+  }, [width, height, depth])
+
   // 生成窗户位置（memoize 避免每次渲染重新随机）
   const windows = useMemo(() => {
     const result: { x: number; y: number; side: number; isNeon: boolean; size: [number, number] }[] = []
@@ -27,9 +42,9 @@ function CyberBuilding({ position, width, depth, height, color, neonColor, windo
       for (let col = 0; col < cols; col++) {
         const x = (col / (cols - 1) - 0.5) * (width - 0.3)
         const y = (row / (rows - 1)) * (height - 0.5) + 0.3
-        if (Math.random() > 0.35) {
+        if (Math.random() > 0.25) {
           const side = Math.floor(Math.random() * 4)
-          const isNeon = Math.random() > 0.7
+          const isNeon = Math.random() > 0.45
           const size: [number, number] = [0.15 + Math.random() * 0.1, 0.12 + Math.random() * 0.08]
           result.push({ x, y, side, isNeon, size })
         }
@@ -46,13 +61,13 @@ function CyberBuilding({ position, width, depth, height, color, neonColor, windo
       {/* 建筑主体 */}
       <mesh position={[0, height / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[width, height, depth]} />
-        <meshStandardMaterial color={color} roughness={0.75} metalness={0.3} />
+        <meshStandardMaterial color={color} roughness={0.6} metalness={0.4} />
       </mesh>
 
       {/* 窗户发光层 */}
       {windows.map((w, i) => {
-        const windowColor = w.isNeon ? neonColor : '#1a2a4a'
-        const emissiveIntensity = w.isNeon ? 0.8 : 0.1
+        const windowColor = w.isNeon ? neonColor : '#2a3a6a'
+        const emissiveIntensity = w.isNeon ? 1.2 : 0.25
         let pos: [number, number, number]
         let rot: [number, number, number] = [0, 0, 0]
         const wSize: [number, number, number] = [w.size[0], w.size[1], 0.02]
@@ -79,37 +94,29 @@ function CyberBuilding({ position, width, depth, height, color, neonColor, windo
       })}
 
       {/* 顶部霓虹边框 */}
-      <lineSegments position={[0, height, 0]}>
-        <edgesGeometry args={[new THREE.BoxGeometry(width + 0.1, 0.05, depth + 0.1)]} />
-        <lineBasicMaterial color={neonColor} transparent opacity={0.6} />
+      <lineSegments position={[0, height, 0]} geometry={topEdgeGeo}>
+        <lineBasicMaterial color={neonColor} transparent opacity={0.9} />
       </lineSegments>
 
       {/* 底部霓虹边框 */}
-      <lineSegments position={[0, 0.05, 0]}>
-        <edgesGeometry args={[new THREE.BoxGeometry(width + 0.1, 0.1, depth + 0.1)]} />
-        <lineBasicMaterial color={neonColor} transparent opacity={0.3} />
+      <lineSegments position={[0, 0.05, 0]} geometry={bottomEdgeGeo}>
+        <lineBasicMaterial color={neonColor} transparent opacity={0.6} />
       </lineSegments>
 
       {/* 竖向霓虹边线 */}
-      <lineSegments position={[0, height / 2, 0]}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={8}
-            array={new Float32Array([
-              -width / 2, -height / 2, -depth / 2, -width / 2, height / 2, -depth / 2,
-              width / 2, -height / 2, -depth / 2, width / 2, height / 2, -depth / 2,
-            ])}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <lineBasicMaterial color={neonColor} transparent opacity={0.4} />
+      <lineSegments position={[0, height / 2, 0]} geometry={vertLineGeo}>
+        <lineBasicMaterial color={neonColor} transparent opacity={0.7} />
+      </lineSegments>
+
+      {/* 中间横向装饰带 */}
+      <lineSegments position={[0, height * 0.5, 0]} geometry={midEdgeGeo}>
+        <lineBasicMaterial color={neonColor} transparent opacity={0.5} />
       </lineSegments>
 
       {/* 天线 */}
       <mesh position={[0, height + antennaHeight / 2, 0]}>
         <cylinderGeometry args={[0.03, 0.03, antennaHeight, 4]} />
-        <meshStandardMaterial color="#2a2a3a" />
+        <meshStandardMaterial color="#3a3a5a" roughness={0.5} metalness={0.4} />
       </mesh>
       {/* 天线信号灯 */}
       <AntennaLight position={[0, height + antennaHeight, 0]} color={neonColor} />
@@ -147,7 +154,7 @@ interface BuildingData {
 
 function generateBuildings(count: number, mainBuildingRadius: number): BuildingData[] {
   const neonColors = ['#0a84ff', '#ff375f', '#bf5af2', '#ff9f0a', '#64d2ff', '#30d158']
-  const bodyColors = ['#0a0a18', '#0c0c1e', '#080814', '#0e0e22', '#06060f']
+  const bodyColors = ['#1a1a2e', '#1c1c38', '#141428', '#1e1e40', '#18183a', '#222248', '#161632']
   const buildings: BuildingData[] = []
 
   // 以主建筑为中心，在周围生成环形分布的建筑

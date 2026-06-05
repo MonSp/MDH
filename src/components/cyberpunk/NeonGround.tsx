@@ -1,97 +1,109 @@
-import React, { useRef, useMemo } from 'react'
+import React, { useRef, useMemo, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
-/* ───────── 赛博朋克地面：霓虹网格 + 道路 ───────── */
+/* ───────── 赛博朋克地面：霓虹道路 + 装饰环 ───────── */
+
+const GRID_SIZE = 120
+const ROAD_WIDTH = 0.6
+const ROAD_COUNT = 4
 
 export default function NeonGround() {
-  const gridSize = 120
-  const divisions = 30
-
-  // 霓虹网格线几何体
-  const gridGeo = useMemo(() => {
-    const positions: number[] = []
-    const half = gridSize / 2
-    const step = gridSize / divisions
-
-    for (let i = 0; i <= divisions; i++) {
-      const pos = -half + i * step
-      // X 方向
-      positions.push(-half, 0.02, pos, half, 0.02, pos)
-      // Z 方向
-      positions.push(pos, 0.02, -half, pos, 0.02, half)
-    }
-
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-    return g
-  }, [])
-
-  // 主干道路（更亮的霓虹线）
-  const roadGeo = useMemo(() => {
-    const positions: number[] = []
-    const half = gridSize / 2
-    // 十字主干道
-    positions.push(-half, 0.03, 0, half, 0.03, 0)
-    positions.push(0, 0.03, -half, 0, 0.03, half)
-    // 对角线
-    positions.push(-half, 0.03, -half, half, 0.03, half)
-    positions.push(-half, 0.03, half, half, 0.03, -half)
-
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-    return g
-  }, [])
-
-  // 圆形扩散环
+  const roadRef = useRef<THREE.InstancedMesh>(null!)
   const ringRef = useRef<THREE.Mesh>(null!)
+  const dummy = useMemo(() => new THREE.Object3D(), [])
+
+  // 道路材质 + 几何体
+  const roadGeo = useMemo(() => new THREE.PlaneGeometry(1, 1), [])
+  const roadMat = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#0a84ff',
+    emissive: '#0a84ff',
+    emissiveIntensity: 1.0,
+    transparent: true,
+    opacity: 0.6,
+    side: THREE.DoubleSide,
+  }), [])
+
+  // 初始化道路实例
+  useEffect(() => {
+    if (!roadRef.current) return
+    const roads = [
+      { size: [GRID_SIZE, ROAD_WIDTH], rotZ: 0 },
+      { size: [ROAD_WIDTH, GRID_SIZE], rotZ: 0 },
+      { size: [ROAD_WIDTH, GRID_SIZE * Math.SQRT2], rotZ: Math.PI / 4 },
+      { size: [ROAD_WIDTH, GRID_SIZE * Math.SQRT2], rotZ: -Math.PI / 4 },
+    ]
+    roads.forEach((r, i) => {
+      dummy.position.set(0, 0.01, 0)
+      dummy.rotation.set(-Math.PI / 2, 0, r.rotZ)
+      dummy.scale.set(r.size[0], r.size[1], 1)
+      dummy.updateMatrix()
+      roadRef.current.setMatrixAt(i, dummy.matrix)
+    })
+    roadRef.current.instanceMatrix.needsUpdate = true
+  }, [dummy])
+
+  // 中心扩散环呼吸动画
   useFrame(({ clock }) => {
     if (ringRef.current) {
       const m = ringRef.current.material as THREE.MeshStandardMaterial
-      m.opacity = 0.15 + Math.sin(clock.elapsedTime * 0.8) * 0.1
+      m.opacity = 0.25 + Math.sin(clock.elapsedTime * 0.8) * 0.15
     }
   })
 
   return (
     <group>
-      {/* 基础地面 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-        <planeGeometry args={[gridSize, gridSize]} />
-        <meshStandardMaterial color="#06060e" roughness={1} metalness={0.1} />
-      </mesh>
-
-      {/* 霓虹网格 */}
-      <lineSegments geometry={gridGeo}>
-        <lineBasicMaterial color="#0a1a3a" transparent opacity={0.3} />
-      </lineSegments>
-
       {/* 主干道路 */}
-      <lineSegments geometry={roadGeo}>
-        <lineBasicMaterial color="#0a84ff" transparent opacity={0.5} />
-      </lineSegments>
+      <instancedMesh ref={roadRef} args={[roadGeo, roadMat, ROAD_COUNT]} />
 
       {/* 中心扩散环 */}
-      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
-        <ringGeometry args={[8, 8.3, 64]} />
+      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <ringGeometry args={[8, 8.5, 64]} />
         <meshStandardMaterial
           color="#0a84ff"
           emissive="#0a84ff"
-          emissiveIntensity={0.5}
+          emissiveIntensity={1.2}
           transparent
-          opacity={0.2}
+          opacity={0.4}
           side={THREE.DoubleSide}
         />
       </mesh>
 
       {/* 外圈装饰环 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
-        <ringGeometry args={[20, 20.15, 64]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <ringGeometry args={[20, 20.3, 64]} />
         <meshStandardMaterial
           color="#bf5af2"
           emissive="#bf5af2"
-          emissiveIntensity={0.3}
+          emissiveIntensity={0.8}
           transparent
-          opacity={0.15}
+          opacity={0.35}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* 额外装饰环 */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <ringGeometry args={[35, 35.3, 64]} />
+        <meshStandardMaterial
+          color="#ff375f"
+          emissive="#ff375f"
+          emissiveIntensity={0.5}
+          transparent
+          opacity={0.25}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      {/* 内圈能量环 */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <ringGeometry args={[3, 3.4, 64]} />
+        <meshStandardMaterial
+          color="#30d158"
+          emissive="#30d158"
+          emissiveIntensity={1.5}
+          transparent
+          opacity={0.5}
           side={THREE.DoubleSide}
         />
       </mesh>
