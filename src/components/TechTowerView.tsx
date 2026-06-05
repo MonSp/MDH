@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Stars, Text, Float, Billboard, Html } from '@react-three/drei'
 import * as THREE from 'three'
 import { AgentRole } from '../modules/agentTypes'
+import { CyberpunkBuildings, NeonGround, FlyingVehicles, HolographicAds, CyberRain, NeonLights } from './cyberpunk'
 
 /* ───────── 类型 ───────── */
 
@@ -915,15 +916,10 @@ function CEOTextLabel() {
   )
 }
 
-/* ───────── 地面平台 ───────── */
+/* ───────── 地面平台（已被 NeonGround 替代，保留作为 fallback） ───────── */
 
 function Ground() {
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-      <planeGeometry args={[60, 60]} />
-      <meshStandardMaterial color="#080810" roughness={1} metalness={0} />
-    </mesh>
-  )
+  return <NeonGround />
 }
 
 /* ───────── 信号塔天线 ───────── */
@@ -1412,6 +1408,11 @@ function Scene({ projects, customTeams, onSelectProject, onSelectDept, onSelectT
       <pointLight position={[0, 32, 0]} intensity={1.2} color="#bf5af2" distance={20} />
       <pointLight position={[0, 28, 5]} intensity={0.8} color="#64d2ff" distance={15} />
 
+      {/* 赛博朋克氛围灯光 */}
+      <pointLight position={[-15, 5, 15]} intensity={0.5} color="#ff375f" distance={25} />
+      <pointLight position={[15, 8, -15]} intensity={0.5} color="#0a84ff" distance={25} />
+      <pointLight position={[0, 2, 0]} intensity={0.4} color="#bf5af2" distance={30} />
+
       <OrbitControls
         ref={controlsRef}
         enablePan={hovering}
@@ -1419,7 +1420,7 @@ function Scene({ projects, customTeams, onSelectProject, onSelectDept, onSelectT
         panSpeed={1.5}
         rotateSpeed={0.8}
         minDistance={8}
-        maxDistance={60}
+        maxDistance={100}
         minPolarAngle={0.2}
         maxPolarAngle={Math.PI / 2.1}
         mouseButtons={{
@@ -1430,11 +1431,21 @@ function Scene({ projects, customTeams, onSelectProject, onSelectDept, onSelectT
 
       <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade speed={0.5} />
 
+      {/* 赛博朋克大气雾 */}
+      <fog attach="fog" args={['#050510', 30, 120]} />
+
       <Ground />
       <BuildingBody />
       <DataFlowParticles totalIterations={totalIterations} />
       <GlassCurtainWall />
       <NeonEdges />
+
+      {/* 赛博朋克世界 */}
+      <CyberpunkBuildings />
+      <FlyingVehicles />
+      <HolographicAds />
+      <CyberRain />
+      <NeonLights />
 
       {/* 透明碰撞检测层：覆盖整栋楼+顶层公寓，鼠标悬停时切换为拖动模式 */}
       <mesh
@@ -1473,6 +1484,7 @@ const VIEW_PRESETS = [
   { label: '正面', pos: [20, 20, 25] as [number, number, number], target: [0, 14, 0] as [number, number, number] },
   { label: '右侧', pos: [30, 20, 0] as [number, number, number], target: [0, 14, 0] as [number, number, number] },
   { label: 'CEO', pos: [8, 36, 10] as [number, number, number], target: [0, 30, 0] as [number, number, number] },
+  { label: '全景', pos: [55, 45, 55] as [number, number, number], target: [0, 10, 0] as [number, number, number] },
 ]
 
 function ViewBookmarks({ onNavigate }: { onNavigate: (pos: [number, number, number], target: [number, number, number]) => void }) {
