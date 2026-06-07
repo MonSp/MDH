@@ -1,0 +1,6 @@
+[
+  { "stage": "clarification", "role": "critic", "ts": "2026-06-03T10:00:00Z",
+    "findings": ["未区分实时会议与离线录音两种输入路径", "未定义多租户/组织空间边界", "成功标准缺少对识别错误率的量化"] },
+  { "stage": "input", "role": "grounding", "ts": "2026-06-03T10:01:00Z",
+    "sources": ["clarified_brief:successCriteria", "project_context:sources[src2]=会议录音+转写"] }
+]

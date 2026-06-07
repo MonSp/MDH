@@ -1,0 +1,69 @@
+{
+  "enabled": true,
+  "mode": "http",
+  "model": "gpt-image-2",
+  "api_key": "",
+  "timeout": 600,
+  "out_dir": "previews",
+  "label": "预览·未验证 / preview-unverified",
+  "prompt_template": "为这份规格生成一张界面草样（UI mockup）。仅示意、不要写真实数据。标题：{title}。要点：{excerpt}。要求：干净的 Web 界面、中文占位、明显标注 PREVIEW。",
+  "diagram_policy": "架构总图/规格树不走生图模型，由 Mermaid 确定性渲染",
+  "http": {
+    "url": "",
+    "method": "POST",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer ${IMAGE_API_KEY}"
+    },
+    "body_template": {
+      "model": "${MODEL}",
+      "prompt": "${PROMPT}",
+      "response_format": "b64_json",
+      "image_size": "2K",
+      "aspect_ratio": "16:9",
+      "n": 1
+    },
+    "response": {
+      "path": "data.0.b64_json",
+      "encoding": "b64",
+      "ext": "png"
+    }
+  },
+  "_key_说明": "改这一份就够了：Key 用环境变量 IMAGE_API_KEY（推荐）或填上面 api_key；地址改 http.url；模型名改顶层 model。取值顺序：环境变量 > 配置 api_key。配置被清空时的内置回落值集中在 scripts/image_settings.py（也只此一处）。",
+  "_可选模型": [
+    "gpt-image-2",
+    "gemini-2.5-flash-image",
+    "gemini-3.1-flash-image-preview",
+    "gemini-3-pro-image-preview"
+  ],
+  "_可选尺寸": [
+    "512",
+    "1K",
+    "2K",
+    "4K"
+  ],
+  "_其它后端样板": {
+    "dry_run": {
+      "mode": "dry_run"
+    },
+    "host_mcp": {
+      "mode": "mcp",
+      "mcp": {
+        "tool": "image.generate"
+      }
+    },
+    "local_cli": {
+      "mode": "command",
+      "command": {
+        "argv": [
+          "python",
+          "my_sd.py",
+          "--prompt",
+          "${PROMPT}",
+          "--out",
+          "${OUT}"
+        ]
+      }
+    }
+  }
+}
