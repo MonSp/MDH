@@ -1,89 +1,47 @@
 import { WorkflowDefinition, WorkflowExecution, WorkflowVisualization } from './agentTypes'
-
-const API_BASE = '/api/workflow'
+import { apiClient, ApiResponse } from './apiClient'
 
 export interface WorkflowEngineAPI {
-  createWorkflow: (definition: WorkflowDefinition) => Promise<WorkflowExecution>
-  executeWorkflow: (executionId: string) => Promise<void>
-  pauseWorkflow: (executionId: string) => Promise<void>
-  resumeWorkflow: (executionId: string) => Promise<void>
-  cancelWorkflow: (executionId: string) => Promise<void>
-  retryNode: (executionId: string, nodeId: string) => Promise<void>
-  getWorkflowStatus: (executionId: string) => Promise<WorkflowExecution>
-  getWorkflowVisualization: (executionId: string) => Promise<WorkflowVisualization>
+  createWorkflow: (definition: WorkflowDefinition) => Promise<ApiResponse<WorkflowExecution>>
+  executeWorkflow: (executionId: string) => Promise<ApiResponse<void>>
+  pauseWorkflow: (executionId: string) => Promise<ApiResponse<void>>
+  resumeWorkflow: (executionId: string) => Promise<ApiResponse<void>>
+  cancelWorkflow: (executionId: string) => Promise<ApiResponse<void>>
+  retryNode: (executionId: string, nodeId: string) => Promise<ApiResponse<void>>
+  getWorkflowStatus: (executionId: string) => Promise<ApiResponse<WorkflowExecution>>
+  getWorkflowVisualization: (executionId: string) => Promise<ApiResponse<WorkflowVisualization>>
 }
 
 export const workflowEngineAPI: WorkflowEngineAPI = {
-  createWorkflow: async (definition: WorkflowDefinition) => {
-    const response = await fetch(`${API_BASE}/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(definition),
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to create workflow: ${response.statusText}`)
-    }
-    return response.json()
+  createWorkflow: (definition: WorkflowDefinition) => {
+    return apiClient.post<WorkflowExecution>('/workflow/create', definition)
   },
 
-  executeWorkflow: async (executionId: string) => {
-    const response = await fetch(`${API_BASE}/execute/${executionId}`, {
-      method: 'POST',
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to execute workflow: ${response.statusText}`)
-    }
+  executeWorkflow: (executionId: string) => {
+    return apiClient.post<void>(`/workflow/execute/${executionId}`)
   },
 
-  pauseWorkflow: async (executionId: string) => {
-    const response = await fetch(`${API_BASE}/pause/${executionId}`, {
-      method: 'POST',
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to pause workflow: ${response.statusText}`)
-    }
+  pauseWorkflow: (executionId: string) => {
+    return apiClient.post<void>(`/workflow/pause/${executionId}`)
   },
 
-  resumeWorkflow: async (executionId: string) => {
-    const response = await fetch(`${API_BASE}/resume/${executionId}`, {
-      method: 'POST',
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to resume workflow: ${response.statusText}`)
-    }
+  resumeWorkflow: (executionId: string) => {
+    return apiClient.post<void>(`/workflow/resume/${executionId}`)
   },
 
-  cancelWorkflow: async (executionId: string) => {
-    const response = await fetch(`${API_BASE}/cancel/${executionId}`, {
-      method: 'POST',
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to cancel workflow: ${response.statusText}`)
-    }
+  cancelWorkflow: (executionId: string) => {
+    return apiClient.post<void>(`/workflow/cancel/${executionId}`)
   },
 
-  retryNode: async (executionId: string, nodeId: string) => {
-    const response = await fetch(`${API_BASE}/retry/${executionId}/${nodeId}`, {
-      method: 'POST',
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to retry node: ${response.statusText}`)
-    }
+  retryNode: (executionId: string, nodeId: string) => {
+    return apiClient.post<void>(`/workflow/retry/${executionId}/${nodeId}`)
   },
 
-  getWorkflowStatus: async (executionId: string) => {
-    const response = await fetch(`${API_BASE}/status/${executionId}`)
-    if (!response.ok) {
-      throw new Error(`Failed to get workflow status: ${response.statusText}`)
-    }
-    return response.json()
+  getWorkflowStatus: (executionId: string) => {
+    return apiClient.get<WorkflowExecution>(`/workflow/status/${executionId}`)
   },
 
-  getWorkflowVisualization: async (executionId: string) => {
-    const response = await fetch(`${API_BASE}/visualization/${executionId}`)
-    if (!response.ok) {
-      throw new Error(`Failed to get workflow visualization: ${response.statusText}`)
-    }
-    return response.json()
+  getWorkflowVisualization: (executionId: string) => {
+    return apiClient.get<WorkflowVisualization>(`/workflow/visualization/${executionId}`)
   },
 }

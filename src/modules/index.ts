@@ -6,6 +6,13 @@ export {
 } from './agentCoordinator'
 
 export {
+  ApiClient,
+  apiClient,
+  type ApiClientConfig,
+  type ApiResponse,
+} from './apiClient'
+
+export {
   AgentReferenceSystem,
   type AgentReference,
   type CollaborationSession as ReferenceCollaborationSession,

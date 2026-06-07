@@ -1,0 +1,205 @@
+{
+  "rootNodeId": "n0",
+  "version": 2,
+  "successCriteria": [
+    { "id": "sc1", "text": "前后端模块职责边界清晰，无重复实现" },
+    { "id": "sc2", "text": "核心模块测试覆盖率达到80%以上" },
+    { "id": "sc3", "text": "统一使用TypeScript，消除Vue/React框架混用" },
+    { "id": "sc4", "text": "建立依赖注入机制，支持模块可测试性" },
+    { "id": "sc5", "text": "配置持久化，系统重启后自动恢复" }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "parentId": null,
+      "type": "requirement",
+      "title": "多智能体公司架构重构",
+      "acceptance": "当用户启动系统时，系统应正确加载所有模块，前后端职责边界清晰，无重复实现。",
+      "coversCriteria": ["sc1"],
+      "evidenceRefs": ["nE1", "nE2"]
+    },
+    {
+      "id": "n1",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "前后端职责边界划分",
+      "acceptance": "当系统启动时，后端应负责业务逻辑处理和数据持久化，前端应负责UI渲染和用户交互。",
+      "coversCriteria": ["sc1"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n2",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "测试基础设施建设",
+      "acceptance": "当开发者执行测试命令时，系统应运行所有测试用例并输出覆盖率报告。",
+      "coversCriteria": ["sc2"],
+      "evidenceRefs": ["nE3"]
+    },
+    {
+      "id": "n3",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "框架统一",
+      "acceptance": "当系统构建时，应统一使用TypeScript，消除Vue/React框架混用问题。",
+      "coversCriteria": ["sc3"],
+      "evidenceRefs": ["nE4"]
+    },
+    {
+      "id": "n4",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "依赖注入机制",
+      "acceptance": "当模块实例化时，应支持通过构造函数注入依赖，未注入时使用默认实例。",
+      "coversCriteria": ["sc4"],
+      "evidenceRefs": ["nE5"]
+    },
+    {
+      "id": "n5",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "配置持久化",
+      "acceptance": "当配置更新时，系统应自动同步到localStorage，下次启动时优先加载已保存配置。",
+      "coversCriteria": ["sc5"],
+      "evidenceRefs": ["nE6"]
+    },
+    {
+      "id": "n6",
+      "parentId": "n1",
+      "type": "design",
+      "title": "后端模块职责定义",
+      "notes": "后端负责：SkillRegistry、ProjectManager、ExperienceExtractor、SkillPackager、DynamicRouter、WorkflowEngine",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n7",
+      "parentId": "n1",
+      "type": "design",
+      "title": "前端模块职责定义",
+      "notes": "前端负责：UI渲染、用户交互、状态展示、WebSocket通信",
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n8",
+      "parentId": "n6",
+      "type": "task",
+      "title": "清理前端重复模块",
+      "verify": "删除前端的workflowEngine.ts、skillRegistry.ts等重复实现"
+    },
+    {
+      "id": "n9",
+      "parentId": "n7",
+      "type": "task",
+      "title": "统一API调用层",
+      "verify": "创建统一的API客户端，所有后端调用通过该客户端进行"
+    },
+    {
+      "id": "n10",
+      "parentId": "n2",
+      "type": "design",
+      "title": "Vitest测试框架配置",
+      "notes": "配置vitest.config.ts，设置覆盖率报告和测试路径",
+      "evidenceRefs": ["nE3"]
+    },
+    {
+      "id": "n11",
+      "parentId": "n10",
+      "type": "task",
+      "title": "创建核心模块测试",
+      "verify": "为6个核心模块编写单元测试，覆盖关键路径"
+    },
+    {
+      "id": "n12",
+      "parentId": "n3",
+      "type": "design",
+      "title": "消除Vue依赖",
+      "notes": "将Vue reactive替换为纯JavaScript对象或React兼容的状态管理",
+      "evidenceRefs": ["nE4"]
+    },
+    {
+      "id": "n13",
+      "parentId": "n12",
+      "type": "task",
+      "title": "重构skillStore和pageContextStore",
+      "verify": "移除Vue reactive依赖，保持API接口不变"
+    },
+    {
+      "id": "n14",
+      "parentId": "n4",
+      "type": "design",
+      "title": "依赖注入容器设计",
+      "notes": "为AgentCoordinator等模块引入构造函数依赖注入",
+      "evidenceRefs": ["nE5"]
+    },
+    {
+      "id": "n15",
+      "parentId": "n14",
+      "type": "task",
+      "title": "改造AgentCoordinator",
+      "verify": "构造函数接受可选的registry、communicationBus、taskAssigner参数"
+    },
+    {
+      "id": "n16",
+      "parentId": "n5",
+      "type": "design",
+      "title": "ConfigManager持久化",
+      "notes": "添加localStorage持久化支持，配置更新自动同步",
+      "evidenceRefs": ["nE6"]
+    },
+    {
+      "id": "n17",
+      "parentId": "n16",
+      "type": "task",
+      "title": "实现配置持久化",
+      "verify": "配置更新后自动同步到localStorage，重启后自动恢复"
+    },
+    {
+      "id": "nE1",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "后端模块实现",
+      "source": "backend/server.py"
+    },
+    {
+      "id": "nE2",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "前端模块实现",
+      "source": "src/modules/"
+    },
+    {
+      "id": "nE3",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "测试配置需求",
+      "source": "spec:production-multi-agent-evolution-v3"
+    },
+    {
+      "id": "nE4",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "框架混用问题",
+      "source": "src/modules/skillStore.ts, src/modules/pageContextStore.ts"
+    },
+    {
+      "id": "nE5",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "依赖注入需求",
+      "source": "src/modules/agentCoordinator.ts"
+    },
+    {
+      "id": "nE6",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "配置持久化需求",
+      "source": "src/modules/configSchema.ts"
+    }
+  ],
+  "provenance": {
+    "generationSource": "llm",
+    "promptId": "architecture-refactor-spec",
+    "model": "deepseek",
+    "fingerprint": "whybuddy-spec-v2-architecture-refactor"
+  }
+}
