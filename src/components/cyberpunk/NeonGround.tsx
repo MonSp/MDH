@@ -13,14 +13,12 @@ export default function NeonGround() {
   const ringRef = useRef<THREE.Mesh>(null!)
   const dummy = useMemo(() => new THREE.Object3D(), [])
 
-  // 道路材质 + 几何体
+  // 道路材质（不透明）
   const roadGeo = useMemo(() => new THREE.PlaneGeometry(1, 1), [])
   const roadMat = useMemo(() => new THREE.MeshStandardMaterial({
     color: '#0a84ff',
     emissive: '#0a84ff',
     emissiveIntensity: 1.0,
-    transparent: true,
-    opacity: 0.6,
     side: THREE.DoubleSide,
   }), [])
 
@@ -47,7 +45,7 @@ export default function NeonGround() {
   useFrame(({ clock }) => {
     if (ringRef.current) {
       const m = ringRef.current.material as THREE.MeshStandardMaterial
-      m.opacity = 0.25 + Math.sin(clock.elapsedTime * 0.8) * 0.15
+      m.emissiveIntensity = 0.8 + Math.sin(clock.elapsedTime * 0.8) * 0.4
     }
   })
 
@@ -63,8 +61,6 @@ export default function NeonGround() {
           color="#0a84ff"
           emissive="#0a84ff"
           emissiveIntensity={1.2}
-          transparent
-          opacity={0.4}
           side={THREE.DoubleSide}
         />
       </mesh>
@@ -76,8 +72,6 @@ export default function NeonGround() {
           color="#bf5af2"
           emissive="#bf5af2"
           emissiveIntensity={0.8}
-          transparent
-          opacity={0.35}
           side={THREE.DoubleSide}
         />
       </mesh>
@@ -89,8 +83,6 @@ export default function NeonGround() {
           color="#ff375f"
           emissive="#ff375f"
           emissiveIntensity={0.5}
-          transparent
-          opacity={0.25}
           side={THREE.DoubleSide}
         />
       </mesh>
@@ -102,8 +94,6 @@ export default function NeonGround() {
           color="#30d158"
           emissive="#30d158"
           emissiveIntensity={1.5}
-          transparent
-          opacity={0.5}
           side={THREE.DoubleSide}
         />
       </mesh>

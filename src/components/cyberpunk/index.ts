@@ -1,5 +1,6 @@
 export { default as CyberpunkBuildings } from './CyberpunkBuildings'
 export { default as NeonGround } from './NeonGround'
+export { default as CyberpunkGround } from './CyberpunkGround'
 export { default as FlyingVehicles } from './FlyingVehicles'
 export { default as HolographicAds } from './HolographicAds'
 export { default as CyberRain } from './CyberRain'

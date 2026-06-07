@@ -2,23 +2,20 @@ import React, { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
-/* ───────── 赛博朋克背景建筑群 ───────── */
+/* ───────── 赛博朋克背景建筑群（玻璃幕墙） ───────── */
 
 interface BuildingProps {
   position: [number, number, number]
   width: number
   depth: number
   height: number
-  color: string
   neonColor: string
-  windowDensity?: number
 }
 
-function CyberBuilding({ position, width, depth, height, color, neonColor, windowDensity = 0.6 }: BuildingProps) {
+function CyberBuilding({ position, width, depth, height, neonColor }: BuildingProps) {
   const groupRef = useRef<THREE.Group>(null!)
-  const windowCount = Math.floor(width * height * windowDensity * 2)
 
-  // 缓存边框几何体，避免每次渲染创建新对象导致内存泄漏
+  // 缓存边框几何体
   const topEdgeGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(width + 0.1, 0.05, depth + 0.1)), [width, depth])
   const bottomEdgeGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(width + 0.1, 0.1, depth + 0.1)), [width, depth])
   const midEdgeGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(width + 0.15, 0.08, depth + 0.15)), [width, depth])
@@ -33,65 +30,51 @@ function CyberBuilding({ position, width, depth, height, color, neonColor, windo
     return g
   }, [width, height, depth])
 
-  // 生成窗户位置（memoize 避免每次渲染重新随机）
-  const windows = useMemo(() => {
-    const result: { x: number; y: number; side: number; isNeon: boolean; size: [number, number] }[] = []
-    const cols = Math.max(2, Math.floor(width * 1.5))
-    const rows = Math.max(2, Math.floor(height * 0.8))
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const x = (col / (cols - 1) - 0.5) * (width - 0.3)
-        const y = (row / (rows - 1)) * (height - 0.5) + 0.3
-        if (Math.random() > 0.25) {
-          const side = Math.floor(Math.random() * 4)
-          const isNeon = Math.random() > 0.45
-          const size: [number, number] = [0.15 + Math.random() * 0.1, 0.12 + Math.random() * 0.08]
-          result.push({ x, y, side, isNeon, size })
-        }
-      }
-    }
-    return result.slice(0, windowCount)
-  }, [width, height, windowCount])
-
-  // 生成建筑顶部的天线/装饰（memoize）
+  // 天线高度
   const antennaHeight = useMemo(() => 1 + Math.random() * 3, [])
+
+  // 楼层分隔线几何体
+  const floorLineGeo = useMemo(() => {
+    const positions: number[] = []
+    const floorH = Math.max(2, height / 6)
+    const floors = Math.floor(height / floorH)
+    for (let i = 1; i < floors; i++) {
+      const y = -height / 2 + i * floorH
+      const hw = width / 2, hd = depth / 2
+      // 前面
+      positions.push(-hw, y, hd, hw, y, hd)
+      // 后面
+      positions.push(-hw, y, -hd, hw, y, -hd)
+      // 左面
+      positions.push(-hw, y, -hd, -hw, y, hd)
+      // 右面
+      positions.push(hw, y, -hd, hw, y, hd)
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    return g
+  }, [width, height, depth])
 
   return (
     <group ref={groupRef} position={position}>
-      {/* 建筑主体 */}
+      {/* 玻璃幕墙主体 */}
       <mesh position={[0, height / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[width, height, depth]} />
-        <meshStandardMaterial color={color} roughness={0.6} metalness={0.4} />
+        <meshPhysicalMaterial
+          color={neonColor}
+          metalness={0.9}
+          roughness={0.05}
+          reflectivity={1}
+          clearcoat={1}
+          clearcoatRoughness={0.05}
+          side={THREE.DoubleSide}
+        />
       </mesh>
 
-      {/* 窗户发光层 */}
-      {windows.map((w, i) => {
-        const windowColor = w.isNeon ? neonColor : '#2a3a6a'
-        const emissiveIntensity = w.isNeon ? 1.2 : 0.25
-        let pos: [number, number, number]
-        let rot: [number, number, number] = [0, 0, 0]
-        const wSize: [number, number, number] = [w.size[0], w.size[1], 0.02]
-
-        switch (w.side) {
-          case 0: pos = [w.x, w.y, depth / 2 + 0.01]; break
-          case 1: pos = [w.x, w.y, -depth / 2 - 0.01]; rot = [0, Math.PI, 0]; break
-          case 2: pos = [-width / 2 - 0.01, w.y, w.x]; rot = [0, -Math.PI / 2, 0]; break
-          default: pos = [width / 2 + 0.01, w.y, w.x]; rot = [0, Math.PI / 2, 0]; break
-        }
-
-        return (
-          <mesh key={i} position={pos} rotation={rot}>
-            <boxGeometry args={wSize} />
-            <meshStandardMaterial
-              color={windowColor}
-              emissive={windowColor}
-              emissiveIntensity={emissiveIntensity}
-              transparent
-              opacity={0.9}
-            />
-          </mesh>
-        )
-      })}
+      {/* 楼层分隔线 */}
+      <lineSegments position={[0, height / 2, 0]} geometry={floorLineGeo}>
+        <lineBasicMaterial color={neonColor} transparent opacity={0.4} />
+      </lineSegments>
 
       {/* 顶部霓虹边框 */}
       <lineSegments position={[0, height, 0]} geometry={topEdgeGeo}>
@@ -148,13 +131,11 @@ interface BuildingData {
   width: number
   depth: number
   height: number
-  color: string
   neonColor: string
 }
 
 function generateBuildings(count: number, mainBuildingRadius: number): BuildingData[] {
   const neonColors = ['#0a84ff', '#ff375f', '#bf5af2', '#ff9f0a', '#64d2ff', '#30d158']
-  const bodyColors = ['#1a1a2e', '#1c1c38', '#141428', '#1e1e40', '#18183a', '#222248', '#161632']
   const buildings: BuildingData[] = []
 
   // 以主建筑为中心，在周围生成环形分布的建筑
@@ -172,7 +153,6 @@ function generateBuildings(count: number, mainBuildingRadius: number): BuildingD
       width,
       depth,
       height,
-      color: bodyColors[Math.floor(Math.random() * bodyColors.length)],
       neonColor: neonColors[Math.floor(Math.random() * neonColors.length)],
     })
   }
@@ -189,7 +169,6 @@ function generateBuildings(count: number, mainBuildingRadius: number): BuildingD
       width: 5 + Math.random() * 8,
       depth: 4 + Math.random() * 6,
       height: 25 + Math.random() * 35,
-      color: bodyColors[Math.floor(Math.random() * bodyColors.length)],
       neonColor: neonColors[Math.floor(Math.random() * neonColors.length)],
     })
   }

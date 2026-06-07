@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useEffect } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { NeonGround } from '../cyberpunk'
+import { CyberpunkGround } from '../cyberpunk'
 import { BUILDING_W, BUILDING_D, BUILDING_H, FLOOR_H, PENTHOUSE_H, PENTHOUSE_Y, getFloorGradientColor } from './constants'
 
 /* ───────── 楼层间隔线 ───────── */
@@ -210,7 +210,7 @@ export function NeonEdges() {
 /* ───────── 地面平台 ───────── */
 
 export function Ground() {
-  return <NeonGround />
+  return <CyberpunkGround />
 }
 
 /* ───────── 信号塔天线 ───────── */
