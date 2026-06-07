@@ -9,6 +9,100 @@ import { BuildingBody, GlassCurtainWall, NeonEdges, Ground, Antenna, DataFlowPar
 import { Desk, ComputerScreen, Chair, Minibar, Plant, CEOPerson, HolographicAI } from './PenthouseFurniture'
 import { FrontFaceProjects, RightFaceDepts, FloorLabels, CEOTextLabel } from './FloorMarkers'
 
+/* ───────── 赛博朋克黄昏太阳 ───────── */
+function DuskSun() {
+  const sunRef = useRef<THREE.Mesh>(null!)
+  const sunLightRef = useRef<THREE.DirectionalLight>(null!)
+  const glowRef = useRef<THREE.Mesh>(null!)
+
+  useFrame(({ clock }) => {
+    const time = clock.elapsedTime
+    // 太阳轻微脉动效果
+    if (sunRef.current) {
+      const scale = 1 + Math.sin(time * 0.3) * 0.05
+      sunRef.current.scale.set(scale, scale, scale)
+    }
+    // 光晕效果
+    if (glowRef.current) {
+      const material = glowRef.current.material as THREE.MeshBasicMaterial
+      material.opacity = 0.3 + Math.sin(time * 0.5) * 0.1
+    }
+  })
+
+  return (
+    <group position={[60, 15, -80]}>
+      {/* 太阳球体 */}
+      <mesh ref={sunRef}>
+        <sphereGeometry args={[8, 32, 32]} />
+        <meshBasicMaterial color="#ff6b35" />
+      </mesh>
+
+      {/* 太阳光晕 */}
+      <mesh ref={glowRef}>
+        <sphereGeometry args={[12, 32, 32]} />
+        <meshBasicMaterial color="#ff8c42" transparent opacity={0.3} />
+      </mesh>
+
+      {/* 黄昏方向光 */}
+      <directionalLight
+        ref={sunLightRef}
+        position={[0, 0, 0]}
+        intensity={1.5}
+        color="#ff7e47"
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-left={-50}
+        shadow-camera-right={50}
+        shadow-camera-top={50}
+        shadow-camera-bottom={-50}
+        shadow-camera-near={0.5}
+        shadow-camera-far={200}
+        shadow-bias={-0.0001}
+        shadow-normalBias={0.02}
+      />
+    </group>
+  )
+}
+
+/* ───────── 赛博朋克动态灯光组件 ───────── */
+function CyberpunkLights() {
+  const light1Ref = useRef<THREE.PointLight>(null!)
+  const light2Ref = useRef<THREE.PointLight>(null!)
+  const light3Ref = useRef<THREE.PointLight>(null!)
+  const light4Ref = useRef<THREE.PointLight>(null!)
+  const light5Ref = useRef<THREE.PointLight>(null!)
+  const light6Ref = useRef<THREE.PointLight>(null!)
+
+  useFrame(({ clock }) => {
+    const time = clock.elapsedTime
+    const pulse = Math.sin(time * 0.5) * 0.3 + 0.7
+
+    // 动态调整灯光强度
+    if (light1Ref.current) light1Ref.current.intensity = 2.0 * pulse
+    if (light2Ref.current) light2Ref.current.intensity = 1.5 * (1 - pulse * 0.5)
+    if (light3Ref.current) light3Ref.current.intensity = 1.0 * (Math.sin(time * 0.7) * 0.3 + 0.7)
+    if (light4Ref.current) light4Ref.current.intensity = 1.0 * (Math.cos(time * 0.6) * 0.3 + 0.7)
+    if (light5Ref.current) light5Ref.current.intensity = 0.8 * (Math.sin(time * 0.4) * 0.4 + 0.6)
+    if (light6Ref.current) light6Ref.current.intensity = 0.7 * (Math.cos(time * 0.3) * 0.4 + 0.6)
+  })
+
+  return (
+    <>
+      <ambientLight intensity={0.5} color="#2a1a3a" />
+      <hemisphereLight intensity={0.5} color="#6b4a8a" groundColor="#1a2a4a" />
+
+      {/* 赛博朋克氛围灯光 - 动态点光源 */}
+      <pointLight ref={light1Ref} position={[0, 32, 0]} intensity={2.0} color="#bf5af2" distance={30} decay={2} />
+      <pointLight ref={light2Ref} position={[0, 28, 5]} intensity={1.5} color="#64d2ff" distance={20} decay={2} />
+      <pointLight ref={light3Ref} position={[-15, 5, 15]} intensity={1.0} color="#ff375f" distance={35} decay={2} />
+      <pointLight ref={light4Ref} position={[15, 8, -15]} intensity={1.0} color="#0a84ff" distance={35} decay={2} />
+      <pointLight ref={light5Ref} position={[0, 2, 0]} intensity={0.8} color="#bf5af2" distance={40} decay={2} />
+      <pointLight ref={light6Ref} position={[-20, 12, -20]} intensity={0.7} color="#ff9f0a" distance={30} decay={2} />
+    </>
+  )
+}
+
 /* ───────── 完整 3D 场景 ───────── */
 
 export default function TowerScene({ projects, customTeams, onSelectProject, onSelectDept, onSelectTeam, onCreateTeam, cameraNav, onFocusFloor, activeDeptColor }: {
@@ -57,30 +151,8 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
   return (
     <>
-      <ambientLight intensity={0.35} color="#2a2a5a" />
-      <directionalLight
-        position={[15, 30, 10]}
-        intensity={1.0}
-        color="#e0e0ff"
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-camera-left={-20}
-        shadow-camera-right={20}
-        shadow-camera-top={20}
-        shadow-camera-bottom={-20}
-      />
-      <hemisphereLight intensity={0.3} color="#4a3a8a" groundColor="#1a2a4a" />
-      <pointLight position={[0, 32, 0]} intensity={1.5} color="#bf5af2" distance={25} />
-      <pointLight position={[0, 28, 5]} intensity={1.0} color="#64d2ff" distance={18} />
-
-      {/* 赛博朋克氛围灯光 */}
-      <pointLight position={[-15, 5, 15]} intensity={0.8} color="#ff375f" distance={30} />
-      <pointLight position={[15, 8, -15]} intensity={0.8} color="#0a84ff" distance={30} />
-      <pointLight position={[0, 2, 0]} intensity={0.6} color="#bf5af2" distance={35} />
-      <pointLight position={[-20, 12, -20]} intensity={0.6} color="#ff9f0a" distance={25} />
-      <pointLight position={[20, 10, 20]} intensity={0.5} color="#30d158" distance={25} />
-      <pointLight position={[0, 3, -20]} intensity={0.5} color="#64d2ff" distance={20} />
+      <DuskSun />
+      <CyberpunkLights />
 
       <OrbitControls
         ref={controlsRef}
@@ -98,11 +170,11 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
         }}
       />
 
-      <Stars radius={100} depth={50} count={3000} factor={4} saturation={0.5} fade speed={0.5} />
+      <Stars radius={100} depth={50} count={2000} factor={4} saturation={0.5} fade speed={0.5} />
 
-      {/* 赛博朋克大气雾 */}
-      <fog attach="fog" args={['#141430', 50, 160]} />
-      <color attach="background" args={['#141430']} />
+      {/* 赛博朋克黄昏大气雾 */}
+      <fog attach="fog" args={['#1a0a2e', 50, 160]} />
+      <color attach="background" args={['#1a0a2e']} />
 
       <Ground />
       <BuildingBody />
