@@ -1,9 +1,10 @@
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { OrbitControls, Stars, Environment } from '@react-three/drei'
-import { EffectComposer, Bloom } from '@react-three/postprocessing'
+import { EffectComposer, Bloom, ChromaticAberration, Noise, Vignette } from '@react-three/postprocessing'
+import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
-import { CyberpunkBuildings, FlyingVehicles, HolographicAds, CyberRain, NeonLights, generateBuildings } from '../cyberpunk'
+import { CyberpunkBuildings, FlyingVehicles, HolographicAds, CyberRain, NeonLights, SkyDome, generateBuildings } from '../cyberpunk'
 import type { Project, ProjectDept, CustomTeam, CameraTarget } from './types'
 import { DEFAULT_DEPTS, PENTHOUSE_Y, BUILDING_H, PENTHOUSE_H, BUILDING_W, BUILDING_D } from './constants'
 import { BuildingBody, GlassCurtainWall, NeonEdges, Ground, Antenna, DataFlowParticles, PenthouseFloor, PenthouseWalls } from './BuildingScene'
@@ -90,8 +91,8 @@ function CyberpunkLights() {
 
   return (
     <>
-      <ambientLight intensity={0.5} color="#2a1a3a" />
-      <hemisphereLight intensity={0.5} color="#6b4a8a" groundColor="#1a2a4a" />
+      <ambientLight intensity={0.5} color="#1a1a3a" />
+      <hemisphereLight intensity={0.5} color="#4a5a8a" groundColor="#1a2a4a" />
 
       {/* 赛博朋克氛围灯光 - 动态点光源 */}
       <pointLight ref={light1Ref} position={[0, 32, 0]} intensity={2.0} color="#bf5af2" distance={30} decay={2} />
@@ -151,11 +152,12 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
   const totalIterations = projects.reduce((sum, p) => sum + p.iterations, 0)
 
-  // 生成建筑群数据（共享给CyberpunkBuildings和HolographicAds）
-  const buildings = useMemo(() => generateBuildings(20, 15), [])
+  // 生成建筑群数据（共享给CyberpunkBuildings和HolographicAds）— 三环分布
+  const buildings = useMemo(() => generateBuildings(55, 15), [])
 
   return (
     <>
+      <SkyDome />
       <DuskSun />
       <CyberpunkLights />
 
@@ -178,8 +180,8 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       <Stars radius={100} depth={50} count={2000} factor={4} saturation={0.5} fade speed={0.5} />
 
       {/* 赛博朋克大气雾 — 由云雾按钮控制，关闭时near=far使雾完全消失 */}
-      <fog attach="fog" args={['#1a0a2e', 5, 80]} near={fogEnabled ? 5 : 9999} far={fogEnabled ? 80 : 10000} />
-      <color attach="background" args={['#1a0a2e']} />
+      <fog attach="fog" args={['#1a1a3a', 5, 100]} near={fogEnabled ? 5 : 9999} far={fogEnabled ? 100 : 10000} />
+      <color attach="background" args={['#1a1a3a']} />
 
       {/* 本地HDR环境反射（不从CDN下载） */}
       <Environment files="/dikhololo_night_1k.hdr" background={false} />
@@ -225,22 +227,41 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       <FloorLabels />
       <CEOTextLabel />
 
-      {/* 后处理：Bloom辉光效果 */}
+      {/* 后处理：Bloom + 色差 + 胶片颗粒 + 暗角 */}
       <EffectComposer>
         <Bloom
-          luminanceThreshold={0.1}
-          luminanceSmoothing={0.9}
-          intensity={1.8}
+          luminanceThreshold={0.6}
+          luminanceSmoothing={0.4}
+          intensity={1.0}
+        />
+        <ChromaticAberration
+          offset={new THREE.Vector2(0.003, 0.003)}
+          radialModulation={true}
+          modulationOffset={0.5}
+        />
+        <Noise
+          premultiply
+          blendFunction={BlendFunction.ADD}
+          opacity={0.1}
+        />
+        <Vignette
+          offset={0.3}
+          darkness={0.4}
         />
       </EffectComposer>
 
-      {/* 体积雾层 — 由云雾按钮控制，关闭时全透明 */}
-      {[5, 10, 15, 20, 25].map((y, i) => (
-        <mesh key={`fog-layer-${i}`} position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[120, 120]} />
-          <meshBasicMaterial color="#1a0a2e" transparent opacity={fogEnabled ? 0.04 + i * 0.02 : 0} depthWrite={false} side={THREE.DoubleSide} />
-        </mesh>
-      ))}
+      {/* 体积雾层 — 12层渐变雾，由云雾按钮控制 */}
+      {[1, 2, 3, 5, 8, 12, 16, 20, 25, 30, 35, 40].map((y, i) => {
+        const opacity = 0.2 * Math.exp(-0.08 * (y - 1))
+        const color = y <= 2 ? '#3a3a4a' : '#2a2a4e'
+        const size = 80 + y * 3
+        return (
+          <mesh key={`fog-layer-${i}`} position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[size, size]} />
+            <meshBasicMaterial color={color} transparent opacity={fogEnabled ? opacity : 0} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+        )
+      })}
     </>
   )
 }

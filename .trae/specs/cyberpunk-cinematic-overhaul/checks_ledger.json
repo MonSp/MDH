@@ -1,0 +1,55 @@
+[
+  {
+    "ts": "2026-06-08T06:34:08.238422+00:00",
+    "cmd": [
+      "python",
+      ".trae\\skills\\whybuddy\\scripts\\validate_spec_tree.py",
+      ".trae\\specs\\cyberpunk-cinematic-overhaul\\spec_tree.json"
+    ],
+    "exitCode": 0,
+    "stdout": "通过 - 合法的规格树（32 个节点，8 条成功标准全覆盖）",
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "ts": "2026-06-08T06:34:27.245683+00:00",
+    "cmd": [
+      "python",
+      ".trae\\skills\\whybuddy\\scripts\\check_companion.py",
+      ".trae\\specs\\cyberpunk-cinematic-overhaul\\companion_log.json",
+      ".trae\\specs\\cyberpunk-cinematic-overhaul\\project_context.json"
+    ],
+    "exitCode": 0,
+    "stdout": "通过 - 伴随层留痕合法（挑刺 1 条 / 接地 2 条，repoAvailable=True）",
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "ts": "2026-06-08T06:37:02.211808+00:00",
+    "cmd": [
+      "python",
+      ".trae\\skills\\whybuddy\\scripts\\check_content_quality.py",
+      ".trae\\specs\\cyberpunk-cinematic-overhaul\\docs\\requirements.md",
+      ".trae\\specs\\cyberpunk-cinematic-overhaul\\docs\\design.md",
+      ".trae\\specs\\cyberpunk-cinematic-overhaul\\docs\\tasks.md"
+    ],
+    "exitCode": 0,
+    "stdout": "通过 - 规格文档内容结构完整，验收为 EARS 句式",
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "ts": "2026-06-08T06:44:03.774766+00:00",
+    "cmd": [
+      "python",
+      ".trae\\skills\\whybuddy\\scripts\\finalize_previews.py",
+      ".trae\\specs\\cyberpunk-cinematic-overhaul\\spec_tree.json",
+      ".trae\\specs\\cyberpunk-cinematic-overhaul\\previews",
+      ".trae\\skills\\whybuddy\\image_config.json"
+    ],
+    "exitCode": 1,
+    "stdout": "出图 gate：模型=gpt-image-2 端点=https://api.wula.mom/v1/chat/completions 共 175 张\n出图 gate 结果：本次真实成功 0/175 张；previews/ 现有 0 个 .png 文件",
+    "stderr": "\\u2717 img_000: HTTP Error 403: Forbidden\n  \\u2717 img_001: HTTP Error 403: Forbidden\n  \\u2717 img_002: HTTP Error 403: Forbidden\n  \\u2717 img_003: HTTP Error 403: Forbidden\n  \\u2717 img_004: HTTP Error 403: Forbidden\n  \\u2717 img_005: HTTP Error 403: Forbidden\n  \\u2717 img_006: HTTP Error 403: Forbidden\n  \\u2717 img_007: HTTP Error 403: Forbidden\n  \\u2717 img_008: HTTP Error 403: Forbidden\n  \\u2717 img_009: HTTP Error 403: Forbidden\n  \\u2717 img_010: HTTP Error 403: Forbidden\n  \\u2717 img_011: HTTP Error 403: Forbidden\n  \\u2717 img_012: HTTP Error 403: Forbidden\n  \\u2717 img_013: HTTP Error 403: Forbidden\n  \\u2717 img_014: HTTP Error 403: Forbidden\n  \\u2717 img_015: HTTP Error 403: Forbidden\n  \\u2717 img_016: HTTP Error 403: Forbidden\n  \\u2717 img_017: HTTP Error 403: Forbidden\n  \\u2717 img_018: HTTP Error 403: Forbidden\n  \\u2717 img_019: HTTP Error 403: Forbidden\n  \\u2717 img_020: HTTP Error 403: Forbidden\n  \\u2717 img_021: HTTP Error 403: Forbidden\n  \\u2717 img_022: HTTP Error 403: Forbidden\n  \\u2717 img_023: HTTP Error 403: Forbidden\n  \\u2717 img_024: HTTP Error 403: Forbidden\n  \\u2717 img_025: HTTP Error 403: Forbidden\n  \\u2717 img_026: HTTP Error 403: Forbidden\n  \\u2717 img_027: HTTP Error 403: Forbidden\n  \\u2717 img_028: HTTP Error 403: Forbidden\n  \\u2717 img_029: HTTP Error 403: Forbidden\n  \\u2717 img_030: HTTP Error 403: Forbidden\n  \\u2717 img_031: HTTP Error 403: Forbidden\n  \\u2717 img_032: HTTP Error 403: Forbidden\n  \\u2717 img_033: HTTP Error 403: Forbidden\n  \\u2717 img_034: HTTP Error 403: Forbidden\n  \\u2717 img_035: HTTP Error 403: Forbidden\n  \\u2717 img_036: HTTP Error 403: Forbidden\n  \\u2717 img_037: HTTP Error 403: Forbidden\n  \\u2717 img_038: HTTP Error 403: Forbidden\n  \\u2717 img_039: HTTP Error 403: Forbidden\n  \\u2717 img_040: HTTP Error 403: Forbidden\n  \\u2717 img_041: HTTP Error 403: Forbidden\n  \\u2717 img_042: HTTP Error 403: Forbidden\n  \\u2717 img_043: HTTP Error 403: Forbidden\n  \\u2717 img_044: HTTP Error 403: Forbidden\n  \\u2717 img_045: HTTP Error 403: Forbidden\n  \\u2717 img_046: HTTP Error 403: Forbidden\n  \\u2717 img_047: HTTP Error 403: Forbidden\n  \\u2717 img_048: HTTP Error 403: Forbidden\n  \\u2717 img_049: HTTP Error 403: Forbidden\n  \\u2717 img_050: HTTP Error 403: Forbidden\n  \\u2717 img_051: HTTP Error 403: Forbidden\n  \\u2717 img_052: HTTP Error 403: Forbidden\n  \\u2717 img_053: HTTP Error 403: Forbidden\n  \\u2717 img_054: HTTP Error 403: Forbidden\n  \\u2717 img_055: HTTP Error 403: Forbidden\n  \\u2717 img_056: HTTP Error 403: Forbidden\n  \\u2717 img_057: HTTP Error 403: Forbidden\n  \\u2717 img_058: HTTP Error 403: Forbidden\n  \\u2717 img_059: HTTP Error 403: Forbidden\n  \\u2717 img_060: HTTP Error 403: Forbidden\n  \\u2717 img_061: HTTP Error 403: Forbidden\n  \\u2717 img_062: HTTP Error 403: Forbidden\n  \\u2717 img_063: HTTP Error 403: Forbidden\n  \\u2717 img_064: HTTP Error 403: Forbidden\n  \\u2717 img_065: HTTP Error 403: Forbidden\n  \\u2717 img_066: HTTP Error 403: Forbidden\n  \\u2717 img_067: HTTP Error 403: Forbidden\n  \\u2717 img_068: HTTP Error 403: Forbidden\n  \\u2717 img_069: HTTP Error 403: Forbidden\n  \\u2717 img_070: HTTP Error 403: Forbidden\n  \\u2717 img_071: HTTP Error 403: Forbidden\n  \\u2717 img_072: HTTP Error 403: Forbidden\n  \\u2717 img_073: HTTP Error 403: Forbidden\n  \\u2717 img_074: HTTP Error 403: Forbidden\n  \\u2717 img_075: HTTP Error 403: Forbidden\n  \\u2717 img_076: HTTP Error 403: Forbidden\n  \\u2717 img_077: HTTP Error 403: Forbidden\n  \\u2717 img_078: HTTP Error 403: Forbidden\n  \\u2717 img_079: HTTP Error 403: Forbidden\n  \\u2717 img_080: HTTP Error 403: Forbidden\n  \\u2717 img_081: HTTP Error 403: Forbidden\n  \\u2717 img_082: HTTP Error 403: Forbidden\n  \\u2717 img_083: HTTP Error 403: Forbidden\n  \\u2717 img_084: HTTP Error 403: Forbidden\n  \\u2717 img_085: HTTP Error 403: Forbidden\n  \\u2717 img_086: HTTP Error 403: Forbidden\n  \\u2717 img_087: HTTP Error 403: Forbidden\n  \\u2717 img_088: HTTP Error 403: Forbidden\n  \\u2717 img_089: HTTP Error 403: Forbidden\n  \\u2717 img_090: HTTP Error 403: Forbidden\n  \\u2717 img_091: HTTP Error 403: Forbidden\n  \\u2717 img_092: HTTP Error 403: Forbidden\n  \\u2717 img_093: HTTP Error 403: Forbidden\n  \\u2717 img_094: HTTP Error 403: Forbidden\n  \\u2717 img_095: HTTP Error 403: Forbidden\n  \\u2717 img_096: HTTP Error 403: Forbidden\n  \\u2717 img_097: HTTP Error 403: Forbidden\n  \\u2717 img_098: HTTP Error 403: Forbidden\n  \\u2717 img_099: HTTP Error 403: Forbidden\n  \\u2717 img_100: HTTP Error 403: Forbidden\n  \\u2717 img_101: HTTP Error 403: Forbidden\n  \\u2717 img_102: HTTP Error 403: Forbidden\n  \\u2717 img_103: HTTP Error 403: Forbidden\n  \\u2717 img_104: HTTP Error 403: Forbidden\n  \\u2717 img_105: HTTP Error 403: Forbidden\n  \\u2717 img_106: HTTP Error 403: Forbidden\n  \\u2717 img_107: HTTP Error 403: Forbidden\n  \\u2717 img_108: HTTP Error 403: Forbidden\n  \\u2717 img_109: HTTP Error 403: Forbidden\n  \\u2717 img_110: HTTP Error 403: Forbidden\n  \\u2717 img_111: HTTP Error 403: Forbidden\n  \\u2717 img_112: HTTP Error 403: Forbidden\n  \\u2717 img_113: HTTP Error 403: Forbidden\n  \\u2717 img_114: HTTP Error 403: Forbidden\n  \\u2717 img_115: HTTP Error 403: Forbidden\n  \\u2717 img_116: HTTP Error 403: Forbidden\n  \\u2717 img_117: HTTP Error 403: Forbidden\n  \\u2717 img_118: HTTP Error 403: Forbidden\n  \\u2717 img_119: HTTP Error 403: Forbidden\n  \\u2717 img_120: HTTP Error 403: Forbidden\n  \\u2717 img_121: HTTP Error 403: Forbidden\n  \\u2717 img_122: HTTP Error 403: Forbidden\n  \\u2717 img_123: HTTP Error 403: Forbidden\n  \\u2717 img_124: HTTP Error 403: Forbidden\n  \\u2717 img_125: HTTP Error 403: Forbidden\n  \\u2717 img_126: HTTP Error 403: Forbidden\n  \\u2717 img_127: HTTP Error 403: Forbidden\n  \\u2717 img_128: HTTP Error 403: Forbidden\n  \\u2717 img_129: HTTP Error 403: Forbidden\n  \\u2717 img_130: HTTP Error 403: Forbidden\n  \\u2717 img_131: HTTP Error 403: Forbidden\n  \\u2717 img_132: HTTP Error 403: Forbidden\n  \\u2717 img_133: HTTP Error 403: Forbidden\n  \\u2717 img_134: HTTP Error 403: Forbidden\n  \\u2717 img_135: HTTP Error 403: Forbidden\n  \\u2717 img_136: HTTP Error 403: Forbidden\n  \\u2717 img_137: HTTP Error 403: Forbidden\n  \\u2717 img_138: HTTP Error 403: Forbidden\n  \\u2717 img_139: HTTP Error 403: Forbidden\n  \\u2717 img_140: HTTP Error 403: Forbidden\n  \\u2717 img_141: HTTP Error 403: Forbidden\n  \\u2717 img_142: HTTP Error 403: Forbidden\n  \\u2717 img_143: HTTP Error 403: Forbidden\n  \\u2717 img_144: HTTP Error 403: Forbidden\n  \\u2717 img_145: HTTP Error 403: Forbidden\n  \\u2717 img_146: HTTP Error 403: Forbidden\n  \\u2717 img_147: HTTP Error 403: Forbidden\n  \\u2717 img_148: HTTP Error 403: Forbidden\n  \\u2717 img_149: HTTP Error 403: Forbidden\n  \\u2717 img_150: HTTP Error 403: Forbidden\n  \\u2717 img_151: HTTP Error 403: Forbidden\n  \\u2717 img_152: HTTP Error 403: Forbidden\n  \\u2717 img_153: HTTP Error 403: Forbidden\n  \\u2717 img_154: HTTP Error 403: Forbidden\n  \\u2717 img_155: HTTP Error 403: Forbidden\n  \\u2717 img_156: HTTP Error 403: Forbidden\n  \\u2717 img_157: HTTP Error 403: Forbidden\n  \\u2717 img_158: HTTP Error 403: Forbidden\n  \\u2717 img_159: HTTP Error 403: Forbidden\n  \\u2717 img_160: HTTP Error 403: Forbidden\n  \\u2717 img_161: HTTP Error 403: Forbidden\n  \\u2717 img_162: HTTP Error 403: Forbidden\n  \\u2717 img_163: HTTP Error 403: Forbidden\n  \\u2717 img_164: HTTP Error 403: Forbidden\n  \\u2717 img_165: HTTP Error 403: Forbidden\n  \\u2717 img_166: HTTP Error 403: Forbidden\n  \\u2717 img_167: HTTP Error 403: Forbidden\n  \\u2717 img_168: HTTP Error 403: Forbidden\n  \\u2717 img_169: HTTP Error 403: Forbidden\n  \\u2717 img_170: HTTP Error 403: Forbidden\n  \\u2717 img_171: HTTP Error 403: Forbidden\n  \\u2717 img_172: HTTP Error 403: Forbidden\n  \\u2717 img_173: HTTP Error 403: Forbidden\n  \\u2717 img_174: HTTP Error 403: Forbidden\n\\u274c 本次没有任何一张真实生成成功（端点可能 503/超时，已重试仍失败）。\n   注意：previews/ 里就算有 .png 也不算数——这道闸看的是『本次是否真生成成功』，\n   不是『目录里有没有文件』。别用复制图/占位图糊弄；端点恢复后重跑即可。",
+    "passed": false
+  }
+]

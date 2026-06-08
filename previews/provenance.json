@@ -1,0 +1,1752 @@
+[
+  {
+    "name": "img_000",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:38.141490+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_001",
+    "prompt": "\"rootNodeId\": \"n0\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:39.119757+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_002",
+    "prompt": "\"version\": 2,",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:39.735394+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_003",
+    "prompt": "\"successCriteria\": [",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:40.412323+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_004",
+    "prompt": "{ \"id\": \"sc1\", \"text\": \"场景拥有完整的天空系统——动态渐变天空替代纯暗背景，支持黄昏/夜间的环境光照变化，云层可辨识\" },",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:41.088692+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_005",
+    "prompt": "{ \"id\": \"sc2\", \"text\": \"体积雾效果从'5层平面'升级为多层渐变雾，产生明显的纵深感和大气散射效果，远处建筑自然消融于雾中\" },",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:42.520723+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_006",
+    "prompt": "{ \"id\": \"sc3\", \"text\": \"后处理管线包含至少4种效果（Bloom + 色差 + 胶片颗粒 + 暗角），场景具有电影级质感\" },",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:43.101730+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_007",
+    "prompt": "{ \"id\": \"sc4\", \"text\": \"建筑数量翻倍至 50+，密度和层次感显著提升，形成'城市峡谷'视觉效果\" },",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:43.736683+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_008",
+    "prompt": "{ \"id\": \"sc5\", \"text\": \"全息广告牌数量增至 30+，覆盖建筑立面 60% 以上面积，形成霓虹灯海效果\" },",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:44.738373+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_009",
+    "prompt": "{ \"id\": \"sc6\", \"text\": \"飞行载具增至 25+，增加光线拖尾的视觉丰富度，空中交通密度感提升\" },",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:45.447299+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_010",
+    "prompt": "{ \"id\": \"sc7\", \"text\": \"场景整体色调从'暗紫+饱和霓虹'转变为'冷蓝灰基底+选择性霓虹高光'的电影调色风格\" },",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:46.173458+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_011",
+    "prompt": "{ \"id\": \"sc8\", \"text\": \"改造后场景在中端设备上保持 ≥30 FPS，无明显卡顿\" }",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:47.323971+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_012",
+    "prompt": "],",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:48.217271+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_013",
+    "prompt": "\"nodes\": [",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:48.982643+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_014",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:50.092069+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_015",
+    "prompt": "\"id\": \"n0\", \"parentId\": null, \"type\": \"requirement\", \"title\": \"赛博朋克场景电影级视觉跃迁\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:50.829729+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_016",
+    "prompt": "\"acceptance\": \"当用户查看场景时，应感受到从风格化微缩城市到沉浸式电影级赛博都市的视觉跃迁，密度、氛围、尺度感全面升级。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:52.977356+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_017",
+    "prompt": "\"coversCriteria\": [\"sc1\", \"sc2\", \"sc3\", \"sc4\", \"sc5\", \"sc6\", \"sc7\", \"sc8\"],",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:54.631415+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_018",
+    "prompt": "\"evidenceRefs\": [\"nE1\", \"nE2\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:56.555336+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_019",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:57.221492+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_020",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:58.018366+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_021",
+    "prompt": "\"id\": \"n1\", \"parentId\": \"n0\", \"type\": \"requirement\", \"title\": \"天空与大气系统\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:38:59.881440+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_022",
+    "prompt": "\"acceptance\": \"当摄像机向上或向远处观察时，系统应显示渐变天空背景，带有可辨识的云层纹理，并根据环境模式产生相应的环境光照。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:00.519835+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_023",
+    "prompt": "\"coversCriteria\": [\"sc1\"],",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:01.212432+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_024",
+    "prompt": "\"evidenceRefs\": [\"nE2\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:01.988558+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_025",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:03.744694+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_026",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:04.363260+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_027",
+    "prompt": "\"id\": \"n2\", \"parentId\": \"n0\", \"type\": \"requirement\", \"title\": \"体积雾与大气散射\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:05.001202+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_028",
+    "prompt": "\"acceptance\": \"当物体距离摄像机超过 50 个单位时，系统应通过多层渐变雾将其自然消融于大气中，形成明显的纵深层次感。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:05.875858+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_029",
+    "prompt": "\"coversCriteria\": [\"sc2\"],",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:06.608094+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_030",
+    "prompt": "\"evidenceRefs\": [\"nE3\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:07.555858+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_031",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:08.229928+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_032",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:08.975263+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_033",
+    "prompt": "\"id\": \"n3\", \"parentId\": \"n0\", \"type\": \"requirement\", \"title\": \"电影级后处理管线\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:10.523152+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_034",
+    "prompt": "\"acceptance\": \"当场景渲染完成后，系统应依次执行 Bloom、色差、胶片颗粒、暗角四种后处理效果，使画面具有电影级质感。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:11.177355+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_035",
+    "prompt": "\"coversCriteria\": [\"sc3\"],",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:12.941355+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_036",
+    "prompt": "\"evidenceRefs\": [\"nE4\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:14.586340+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_037",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:16.337003+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_038",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:17.300474+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_039",
+    "prompt": "\"id\": \"n4\", \"parentId\": \"n0\", \"type\": \"requirement\", \"title\": \"建筑密度与城市峡谷\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:18.024948+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_040",
+    "prompt": "\"acceptance\": \"当场景加载时，系统应生成 50 栋以上背景建筑，按多环分布形成城市峡谷效果，高层建筑穿插中层建筑产生丰富天际线。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:18.793357+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_041",
+    "prompt": "\"coversCriteria\": [\"sc4\"],",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:19.478419+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_042",
+    "prompt": "\"evidenceRefs\": [\"nE5\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:20.133006+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_043",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:20.738733+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_044",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:21.454209+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_045",
+    "prompt": "\"id\": \"n5\", \"parentId\": \"n0\", \"type\": \"requirement\", \"title\": \"全息广告霓虹灯海\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:22.186106+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_046",
+    "prompt": "\"acceptance\": \"当建筑可见时，系统应在其立面上展示 30+ 个全息广告牌，覆盖建筑侧面 60% 以上面积，形成霓虹灯海效果。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:22.885030+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_047",
+    "prompt": "\"coversCriteria\": [\"sc5\"],",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:23.677348+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_048",
+    "prompt": "\"evidenceRefs\": [\"nE6\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:24.309001+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_049",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:24.992596+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_050",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:25.563528+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_051",
+    "prompt": "\"id\": \"n6\", \"parentId\": \"n0\", \"type\": \"requirement\", \"title\": \"空中交通密度提升\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:26.994477+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_052",
+    "prompt": "\"acceptance\": \"当场景运行时，系统应渲染 25+ 架飞行载具在不同轨道和高度运行，每架载具带有可见的光线拖尾。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:27.695597+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_053",
+    "prompt": "\"coversCriteria\": [\"sc6\"],",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:28.366876+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_054",
+    "prompt": "\"evidenceRefs\": [\"nE7\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:29.079271+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_055",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:36.935795+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_056",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:37.539992+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_057",
+    "prompt": "\"id\": \"n7\", \"parentId\": \"n0\", \"type\": \"requirement\", \"title\": \"电影调色与色调重映射\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:38.241257+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_058",
+    "prompt": "\"acceptance\": \"当场景渲染完成时，系统应通过后处理色调映射将整体色调从暗紫转为冷蓝灰基底，并保留霓虹高光的选择性饱和。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:39.003151+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_059",
+    "prompt": "\"coversCriteria\": [\"sc7\"],",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:39.687229+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_060",
+    "prompt": "\"evidenceRefs\": [\"nE4\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:40.513764+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_061",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:41.428461+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_062",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:42.045578+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_063",
+    "prompt": "\"id\": \"n8\", \"parentId\": \"n0\", \"type\": \"requirement\", \"title\": \"性能达标\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:42.776926+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_064",
+    "prompt": "\"acceptance\": \"当在中端设备（GTX1060/M1）上运行时，场景帧率应保持 ≥30 FPS，无明显卡顿或掉帧。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:44.832696+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_065",
+    "prompt": "\"coversCriteria\": [\"sc8\"],",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:45.857713+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_066",
+    "prompt": "\"evidenceRefs\": [\"nE8\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:46.551823+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_067",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:47.235318+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_068",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:47.960854+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_069",
+    "prompt": "\"id\": \"n10\", \"parentId\": \"n1\", \"type\": \"design\", \"title\": \"天空穹顶设计\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:48.581263+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_070",
+    "prompt": "\"notes\": \"使用自定义 ShaderMaterial 实现渐变天空穹顶，顶色为深蓝-暗紫过渡，地平线附近为暖橙-暗红色渐变。使用程序化云层纹理叠加在穹顶上半部，通过 alpha 通道控制云层密度。穹顶半径 200，位于场景最远层。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:49.273089+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_071",
+    "prompt": "\"evidenceRefs\": [\"nE2\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:49.996560+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_072",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:51.080021+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_073",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:54.680846+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_074",
+    "prompt": "\"id\": \"n11\", \"parentId\": \"n2\", \"type\": \"design\", \"title\": \"多层渐变体积雾设计\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:55.523894+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_075",
+    "prompt": "\"notes\": \"替换现有 5 层固定半透明平面为 10+ 层渐变雾平面，使用高度函数控制 opacity（近地面 0.15，中间 0.08，高空 0.03）。近地面增加 2 层低空烟雾（y=1~3, opacity=0.2），模拟街道层面的烟尘。雾色从 #1a1a2e 调整为 #2a2a4e（更亮更蓝）。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:56.240567+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_076",
+    "prompt": "\"evidenceRefs\": [\"nE3\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:56.937578+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_077",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:57.612361+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_078",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:58.299642+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_079",
+    "prompt": "\"id\": \"n12\", \"parentId\": \"n3\", \"type\": \"design\", \"title\": \"后处理管线设计\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:59.012927+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_080",
+    "prompt": "\"notes\": \"在 EffectComposer 中添加：ChromaticAberration（偏移量 0.002-0.005，径向模式）、Noise（强度 0.08-0.12，用于胶片颗粒）、Vignette（偏移 0.3，程度 0.4）。ToneMapping 使用 ACESFilmic，exposure=0.9。Bloom 参数保持 luminanceThreshold=0.6 但 intensity 调整为 1.0。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:39:59.699176+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_081",
+    "prompt": "\"evidenceRefs\": [\"nE4\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:00.332179+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_082",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:00.931387+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_083",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:01.652831+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_084",
+    "prompt": "\"id\": \"n13\", \"parentId\": \"n4\", \"type\": \"design\", \"title\": \"建筑密度扩展设计\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:02.327861+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_085",
+    "prompt": "\"notes\": \"将近处建筑从 20 栋增至 35 栋（三环分布：内环 8、中环 12、外环 15），远处天际线从 8 栋增至 20 栋（两层天际线：近天际 10、远天际 10，高度 40-80）。新增超远距离建筑（80-120 半径，高度 20-40，简化几何——仅主体+发光窗户条带，无退台/天线/装饰细节）。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:04.010738+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_086",
+    "prompt": "\"evidenceRefs\": [\"nE5\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:04.721578+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_087",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:05.415888+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_088",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:06.079153+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_089",
+    "prompt": "\"id\": \"n14\", \"parentId\": \"n5\", \"type\": \"design\", \"title\": \"全息广告扩展设计\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:06.814809+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_090",
+    "prompt": "\"notes\": \"每栋建筑分配 2-4 个广告牌（从 0-2 增至 2-4），新增两种广告类型：大型立面广告（覆盖 3-5 层楼高度）和小型霓虹标牌（密集排列在低楼层）。广告文字词库扩展至 30+。广告发光强度提升至 emissiveIntensity=3.0-5.0。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:07.458380+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_091",
+    "prompt": "\"evidenceRefs\": [\"nE6\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:08.165240+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_092",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:09.087178+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_093",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:10.853426+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_094",
+    "prompt": "\"id\": \"n15\", \"parentId\": \"n6\", \"type\": \"design\", \"title\": \"飞行载具密度扩展设计\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:12.308086+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_095",
+    "prompt": "\"notes\": \"将载具从 15 增至 30（18 汽车 + 12 无人机），轨道半径范围 10-60（从 15-50 扩大），高度范围 8-50（从 12-37 扩大）。新增载具类型：大型运输飞船（缓慢移动，体积 2-3 倍，带 3 条平行拖尾）。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:13.051962+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_096",
+    "prompt": "\"evidenceRefs\": [\"nE7\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:13.808194+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_097",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:14.486704+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_098",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:15.166669+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_099",
+    "prompt": "\"id\": \"n16\", \"parentId\": \"n7\", \"type\": \"design\", \"title\": \"电影调色设计\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:21.144379+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_100",
+    "prompt": "\"notes\": \"整体色调重映射：基底色从暗紫(#1a1a2e)转为冷蓝灰(#1a1a3a)，环境光从紫色调转为中性偏蓝。通过 ToneMapping 后处理实现：暗部偏冷蓝，中间调保持中性，亮部保留霓虹饱和色。Bloom 仅作用于 emissive 元素，不污染整体色调。\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:21.773554+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_101",
+    "prompt": "\"evidenceRefs\": [\"nE4\"]",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:22.464540+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_102",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:23.203324+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_103",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:24.034343+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_104",
+    "prompt": "\"id\": \"n20\", \"parentId\": \"n10\", \"type\": \"task\", \"title\": \"创建 SkyDome.tsx 组件\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:26.449295+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_105",
+    "prompt": "\"verify\": \"组件渲染渐变天空穹顶，向上观察可见渐变色+云层纹理\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:27.143125+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_106",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:27.846633+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_107",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:28.451764+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_108",
+    "prompt": "\"id\": \"n21\", \"parentId\": \"n11\", \"type\": \"task\", \"title\": \"重写 TowerScene.tsx 体积雾层\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:29.263165+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_109",
+    "prompt": "\"verify\": \"体积雾从 5 层增至 10+ 层，近地面增加低空烟雾层，远处建筑自然消融\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:30.023246+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_110",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:30.739476+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_111",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:32.465217+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_112",
+    "prompt": "\"id\": \"n22\", \"parentId\": \"n12\", \"type\": \"task\", \"title\": \"扩展 EffectComposer 后处理管线\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:33.152031+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_113",
+    "prompt": "\"verify\": \"EffectComposer 包含 Bloom + ChromaticAberration + Noise + Vignette 四种效果\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:33.978038+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_114",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:35.570290+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_115",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:36.358918+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_116",
+    "prompt": "\"id\": \"n23\", \"parentId\": \"n13\", \"type\": \"task\", \"title\": \"扩展 CyberpunkBuildings 建筑数量\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:37.134859+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_117",
+    "prompt": "\"verify\": \"背景建筑总计 55+ 栋，可见城市峡谷效果\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:38.091699+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_118",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:39.414447+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_119",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:40.080804+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_120",
+    "prompt": "\"id\": \"n24\", \"parentId\": \"n14\", \"type\": \"task\", \"title\": \"扩展 HolographicAds 广告密度\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:41.773115+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_121",
+    "prompt": "\"verify\": \"全息广告 30+ 个，建筑立面覆盖 60%+\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:42.368793+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_122",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:43.141621+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_123",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:43.874199+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_124",
+    "prompt": "\"id\": \"n25\", \"parentId\": \"n15\", \"type\": \"task\", \"title\": \"扩展 FlyingVehicles 载具数量\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:44.506303+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_125",
+    "prompt": "\"verify\": \"飞行载具 25+ 架，含大型运输飞船\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:45.104303+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_126",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:45.870778+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_127",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:47.504684+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_128",
+    "prompt": "\"id\": \"n26\", \"parentId\": \"n16\", \"type\": \"task\", \"title\": \"调整全局色调参数\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:48.155863+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_129",
+    "prompt": "\"verify\": \"场景基底色为冷蓝灰，霓虹保持饱和，电影感调色可感知\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:49.198089+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_130",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:49.954560+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_131",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:50.665528+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_132",
+    "prompt": "\"id\": \"n27\", \"parentId\": \"n8\", \"type\": \"task\", \"title\": \"性能验证与 LOD 优化\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:53.440960+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_133",
+    "prompt": "\"verify\": \"中端设备帧率 ≥30 FPS，远距离建筑使用简化几何\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:40:54.462635+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_134",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:16.139579+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_135",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:18.095698+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_136",
+    "prompt": "\"id\": \"nE1\", \"parentId\": \"n0\", \"type\": \"evidence\", \"title\": \"用户提供的对比图（图1当前状态 vs 图2目标方向）\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:19.142792+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_137",
+    "prompt": "\"source\": \"user_input:images\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:19.855161+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_138",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:20.596924+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_139",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:21.310590+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_140",
+    "prompt": "\"id\": \"nE2\", \"parentId\": \"n1\", \"type\": \"evidence\", \"title\": \"TowerScene.tsx 当前仅用 Stars + #1a1a2e 背景色，无天空系统\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:21.963437+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_141",
+    "prompt": "\"source\": \"repo://src/components/techtower/TowerScene.tsx\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:22.652224+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_142",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:23.523813+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_143",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:24.203707+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_144",
+    "prompt": "\"id\": \"nE3\", \"parentId\": \"n2\", \"type\": \"evidence\", \"title\": \"TowerScene.tsx 体积雾仅 5 层 opacity 0.04-0.12 半透明平面\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:41.171322+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_145",
+    "prompt": "\"source\": \"repo://src/components/techtower/TowerScene.tsx\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:42.871277+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_146",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:43.485402+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_147",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:44.100798+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_148",
+    "prompt": "\"id\": \"nE4\", \"parentId\": \"n3\", \"type\": \"evidence\", \"title\": \"EffectComposer 仅有 Bloom，postprocessing v6.39 支持 ChromaticAberration/Noise/Vignette\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:44.959882+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_149",
+    "prompt": "\"source\": \"repo://src/components/techtower/TowerScene.tsx + package.json\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:45.839367+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_150",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:41:46.847354+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_151",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:42:08.521784+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_152",
+    "prompt": "\"id\": \"nE5\", \"parentId\": \"n4\", \"type\": \"evidence\", \"title\": \"CyberpunkBuildings.tsx 当前 20近+8远共 28 栋建筑\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:42:30.535740+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_153",
+    "prompt": "\"source\": \"repo://src/components/cyberpunk/CyberpunkBuildings.tsx\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:42:52.256600+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_154",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:09.162557+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_155",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:09.888417+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_156",
+    "prompt": "\"id\": \"nE6\", \"parentId\": \"n5\", \"type\": \"evidence\", \"title\": \"HolographicAds.tsx 当前每栋 0-2 个广告，词库 12 条\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:10.674060+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_157",
+    "prompt": "\"source\": \"repo://src/components/cyberpunk/HolographicAds.tsx\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:32.439469+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_158",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:33.041316+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_159",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:33.680451+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_160",
+    "prompt": "\"id\": \"nE7\", \"parentId\": \"n6\", \"type\": \"evidence\", \"title\": \"FlyingVehicles.tsx 当前 15 架(60%汽车40%无人机)\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:34.352694+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_161",
+    "prompt": "\"source\": \"repo://src/components/cyberpunk/FlyingVehicles.tsx\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:35.023348+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_162",
+    "prompt": "},",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:35.683699+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_163",
+    "prompt": "{",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:36.384431+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_164",
+    "prompt": "\"id\": \"nE8\", \"parentId\": \"n8\", \"type\": \"evidence\", \"title\": \"性能约束来自 clarified_brief.nonFunctional 和 project_context.constraints\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:37.124521+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_165",
+    "prompt": "\"source\": \"clarified_brief:nonFunctional\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:40.301189+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_166",
+    "prompt": "}",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:56.555366+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_167",
+    "prompt": "],",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:57.275650+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_168",
+    "prompt": "\"provenance\": {",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:57.995408+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_169",
+    "prompt": "\"generationSource\": \"llm\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:43:59.570787+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_170",
+    "prompt": "\"promptId\": \"cyberpunk-cinematic-overhaul-2026-06-08\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:44:00.197201+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_171",
+    "prompt": "\"model\": \"llm-generated\",",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:44:01.254258+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_172",
+    "prompt": "\"fingerprint\": \"cc20260608-cinematic-overhaul\"",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:44:01.889634+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_173",
+    "prompt": "}",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:44:02.492999+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  },
+  {
+    "name": "img_174",
+    "prompt": "}",
+    "model": "gpt-image-2",
+    "label": "预览·未验证 / preview-unverified",
+    "ts": "2026-06-08T06:44:03.165906+00:00",
+    "ok": false,
+    "output": null,
+    "error": "HTTP Error 403: Forbidden"
+  }
+]

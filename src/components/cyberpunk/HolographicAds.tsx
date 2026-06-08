@@ -14,7 +14,7 @@ interface AdData {
   color: string
   width: number
   height: number
-  type: 'billboard' | 'sign' | 'hologram'
+  type: 'billboard' | 'sign' | 'hologram' | 'mega_billboard'
 }
 
 function generateAdsNearBuildings(buildings: BuildingData[]): AdData[] {
@@ -31,16 +31,36 @@ function generateAdsNearBuildings(buildings: BuildingData[]): AdData[] {
     { text: '数据洪流', color: '#30d158' },
     { text: 'NEXUS', color: '#64d2ff' },
     { text: 'MATRIX', color: '#ff9f0a' },
+    { text: '量子通讯', color: '#64d2ff' },
+    { text: '赛博空间', color: '#bf5af2' },
+    { text: '数据核心', color: '#ff375f' },
+    { text: '神经网络', color: '#0a84ff' },
+    { text: '全息投影', color: '#30d158' },
+    { text: '虚拟现实', color: '#ff9f0a' },
+    { text: '量子计算', color: '#64d2ff' },
+    { text: '人工智能', color: '#bf5af2' },
+    { text: '数字孪生', color: '#ff375f' },
+    { text: '元宇宙', color: '#0a84ff' },
+    { text: '信息洪流', color: '#30d158' },
+    { text: '深度学习', color: '#ff9f0a' },
+    { text: '边缘计算', color: '#64d2ff' },
+    { text: '脑机接口', color: '#bf5af2' },
+    { text: '纳米科技', color: '#ff375f' },
+    { text: '仿生义体', color: '#0a84ff' },
+    { text: '合成意识', color: '#30d158' },
+    { text: '数字永生', color: '#ff9f0a' },
+    { text: '基因编辑', color: '#64d2ff' },
+    { text: '超级智能', color: '#bf5af2' },
   ]
 
   const ads: AdData[] = []
-  const types: AdData['type'][] = ['billboard', 'sign', 'hologram']
+  const types: AdData['type'][] = ['billboard', 'sign', 'hologram', 'mega_billboard']
   let adId = 0
 
-  // 为每栋建筑分配0-2个广告牌，紧贴建筑立面
+  // 为每栋建筑分配2-4个广告牌，紧贴建筑立面
   for (let bi = 0; bi < buildings.length; bi++) {
     const b = buildings[bi]
-    const adCount = Math.floor(bi * 7.3) % 3 // 0, 1, or 2 ads per building
+    const adCount = 2 + Math.floor(Math.abs(Math.sin(bi * 3.7)) * 3) // 2-4 ads per building
     for (let ai = 0; ai < adCount; ai++) {
       const ad = adTexts[adId % adTexts.length]
       // 选择建筑的4个面之一
@@ -54,15 +74,29 @@ function generateAdsNearBuildings(buildings: BuildingData[]): AdData[] {
       else if (face === 2) { z += b.depth / 2 + offset; rotY = Math.PI }
       else { z -= b.depth / 2 + offset; rotY = 0 }
 
+      // 约每6个广告中有一个 mega_billboard
+      const isMega = adId % 6 === 0
+      const adType = isMega ? 'mega_billboard' : types[(bi + ai) % 3]
+
+      let adWidth: number
+      let adHeight: number
+      if (adType === 'mega_billboard') {
+        adWidth = 3.0
+        adHeight = 12.0 + (bi * 1.7) % 5.5 // 12.0 ~ 17.5 (3-5 floors)
+      } else {
+        adWidth = 1.5 + (bi * 0.3) % 2.5
+        adHeight = 0.6 + (bi * 0.17) % 1.0
+      }
+
       ads.push({
         id: adId++,
         position: [x, yPos, z],
         rotation: [0, rotY, 0],
         text: ad.text,
         color: ad.color,
-        width: 1.5 + (bi * 0.3) % 2.5,
-        height: 0.6 + (bi * 0.17) % 1.0,
-        type: types[(bi + ai) % 3],
+        width: adWidth,
+        height: adHeight,
+        type: adType,
       })
     }
   }
@@ -108,7 +142,9 @@ function HolographicAd({ data }: { data: AdData }) {
     // 辉光脉冲
     if (glowRef.current) {
       const m = glowRef.current.material as THREE.MeshStandardMaterial
-      m.emissiveIntensity = 0.5 + Math.sin(t * 2 + data.id) * 0.3
+      const baseIntensity = data.type === 'mega_billboard' ? 5.0 : 3.0
+      const pulseRange = data.type === 'mega_billboard' ? 1.0 : 1.0
+      m.emissiveIntensity = baseIntensity + Math.sin(t * 2 + data.id) * pulseRange
       m.opacity = 0.15 + Math.sin(t * 2.5 + data.id) * 0.08
     }
   })
@@ -149,7 +185,7 @@ function HolographicAd({ data }: { data: AdData }) {
         <meshStandardMaterial
           color={data.color}
           emissive={data.color}
-          emissiveIntensity={0.5}
+          emissiveIntensity={data.type === 'mega_billboard' ? 5.0 : 3.0}
           transparent
           opacity={0.15}
           side={THREE.DoubleSide}
@@ -163,7 +199,7 @@ function HolographicAd({ data }: { data: AdData }) {
           <meshStandardMaterial
             color={data.color}
             emissive={data.color}
-            emissiveIntensity={1}
+            emissiveIntensity={3.0}
             transparent
             opacity={0.5}
           />

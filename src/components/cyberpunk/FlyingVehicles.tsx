@@ -7,7 +7,7 @@ import * as THREE from 'three'
 
 interface VehicleData {
   id: number
-  type: 'car' | 'drone'
+  type: 'car' | 'drone' | 'transport'
   radius: number       // 轨道半径
   height: number       // 飞行高度
   speed: number        // 飞行速度
@@ -20,19 +20,35 @@ function generateVehicles(count: number): VehicleData[] {
   const colors = ['#0a84ff', '#ff375f', '#bf5af2', '#ff9f0a', '#64d2ff', '#30d158']
   const vehicles: VehicleData[] = []
 
+  // 生成汽车和无人机
   for (let i = 0; i < count; i++) {
     const isCar = Math.random() > 0.4
     vehicles.push({
       id: i,
       type: isCar ? 'car' : 'drone',
-      radius: 15 + Math.random() * 35,
-      height: 12 + Math.random() * 25,
+      radius: 10 + Math.random() * 50,
+      height: 8 + Math.random() * 42,
       speed: 0.15 + Math.random() * 0.35,
       angleOffset: Math.random() * Math.PI * 2,
       color: colors[Math.floor(Math.random() * colors.length)],
       size: isCar ? 0.3 + Math.random() * 0.3 : 0.15 + Math.random() * 0.15,
     })
   }
+
+  // 生成3辆运输载具
+  for (let i = 0; i < 3; i++) {
+    vehicles.push({
+      id: count + i,
+      type: 'transport',
+      radius: 20 + Math.random() * 30,
+      height: 15 + Math.random() * 30,
+      speed: 0.06 + Math.random() * 0.09,
+      angleOffset: Math.random() * Math.PI * 2,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      size: 0.7 + Math.random() * 0.2,
+    })
+  }
+
   return vehicles
 }
 
@@ -60,9 +76,9 @@ function FlyingVehicle({ data }: { data: VehicleData }) {
     }
   })
 
-  if (data.type === 'car') {
+  if (data.type === 'car' || data.type === 'transport') {
     return (
-      <group ref={groupRef}>
+      <group ref={groupRef} scale={data.type === 'transport' ? 2.5 : 1}>
         {/* 光迹拖尾 */}
         <Trail
           width={data.size * 1.5}
@@ -182,7 +198,7 @@ function FlyingVehicle({ data }: { data: VehicleData }) {
 /* ───────── 导出组件 ───────── */
 
 export default function FlyingVehicles() {
-  const vehicles = useMemo(() => generateVehicles(15), [])
+  const vehicles = useMemo(() => generateVehicles(30), [])
 
   return (
     <group>

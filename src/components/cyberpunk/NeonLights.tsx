@@ -17,7 +17,7 @@ function NeonTube({ points, color, radius = 0.04, pulseSpeed = 2 }: NeonTubeProp
   useFrame(({ clock }) => {
     if (ref.current) {
       const m = ref.current.material as THREE.MeshStandardMaterial
-      m.emissiveIntensity = 1.2 + Math.sin(clock.elapsedTime * pulseSpeed) * 0.6
+      m.emissiveIntensity = 2.0 + Math.sin(clock.elapsedTime * pulseSpeed) * 1.0
     }
   })
 
@@ -40,7 +40,7 @@ function NeonTube({ points, color, radius = 0.04, pulseSpeed = 2 }: NeonTubeProp
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={1.5}
+          emissiveIntensity={2.0}
           transparent
           opacity={0.9}
         />
