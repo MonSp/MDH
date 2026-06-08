@@ -30,17 +30,30 @@ function NeonTube({ points, color, radius = 0.04, pulseSpeed = 2 }: NeonTubeProp
     )
   }, [points])
 
+  // 灯管中点位置，用于放置伴随pointLight
+  const midPoint = useMemo(() => curve.getPoint(0.5), [curve])
+
   return (
-    <mesh ref={ref}>
-      <tubeGeometry args={[curve, 20, radius, 6, false]} />
-      <meshStandardMaterial
+    <group>
+      <mesh ref={ref}>
+        <tubeGeometry args={[curve, 20, radius, 6, false]} />
+        <meshStandardMaterial
+          color={color}
+          emissive={color}
+          emissiveIntensity={1.5}
+          transparent
+          opacity={0.9}
+        />
+      </mesh>
+      {/* 伴随点光源，照亮灯管周围 */}
+      <pointLight
+        position={midPoint}
         color={color}
-        emissive={color}
-        emissiveIntensity={1.5}
-        transparent
-        opacity={0.9}
+        intensity={0.8}
+        distance={6}
+        decay={2}
       />
-    </mesh>
+    </group>
   )
 }
 

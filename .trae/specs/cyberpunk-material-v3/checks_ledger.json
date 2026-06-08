@@ -1,0 +1,27 @@
+[
+  {
+    "ts": "2026-06-08T00:54:48.234890+00:00",
+    "cmd": [
+      "python",
+      ".trae/skills/whybuddy/scripts/validate_spec_tree.py",
+      ".trae/specs/cyberpunk-material-v3/spec_tree.json"
+    ],
+    "exitCode": 0,
+    "stdout": "通过 - 合法的规格树（19 个节点，5 条成功标准全覆盖）",
+    "stderr": "",
+    "passed": true
+  },
+  {
+    "ts": "2026-06-08T00:54:57.573701+00:00",
+    "cmd": [
+      "python",
+      ".trae/skills/whybuddy/scripts/check_companion.py",
+      ".trae/specs/cyberpunk-material-v3/companion_log.json",
+      ".trae/specs/cyberpunk-material-v3/spec_tree.json"
+    ],
+    "exitCode": 0,
+    "stdout": "通过 - 伴随层留痕合法（挑刺 1 条 / 接地 1 条，repoAvailable=False）",
+    "stderr": "",
+    "passed": true
+  }
+]

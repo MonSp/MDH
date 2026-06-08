@@ -1,8 +1,9 @@
-import React, { useRef, useState, useCallback, useEffect } from 'react'
+import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { OrbitControls, Stars } from '@react-three/drei'
+import { OrbitControls, Stars, Environment } from '@react-three/drei'
+import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import * as THREE from 'three'
-import { CyberpunkBuildings, FlyingVehicles, HolographicAds, CyberRain, NeonLights } from '../cyberpunk'
+import { CyberpunkBuildings, FlyingVehicles, HolographicAds, CyberRain, NeonLights, generateBuildings } from '../cyberpunk'
 import type { Project, ProjectDept, CustomTeam, CameraTarget } from './types'
 import { DEFAULT_DEPTS, PENTHOUSE_Y, BUILDING_H, PENTHOUSE_H, BUILDING_W, BUILDING_D } from './constants'
 import { BuildingBody, GlassCurtainWall, NeonEdges, Ground, Antenna, DataFlowParticles, PenthouseFloor, PenthouseWalls } from './BuildingScene'
@@ -149,6 +150,9 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
   const totalIterations = projects.reduce((sum, p) => sum + p.iterations, 0)
 
+  // 生成建筑群数据（共享给CyberpunkBuildings和HolographicAds）
+  const buildings = useMemo(() => generateBuildings(20, 15), [])
+
   return (
     <>
       <DuskSun />
@@ -172,9 +176,12 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
       <Stars radius={100} depth={50} count={2000} factor={4} saturation={0.5} fade speed={0.5} />
 
-      {/* 赛博朋克黄昏大气雾 */}
-      <fog attach="fog" args={['#1a0a2e', 50, 160]} />
+      {/* 赛博朋克大气雾 — 浓距离雾 */}
+      <fog attach="fog" args={['#1a0a2e', 5, 80]} />
       <color attach="background" args={['#1a0a2e']} />
+
+      {/* 本地HDR环境反射（不从CDN下载） */}
+      <Environment files="/dikhololo_night_1k.hdr" background={false} />
 
       <Ground />
       <BuildingBody />
@@ -183,9 +190,9 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       <NeonEdges />
 
       {/* 赛博朋克世界 */}
-      <CyberpunkBuildings />
+      <CyberpunkBuildings buildings={buildings} />
       <FlyingVehicles />
-      <HolographicAds />
+      <HolographicAds buildings={buildings} />
       <CyberRain />
       <NeonLights />
 
@@ -216,6 +223,23 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
       <FloorLabels />
       <CEOTextLabel />
+
+      {/* 后处理：Bloom辉光效果 */}
+      <EffectComposer>
+        <Bloom
+          luminanceThreshold={0.1}
+          luminanceSmoothing={0.9}
+          intensity={1.8}
+        />
+      </EffectComposer>
+
+      {/* 体积雾层 — 多层半透明平面模拟大气效果 */}
+      {[5, 10, 15, 20, 25].map((y, i) => (
+        <mesh key={`fog-layer-${i}`} position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[120, 120]} />
+          <meshBasicMaterial color="#1a0a2e" transparent opacity={0.04 + i * 0.02} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
     </>
   )
 }

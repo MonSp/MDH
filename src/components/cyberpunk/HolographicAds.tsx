@@ -2,6 +2,7 @@ import React, { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import * as THREE from 'three'
+import type { BuildingData } from './CyberpunkBuildings'
 
 /* ───────── 全息广告牌 / 霓虹招牌 ───────── */
 
@@ -16,7 +17,7 @@ interface AdData {
   type: 'billboard' | 'sign' | 'hologram'
 }
 
-function generateAds(): AdData[] {
+function generateAdsNearBuildings(buildings: BuildingData[]): AdData[] {
   const adTexts = [
     { text: 'AI', color: '#0a84ff' },
     { text: 'NEURAL', color: '#bf5af2' },
@@ -34,25 +35,36 @@ function generateAds(): AdData[] {
 
   const ads: AdData[] = []
   const types: AdData['type'][] = ['billboard', 'sign', 'hologram']
+  let adId = 0
 
-  for (let i = 0; i < 12; i++) {
-    const angle = (i / 12) * Math.PI * 2 + Math.random() * 0.3
-    const radius = 18 + Math.random() * 20
-    const x = Math.cos(angle) * radius
-    const z = Math.sin(angle) * radius
-    const y = 5 + Math.random() * 18
+  // 为每栋建筑分配0-2个广告牌，紧贴建筑立面
+  for (let bi = 0; bi < buildings.length; bi++) {
+    const b = buildings[bi]
+    const adCount = Math.floor(bi * 7.3) % 3 // 0, 1, or 2 ads per building
+    for (let ai = 0; ai < adCount; ai++) {
+      const ad = adTexts[adId % adTexts.length]
+      // 选择建筑的4个面之一
+      const face = (bi * 3 + ai * 7) % 4
+      const yPos = 2 + (ai * b.height * 0.4) + (bi * 1.7) % (b.height * 0.5)
+      let x = b.position[0], z = b.position[2]
+      let rotY = 0
+      const offset = 0.1 // 贴建筑表面的偏移
+      if (face === 0) { x += b.width / 2 + offset; rotY = Math.PI / 2 }
+      else if (face === 1) { x -= b.width / 2 + offset; rotY = -Math.PI / 2 }
+      else if (face === 2) { z += b.depth / 2 + offset; rotY = Math.PI }
+      else { z -= b.depth / 2 + offset; rotY = 0 }
 
-    const ad = adTexts[i % adTexts.length]
-    ads.push({
-      id: i,
-      position: [x, y, z],
-      rotation: [0, -angle + Math.PI, 0],
-      text: ad.text,
-      color: ad.color,
-      width: 2 + Math.random() * 3,
-      height: 0.8 + Math.random() * 1.2,
-      type: types[Math.floor(Math.random() * types.length)],
-    })
+      ads.push({
+        id: adId++,
+        position: [x, yPos, z],
+        rotation: [0, rotY, 0],
+        text: ad.text,
+        color: ad.color,
+        width: 1.5 + (bi * 0.3) % 2.5,
+        height: 0.6 + (bi * 0.17) % 1.0,
+        type: types[(bi + ai) % 3],
+      })
+    }
   }
   return ads
 }
@@ -171,8 +183,8 @@ function HolographicAd({ data }: { data: AdData }) {
 
 /* ───────── 导出组件 ───────── */
 
-export default function HolographicAds() {
-  const ads = useMemo(() => generateAds(), [])
+export default function HolographicAds({ buildings }: { buildings: BuildingData[] }) {
+  const ads = useMemo(() => generateAdsNearBuildings(buildings), [buildings])
 
   return (
     <group>

@@ -1,5 +1,6 @@
 import React, { useRef, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
+import { Trail } from '@react-three/drei'
 import * as THREE from 'three'
 
 /* ───────── 飞行载具（飞行汽车 + 无人机） ───────── */
@@ -62,6 +63,19 @@ function FlyingVehicle({ data }: { data: VehicleData }) {
   if (data.type === 'car') {
     return (
       <group ref={groupRef}>
+        {/* 光迹拖尾 */}
+        <Trail
+          width={data.size * 1.5}
+          length={6}
+          color={data.color}
+          attenuation={(w) => w * w}
+          trailLength={6}
+        >
+          <mesh>
+            <sphereGeometry args={[0.01, 4, 4]} />
+            <meshBasicMaterial visible={false} />
+          </mesh>
+        </Trail>
         {/* 车身 */}
         <mesh castShadow>
           <boxGeometry args={[data.size * 2, data.size * 0.5, data.size]} />
@@ -116,6 +130,19 @@ function FlyingVehicle({ data }: { data: VehicleData }) {
   // 无人机
   return (
     <group ref={groupRef}>
+      {/* 光迹拖尾 */}
+      <Trail
+        width={data.size * 1.2}
+        length={5}
+        color={data.color}
+        attenuation={(w) => w * w}
+        trailLength={5}
+      >
+        <mesh>
+          <sphereGeometry args={[0.01, 4, 4]} />
+          <meshBasicMaterial visible={false} />
+        </mesh>
+      </Trail>
       {/* 机身 */}
       <mesh castShadow>
         <cylinderGeometry args={[data.size, data.size, data.size * 0.4, 6]} />

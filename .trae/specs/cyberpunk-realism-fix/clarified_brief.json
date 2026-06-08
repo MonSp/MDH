@@ -1,0 +1,31 @@
+{
+  "goal": "解决赛博朋克3D世界不够真实的问题，让地面、建筑、环境光、霓虹灯管等元素呈现真实的赛博朋克夜间城市效果",
+  "constraints": [
+    "使用 @react-three/fiber + @react-three/drei 生态",
+    "不引入额外重量级依赖（避免全量postprocessing库，用轻量方案）",
+    "保持现有组件结构不变，只修改材质参数和光照配置",
+    "性能可控：bloom等后处理不能导致帧率大幅下降"
+  ],
+  "successCriteria": [
+    {
+      "id": "sc1",
+      "text": "地面可见度提升：基础地面和道路的emissiveIntensity提升到0.4以上，地面元素在默认视角下清晰可辨"
+    },
+    {
+      "id": "sc2",
+      "text": "建筑表面可见：建筑材质添加环境反射或适当降低metalness，建筑表面在默认视角下不呈现纯黑色"
+    },
+    {
+      "id": "sc3",
+      "text": "霓虹灯管照亮周围：每个NeonTube组件附带一个近距离pointLight，使灯管附近物体被照亮"
+    },
+    {
+      "id": "sc4",
+      "text": "窗户发光效果：GlassCurtainWall添加emissive属性，窗户在暗环境下呈现室内灯光效果"
+    },
+    {
+      "id": "sc5",
+      "text": "后处理Bloom生效：引入EffectComposer+Bloom，emissive材质在画面中呈现真实辉光"
+    }
+  ]
+}

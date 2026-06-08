@@ -97,6 +97,8 @@ export function GlassCurtainWall() {
     thickness: 0.5,
     transparent: true,
     opacity: 0.4,
+    emissive: new THREE.Color('#1a2a4a'),
+    emissiveIntensity: 0.4,
     side: THREE.DoubleSide,
   }), [])
 
