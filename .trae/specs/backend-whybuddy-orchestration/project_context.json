@@ -1,0 +1,139 @@
+{
+  "goal": "将 WhyBuddy 的闭环工作流哲学（Spec-Validate-Handoff、伴随式审查、确定性门禁、证据追踪、EARS 验收）应用到后端 Python 多智能体协作编排系统中",
+  "summary": "当前后端是一个基于会议模型的多智能体协作平台（FastAPI + agentscope），包含 PlannerAgent/ExecutorAgent/MeetingCoordinator/WorkflowEngine 等核心组件。优势在于多角色协作框架完整（角色分工、消息通信、工作流引擎、协商共识、经验循环），但缺乏 WhyBuddy 式的确定性验证门禁、结构化规格管理、伴随式审查角色、EARS 验收标准和完整证据链。需要用 WhyBuddy 的方法论重新编排后端的多智能体协作流程。",
+  "sources": [
+    {
+      "type": "repo",
+      "path": "backend/collaboration/",
+      "description": "协作模块：collaborative_agent.py, communication.py, executor_agent.py, planner_agent.py"
+    },
+    {
+      "type": "repo",
+      "path": "backend/meeting_coordinator.py",
+      "description": "核心协调器：语义分析、任务分解、讨论协调、工作流生成"
+    },
+    {
+      "type": "repo",
+      "path": "backend/workflow_engine.py",
+      "description": "DAG 工作流引擎：拓扑排序、并行执行、条件分支"
+    },
+    {
+      "type": "repo",
+      "path": "backend/negotiation.py",
+      "description": "协商引擎：提案-论据-投票共识"
+    },
+    {
+      "type": "repo",
+      "path": "backend/agent.py",
+      "description": "核心 LLM Agent：agentscope 流式执行"
+    },
+    {
+      "type": "repo",
+      "path": "backend/protocol.py",
+      "description": "数据结构定义：所有协议/序列化"
+    },
+    {
+      "type": "repo",
+      "path": "backend/trace.py",
+      "description": "追踪系统：结构化日志 + span 树"
+    },
+    {
+      "type": "repo",
+      "path": "backend/compensation.py",
+      "description": "补偿引擎 + 检查点管理"
+    },
+    {
+      "type": "repo",
+      "path": "backend/experience_extractor.py",
+      "description": "经验提炼器：执行日志 -> 规则 -> 审核 -> 注入"
+    },
+    {
+      "type": "repo",
+      "path": "backend/project_manager.py",
+      "description": "项目管理器：DAG 驱动的员工实例化"
+    },
+    {
+      "type": "skill",
+      "path": ".trae/skills/whybuddy/SKILL.md",
+      "description": "WhyBuddy 方法论定义"
+    }
+  ],
+  "grounding": {
+    "repoAvailable": true,
+    "filesAnalyzed": [
+      "backend/collaboration/collaborative_agent.py",
+      "backend/collaboration/communication.py",
+      "backend/collaboration/executor_agent.py",
+      "backend/collaboration/planner_agent.py",
+      "backend/workflow_engine.py",
+      "backend/meeting_coordinator.py",
+      "backend/meeting.py",
+      "backend/agent.py",
+      "backend/project_manager.py",
+      "backend/dynamic_router.py",
+      "backend/negotiation.py",
+      "backend/protocol.py",
+      "backend/session.py",
+      "backend/trace.py",
+      "backend/compensation.py",
+      "backend/config.py",
+      "backend/server.py",
+      "backend/skill_packager.py",
+      "backend/skill_registry.py",
+      "backend/skills.py",
+      "backend/experience_extractor.py",
+      "backend/agenda.py",
+      "backend/agentscope_task_bridge.py",
+      "src/modules/agentCoordinator.ts",
+      "src/modules/taskPlanner.ts",
+      "src/modules/taskDecomposer.ts",
+      "src/modules/workflowEngine.ts",
+      "src/modules/negotiationEngine.ts",
+      "src/modules/compensationEngine.ts",
+      "src/modules/checkpointManager.ts",
+      "src/modules/deadlockDetector.ts",
+      "src/modules/communicationBus.ts",
+      "src/modules/conversationFlowController.ts",
+      "src/modules/multiAgentConversation.ts",
+      "src/modules/dynamicRouter.ts",
+      "src/modules/dependencyAnalyzer.ts",
+      "src/modules/taskAssigner.ts",
+      "src/modules/taskScheduler.ts",
+      "src/modules/speakingCoordinator.ts",
+      "src/modules/approvalQueue.ts",
+      "src/modules/traceContext.ts",
+      "src/modules/metricsCollector.ts",
+      "src/modules/agendaStateMachine.ts",
+      "src/modules/collaborationState.ts",
+      "src/modules/taskTypes.ts",
+      "src/modules/agentTypes.ts"
+    ],
+    "keyFindings": {
+      "strengths": [
+        "多角色协作框架完整：6 种角色（CEO/Planner/Executor/Monitor/Reviewer/Coordinator），各有明确的能力集",
+        "消息通信基础设施健壮：CommunicationBus 支持点对点/广播/主题三种通道，有去重、死信队列、重试机制",
+        "工作流引擎成熟：DAG 驱动，支持拓扑排序、并行执行、条件分支，有暂停/恢复/取消/重试",
+        "协商共识机制完善：提案-论据-投票三种共识策略，支持加权投票和论据置信度",
+        "经验循环闭环：执行 -> 提炼 -> 审核 -> 存储 -> 注入，已形成基本闭环",
+        "补偿与检查点：Saga 模式的补偿引擎 + 检查点恢复",
+        "分布式追踪基础设施：W3C Trace Context 标准的 span 树 + 结构化日志",
+        "动态路由：规则+语义+成功率的综合路由，支持自适应调整",
+        "议程状态机：9 阶段严格状态转换 + 发言权令牌管理"
+      ],
+      "gaps": [
+        "无确定性验证门禁：所有验证都是 LLM 生成的自然语言判断，没有可机器执行的脚本验证",
+        "无结构化规格管理（Spec Tree）：任务分解是扁平列表，不是带成功标准覆盖的树形结构",
+        "无伴随式审查角色（Critic/Grounding）：审查完全依赖 LLM 主观判断，无确定性 Critic 和 Grounding",
+        "验收标准不结构化：acceptance_criteria 是自然语言描述，非 EARS 句式，不可机器验证",
+        "证据链不完整：追踪基础设施存在但未被充分利用，缺少决策证据记录",
+        "无 Spec-Validate-Handoff 闭环：有 plan->execute 但无 validate->handoff 的标准化流程",
+        "无校验台账：没有记录哪些质量门被实际执行过",
+        "路由无显式回退链：DynamicRouter 是单次决策，失败后无自动切换到备选路径",
+        "任务分解硬编码：PlannerAgent._decompose_task() 基于关键词匹配，不是结构化分解",
+        "前后端双写：前端 TypeScript（src/modules/）和后端 Python（backend/）有大量功能重叠"
+      ],
+      "architecturePattern": "当前架构：用户输入 -> WebSocket -> Server -> MeetingCoordinator -> 语义分析/任务模式/工作流模式/讨论模式 -> 经验提炼 + 技能打包",
+      "whybuddyTarget": "目标架构：用户输入 -> Input接地(含Grounding) -> Clarification(含Critic) -> Route Planning(带回退链) -> Decision(单Agent/多角色自适应) -> Spec Tree生成(确定性校验门禁) -> Spec文档(章节契约校验) -> Preview&Handoff(交付包) -> Review&Feedback(按层级回退)"
+    }
+  }
+}

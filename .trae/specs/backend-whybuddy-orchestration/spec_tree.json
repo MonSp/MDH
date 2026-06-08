@@ -1,0 +1,247 @@
+{
+  "rootNodeId": "n0",
+  "version": 2,
+  "successCriteria": [
+    { "id": "sc1", "text": "每个任务从输入到交付必须经过结构化的 Spec Tree（树形规格），且 Spec Tree 必须通过确定性校验脚本（节点数、EARS 验收、成功标准覆盖、证据贯穿）" },
+    { "id": "sc2", "text": "系统必须提供 Critic Agent 和 Grounding Agent 两个伴随式审查角色，Critic 自动发现被忽略的需求和矛盾约束，Grounding 强制每条结论挂真实代码证据" },
+    { "id": "sc3", "text": "每个阶段转换（输入->澄清->规划->执行->交付）必须经过确定性门禁（gate），门禁结果自动记入 checks_ledger 台账" },
+    { "id": "sc4", "text": "验收标准必须采用 EARS 句式（WHEN/IF 触发条件 + SHALL 可验证响应），且由确定性脚本验证其格式合规" },
+    { "id": "sc5", "text": "每个任务的决策链（路由选择、任务分解、Agent 分配、执行结果、验证结果）必须形成完整证据链，可通过 trace_id 从任一点追溯到全部关联产物" },
+    { "id": "sc6", "text": "路由和工作流执行必须具备显式回退链：首选路径失败时自动尝试备选路径，回退策略需提前声明而非事后补救" },
+    { "id": "sc7", "text": "MeetingCoordinator 的 5 个职责必须拆分为独立模块（SemanticAnalyzer、TaskOrchestrator、DiscussionManager、ReviewPipeline、SpecManager），每个模块可独立测试" }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "parentId": null,
+      "type": "requirement",
+      "title": "后端多智能体编排系统 WhyBuddy 化",
+      "acceptance": "WHEN 用户任务进入后端编排系统时，系统 SHALL 经过 Spec Tree 结构化规格 -> 确定性门禁验证 -> 伴随式审查 -> EARS 验收 -> 证据链记录的完整闭环后才能交付结果",
+      "coversCriteria": ["sc3"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n1",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "Spec Tree 结构化规格管理",
+      "acceptance": "WHEN 任务被 PlannerAgent 分解时，系统 SHALL 生成树形 Spec Tree（含 requirement/design/task/evidence 节点），且每个 requirement 节点 SHALL 包含 EARS 句式的 acceptance 字段和 coversCriteria 回链",
+      "coversCriteria": ["sc1"],
+      "evidenceRefs": ["nE2", "nE6"]
+    },
+    {
+      "id": "n2",
+      "parentId": "n1",
+      "type": "design",
+      "title": "SpecTree 数据结构与校验器设计",
+      "notes": "新建 backend/spec_tree.py，定义 SpecTreeNode（id/parentId/type/title/acceptance/coversCriteria/evidenceRefs/notes）、SpecTree（rootNodeId/nodes/successCriteria/provenance）、SpecTreeValidator（结构校验+EARS校验+覆盖校验+证据校验）。校验规则直接移植 WhyBuddy 的 validate_spec_tree.py 逻辑。",
+      "evidenceRefs": ["nE2", "nE6"]
+    },
+    {
+      "id": "n3",
+      "parentId": "n2",
+      "type": "task",
+      "title": "实现 spec_tree.py 并集成到 PlannerAgent",
+      "verify": "pytest backend/tests/test_spec_tree.py — 验证 SpecTreeNode 创建、树结构校验、EARS 格式检查、成功标准覆盖检查、证据贯穿检查"
+    },
+    {
+      "id": "n4",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "伴随式审查角色（Critic + Grounding）",
+      "acceptance": "WHEN 任务产出中间结果时，系统 SHALL 自动触发 Critic Agent 审查漏洞和 Grounding Agent 验证证据，且每次审查结果 SHALL 写入 companion_log.json",
+      "coversCriteria": ["sc2"],
+      "evidenceRefs": ["nE3", "nE6"]
+    },
+    {
+      "id": "n5",
+      "parentId": "n4",
+      "type": "design",
+      "title": "CriticAgent 与 GroundingAgent 设计",
+      "notes": "新建 backend/collaboration/critic_agent.py 和 grounding_agent.py。CriticAgent：接收任务上下文，调用 LLM 发现被忽略的需求域、矛盾约束、证据不足处，输出 findings 列表。GroundingAgent：接收任务产出，检查每条结论是否有真实代码/文件/接口出处，输出 sources 列表。两者都继承 ExecutorAgent 的消息通信能力，通过 CommunicationManager 注册为特殊 Agent。companion_log.json 格式与 WhyBuddy 一致。",
+      "evidenceRefs": ["nE3", "nE6"]
+    },
+    {
+      "id": "n6",
+      "parentId": "n5",
+      "type": "task",
+      "title": "实现 CriticAgent 和 GroundingAgent",
+      "verify": "pytest backend/tests/test_critic_agent.py backend/tests/test_grounding_agent.py — 验证 findings/sources 非空、companion_log 格式合规、有仓库时 grounding 必须引真实出处"
+    },
+    {
+      "id": "n7",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "确定性门禁系统（Gate Manager）",
+      "acceptance": "WHEN 任务在任意阶段转换时，系统 SHALL 运行确定性校验脚本作为门禁，且门禁结果 SHALL 自动记入 checks_ledger.json 台账（含脚本名、退出码、输出、时间戳）",
+      "coversCriteria": ["sc3"],
+      "evidenceRefs": ["nE4", "nE6"]
+    },
+    {
+      "id": "n8",
+      "parentId": "n7",
+      "type": "design",
+      "title": "GateManager 门禁管理器设计",
+      "notes": "新建 backend/gate_manager.py，移植 WhyBuddy gate.py 的设计哲学。GateManager：register_gate(name, validator_fn) 注册门禁 -> run_gate(name, context) 执行校验 -> 记录 {gate_name, exit_code, stdout, stderr, timestamp} 到 checks_ledger。内置 3 个门禁：spec_tree_gate（Spec Tree 结构校验）、ears_gate（EARS 句式校验）、coverage_gate（成功标准覆盖校验）。与现有 TraceContextManager 集成，每个 gate 执行生成一个 span。",
+      "evidenceRefs": ["nE4", "nE6"]
+    },
+    {
+      "id": "n9",
+      "parentId": "n8",
+      "type": "task",
+      "title": "实现 gate_manager.py 并集成到 WorkflowEngine",
+      "verify": "pytest backend/tests/test_gate_manager.py — 验证台账记录完整、gate 通过/失败两条支路、与 TraceContext 集成"
+    },
+    {
+      "id": "n10",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "EARS 验收标准引擎",
+      "acceptance": "WHEN Spec Tree 中的 requirement 节点被创建时，系统 SHALL 验证其 acceptance 字段符合 EARS 句式（包含 WHEN/IF 触发条件和 SHALL 可验证响应），不符合 SHALL 拒绝入库并返回具体违规项",
+      "coversCriteria": ["sc4"],
+      "evidenceRefs": ["nE2", "nE6"]
+    },
+    {
+      "id": "n11",
+      "parentId": "n10",
+      "type": "design",
+      "title": "EarsValidator 验收句式校验器设计",
+      "notes": "新建 backend/ears_validator.py。EarsValidator：validate(text) -> (bool, violations)。校验规则：(1) 必须包含触发条件词（WHEN/IF/当/若）；(2) 必须包含响应词（SHALL/应/必须）；(3) 触发条件在响应之前；(4) 不允许模糊词（应该/可能/尽量）。集成到 SpecTreeValidator 中作为 requirement 节点的校验步骤。",
+      "evidenceRefs": ["nE2", "nE6"]
+    },
+    {
+      "id": "n12",
+      "parentId": "n11",
+      "type": "task",
+      "title": "实现 ears_validator.py",
+      "verify": "pytest backend/tests/test_ears_validator.py — 验证合法 EARS 通过、缺少触发条件拒绝、缺少 SHALL 拒绝、模糊词拒绝、中英文混合支持"
+    },
+    {
+      "id": "n13",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "证据链追踪系统",
+      "acceptance": "WHEN 任务经过路由选择、分解、分配、执行、验证任一阶段时，系统 SHALL 记录该阶段的决策证据（输入、输出、判断依据、来源），并通过 trace_id 形成可追溯的完整证据链",
+      "coversCriteria": ["sc5"],
+      "evidenceRefs": ["nE4", "nE5"]
+    },
+    {
+      "id": "n14",
+      "parentId": "n13",
+      "type": "design",
+      "title": "EvidenceChain 证据链设计",
+      "notes": "新建 backend/evidence_chain.py。扩展现有 TraceContextManager，在每个 span 上附加 evidence 元数据（stage, decision, inputs, outputs, source_refs）。提供 EvidenceChain 类：add_evidence(trace_id, stage, evidence) -> 记录到 evidence_store；get_chain(trace_id) -> 返回完整证据链；get_decisions(trace_id, stage) -> 返回特定阶段的决策证据。与 SpecTree 的 evidenceRefs 双向关联。",
+      "evidenceRefs": ["nE4", "nE5"]
+    },
+    {
+      "id": "n15",
+      "parentId": "n14",
+      "type": "task",
+      "title": "实现 evidence_chain.py 并集成到全流程",
+      "verify": "pytest backend/tests/test_evidence_chain.py — 验证证据记录、trace_id 链完整性、与 SpecTree evidenceRefs 双向关联"
+    },
+    {
+      "id": "n16",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "显式回退链机制",
+      "acceptance": "WHEN 路由首选路径或工作流节点执行失败时，系统 SHALL 自动尝试备选路径（DynamicRouter 候选部门、WorkflowEngine 备选执行器），且回退策略 SHALL 在任务规划阶段提前声明",
+      "coversCriteria": ["sc6"],
+      "evidenceRefs": ["nE5", "nE7"]
+    },
+    {
+      "id": "n17",
+      "parentId": "n16",
+      "type": "design",
+      "title": "FallbackChain 回退链设计",
+      "notes": "扩展 backend/dynamic_router.py 的 RoutingDecision 增加 fallback_chain: List[RouteEntry] 字段，route() 方法返回首选+备选路径。扩展 backend/workflow_engine.py 的 WorkflowNode 增加 fallback_executor 字段，节点失败时自动切换执行器。与 CompensationEngine 集成：回退失败后自动触发补偿。",
+      "evidenceRefs": ["nE5", "nE7"]
+    },
+    {
+      "id": "n18",
+      "parentId": "n17",
+      "type": "task",
+      "title": "实现回退链机制",
+      "verify": "pytest backend/tests/test_fallback_chain.py — 验证路由回退、工作流节点回退、回退失败触发补偿、回退策略提前声明"
+    },
+    {
+      "id": "n19",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "MeetingCoordinator 职责拆分",
+      "acceptance": "WHEN MeetingCoordinator 处理用户消息时，系统 SHALL 将语义分析、任务编排、讨论管理、审查流水线、规格管理 5 个职责分别委托给独立模块，且每个模块 SHALL 可独立运行测试",
+      "coversCriteria": ["sc7"],
+      "evidenceRefs": ["nE3", "nE7"]
+    },
+    {
+      "id": "n20",
+      "parentId": "n19",
+      "type": "design",
+      "title": "MeetingCoordinator 拆分方案",
+      "notes": "将 meeting_coordinator.py 拆分为 5 个独立模块：(1) backend/semantic_analyzer.py — 封装 semantic_analyze() 和 DynamicRouter 调用；(2) backend/task_orchestrator.py — 封装 decompose_task()、assign_tasks()、execute_assigned_tasks()；(3) backend/discussion_manager.py — 封装 run_discussion() 和 NegotiationEngine 集成；(4) backend/review_pipeline.py — 封装 review_task_execution() 和 CriticAgent/GroundingAgent 集成；(5) backend/spec_manager.py — 封装 Spec Tree 生成、校验、文档派生。MeetingCoordinator 退化为薄路由层，只负责分发到这 5 个模块。",
+      "evidenceRefs": ["nE3", "nE7"]
+    },
+    {
+      "id": "n21",
+      "parentId": "n20",
+      "type": "task",
+      "title": "实现 MeetingCoordinator 拆分",
+      "verify": "pytest backend/tests/test_semantic_analyzer.py backend/tests/test_task_orchestrator.py backend/tests/test_discussion_manager.py backend/tests/test_review_pipeline.py backend/tests/test_spec_manager.py — 每个模块独立可测，MeetingCoordinator API 向后兼容"
+    },
+    {
+      "id": "nE1",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "当前后端架构：MeetingCoordinator 作为唯一协调入口",
+      "source": "repo://backend/meeting_coordinator.py#L1-L50 — 语义分析+任务分解+讨论协调+工作流生成+审查 5 个职责集中在一个类"
+    },
+    {
+      "id": "nE2",
+      "parentId": "n1",
+      "type": "evidence",
+      "title": "PlannerAgent 硬编码任务分解和关键词匹配验收",
+      "source": "repo://backend/collaboration/planner_agent.py#L45-L120 — _decompose_task() 3 个 if-elif 分支；#L130-L170 — generate_review_feedback() 50% 阈值关键词匹配"
+    },
+    {
+      "id": "nE3",
+      "parentId": "n4",
+      "type": "evidence",
+      "title": "当前审查流程完全依赖 LLM 主观判断",
+      "source": "repo://backend/meeting_coordinator.py#L350-L420 — review_task_execution() 多角色 LLM 审查，无确定性验证"
+    },
+    {
+      "id": "nE4",
+      "parentId": "n7",
+      "type": "evidence",
+      "title": "追踪基础设施存在但未充分使用",
+      "source": "repo://backend/trace.py#L1-L80 — TraceContextManager 和 StructuredLogger 已实现，但在业务流程中未被充分利用记录决策证据"
+    },
+    {
+      "id": "nE5",
+      "parentId": "n13",
+      "type": "evidence",
+      "title": "补偿引擎与工作流引擎集成不足",
+      "source": "repo://backend/compensation.py#L1-L100 — CompensationEngine 存在但 WorkflowEngine 节点失败时未自动触发"
+    },
+    {
+      "id": "nE6",
+      "parentId": "n1",
+      "type": "evidence",
+      "title": "WhyBuddy 方法论定义：Spec Tree Schema、EARS 验收、确定性门禁",
+      "source": "repo://.trae/skills/whybuddy/SKILL.md — 规格树 Schema、validate_spec_tree.py 校验规则、gate.py 台账设计、EARS 句式要求"
+    },
+    {
+      "id": "nE7",
+      "parentId": "n16",
+      "type": "evidence",
+      "title": "DynamicRouter 单次决策无回退链",
+      "source": "repo://backend/dynamic_router.py#L30-L80 — route() 返回单个 RoutingDecision，candidate_depts 未被用作回退路径"
+    }
+  ],
+  "provenance": {
+    "generationSource": "llm",
+    "promptId": "backend-whybuddy-orchestration-v1",
+    "model": "claude-sonnet-4-20250514",
+    "fingerprint": "spec_tree_backend_whybuddy_20260608"
+  }
+}

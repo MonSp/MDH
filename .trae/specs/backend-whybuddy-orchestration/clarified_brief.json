@@ -1,0 +1,67 @@
+{
+  "goal": "将 WhyBuddy 的闭环工作流哲学应用到后端 Python 多智能体协作编排系统，使其具备：结构化规格管理、确定性验证门禁、伴随式审查角色、EARS 验收标准、完整证据链、显式回退路径",
+  "constraints": [
+    "后端已有 24 个 Python 模块 + 前端 25+ TypeScript 模块，改造必须渐进式，不能重写",
+    "agentscope 框架是 LLM 执行层基础，不可替换",
+    "MeetingCoordinator 是当前唯一的协调入口，改造需保持 API 兼容",
+    "前端 src/modules/ 是独立实现层（非后端代理），本次改造聚焦后端 Python",
+    "改造不改变现有 6 角色模型（CEO/Planner/Executor/Monitor/Reviewer/Coordinator），而是增强其协作质量"
+  ],
+  "resolvedAmbiguities": [
+    {
+      "question": "前后端双写问题如何处理？",
+      "resolution": "本次改造聚焦后端 Python。前端 TypeScript 模块保持独立，后续通过 API 契约对齐。单一真相源在后端。",
+      "source": "project_context.grounding.keyFindings.gaps[9] + critic.findings[0]"
+    },
+    {
+      "question": "MeetingCoordinator 的 God Object 问题如何处理？",
+      "resolution": "将 MeetingCoordinator 的 5 个职责拆分为独立模块：SemanticAnalyzer、TaskOrchestrator、DiscussionManager、ReviewPipeline、SpecManager。MeetingCoordinator 退化为薄路由层。",
+      "source": "critic.findings[2] + repo://backend/meeting_coordinator.py"
+    },
+    {
+      "question": "确定性验证门禁的粒度？",
+      "resolution": "三个粒度：(1) 节点级 gate — 每个 WorkflowNode 执行后验证输出结构；(2) 阶段级 gate — Spec Tree 生成后验证完整性；(3) 会话级 gate — 任务交付前验证所有成功标准被覆盖。",
+      "source": "critic.findings[3] + whybuddy: validate_spec_tree.py 模式"
+    },
+    {
+      "question": "Critic/Grounding 与现有人工审核流程如何衔接？",
+      "resolution": "Critic/Grounding 是自动化的前置门禁（拦截明显问题），人工审核是后置质量保证。流程：执行 -> Critic自动审查 -> Grounding自动接地 -> 人工审核（可选）-> 归档。",
+      "source": "critic.findings[4] + backend/experience_extractor.py 审核流程"
+    },
+    {
+      "question": "补偿引擎如何与工作流引擎集成？",
+      "resolution": "WorkflowEngine 节点失败时自动触发 CompensationEngine.find_compensatable_tasks()，无需手动 retry_node()。",
+      "source": "critic.findings[5] + backend/compensation.py + backend/workflow_engine.py"
+    }
+  ],
+  "successCriteria": [
+    {
+      "id": "sc1",
+      "text": "每个任务从输入到交付必须经过结构化的 Spec Tree（树形规格），且 Spec Tree 必须通过确定性校验脚本（节点数、EARS 验收、成功标准覆盖、证据贯穿）"
+    },
+    {
+      "id": "sc2",
+      "text": "系统必须提供 Critic Agent 和 Grounding Agent 两个伴随式审查角色，Critic 自动发现被忽略的需求和矛盾约束，Grounding 强制每条结论挂真实代码证据"
+    },
+    {
+      "id": "sc3",
+      "text": "每个阶段转换（输入->澄清->规划->执行->交付）必须经过确定性门禁（gate），门禁结果自动记入 checks_ledger 台账"
+    },
+    {
+      "id": "sc4",
+      "text": "验收标准必须采用 EARS 句式（WHEN/IF 触发条件 + SHALL 可验证响应），且由确定性脚本验证其格式合规"
+    },
+    {
+      "id": "sc5",
+      "text": "每个任务的决策链（路由选择、任务分解、Agent 分配、执行结果、验证结果）必须形成完整证据链，可通过 trace_id 从任一点追溯到全部关联产物"
+    },
+    {
+      "id": "sc6",
+      "text": "路由和工作流执行必须具备显式回退链：首选路径失败时自动尝试备选路径，回退策略需提前声明而非事后补救"
+    },
+    {
+      "id": "sc7",
+      "text": "MeetingCoordinator 的 5 个职责必须拆分为独立模块（SemanticAnalyzer、TaskOrchestrator、DiscussionManager、ReviewPipeline、SpecManager），每个模块可独立测试"
+    }
+  ]
+}
