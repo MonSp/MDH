@@ -27,6 +27,7 @@ export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSing
   }, [])
 
   const [cameraNav, setCameraNav] = useState<CameraTarget | null>(null)
+  const [fogEnabled, setFogEnabled] = useState(true)
   const handleNavigate = useCallback((pos: [number, number, number], target: [number, number, number]) => {
     setCameraNav({ pos, target })
   }, [])
@@ -71,6 +72,7 @@ export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSing
           cameraNav={cameraNav}
           onFocusFloor={handleFocusFloor}
           activeDeptColor={activeDeptColor}
+          fogEnabled={fogEnabled}
         />
       </Canvas>
 
@@ -100,6 +102,24 @@ export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSing
       <ViewBookmarks onNavigate={handleNavigate} />
       <SidePanel panel={panel} onClose={handleClose} onCreateTeam={handleDoCreateTeam} onCreateProject={handleCreateProject} isMobile={isMobile} depts={DEFAULT_DEPTS} />
       <OverlayButtons onStartMeeting={onStartMeeting} onBackToSingle={onBackToSingle} />
+
+      {/* 云雾开关按钮 */}
+      <button
+        onClick={() => setFogEnabled(prev => !prev)}
+        style={{
+          position: 'absolute', bottom: 16, right: 16,
+          width: 40, height: 40, borderRadius: 8,
+          background: fogEnabled ? 'rgba(100,210,255,0.15)' : 'rgba(0,0,0,0.5)',
+          border: `1px solid ${fogEnabled ? 'rgba(100,210,255,0.5)' : 'rgba(100,210,255,0.2)'}`,
+          color: fogEnabled ? '#64d2ff' : '#4a5a7a',
+          fontSize: 16, cursor: 'pointer', zIndex: 10,
+          fontFamily: 'inherit', backdropFilter: 'blur(8px)',
+          transition: 'all 0.2s',
+        }}
+        title={fogEnabled ? '关闭云雾' : '开启云雾'}
+      >
+        ☁
+      </button>
     </div>
   )
 }

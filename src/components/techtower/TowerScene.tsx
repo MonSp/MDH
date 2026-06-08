@@ -106,7 +106,7 @@ function CyberpunkLights() {
 
 /* ───────── 完整 3D 场景 ───────── */
 
-export default function TowerScene({ projects, customTeams, onSelectProject, onSelectDept, onSelectTeam, onCreateTeam, cameraNav, onFocusFloor, activeDeptColor }: {
+export default function TowerScene({ projects, customTeams, onSelectProject, onSelectDept, onSelectTeam, onCreateTeam, cameraNav, onFocusFloor, activeDeptColor, fogEnabled = true }: {
   projects: Project[]
   customTeams: CustomTeam[]
   onSelectProject: (p: Project) => void
@@ -116,6 +116,7 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
   cameraNav?: CameraTarget | null
   onFocusFloor?: (cameraPos: [number, number, number], target: [number, number, number]) => void
   activeDeptColor?: string
+  fogEnabled?: boolean
 }) {
   const [hovering, setHovering] = useState(false)
   const onEnter = useCallback(() => setHovering(true), [])
@@ -176,8 +177,8 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
       <Stars radius={100} depth={50} count={2000} factor={4} saturation={0.5} fade speed={0.5} />
 
-      {/* 赛博朋克大气雾 — 浓距离雾 */}
-      <fog attach="fog" args={['#1a0a2e', 5, 80]} />
+      {/* 赛博朋克大气雾 — 由云雾按钮控制，关闭时near=far使雾完全消失 */}
+      <fog attach="fog" args={['#1a0a2e', 5, 80]} near={fogEnabled ? 5 : 9999} far={fogEnabled ? 80 : 10000} />
       <color attach="background" args={['#1a0a2e']} />
 
       {/* 本地HDR环境反射（不从CDN下载） */}
@@ -233,11 +234,11 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
         />
       </EffectComposer>
 
-      {/* 体积雾层 — 多层半透明平面模拟大气效果 */}
+      {/* 体积雾层 — 由云雾按钮控制，关闭时全透明 */}
       {[5, 10, 15, 20, 25].map((y, i) => (
         <mesh key={`fog-layer-${i}`} position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[120, 120]} />
-          <meshBasicMaterial color="#1a0a2e" transparent opacity={0.04 + i * 0.02} depthWrite={false} side={THREE.DoubleSide} />
+          <meshBasicMaterial color="#1a0a2e" transparent opacity={fogEnabled ? 0.04 + i * 0.02 : 0} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
       ))}
     </>
