@@ -203,6 +203,8 @@ export default function useMeetingSocket({
                 agentId: msg.agentId,
                 content: msg.content,
                 timestamp: Date.now(),
+                _stance: msg.stance ?? undefined,
+                _confidence: msg.confidence ?? undefined,
               }]
             })
           }
@@ -391,6 +393,41 @@ export default function useMeetingSocket({
               timestamp: Date.now(),
               _msgSubtype: 'workflow_summary',
             }])
+          }
+          break
+        }
+        case 'review_completed': {
+          const criticResult = msg.critic_result || {}
+          const groundingResult = msg.grounding_result || {}
+          const severity = criticResult.severity || 'unknown'
+          const findingsCount = (criticResult.findings || []).length
+          const grounded = groundingResult.grounded ?? false
+          const sourcesCount = (groundingResult.sources || []).length
+
+          setChatMessages(prev => [...prev, {
+            role: 'agent' as const,
+            agentId: 'agent-reviewer',
+            content: `审查完成 — 严重度: ${severity}，发现 ${findingsCount} 个问题；接地: ${grounded ? '是' : '否'}，${sourcesCount} 个来源`,
+            timestamp: Date.now(),
+            _msgSubtype: 'feedback' as const,
+          }])
+          break
+        }
+        case 'workflow_node_status_update': {
+          const nodeId = msg.node_id || ''
+          const nodeStatus = msg.status || 'unknown'
+          setChatMessages(prev => [...prev, {
+            role: 'ceo' as const,
+            agentId: 'agent-ceo',
+            content: `工作流节点 ${nodeId} 状态: ${nodeStatus}`,
+            timestamp: Date.now(),
+            _msgSubtype: 'workflow' as const,
+          }])
+          // 更新 tasks 中匹配节点的状态
+          if (nodeId) {
+            setTasks(prev => prev.map(t =>
+              t.id === nodeId ? { ...t, status: nodeStatus } : t
+            ))
           }
           break
         }

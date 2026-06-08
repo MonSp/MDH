@@ -536,15 +536,20 @@ async def ws_handler(ws: WebSocket):
                 session.meeting_session.add_message("boss", content)
                 coordinator = getattr(session, "_meeting_coordinator", None)
 
-                async def send_agent_message(agent_id: str, text: str, delta: str):
+                async def send_agent_message(agent_id: str, text: str, delta: str, stance: str = None, confidence: float = None, msg_type: str = "agent_message", **kwargs):
                     session._sequence_no += 1
                     msg_with_seq = {
-                        "type": "agent_message",
+                        "type": msg_type,
                         "agentId": agent_id,
                         "content": text,
                         "delta": delta,
                         "sequence_no": session._sequence_no,
                     }
+                    if stance is not None:
+                        msg_with_seq["stance"] = stance
+                    if confidence is not None:
+                        msg_with_seq["confidence"] = confidence
+                    msg_with_seq.update(kwargs)
                     if len(session._message_buffer) >= 100:
                         session._message_buffer.pop(0)
                     session._message_buffer.append(msg_with_seq)
@@ -559,8 +564,8 @@ async def ws_handler(ws: WebSocket):
                             session._sequence_no += 1
                             assignment = result.get("assignment", {})
                             routing_decision = None
-                            if hasattr(coordinator, '_last_routing_decision') and coordinator._last_routing_decision:
-                                rd = coordinator._last_routing_decision
+                            rd = coordinator.last_routing_decision
+                            if rd and rd.selected_dept:
                                 routing_decision = {
                                     "selected_dept": rd.selected_dept,
                                     "confidence": rd.confidence,
@@ -625,6 +630,22 @@ async def ws_handler(ws: WebSocket):
                                         session._message_buffer.pop(0)
                                     session._message_buffer.append(msg_iteration)
                                     await ws.send_json(msg_iteration)
+
+                            # T1: 发送审查结果（CriticAgent + GroundingAgent）
+                            if review_result:
+                                session._sequence_no += 1
+                                msg_review = {
+                                    "type": "review_completed",
+                                    "taskId": assignment.get("task_id", ""),
+                                    "critic_result": review_result.get("critic_result", {}),
+                                    "grounding_result": review_result.get("grounding_result", {}),
+                                    "sequence_no": session._sequence_no,
+                                }
+                                if len(session._message_buffer) >= 100:
+                                    session._message_buffer.pop(0)
+                                session._message_buffer.append(msg_review)
+                                await ws.send_json(msg_review)
+
                         elif result.get("type") == "workflow_executed":
                             session._sequence_no += 1
                             workflow_result = result.get("workflow_result", {})

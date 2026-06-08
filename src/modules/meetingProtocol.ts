@@ -1,3 +1,4 @@
+// 后端 server.py 实际发送的消息类型
 export type MeetingMessageType =
   | 'start_meeting'
   | 'end_meeting'
@@ -11,17 +12,26 @@ export type MeetingMessageType =
   | 'task_assigned'
   | 'agent_status_update'
   | 'meeting_error'
-  | 'agenda_update'
-  | 'proposal'
-  | 'vote'
-  | 'vote_result'
-  | 'critical_blocker'
-  | 'human_approval_request'
-  | 'human_approval_response'
-  | 'checkpoint_save'
-  | 'checkpoint_restore'
-  | 'audit_log'
   | 'request_retransmit'
+  | 'task_auto_assigned'
+  | 'structured_feedback'
+  | 'iteration_update'
+  | 'review_completed'
+  | 'workflow_executed'
+  | 'workflow_node_status_update'
+  | 'experience_injected'
+  | 'skill_mounted'
+  // --- 以下为预留类型，后端当前不发送 ---
+  | 'agenda_update'           // reserved: 议程状态推送
+  | 'proposal'                // reserved: 提案推送
+  | 'vote'                    // reserved: 投票推送
+  | 'vote_result'             // reserved: 投票结果推送
+  | 'critical_blocker'        // reserved: 关键阻塞推送
+  | 'human_approval_request'  // reserved: 人工审批请求
+  | 'human_approval_response' // reserved: 人工审批响应
+  | 'checkpoint_save'         // reserved: 检查点保存
+  | 'checkpoint_restore'      // reserved: 检查点恢复
+  | 'audit_log'               // reserved: 审计日志
 
 export type MeetingAgentRole = 'planner' | 'executor' | 'monitor' | 'reviewer' | 'coordinator'
 

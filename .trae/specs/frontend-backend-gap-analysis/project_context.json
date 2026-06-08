@@ -1,0 +1,38 @@
+{
+  "goal": "梳理 test-sidepanel-host 项目前后端之间的接口缺口，找出后端已产出但前端未消费、前端已定义但后端未实现、以及协议类型死代码等问题",
+  "summary": "通过深度读取后端 server.py、meeting_coordinator.py、4个子模块(semantic_analyzer/task_orchestrator/review_pipeline/discussion_manager)以及前端 apiClient.ts、useMeetingSocket.ts、meetingProtocol.ts、agentTypes.ts、workflowEngine.ts 等文件，识别出9类前后端缺口",
+  "sources": [
+    "repo://backend/meeting_coordinator.py#L1-L633",
+    "repo://backend/server.py#L1-L806",
+    "repo://backend/semantic_analyzer.py#L1-L262",
+    "repo://backend/task_orchestrator.py#L1-L207",
+    "repo://backend/review_pipeline.py#L1-L232",
+    "repo://backend/discussion_manager.py#L1-L233",
+    "repo://backend/protocol.py#L1-L80",
+    "repo://src/modules/apiClient.ts#L1-L95",
+    "repo://src/hooks/useMeetingSocket.ts#L1-L430",
+    "repo://src/modules/meetingProtocol.ts#L1-L283",
+    "repo://src/modules/agentTypes.ts#L1-L414",
+    "repo://src/modules/workflowEngine.ts#L1-L47",
+    "repo://src/modules/dynamicRouter.ts#L1-L33",
+    "repo://src/modules/experienceExtractor.ts#L1-L55",
+    "repo://src/components/office-team/types.ts#L1-L55",
+    "repo://src/components/WorkflowPanel.tsx#L1-L60"
+  ],
+  "grounding": {
+    "repoAvailable": true,
+    "readDepth": "file+symbol+interface",
+    "filesRead": 16,
+    "evidenceNodes": [
+      "backend server.py 无 /api/workflow/* 端点 (grep确认)",
+      "backend review_pipeline.py L108-121 返回 critic_result + grounding_result",
+      "backend server.py L593-606 只发送 structured_feedback，丢弃 critic/grounding",
+      "backend discussion_manager.py L109-118 返回 parsed_stance + parsed_confidence",
+      "backend server.py L539-551 讨论消息以 plain agent_message 发送，丢弃 stance",
+      "src/modules/meetingProtocol.ts L1-25 定义了25种消息类型，后端仅发送约10种",
+      "src/modules/workflowEngine.ts L17-45 调用 /api/workflow/* 但后端无此端点",
+      "backend meeting_coordinator.py L494 检查 self._last_routing_decision 但属性在 _semantic_analyzer 上",
+      "backend server.py L562 检查 coordinator._last_routing_decision 同样不存在"
+    ]
+  }
+}

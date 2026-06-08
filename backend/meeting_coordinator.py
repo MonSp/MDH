@@ -52,6 +52,7 @@ class MeetingCoordinator:
         self.base_url = base_url
         self._models: Dict[str, Agent] = {}
         self._tasks: List[Dict[str, Any]] = []
+        self._on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
         self.logger = logging.getLogger("meeting_coordinator")
         self.agenda = AgendaStateMachine()
         self.negotiation = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
@@ -91,6 +92,11 @@ class MeetingCoordinator:
             get_model_fn=self._get_model,
             meeting=self.meeting,
         )
+
+    @property
+    def last_routing_decision(self):
+        """委托到 SemanticAnalyzer 的路由决策"""
+        return self._semantic_analyzer.last_routing_decision
 
     def _setup_workflow_engine(self):
         """配置WorkflowEngine的节点执行器和回调函数"""
@@ -158,11 +164,20 @@ class MeetingCoordinator:
         # 暂时只记录日志
 
     async def _on_workflow_node_status_change(self, execution, node_id):
-        """工作流节点状态变化回调"""
+        """工作流节点状态变化回调 — 推送到前端"""
         node_status = execution.node_states.get(node_id)
-        self.logger.info("工作流节点状态变化: %s -> %s", node_id, node_status.value if node_status else "unknown")
-        # 这里可以推送节点状态更新到前端
-        # 暂时只记录日志
+        status_value = node_status.value if node_status else "unknown"
+        self.logger.info("工作流节点状态变化: %s -> %s", node_id, status_value)
+
+        if self._on_message:
+            ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
+            status_text = f"工作流节点 {node_id} 状态变更: {status_value}"
+            await self._on_message(
+                ceo_id, status_text, "",
+                msg_type="workflow_node_status_update",
+                node_id=node_id,
+                status=status_value,
+            )
 
     def _create_model(self, role: AgentRole) -> Agent:
         reg = PROVIDER_REGISTRY.get(self.provider)
@@ -491,8 +506,9 @@ class MeetingCoordinator:
         self.meeting.update_agent_status(target_agent_id, MeetingAgentStatus.WORKING)
 
         # 记录路由部门，用于后续统计更新
-        if hasattr(self, '_last_routing_decision') and self._last_routing_decision.selected_dept:
-            self._task_routing[task.id] = self._last_routing_decision.selected_dept
+        routing = self.last_routing_decision
+        if routing and routing.selected_dept:
+            self._task_routing[task.id] = routing.selected_dept
 
         ceo_id = self._find_agent_id(AgentRole.CEO)
         if ceo_id:
@@ -515,6 +531,7 @@ class MeetingCoordinator:
         user_message: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
     ) -> Dict[str, Any]:
+        self._on_message = on_message
         analysis = await self.semantic_analyze(user_message)
 
         ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"

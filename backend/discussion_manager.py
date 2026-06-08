@@ -100,12 +100,12 @@ class DiscussionManager:
                 text = _extract_text(response)
                 
                 self._agenda.request_token(agent_id, 0.8)
-                
-                await on_message(agent_id, text, "")
+
+                stance, confidence = self._parse_stance_from_response(text)
+                await on_message(agent_id, text, "", stance=stance, confidence=confidence)
                 self._meeting.add_message("agent", text, agent_id)
                 self._meeting.update_agent_status(agent_id, MeetingAgentStatus.MEETING)
-                
-                stance, confidence = self._parse_stance_from_response(text)
+
                 entry = {
                     "agent_id": agent_id,
                     "role": role.value,

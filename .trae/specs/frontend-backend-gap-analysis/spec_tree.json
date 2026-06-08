@@ -1,0 +1,214 @@
+{
+  "rootNodeId": "n0",
+  "version": 2,
+  "successCriteria": [
+    { "id": "sc1", "text": "后端 ReviewPipeline 产出的 CriticAgent/GroundingAgent 审查结果能通过 WebSocket 推送到前端并被渲染" },
+    { "id": "sc2", "text": "讨论模式中 agent 的 stance 和 confidence 能通过 WebSocket 结构化传递到前端" },
+    { "id": "sc3", "text": "工作流节点级别的执行状态变化能实时推送到前端" },
+    { "id": "sc4", "text": "前端 workflowEngine.ts 的 REST API 要么有后端端点支撑，要么被清理或替换为 WebSocket 驱动" },
+    { "id": "sc5", "text": "meetingProtocol.ts 中的消息类型与后端实际发送的消息类型一致，无死类型" },
+    { "id": "sc6", "text": "路由决策(_last_routing_decision)能正确从 SemanticAnalyzer 传播到 server.py 推送给前端" }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "parentId": null,
+      "type": "requirement",
+      "title": "补齐前后端接口缺口",
+      "acceptance": "当所有缺口修补完成并运行集成测试时，系统应确保后端产出的所有结构化数据（审查结果、讨论立场、工作流状态、路由决策）均能被前端正确接收和渲染，且无 404 的 REST 调用。",
+      "coversCriteria": ["sc1", "sc2", "sc3", "sc4", "sc5", "sc6"],
+      "evidenceRefs": ["nE1", "nE2", "nE3"]
+    },
+    {
+      "id": "n1",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "审查结果透传",
+      "acceptance": "当 ReviewPipeline.review() 返回 critic_result 和 grounding_result 时，server.py 应将其包含在 WebSocket 消息中推送给前端，前端 useMeetingSocket.ts 应新增对应消息处理器。",
+      "coversCriteria": ["sc1"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n2",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "讨论立场结构化传递",
+      "acceptance": "当 DiscussionManager.run() 返回 parsed_stance 和 parsed_confidence 时，server.py 应将其作为结构化字段附加到 agent_message 中推送给前端，前端 ChatMessage._stance 和 _confidence 应被正确填充。",
+      "coversCriteria": ["sc2"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n3",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "工作流节点状态实时推送",
+      "acceptance": "当 WorkflowEngine 中某个节点状态从 pending 变为 running 或 completed 时，系统应通过 WebSocket 推送 workflow_node_status_update 消息到前端，前端 WorkflowPanel 应实时更新节点状态。",
+      "coversCriteria": ["sc3"],
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n4",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "工作流 REST API 对齐",
+      "acceptance": "当前端 workflowEngine.ts 调用 /api/workflow/* 端点时，后端应有对应的 REST 端点处理请求，或者前端应移除孤立的 REST 调用改用 WebSocket。",
+      "coversCriteria": ["sc4"],
+      "evidenceRefs": ["nE3"]
+    },
+    {
+      "id": "n5",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "协议类型清理",
+      "acceptance": "当 meetingProtocol.ts 中定义的消息类型在后端 server.py 中无对应发送逻辑时，系统应将其标记为预留或移除，避免前端处理永远不会收到的消息类型。",
+      "coversCriteria": ["sc5"],
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n6",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "路由决策传播修复",
+      "acceptance": "当 SemanticAnalyzer 产生路由决策时，MeetingCoordinator 应将其通过属性委托暴露为 coordinator.last_routing_decision，server.py 应能正确读取并推送给前端。",
+      "coversCriteria": ["sc6"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n7",
+      "parentId": "n1",
+      "type": "design",
+      "title": "审查结果 WebSocket 消息设计",
+      "notes": "新增 review_completed 消息类型，包含 critic_result(severity, findings) 和 grounding_result(grounded, sources)。server.py 在 execute_and_review_task 完成后发送。前端 useMeetingSocket.ts 新增 case 'review_completed' 处理。",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n8",
+      "parentId": "n2",
+      "type": "design",
+      "title": "讨论立场附加字段设计",
+      "notes": "在 server.py 的 send_agent_message 回调中增加 stance 和 confidence 可选参数。DiscussionManager.run() 在每轮讨论后通过回调传递 parsed_stance 和 parsed_confidence。前端 ChatMessage 接口已有 _stance/_confidence 字段，只需在 useMeetingSocket.ts 的 agent_message handler 中读取。",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n9",
+      "parentId": "n3",
+      "type": "design",
+      "title": "工作流节点状态推送设计",
+      "notes": "在 MeetingCoordinator._setup_workflow_engine() 中，将 _on_workflow_node_status_change 回调改为通过 on_message 推送 workflow_node_status_update 消息。需要在 MeetingCoordinator 中持有 on_message 引用或通过事件机制传递。",
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n10",
+      "parentId": "n4",
+      "type": "design",
+      "title": "工作流 REST vs WebSocket 决策",
+      "notes": "方案A：在 server.py 新增 /api/workflow/* 端点，映射到 WorkflowEngine。方案B：移除前端 workflowEngine.ts 的 REST 调用，统一走 WebSocket。推荐方案B——工作流已在 WebSocket 的 meeting_message 流程中驱动，REST 端点是冗余的。",
+      "evidenceRefs": ["nE3"]
+    },
+    {
+      "id": "n11",
+      "parentId": "n6",
+      "type": "design",
+      "title": "路由决策属性委托设计",
+      "notes": "在 MeetingCoordinator 中新增 @property last_routing_decision，委托返回 self._semantic_analyzer.last_routing_decision。同时将 auto_assign_task 和 server.py 中的 hasattr(self, '_last_routing_decision') 改为 self.last_routing_decision。",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n12",
+      "parentId": "n7",
+      "type": "task",
+      "title": "T1: server.py 增加 review_completed 消息推送",
+      "verify": "在 meeting_message 处理的 execute_and_review_task 之后，新增 ws.send_json 推送 review_completed 消息"
+    },
+    {
+      "id": "n13",
+      "parentId": "n7",
+      "type": "task",
+      "title": "T2: useMeetingSocket.ts 增加 review_completed handler",
+      "verify": "前端 switch 中新增 case 'review_completed'，将 critic/grounding 结果添加到 chatMessages"
+    },
+    {
+      "id": "n14",
+      "parentId": "n8",
+      "type": "task",
+      "title": "T3: server.py send_agent_message 增加 stance/confidence 参数",
+      "verify": "send_agent_message 回调签名增加可选 stance/confidence 参数"
+    },
+    {
+      "id": "n15",
+      "parentId": "n8",
+      "type": "task",
+      "title": "T4: DiscussionManager 传递 stance 到回调",
+      "verify": "DiscussionManager.run() 中调用 on_message 时传递 parsed_stance 和 parsed_confidence"
+    },
+    {
+      "id": "n16",
+      "parentId": "n9",
+      "type": "task",
+      "title": "T5: MeetingCoordinator 工作流节点状态回调改为推送",
+      "verify": "_on_workflow_node_status_change 通过 on_message 推送 workflow_node_status_update"
+    },
+    {
+      "id": "n17",
+      "parentId": "n9",
+      "type": "task",
+      "title": "T6: useMeetingSocket.ts 增加 workflow_node_status_update handler",
+      "verify": "前端新增 case 处理，实时更新 WorkflowPanel 中的节点状态"
+    },
+    {
+      "id": "n18",
+      "parentId": "n10",
+      "type": "task",
+      "title": "T7: 清理前端 workflowEngine.ts 或标记为预留",
+      "verify": "移除或注释 workflowEngine.ts 中的 REST 调用，或在文件头标注为预留接口"
+    },
+    {
+      "id": "n19",
+      "parentId": "n5",
+      "type": "task",
+      "title": "T8: meetingProtocol.ts 消息类型标注",
+      "verify": "将后端未发送的消息类型标注为 reserved，添加注释说明"
+    },
+    {
+      "id": "n20",
+      "parentId": "n11",
+      "type": "task",
+      "title": "T9: MeetingCoordinator 新增 last_routing_decision 属性",
+      "verify": "新增 @property 委托到 _semantic_analyzer.last_routing_decision"
+    },
+    {
+      "id": "n21",
+      "parentId": "n11",
+      "type": "task",
+      "title": "T10: server.py 修复路由决策读取",
+      "verify": "将 coordinator._last_routing_decision 改为 coordinator.last_routing_decision"
+    },
+    {
+      "id": "nE1",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "后端 review_pipeline.py 和 discussion_manager.py 源码",
+      "source": "repo://backend/review_pipeline.py#L108-L121, repo://backend/discussion_manager.py#L109-L118, repo://backend/meeting_coordinator.py#L494"
+    },
+    {
+      "id": "nE2",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "后端 server.py WebSocket 处理逻辑和 meetingProtocol.ts 消息类型定义",
+      "source": "repo://backend/server.py#L525-L643, repo://src/modules/meetingProtocol.ts#L1-L25"
+    },
+    {
+      "id": "nE3",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "前端 workflowEngine.ts REST 调用 vs 后端无对应端点",
+      "source": "repo://src/modules/workflowEngine.ts#L17-L45, repo://backend/server.py (grep确认无 /api/workflow/*)"
+    }
+  ],
+  "provenance": {
+    "generationSource": "llm",
+    "promptId": "whybuddy-frontend-backend-gap-analysis",
+    "model": "assistant",
+    "fingerprint": "gap-analysis-2026-06-08"
+  }
+}
