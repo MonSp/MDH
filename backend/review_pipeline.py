@@ -58,28 +58,36 @@ class ReviewPipeline:
         Returns:
             审查结果
         """
-        # 1. CriticAgent 自动审查
-        critic_result = self._critic.review(
-            {
-                "task_description": task_description,
-                "requirements": [],
-                "success_criteria": [],
-            },
-            stage="review",
-        )
-        logger.info("Critic审查: severity=%s, findings=%d", critic_result.severity, len(critic_result.findings))
+        # 1. CriticAgent 自动审查（失败时跳过，不阻断审查流程）
+        try:
+            critic_result = self._critic.review(
+                {
+                    "task_description": task_description,
+                    "requirements": [],
+                    "success_criteria": [],
+                },
+                stage="review",
+            )
+            logger.info("Critic审查: severity=%s, findings=%d", critic_result.severity, len(critic_result.findings))
+        except Exception as e:
+            logger.warning("CriticAgent失败，跳过: %s", e, exc_info=True)
+            critic_result = CriticResult(severity="unknown", findings=[])
         
-        # 2. GroundingAgent 自动接地
-        grounding_result = self._grounding.verify(
-            {
-                "conclusions": [{"text": execution_result[:200]}],
-                "decisions": [],
-                "evidence": [],
-            },
-            repo_context=repo_context,
-            stage="review",
-        )
-        logger.info("Grounding审查: grounded=%s, sources=%d", grounding_result.grounded, len(grounding_result.sources))
+        # 2. GroundingAgent 自动接地（失败时跳过，不阻断审查流程）
+        try:
+            grounding_result = self._grounding.verify(
+                {
+                    "conclusions": [{"text": execution_result[:200]}],
+                    "decisions": [],
+                    "evidence": [],
+                },
+                repo_context=repo_context,
+                stage="review",
+            )
+            logger.info("Grounding审查: grounded=%s, sources=%d", grounding_result.grounded, len(grounding_result.sources))
+        except Exception as e:
+            logger.warning("GroundingAgent失败，跳过: %s", e, exc_info=True)
+            grounding_result = GroundingResult(grounded=False, sources=[])
         
         # 3. Reviewer LLM审查
         reviewer_feedback = await self._reviewer_review(task_description, execution_result, on_message)

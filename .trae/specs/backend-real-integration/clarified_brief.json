@@ -1,0 +1,18 @@
+{
+  "goal": "完成MeetingCoordinator的重构闭环：将4个已提取模块真正接入，让上帝对象变为薄路由层",
+  "constraints": [
+    "MeetingCoordinator的公共API签名不变（process_user_message/execute_and_review_task/run_discussion/decompose_task），server.py无需改动",
+    "不统一CollaborativeAgent与MeetingCoordinator的通信体系（那是另一个独立问题）",
+    "不改动agentscope框架本身",
+    "每个委托调用必须有try-except降级：新模块失败时回退到原始内联逻辑"
+  ],
+  "successCriteria": [
+    {"id": "sc1", "text": "MeetingCoordinator.process_user_message()内部委托给SemanticAnalyzer.analyze()，不再有内联的semantic_analyze方法体"},
+    {"id": "sc2", "text": "MeetingCoordinator的任务执行路径使用TaskOrchestrator.decompose()+assign()+execute()，集成SpecManager和EvidenceChain"},
+    {"id": "sc3", "text": "MeetingCoordinator的审查路径使用ReviewPipeline.review()，包含CriticAgent自动审查和GroundingAgent自动接地"},
+    {"id": "sc4", "text": "MeetingCoordinator的讨论路径使用DiscussionManager.run()"},
+    {"id": "sc5", "text": "每个委托调用有try-except降级：新模块异常时回退到原始逻辑，不中断服务"},
+    {"id": "sc6", "text": "现有test_meeting_coordinator_router.py测试全部通过（API向后兼容）"},
+    {"id": "sc7", "text": "新增集成测试验证CriticAgent和GroundingAgent确实被审查流程调用"}
+  ]
+}

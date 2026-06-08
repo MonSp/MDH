@@ -1,0 +1,186 @@
+{
+  "rootNodeId": "n0",
+  "version": 2,
+  "successCriteria": [
+    {"id": "sc1", "text": "MeetingCoordinator.process_user_message()内部委托给SemanticAnalyzer.analyze()，不再有内联的semantic_analyze方法体"},
+    {"id": "sc2", "text": "MeetingCoordinator的任务执行路径使用TaskOrchestrator.decompose()+assign()+execute()，集成SpecManager和EvidenceChain"},
+    {"id": "sc3", "text": "MeetingCoordinator的审查路径使用ReviewPipeline.review()，包含CriticAgent自动审查和GroundingAgent自动接地"},
+    {"id": "sc4", "text": "MeetingCoordinator的讨论路径使用DiscussionManager.run()"},
+    {"id": "sc5", "text": "每个委托调用有try-except降级：新模块异常时回退到原始逻辑，不中断服务"},
+    {"id": "sc6", "text": "现有test_meeting_coordinator_router.py测试全部通过（API向后兼容）"},
+    {"id": "sc7", "text": "新增集成测试验证CriticAgent和GroundingAgent确实被审查流程调用"}
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "parentId": null,
+      "type": "requirement",
+      "title": "MeetingCoordinator重构：上帝对象变薄路由层",
+      "acceptance": "WHEN MeetingCoordinator.process_user_message()被调用时，系统 SHALL 委托给SemanticAnalyzer/TaskOrchestrator/DiscussionManager/ReviewPipeline，且每个委托 SHALL 有try-except降级回退到原始逻辑",
+      "coversCriteria": ["sc5"],
+      "evidenceRefs": ["nE1", "nE2"]
+    },
+    {
+      "id": "n1",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "语义分析委托",
+      "acceptance": "WHEN process_user_message()收到用户消息时，系统 SHALL 调用SemanticAnalyzer.analyze()进行意图分析，IF SemanticAnalyzer抛出异常 THEN 系统 SHALL 回退到原始内联semantic_analyze逻辑",
+      "coversCriteria": ["sc1"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n2",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "任务编排委托",
+      "acceptance": "WHEN 语义分析判定为任务模式时，系统 SHALL 调用TaskOrchestrator.decompose()+assign()+execute()执行任务，IF TaskOrchestrator抛出异常 THEN 系统 SHALL 回退到原始decompose_task+assign_tasks+execute_assigned_tasks逻辑",
+      "coversCriteria": ["sc2"],
+      "evidenceRefs": ["nE1", "nE3"]
+    },
+    {
+      "id": "n3",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "审查流水线委托",
+      "acceptance": "WHEN 任务执行完成需要审查时，系统 SHALL 调用ReviewPipeline.review()执行审查流程，且ReviewPipeline SHALL 包含CriticAgent自动审查和GroundingAgent自动接地两个步骤",
+      "coversCriteria": ["sc3"],
+      "evidenceRefs": ["nE1", "nE4"]
+    },
+    {
+      "id": "n4",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "讨论管理委托",
+      "acceptance": "WHEN 语义分析判定为讨论模式时，系统 SHALL 调用DiscussionManager.run()执行多角色讨论，IF DiscussionManager抛出异常 THEN 系统 SHALL 回退到原始run_discussion逻辑",
+      "coversCriteria": ["sc4"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n5",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "API向后兼容",
+      "acceptance": "WHEN 重构完成后运行现有测试时，test_meeting_coordinator_router.py的全部测试 SHALL 通过，且server.py无需任何改动",
+      "coversCriteria": ["sc6"],
+      "evidenceRefs": ["nE5"]
+    },
+    {
+      "id": "n6",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "集成测试验证伴随审查",
+      "acceptance": "WHEN 新增集成测试运行时，测试 SHALL 验证ReviewPipeline.review()被调用时CriticAgent.review()和GroundingAgent.verify()确实被执行",
+      "coversCriteria": ["sc7"],
+      "evidenceRefs": ["nE4"]
+    },
+    {
+      "id": "n7",
+      "parentId": "n1",
+      "type": "design",
+      "title": "MeetingCoordinator.__init__中实例化SemanticAnalyzer",
+      "notes": "在__init__中创建self._semantic_analyzer = SemanticAnalyzer(router=self.router, get_model_fn=self._get_model, meeting_agents=self.meeting.agents)。将semantic_analyze()方法体替换为委托调用，保留原始方法为_semantic_analyze_legacy()供降级使用。",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n8",
+      "parentId": "n2",
+      "type": "design",
+      "title": "MeetingCoordinator中实例化TaskOrchestrator并替换任务路径",
+      "notes": "创建self._task_orchestrator = TaskOrchestrator(get_model_fn=self._get_model, meeting=self.meeting, router=self.router)。将process_user_message的任务模式分支改为调用TaskOrchestrator。保留原始方法为_legacy降级。",
+      "evidenceRefs": ["nE1", "nE3"]
+    },
+    {
+      "id": "n9",
+      "parentId": "n3",
+      "type": "design",
+      "title": "MeetingCoordinator中实例化ReviewPipeline并替换审查路径",
+      "notes": "创建self._review_pipeline = ReviewPipeline(get_model_fn=self._get_model, meeting=self.meeting)。将execute_and_review_task中的审查逻辑委托给ReviewPipeline.review()。这会自动激活CriticAgent和GroundingAgent。",
+      "evidenceRefs": ["nE1", "nE4"]
+    },
+    {
+      "id": "n10",
+      "parentId": "n4",
+      "type": "design",
+      "title": "MeetingCoordinator中实例化DiscussionManager并替换讨论路径",
+      "notes": "创建self._discussion_manager = DiscussionManager(agenda=self.agenda, negotiation=self.negotiation, get_model_fn=self._get_model, meeting=self.meeting)。将process_user_message的讨论模式分支改为调用DiscussionManager.run()。",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n11",
+      "parentId": "n7",
+      "type": "task",
+      "title": "重构MeetingCoordinator：接入SemanticAnalyzer",
+      "verify": "运行test_meeting_coordinator_router.py全部通过；手动验证process_user_message调用SemanticAnalyzer"
+    },
+    {
+      "id": "n12",
+      "parentId": "n8",
+      "type": "task",
+      "title": "重构MeetingCoordinator：接入TaskOrchestrator",
+      "verify": "运行test_meeting_coordinator_router.py全部通过；验证任务模式走TaskOrchestrator路径"
+    },
+    {
+      "id": "n13",
+      "parentId": "n9",
+      "type": "task",
+      "title": "重构MeetingCoordinator：接入ReviewPipeline",
+      "verify": "运行集成测试验证CriticAgent和GroundingAgent被调用"
+    },
+    {
+      "id": "n14",
+      "parentId": "n10",
+      "type": "task",
+      "title": "重构MeetingCoordinator：接入DiscussionManager",
+      "verify": "运行test_meeting_coordinator_router.py全部通过"
+    },
+    {
+      "id": "n15",
+      "parentId": "n6",
+      "type": "task",
+      "title": "新增集成测试：验证伴随审查被调用",
+      "verify": "pytest backend/tests/test_review_integration.py -v 全部通过"
+    },
+    {
+      "id": "nE1",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "MeetingCoordinator内联方法与新模块的对应关系",
+      "source": "repo://backend/meeting_coordinator.py#L864-L972 — semantic_analyze()对应SemanticAnalyzer; #L177-L206 — decompose_task()对应TaskOrchestrator; #L208-L324 — run_discussion()对应DiscussionManager; #L564-L660 — review_task_execution()对应ReviewPipeline"
+    },
+    {
+      "id": "nE2",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "server.py调用入口无需改动",
+      "source": "repo://backend/server.py#L503-L509 — MeetingCoordinator实例化; #L556 — process_user_message调用; #L589 — execute_and_review_task调用"
+    },
+    {
+      "id": "nE3",
+      "parentId": "n2",
+      "type": "evidence",
+      "title": "TaskOrchestrator已集成SpecManager和EvidenceChain",
+      "source": "repo://backend/task_orchestrator.py#L30-L46 — __init__接收spec_manager和evidence_chain; #L86-L91 — decompose中记录Evidence"
+    },
+    {
+      "id": "nE4",
+      "parentId": "n3",
+      "type": "evidence",
+      "title": "ReviewPipeline已集成CriticAgent和GroundingAgent",
+      "source": "repo://backend/review_pipeline.py#L61-L82 — review()中调用critic.review()和grounding.verify()"
+    },
+    {
+      "id": "nE5",
+      "parentId": "n5",
+      "type": "evidence",
+      "title": "现有测试文件",
+      "source": "repo://backend/tests/test_meeting_coordinator_router.py — 现有API兼容性测试"
+    }
+  ],
+  "provenance": {
+    "generationSource": "llm",
+    "promptId": "backend-real-integration-v1",
+    "model": "claude-sonnet-4-20250514",
+    "fingerprint": "spec_tree_real_integration_20260608"
+  }
+}
