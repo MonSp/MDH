@@ -4,7 +4,7 @@ import { OrbitControls, Stars, Environment } from '@react-three/drei'
 import { EffectComposer, Bloom, ChromaticAberration, Noise, Vignette } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
-import { CyberpunkBuildings, FlyingVehicles, HolographicAds, CyberRain, NeonLights, SkyDome, generateBuildings } from '../cyberpunk'
+import { CyberpunkBuildings, FlyingVehicles, CyberRain, NeonLights, SkyDome, generateBuildings } from '../cyberpunk'
 import type { Project, ProjectDept, CustomTeam, CameraTarget } from './types'
 import { DEFAULT_DEPTS, PENTHOUSE_Y, BUILDING_H, PENTHOUSE_H, BUILDING_W, BUILDING_D } from './constants'
 import { BuildingBody, GlassCurtainWall, NeonEdges, Ground, Antenna, DataFlowParticles, PenthouseFloor, PenthouseWalls } from './BuildingScene'
@@ -195,7 +195,6 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       {/* 赛博朋克世界 */}
       <CyberpunkBuildings buildings={buildings} />
       <FlyingVehicles />
-      <HolographicAds buildings={buildings} />
       <CyberRain />
       <NeonLights />
 

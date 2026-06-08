@@ -1,0 +1,29 @@
+[
+  {
+    "stage": "input",
+    "role": "grounding",
+    "ts": "2026-06-08T18:25:00+08:00",
+    "sources": [
+      "repo://src/components/cyberpunk/CyberpunkBuildings.tsx#L7-L17 - generateProceduralTexture() 使用 Canvas 2D 生成 rust/concrete/metal 三种纹理，256x256 分辨率",
+      "repo://src/components/cyberpunk/CyberpunkBuildings.tsx#L296-L346 - CyberBuilding 组件使用 BoxGeometry 三层退台（mainHeight=75%, setbackHeight=25%, topHeight=8%）",
+      "repo://src/components/cyberpunk/CyberpunkBuildings.tsx#L420-L460 - 窗户系统使用 PlaneGeometry 条带，每层一条，emissive 发光，warm/blue 两种色调",
+      "repo://src/components/cyberpunk/CyberpunkBuildings.tsx#L530-L562 - 建筑细节：空调外机（BoxGeometry）、管道（CylinderGeometry）、天线（CylinderGeometry+信号灯）",
+      "repo://src/components/cyberpunk/CyberpunkBuildings.tsx#L600-L694 - generateBuildings() 按 3 环+2 天际线+1 远景分布生成 55+ 栋建筑",
+      "repo://src/components/techtower/BuildingScene.tsx#L1-L10 - 主建筑已使用 MeshPhysicalMaterial（metalness=0.9, roughness=0.05, clearcoat=1.0）",
+      "repo://src/components/techtower/TowerScene.tsx#L220-L250 - 后处理已包含 Bloom+ChromaticAberration+Noise+Vignette，ACESFilmic ToneMapping",
+      "repo://package.json - Three.js v0.170 内置 MeshPhysicalMaterial/InstancedMesh/ExtrudeGeometry"
+    ]
+  },
+  {
+    "stage": "clarification",
+    "role": "critic",
+    "ts": "2026-06-08T18:26:00+08:00",
+    "findings": [
+      "用户要求 GLTFLoader 加载真实建筑模型，但仓库中无任何 .glb/.gltf 资源文件，需确认是否需要外部模型文件",
+      "InstancedMesh 窗户系统与现有 PlaneGeometry 条带窗户的兼容性——替换后是否保留条带窗户作为 fallback",
+      "ExtrudeGeometry 的性能影响——55 栋建筑各用 ExtrudeGeometry 会增加多少顶点数，需与当前 BoxGeometry 对比",
+      "MeshPhysicalMaterial 的 clearcoat 在低端设备上的兼容性——WebGL 1.0 不支持 clearcoat",
+      "全栈升级意味着需要同时修改 CyberpunkBuildings + TowerScene + SkyDome + 后处理，改动范围大，需分里程碑执行"
+    ]
+  }
+]

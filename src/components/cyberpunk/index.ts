@@ -1,6 +1,7 @@
 export { default as CyberpunkBuildings } from './CyberpunkBuildings'
 export { generateBuildings } from './CyberpunkBuildings'
 export type { BuildingData } from './CyberpunkBuildings'
+export type { BuildingStyle } from './BuildingProfileGenerator'
 export { default as NeonGround } from './NeonGround'
 export { default as CyberpunkGround } from './CyberpunkGround'
 export { default as FlyingVehicles } from './FlyingVehicles'

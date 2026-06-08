@@ -1,0 +1,108 @@
+{
+  "specId": "cyberpunk-building-realism-v2",
+  "title": "赛博朋克场景建筑逼真度与材质系统全栈升级",
+  "generatedAt": "2026-06-08T18:30:00+08:00",
+  "status": "ready_for_review",
+  "artifacts": {
+    "project_context": {
+      "path": "project_context.json",
+      "description": "项目上下文：目标、摘要、来源、约束、接地信息",
+      "provenance": "llm-generated"
+    },
+    "clarified_brief": {
+      "path": "clarified_brief.json",
+      "description": "澄清后的简报：目标、约束、10条成功标准",
+      "provenance": "llm-generated + user-clarified"
+    },
+    "companion_log": {
+      "path": "companion_log.json",
+      "description": "伴随层日志：接地者8条真实代码来源、挑刺者5条发现",
+      "provenance": "grounding+critic"
+    },
+    "spec_tree": {
+      "path": "spec_tree.json",
+      "description": "规格树：32节点、10条成功标准全覆盖、8需求+9设计+9任务+5证据",
+      "provenance": "llm-generated, gate-validated"
+    },
+    "requirements": {
+      "path": "docs/requirements.md",
+      "description": "需求规格：8条功能要求、7条验收标准（EARS句式）",
+      "provenance": "llm-generated"
+    },
+    "design": {
+      "path": "docs/design.md",
+      "description": "设计规格：7个模块划分、4条失败处理策略、质量控制清单",
+      "provenance": "llm-generated"
+    },
+    "tasks": {
+      "path": "docs/tasks.md",
+      "description": "任务清单：4个里程碑、9个任务、完成定义",
+      "provenance": "llm-generated"
+    },
+    "traceability_matrix": {
+      "path": "traceability_matrix.json",
+      "description": "可追溯矩阵：需求↔设计↔任务↔证据↔验收用例对应表",
+      "provenance": "llm-generated"
+    },
+    "checks_ledger": {
+      "path": "checks_ledger.json",
+      "description": "校验台账：4次gate运行记录（spec_tree/content_quality/companion/finalize_previews）",
+      "provenance": "gate-generated"
+    },
+    "previews_provenance": {
+      "path": "previews/provenance.json",
+      "description": "出图 provenance：端点 403 Forbidden，0/211 张成功，如实记录",
+      "provenance": "gate-generated"
+    }
+  },
+  "gateResults": {
+    "validate_spec_tree": {
+      "status": "passed",
+      "summary": "32节点，10条成功标准全覆盖"
+    },
+    "check_content_quality": {
+      "status": "passed",
+      "summary": "规格文档结构完整，验收为EARS句式"
+    },
+    "check_companion": {
+      "status": "passed",
+      "summary": "伴随层留痕合法（挑刺1条/接地1条）"
+    },
+    "finalize_previews": {
+      "status": "failed",
+      "summary": "出图端点 403 Forbidden，0/211 张真实生成成功。端点恢复后重跑即可。",
+      "note": "按 WhyBuddy 规则如实记录失败，不伪造图片"
+    }
+  },
+  "keyDecisions": [
+    {
+      "decision": "建筑几何路线",
+      "choice": "混合方案：ExtrudeGeometry 程序化生成主体 + BufferGeometry 实例化细节",
+      "rationale": "纯代码可控，无需外部模型文件，部署简单"
+    },
+    {
+      "decision": "窗户系统规模",
+      "choice": "中等密度 ~200/栋（总计约11,000实例）",
+      "rationale": "密集城市感与中端设备性能的平衡点"
+    },
+    {
+      "decision": "升级范围",
+      "choice": "全栈升级（建筑+材质+之前cinematic-overhaul全部改进）",
+      "rationale": "一步到位，避免多轮迭代的集成复杂度"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "ExtrudeGeometry 性能影响",
+      "mitigation": "远景建筑保留 BoxGeometry，仅近处20栋使用 ExtrudeGeometry"
+    },
+    {
+      "risk": "MeshPhysicalMaterial clearcoat 兼容性",
+      "mitigation": "检测 WebGL 版本，不支持时自动降级"
+    },
+    {
+      "risk": "11,000窗户实例导致帧率下降",
+      "mitigation": "LOD策略：远处建筑窗户数降至50"
+    }
+  ]
+}

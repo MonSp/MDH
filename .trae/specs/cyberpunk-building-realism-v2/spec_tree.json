@@ -1,0 +1,211 @@
+{
+  "rootNodeId": "n0",
+  "version": 2,
+  "successCriteria": [
+    { "id": "sc1", "text": "建筑主体使用 ExtrudeGeometry 生成，带有可辨识的退台、凹凸轮廓、女儿墙等建筑特征，而非简单 BoxGeometry 方块" },
+    { "id": "sc2", "text": "每栋建筑通过 InstancedMesh 渲染约 200 个独立窗户实例，窗户网格在建筑立面上均匀分布，总计约 1 万个窗户实例" },
+    { "id": "sc3", "text": "建筑表面使用 MeshPhysicalMaterial 材质，支持 clearcoat、metalness、roughness、envMapIntensity 等高级 PBR 参数" },
+    { "id": "sc4", "text": "场景中存在至少 3 种可辨识的建筑风格（现代玻璃幕墙、老式砖楼、工业风建筑），每种风格有独立的几何轮廓和材质参数" },
+    { "id": "sc5", "text": "建筑高度遵循真实城市分布规律：中心区域建筑较高（40-80单位），边缘区域建筑较低（10-25单位），天际线呈现自然的高低错落" },
+    { "id": "sc6", "text": "每栋建筑附加可辨识的细节元素：空调外机、管道、阳台、广告牌支架等，使用 BufferGeometry 实例化渲染" },
+    { "id": "sc7", "text": "窗户材质使用 emissive 发光且 toneMapped=false，能在 Bloom 后处理中产生 HDR 辉光效果，部分窗户随机点亮模拟有人居住" },
+    { "id": "sc8", "text": "场景包含完整的天空系统（SkyDome）、多层体积雾（12层）、4种后处理效果（Bloom+色差+胶片颗粒+暗角），形成电影级氛围" },
+    { "id": "sc9", "text": "场景保持 55+ 栋建筑、30+ 全息广告、25+ 飞行载具的密度水平" },
+    { "id": "sc10", "text": "改造后场景在中端设备（GTX1060/M1）上保持 ≥30 FPS，无明显卡顿" }
+  ],
+  "nodes": [
+    {
+      "id": "n0", "parentId": null, "type": "requirement",
+      "title": "赛博朋克场景建筑逼真度与材质系统全栈升级",
+      "acceptance": "当用户查看场景时，应看到使用 ExtrudeGeometry 生成的带凹凸轮廓的建筑群，每栋建筑有数百个独立发光窗户、高级 PBR 材质、多种建筑风格，整体达到电影级逼真效果。",
+      "coversCriteria": ["sc1","sc2","sc3","sc4","sc5","sc6","sc7","sc8","sc9","sc10"],
+      "evidenceRefs": ["nE1","nE2","nE4"]
+    },
+    {
+      "id": "n1", "parentId": "n0", "type": "requirement",
+      "title": "建筑几何系统改造",
+      "acceptance": "当场景加载背景建筑时，系统应使用 ExtrudeGeometry 生成建筑主体几何体，带有退台、凹凸轮廓、女儿墙等建筑特征，并在每栋建筑上附加空调外机、管道、阳台等细节元素。",
+      "coversCriteria": ["sc1","sc6"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n2", "parentId": "n0", "type": "requirement",
+      "title": "InstancedMesh 窗户系统",
+      "acceptance": "当建筑可见时，系统应通过 InstancedMesh 在建筑立面上渲染约 200 个独立窗户实例，窗户使用 emissive 发光材质且 toneMapped=false，部分窗户随机点亮模拟有人居住。",
+      "coversCriteria": ["sc2","sc7"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n3", "parentId": "n0", "type": "requirement",
+      "title": "MeshPhysicalMaterial 材质升级",
+      "acceptance": "当建筑被渲染时，系统应使用 MeshPhysicalMaterial 替代当前 MeshStandardMaterial，支持 clearcoat、metalness、roughness、envMapIntensity 等高级 PBR 参数，产生可辨识的光泽反射和材质层次感。",
+      "coversCriteria": ["sc3"],
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n4", "parentId": "n0", "type": "requirement",
+      "title": "建筑风格多样性",
+      "acceptance": "当场景加载时，系统应生成至少 3 种可辨识的建筑风格（现代玻璃幕墙、老式砖楼、工业风建筑），每种风格有独立的 ExtrudeGeometry 轮廓参数和 MeshPhysicalMaterial 材质参数。",
+      "coversCriteria": ["sc4"],
+      "evidenceRefs": ["nE1","nE2"]
+    },
+    {
+      "id": "n5", "parentId": "n0", "type": "requirement",
+      "title": "真实城市高度分布",
+      "acceptance": "当建筑群生成时，系统应按照距中心距离的衰减函数控制建筑高度：中心区域（半径<25）建筑高度 40-80 单位，中间区域（半径 25-50）高度 20-45 单位，边缘区域（半径>50）高度 10-25 单位。",
+      "coversCriteria": ["sc5"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n6", "parentId": "n0", "type": "requirement",
+      "title": "电影级氛围系统",
+      "acceptance": "当场景渲染时，系统应包含 SkyDome 天空穹顶、12 层体积雾平面、Bloom+ChromaticAberration+Noise+Vignette 四种后处理效果，以及 ACESFilmic ToneMapping，形成电影级大气氛围。",
+      "coversCriteria": ["sc8"],
+      "evidenceRefs": ["nE3"]
+    },
+    {
+      "id": "n7", "parentId": "n0", "type": "requirement",
+      "title": "场景密度保持",
+      "acceptance": "当场景完全加载时，系统应保持 55+ 栋背景建筑、30+ 全息广告牌、25+ 飞行载具的密度水平，不因建筑几何升级而降低场景元素总数。",
+      "coversCriteria": ["sc9"],
+      "evidenceRefs": ["nE1","nE3"]
+    },
+    {
+      "id": "n8", "parentId": "n0", "type": "requirement",
+      "title": "性能达标与 LOD 优化",
+      "acceptance": "当在中端设备（GTX1060/M1）上运行时，系统应保持 ≥30 FPS 的帧率，远处建筑使用简化几何或降低实例数以控制 GPU 开销。",
+      "coversCriteria": ["sc10"],
+      "evidenceRefs": ["nE4"]
+    },
+    {
+      "id": "n10", "parentId": "n1", "type": "design",
+      "title": "ExtrudeGeometry 建筑轮廓生成器设计",
+      "notes": "创建 BuildingProfileGenerator 模块，使用 THREE.Shape 定义建筑俯视轮廓（矩形+凹凸+L形），通过 THREE.ExtrudeGeometry 拉伸生成 3D 几何体。每种建筑风格有独立的轮廓模板集。退台通过分段 Extrude 实现：底层宽、中层收窄、顶层更窄。轮廓点数控制在 30-50 个以平衡细节与性能。",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n11", "parentId": "n1", "type": "design",
+      "title": "建筑细节附件系统设计",
+      "notes": "为每栋建筑生成细节附件：空调外机（BoxGeometry 0.5x0.3x0.4）、管道（CylinderGeometry 半径 0.05-0.15）、阳台（BoxGeometry 扁平悬挑）、广告牌支架（BufferGeometry L形金属架）。使用 THREE.Group 挂载，通过 seed 确定性放置。远景建筑（simplified=true）跳过细节生成。",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n12", "parentId": "n2", "type": "design",
+      "title": "InstancedMesh 窗户渲染器设计",
+      "notes": "创建 BuildingWindows 组件，使用 THREE.InstancedMesh 渲染窗户。共享窗户几何体：PlaneGeometry(0.6, 0.4)。每栋建筑在 4 个立面上按网格布局放置窗户实例（行间距 2.5，列间距 1.2），约 200 个实例/栋。使用 setMatrixAt() 设置每个实例的位置和旋转。通过 count 动态控制可见实例数。",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n13", "parentId": "n2", "type": "design",
+      "title": "窗户发光与随机点亮设计",
+      "notes": "窗户材质使用 MeshStandardMaterial，emissive 为暖黄(#ffaa44)或冷蓝(#4488ff)，emissiveIntensity=0.8-1.5，toneMapped=false 以在 Bloom 中产生 HDR 辉光。通过 seed 随机决定每个窗户的色调和是否点亮（约 60% 点亮率）。使用 setColorAt() 为每个实例设置独立颜色。已点亮窗户有微弱的 emissive 强度脉冲动画（±0.2）。",
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n14", "parentId": "n3", "type": "design",
+      "title": "高级 PBR 材质参数设计",
+      "notes": "为三种建筑风格定义 MeshPhysicalMaterial 参数集：\n- 现代玻璃幕墙：color=#4a6a8a, metalness=0.9, roughness=0.05, clearcoat=1.0, clearcoatRoughness=0.1, envMapIntensity=2.0\n- 老式砖楼：color=#6a4a3a, metalness=0.0, roughness=0.85, clearcoat=0.0, envMapIntensity=0.5\n- 工业风建筑：color=#3a3a4a, metalness=0.6, roughness=0.3, clearcoat=0.5, clearcoatRoughness=0.3, envMapIntensity=1.2\n材质使用现有 Environment HDR（dikhololo_night_1k.hdr）作为环境反射源。",
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n15", "parentId": "n4", "type": "design",
+      "title": "三种建筑风格定义设计",
+      "notes": "定义三种建筑风格的几何与材质组合：\n1. 现代玻璃幕墙（style='glass'）：矩形轮廓，宽大平顶，少退台，高反射玻璃材质，窗户密集\n2. 老式砖楼（style='brick'）：窄高轮廓，多退台/阶梯，砖红色材质，窗户稀疏\n3. 工业风建筑（style='industrial'）：L形或不规则轮廓，平顶+大量管道/排气口，暗灰金属材质\n建筑风格由 seed 确定性分配，比例约 40% 玻璃、30% 砖楼、30% 工业。",
+      "evidenceRefs": ["nE1","nE2"]
+    },
+    {
+      "id": "n16", "parentId": "n5", "type": "design",
+      "title": "城市高度分布算法设计",
+      "notes": "修改 generateBuildings() 函数，使用距离衰减函数控制建筑高度：\nheight = baseHeight + maxExtraHeight * (1 - clamp(distance / falloffRadius, 0, 1)^power)\n参数：baseHeight=10, maxExtraHeight=70, falloffRadius=80, power=1.5\n中心区域（r<25）：40-80 单位\n中间区域（r25-50）：20-45 单位\n边缘区域（r>50）：10-25 单位\n同时确保每环内的高度有随机波动（±20%）以避免过于规律。",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n17", "parentId": "n6", "type": "design",
+      "title": "大气系统整合设计",
+      "notes": "整合之前 cinematic-overhaul 规格的大气改进：\n1. SkyDome 已实现（ShaderMaterial 渐变天空+SimplexNoise 云层）\n2. 体积雾从 5 层增至 12 层（TowerScene.tsx 已在之前升级中完成）\n3. 后处理已包含 Bloom+ChromaticAberration+Noise+Vignette\n4. ACESFilmic ToneMapping 已设置\n本规格确保这些系统与新建筑材质系统兼容——MeshPhysicalMaterial 的 clearcoat 需要 Environment HDR 反射，Bloom 需正确响应 emissive 窗户。",
+      "evidenceRefs": ["nE3"]
+    },
+    {
+      "id": "n18", "parentId": "n8", "type": "design",
+      "title": "性能预算与 LOD 设计",
+      "notes": "性能预算：\n- ExtrudeGeometry 建筑：55 栋 × ~200 顶点 ≈ 11,000 顶点（可接受）\n- InstancedMesh 窗户：55 栋 × 200 实例 = 11,000 实例（单次 draw call）\n- 建筑细节附件：55 栋 × ~10 附件 = 550 个 mesh（远景跳过）\nLOD 策略：距离 >60 的建筑使用 simplified=true（BoxGeometry 保留，无细节，窗户数降至 50）。\n性能验证：通过 R3F 的 useFrame 监控 FPS，低于 25 时自动降低远处建筑窗户数。",
+      "evidenceRefs": ["nE4"]
+    },
+    {
+      "id": "n20", "parentId": "n10", "type": "task",
+      "title": "实现 ExtrudeGeometry 建筑轮廓生成器",
+      "verify": "BuildingProfileGenerator 返回 THREE.ExtrudeGeometry，建筑有可辨识的退台和凹凸轮廓"
+    },
+    {
+      "id": "n21", "parentId": "n11", "type": "task",
+      "title": "实现建筑细节附件 BufferGeometry 实例化",
+      "verify": "每栋非简化建筑上可见空调外机、管道等细节元素"
+    },
+    {
+      "id": "n22", "parentId": "n12", "type": "task",
+      "title": "实现 InstancedMesh 窗户渲染器",
+      "verify": "每栋建筑立面有约 200 个独立窗户实例，使用 InstancedMesh 单次 draw call 渲染"
+    },
+    {
+      "id": "n23", "parentId": "n13", "type": "task",
+      "title": "实现窗户发光与随机点亮系统",
+      "verify": "窗户有 emissive 发光效果，约 60% 随机点亮，色调有暖黄/冷蓝两种"
+    },
+    {
+      "id": "n24", "parentId": "n14", "type": "task",
+      "title": "将建筑材质升级为 MeshPhysicalMaterial",
+      "verify": "建筑材质使用 MeshPhysicalMaterial，玻璃幕墙有 clearcoat 反射，砖楼有粗糙表面"
+    },
+    {
+      "id": "n25", "parentId": "n15", "type": "task",
+      "title": "定义并实现三种建筑风格",
+      "verify": "场景中可见玻璃幕墙、砖楼、工业风三种不同风格的建筑"
+    },
+    {
+      "id": "n26", "parentId": "n16", "type": "task",
+      "title": "实现城市高度分布算法",
+      "verify": "中心建筑明显高于边缘，天际线有自然高低错落"
+    },
+    {
+      "id": "n27", "parentId": "n17", "type": "task",
+      "title": "整合大气系统并确保材质兼容性",
+      "verify": "SkyDome、体积雾、后处理与新建筑材质系统正常协作，无渲染异常"
+    },
+    {
+      "id": "n28", "parentId": "n18", "type": "task",
+      "title": "性能验证与 LOD 优化",
+      "verify": "中端设备帧率 ≥30 FPS，远处建筑使用简化几何"
+    },
+    {
+      "id": "nE1", "parentId": "n0", "type": "evidence",
+      "title": "CyberpunkBuildings.tsx 当前代码：BoxGeometry 三层退台 + Canvas 程序化纹理 + PlaneGeometry 窗户条带 + 55+ 栋建筑",
+      "source": "repo://src/components/cyberpunk/CyberpunkBuildings.tsx#L7-L694"
+    },
+    {
+      "id": "nE2", "parentId": "n0", "type": "evidence",
+      "title": "BuildingScene.tsx 主建筑已使用 MeshPhysicalMaterial（metalness=0.9, roughness=0.05, clearcoat=1.0），证明技术栈支持",
+      "source": "repo://src/components/techtower/BuildingScene.tsx#L1-L50"
+    },
+    {
+      "id": "nE3", "parentId": "n0", "type": "evidence",
+      "title": "TowerScene.tsx 当前后处理管线：Bloom+ChromaticAberration+Noise+Vignette，ACESFilmic ToneMapping",
+      "source": "repo://src/components/techtower/TowerScene.tsx#L220-L250"
+    },
+    {
+      "id": "nE4", "parentId": "n0", "type": "evidence",
+      "title": "package.json 确认 Three.js v0.170 支持 MeshPhysicalMaterial/InstancedMesh/ExtrudeGeometry",
+      "source": "repo://package.json"
+    },
+    {
+      "id": "nE5", "parentId": "n0", "type": "evidence",
+      "title": "用户需求：ExtrudeGeometry+InstancedMesh 窗户系统+MeshPhysicalMaterial 材质+3 种建筑风格+真实高度分布",
+      "source": "user_input:building-system-upgrade"
+    }
+  ],
+  "provenance": {
+    "generationSource": "llm",
+    "promptId": "cyberpunk-building-realism-v2-2026-06-08",
+    "model": "llm-generated",
+    "fingerprint": "cc20260608-building-realism-v2"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "goal": "将赛博朋克场景从风格化方块升级为电影级逼真建筑群，聚焦建筑几何系统和材质系统，并整合之前 cinematic-overhaul 的全部改进",
+  "constraints": [
+    "Web 端性能：中端设备(GTX1060/M1) ≥30 FPS",
+    "React Three Fiber + @react-three/drei + @react-three/postprocessing 技术栈",
+    "不引入新的大型 npm 依赖",
+    "保持现有组件导出签名兼容",
+    "纹理分辨率 ≤ 1024（程序化优先）",
+    "InstancedMesh 窗户总数 ~11,000（200/栋 x 55 栋）",
+    "ExtrudeGeometry 轮廓点数 ≤ 50/栋",
+    "保留主建筑功能性交互"
+  ],
+  "successCriteria": [
+    {
+      "id": "sc1",
+      "text": "建筑主体使用 ExtrudeGeometry 生成，带有可辨识的退台、凹凸轮廓、女儿墙等建筑特征，而非简单 BoxGeometry 方块"
+    },
+    {
+      "id": "sc2",
+      "text": "每栋建筑通过 InstancedMesh 渲染约 200 个独立窗户实例，窗户网格在建筑立面上均匀分布，总计约 1 万个窗户实例"
+    },
+    {
+      "id": "sc3",
+      "text": "建筑表面使用 MeshPhysicalMaterial 材质，支持 clearcoat、metalness、roughness、envMapIntensity 等高级 PBR 参数，视觉质感明显优于当前 MeshStandardMaterial"
+    },
+    {
+      "id": "sc4",
+      "text": "场景中存在至少 3 种可辨识的建筑风格（现代玻璃幕墙、老式砖楼、工业风建筑），每种风格有独立的几何轮廓和材质参数"
+    },
+    {
+      "id": "sc5",
+      "text": "建筑高度遵循真实城市分布规律：中心区域建筑较高（40-80单位），边缘区域建筑较低（10-25单位），天际线呈现自然的高低错落"
+    },
+    {
+      "id": "sc6",
+      "text": "每栋建筑附加可辨识的细节元素：空调外机、管道、阳台、广告牌支架等，使用 BufferGeometry 实例化渲染"
+    },
+    {
+      "id": "sc7",
+      "text": "窗户材质使用 emissive 发光且 toneMapped=false，能在 Bloom 后处理中产生 HDR 辉光效果，部分窗户随机点亮模拟有人居住"
+    },
+    {
+      "id": "sc8",
+      "text": "场景包含完整的天空系统（SkyDome）、多层体积雾（12层）、4种后处理效果（Bloom+色差+胶片颗粒+暗角），形成电影级氛围"
+    },
+    {
+      "id": "sc9",
+      "text": "场景保持 55+ 栋建筑、30+ 全息广告、25+ 飞行载具的密度水平"
+    },
+    {
+      "id": "sc10",
+      "text": "改造后场景在中端设备（GTX1060/M1）上保持 ≥30 FPS，无明显卡顿"
+    }
+  ],
+  "nonFunctional": [
+    "所有改动限于 src/components/cyberpunk/ 和 src/components/techtower/TowerScene.tsx",
+    "建筑生成函数支持 seed 参数产生确定性结果",
+    "保持现有 UI 覆盖层正常工作",
+    "InstancedMesh 使用共享 BufferGeometry + 共享材质以减少 draw call"
+  ]
+}
