@@ -1,0 +1,306 @@
+{
+  "rootNodeId": "n0",
+  "version": 2,
+  "successCriteria": [
+    { "id": "sc1", "text": "建筑密度提升至200+栋，建筑间距缩小50%，形成密集城市天际线，楼间可见空中连桥结构" },
+    { "id": "sc2", "text": "巨型动态广告牌覆盖率达80%建筑立面，支持故障艺术(glitch)动画和霓虹闪烁效果" },
+    { "id": "sc3", "text": "空中载具数量提升至100+，支持3层以上分层航道，含大型飞船和密集无人机群" },
+    { "id": "sc4", "text": "地面系统包含行人粒子、车辆流、街道摊贩/蒸汽效果，形成生活气息" },
+    { "id": "sc5", "text": "天气系统包含雨滴、蒸汽、烟尘、地面湿气反射，体积雾层支持动态密度变化" },
+    { "id": "sc6", "text": "建筑细节附件(空调/管道/阳台/支架)在远景模式下仍保留简化版本，不完全跳过" },
+    { "id": "sc7", "text": "Bloom强度提升、ChromaticAberration加大、色彩饱和度提高，形成高对比度赛博朋克视觉" },
+    { "id": "sc8", "text": "天空穹顶包含远景建筑剪影和大型空中结构，增强城市纵深感" }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "parentId": null,
+      "type": "requirement",
+      "title": "赛博朋克城市场景全面升级",
+      "acceptance": "当用户加载3D场景时，系统应渲染出高密度、高信息量、充满生命力的赛博朋克都市，在8个维度上逼近理想图效果。",
+      "coversCriteria": ["sc1", "sc2", "sc3", "sc4", "sc5", "sc6", "sc7", "sc8"],
+      "evidenceRefs": ["nE1", "nE2"]
+    },
+    {
+      "id": "n1",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "Phase 1: 高密度建筑群与动态广告牌",
+      "acceptance": "当场景初始化时，系统应渲染200+栋建筑(间距缩小50%)，且80%建筑立面覆盖带故障艺术动画的巨型动态广告牌。",
+      "coversCriteria": ["sc1", "sc2"],
+      "evidenceRefs": ["nE3", "nE4"]
+    },
+    {
+      "id": "n1a",
+      "parentId": "n1",
+      "type": "design",
+      "title": "建筑密度升级方案",
+      "notes": "将 generateBuildings() 从3环/55栋扩展至5环/200+栋；新增近距建筑环(radiusMin=8)和楼间连桥(SharedBridgeGeometry)；远景建筑保留简化 BuildingDetails 而非跳过",
+      "evidenceRefs": ["nE3"]
+    },
+    {
+      "id": "n1b",
+      "parentId": "n1",
+      "type": "design",
+      "title": "动态广告牌升级方案",
+      "notes": "将 HolographicAds 从 Text+PlaneGeometry 升级为 ShaderMaterial 故障艺术效果；新增 GlitchText 组件支持霓虹闪烁+扫描线+色差偏移动画",
+      "evidenceRefs": ["nE4"]
+    },
+    {
+      "id": "n1t1",
+      "parentId": "n1a",
+      "type": "task",
+      "title": "重写 generateBuildings() 扩展至5环布局",
+      "verify": "调用 generateBuildings(220, 15) 返回220+栋建筑数据，近环 radiusMin=8"
+    },
+    {
+      "id": "n1t2",
+      "parentId": "n1a",
+      "type": "task",
+      "title": "新增 SkyBridge 组件实现楼间连桥",
+      "verify": "近环建筑间可见发光管道/走廊连接结构"
+    },
+    {
+      "id": "n1t3",
+      "parentId": "n1b",
+      "type": "task",
+      "title": "实现 GlitchText ShaderMaterial 故障艺术组件",
+      "verify": "广告牌文字显示故障闪烁、扫描线、色差偏移动画效果"
+    },
+    {
+      "id": "n1t4",
+      "parentId": "n1b",
+      "type": "task",
+      "title": "升级 HolographicAds 覆盖率达80%建筑立面",
+      "verify": "每栋建筑至少有3个面被动态广告牌覆盖"
+    },
+    {
+      "id": "n2",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "Phase 2: 立体空中交通与天气氛围",
+      "acceptance": "当场景运行时，系统应渲染100+飞行载具(含3层分层航道+大型飞船)，同时包含雨滴、蒸汽、烟尘粒子效果和动态体积雾。",
+      "coversCriteria": ["sc3", "sc5"],
+      "evidenceRefs": ["nE5", "nE6"]
+    },
+    {
+      "id": "n2a",
+      "parentId": "n2",
+      "type": "design",
+      "title": "空中交通分层方案",
+      "notes": "将 FlyingVehicles 从33个扩展至100+；新增3层航道(low:8-18, mid:18-32, high:32-50)；新增大型飞船(FreightShip)和密集无人机蜂群(DroneSwarm)组件",
+      "evidenceRefs": ["nE5"]
+    },
+    {
+      "id": "n2b",
+      "parentId": "n2",
+      "type": "design",
+      "title": "天气系统增强方案",
+      "notes": "将 CyberRain 从800粒子扩展至3000+；新增 SteamVent(蒸汽喷口)、SmokePlume(烟尘柱)、GroundMoisture(地面湿气反射)组件；体积雾层改为动态密度",
+      "evidenceRefs": ["nE6"]
+    },
+    {
+      "id": "n2t1",
+      "parentId": "n2a",
+      "type": "task",
+      "title": "扩展 FlyingVehicles 至100+并实现分层航道",
+      "verify": "场景中可见100+载具在3层不同高度航道飞行"
+    },
+    {
+      "id": "n2t2",
+      "parentId": "n2a",
+      "type": "task",
+      "title": "新增 FreightShip 大型飞船组件",
+      "verify": "场景中可见低多边形大型飞船缓慢飞行，带发光引擎"
+    },
+    {
+      "id": "n2t3",
+      "parentId": "n2b",
+      "type": "task",
+      "title": "扩展 CyberRain 至3000+粒子并新增 SteamVent/SmokePlume",
+      "verify": "场景中可见密集雨滴、地面蒸汽喷口、建筑间烟尘柱"
+    },
+    {
+      "id": "n2t4",
+      "parentId": "n2b",
+      "type": "task",
+      "title": "实现动态体积雾层(DynamicVolumetricFog)",
+      "verify": "体积雾密度随时间缓慢变化，支持开关控制"
+    },
+    {
+      "id": "n3",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "Phase 3: 地面生活感与建筑细节",
+      "acceptance": "当地面可见时，系统应渲染行人粒子流、车辆光迹、街道蒸汽效果，且远景建筑(simplified)仍保留简化版建筑细节附件。",
+      "coversCriteria": ["sc4", "sc6"],
+      "evidenceRefs": ["nE7", "nE8"]
+    },
+    {
+      "id": "n3a",
+      "parentId": "n3",
+      "type": "design",
+      "title": "地面人群与交通方案",
+      "notes": "新增 PedestrianFlow(行人粒子流)、VehicleTraffic(车辆光迹)、StreetVendor(街道摊贩发光)组件；使用粒子系统而非独立Mesh以控制性能",
+      "evidenceRefs": ["nE7"]
+    },
+    {
+      "id": "n3b",
+      "parentId": "n3",
+      "type": "design",
+      "title": "远景建筑细节保留方案",
+      "notes": "修改 BuildingDetails 组件，当 simplified=true 时生成简化版附件(仅保留天线和1-2个空调)，而非完全跳过",
+      "evidenceRefs": ["nE8"]
+    },
+    {
+      "id": "n3t1",
+      "parentId": "n3a",
+      "type": "task",
+      "title": "实现 PedestrianFlow 行人粒子流组件",
+      "verify": "街道上可见流动的行人光点粒子，沿道路方向移动"
+    },
+    {
+      "id": "n3t2",
+      "parentId": "n3a",
+      "type": "task",
+      "title": "实现 VehicleTraffic 车辆光迹组件",
+      "verify": "道路上可见车辆尾灯光迹流动"
+    },
+    {
+      "id": "n3t3",
+      "parentId": "n3a",
+      "type": "task",
+      "title": "实现 StreetVendor 街道蒸汽/发光效果",
+      "verify": "广场区域可见摊贩发光点和蒸汽粒子"
+    },
+    {
+      "id": "n3t4",
+      "parentId": "n3b",
+      "type": "task",
+      "title": "修改 BuildingDetails 支持 simplified 模式保留简化附件",
+      "verify": "远景建筑可见天线和简化空调外机"
+    },
+    {
+      "id": "n4",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "Phase 4: 光照对比与天空纵深",
+      "acceptance": "当场景渲染时，系统应呈现高对比度赛博朋克视觉(Bloom threshold降低、色差加大)，天空穹顶应包含远景建筑剪影和大型空中结构剪影。",
+      "coversCriteria": ["sc7", "sc8"],
+      "evidenceRefs": ["nE9", "nE10"]
+    },
+    {
+      "id": "n4a",
+      "parentId": "n4",
+      "type": "design",
+      "title": "后处理参数调优方案",
+      "notes": "Bloom luminanceThreshold 从0.6降至0.3，intensity从1.0提升至1.8；ChromaticAberration offset从0.003提升至0.006；Noise opacity从0.1提升至0.15；Vignette darkness从0.4提升至0.6",
+      "evidenceRefs": ["nE9"]
+    },
+    {
+      "id": "n4b",
+      "parentId": "n4",
+      "type": "design",
+      "title": "天空穹顶增强方案",
+      "notes": "在 SkyDome Shader 中新增远景建筑剪影层(底部黑色锯齿状轮廓)和大型空中结构剪影(巨型飞船/平台轮廓)；增强云层密度和运动速度",
+      "evidenceRefs": ["nE10"]
+    },
+    {
+      "id": "n4t1",
+      "parentId": "n4a",
+      "type": "task",
+      "title": "调整 EffectComposer 后处理参数",
+      "verify": "场景呈现明显高对比度、霓虹饱和度提升、色差可感知"
+    },
+    {
+      "id": "n4t2",
+      "parentId": "n4b",
+      "type": "task",
+      "title": "在 SkyDome Shader 中新增远景建筑剪影层",
+      "verify": "地平线处可见密集建筑黑色剪影轮廓"
+    },
+    {
+      "id": "n4t3",
+      "parentId": "n4b",
+      "type": "task",
+      "title": "在 SkyDome 中新增大型空中结构剪影",
+      "verify": "天空中可见巨型飞船/平台的黑色剪影"
+    },
+    {
+      "id": "nE1",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "当前场景代码结构证据",
+      "source": "repo://src/components/techtower/TowerScene.tsx#L1-L266"
+    },
+    {
+      "id": "nE2",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "理想图与实现差距分析(8维度)",
+      "source": "clarified_brief:successCriteria"
+    },
+    {
+      "id": "nE3",
+      "parentId": "n1",
+      "type": "evidence",
+      "title": "generateBuildings() 当前仅55栋、3环布局",
+      "source": "repo://src/components/cyberpunk/CyberpunkBuildings.tsx#L509-L605"
+    },
+    {
+      "id": "nE4",
+      "parentId": "n1",
+      "type": "evidence",
+      "title": "HolographicAds 使用 Text+PlaneGeometry 无动态效果",
+      "source": "repo://src/components/cyberpunk/HolographicAds.tsx#L129-L218"
+    },
+    {
+      "id": "nE5",
+      "parentId": "n2",
+      "type": "evidence",
+      "title": "FlyingVehicles 仅33个、单一圆形轨道",
+      "source": "repo://src/components/cyberpunk/FlyingVehicles.tsx#L19-L53"
+    },
+    {
+      "id": "nE6",
+      "parentId": "n2",
+      "type": "evidence",
+      "title": "CyberRain 仅800个简单粒子",
+      "source": "repo://src/components/cyberpunk/CyberRain.tsx#L1-L62"
+    },
+    {
+      "id": "nE7",
+      "parentId": "n3",
+      "type": "evidence",
+      "title": "CyberpunkGround 无行人/车辆/街道细节",
+      "source": "repo://src/components/cyberpunk/CyberpunkGround.tsx#L1-L450"
+    },
+    {
+      "id": "nE8",
+      "parentId": "n3",
+      "type": "evidence",
+      "title": "BuildingDetails simplified=true 时完全跳过",
+      "source": "repo://src/components/cyberpunk/BuildingDetails.tsx#L33-L34"
+    },
+    {
+      "id": "nE9",
+      "parentId": "n4",
+      "type": "evidence",
+      "title": "当前后处理参数: Bloom threshold=0.6, CA offset=0.003",
+      "source": "repo://src/components/techtower/TowerScene.tsx#L230-L250"
+    },
+    {
+      "id": "nE10",
+      "parentId": "n4",
+      "type": "evidence",
+      "title": "SkyDome 仅渐变+简单云层，无远景剪影",
+      "source": "repo://src/components/cyberpunk/SkyDome.tsx#L1-L134"
+    }
+  ],
+  "provenance": {
+    "generationSource": "llm",
+    "promptId": "spec-tree-cyberpunk-city-v1",
+    "model": "Kimi-K2.6",
+    "fingerprint": "spec-tree-20260608"
+  }
+}

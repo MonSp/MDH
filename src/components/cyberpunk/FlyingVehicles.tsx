@@ -20,25 +20,39 @@ function generateVehicles(count: number): VehicleData[] {
   const colors = ['#0a84ff', '#ff375f', '#bf5af2', '#ff9f0a', '#64d2ff', '#30d158']
   const vehicles: VehicleData[] = []
 
-  // 生成汽车和无人机
-  for (let i = 0; i < count; i++) {
-    const isCar = Math.random() > 0.4
-    vehicles.push({
-      id: i,
-      type: isCar ? 'car' : 'drone',
-      radius: 10 + Math.random() * 50,
-      height: 8 + Math.random() * 42,
-      speed: 0.15 + Math.random() * 0.35,
-      angleOffset: Math.random() * Math.PI * 2,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      size: isCar ? 0.3 + Math.random() * 0.3 : 0.15 + Math.random() * 0.15,
-    })
+  // 3层分层航道
+  const lanes = [
+    { minH: 8, maxH: 18, count: 40 },   // LowLane: 小型飞行汽车
+    { minH: 18, maxH: 32, count: 35 },  // MidLane: 飞行汽车+无人机
+    { minH: 32, maxH: 50, count: 25 },  // HighLane: 无人机+运输载具
+  ]
+
+  let vehicleId = 0
+
+  // 为每层航道生成载具
+  for (const lane of lanes) {
+    for (let i = 0; i < lane.count; i++) {
+      const isCar = lane.minH < 25 ? Math.random() > 0.3 : Math.random() > 0.6
+      const height = lane.minH + Math.random() * (lane.maxH - lane.minH)
+      const radius = 10 + Math.random() * 50
+
+      vehicles.push({
+        id: vehicleId++,
+        type: isCar ? 'car' : 'drone',
+        radius,
+        height,
+        speed: 0.15 + Math.random() * 0.35,
+        angleOffset: Math.random() * Math.PI * 2,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: isCar ? 0.3 + Math.random() * 0.3 : 0.15 + Math.random() * 0.15,
+      })
+    }
   }
 
-  // 生成3辆运输载具
-  for (let i = 0; i < 3; i++) {
+  // 大型运输载具 - 5艘
+  for (let i = 0; i < 5; i++) {
     vehicles.push({
-      id: count + i,
+      id: vehicleId++,
       type: 'transport',
       radius: 20 + Math.random() * 30,
       height: 15 + Math.random() * 30,
@@ -198,7 +212,7 @@ function FlyingVehicle({ data }: { data: VehicleData }) {
 /* ───────── 导出组件 ───────── */
 
 export default function FlyingVehicles() {
-  const vehicles = useMemo(() => generateVehicles(30), [])
+  const vehicles = useMemo(() => generateVehicles(100), [])
 
   return (
     <group>

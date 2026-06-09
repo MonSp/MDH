@@ -5,6 +5,14 @@ import { EffectComposer, Bloom, ChromaticAberration, Noise, Vignette } from '@re
 import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
 import { CyberpunkBuildings, FlyingVehicles, CyberRain, NeonLights, SkyDome, generateBuildings } from '../cyberpunk'
+import SkyBridge from '../cyberpunk/SkyBridge'
+import FreightShip from '../cyberpunk/FreightShip'
+import DroneSwarm from '../cyberpunk/DroneSwarm'
+import SteamVent from '../cyberpunk/SteamVent'
+import SmokePlume from '../cyberpunk/SmokePlume'
+import PedestrianFlow from '../cyberpunk/PedestrianFlow'
+import VehicleTraffic from '../cyberpunk/VehicleTraffic'
+import StreetVendor from '../cyberpunk/StreetVendor'
 import type { Project, ProjectDept, CustomTeam, CameraTarget } from './types'
 import { DEFAULT_DEPTS, PENTHOUSE_Y, BUILDING_H, PENTHOUSE_H, BUILDING_W, BUILDING_D } from './constants'
 import { BuildingBody, GlassCurtainWall, NeonEdges, Ground, Antenna, DataFlowParticles, PenthouseFloor, PenthouseWalls } from './BuildingScene'
@@ -105,6 +113,40 @@ function CyberpunkLights() {
   )
 }
 
+/* ───────── 动态体积雾层组件 ───────── */
+function DynamicFogLayer({ y, baseOpacity, color, size, fogEnabled }: {
+  y: number
+  baseOpacity: number
+  color: string
+  size: number
+  fogEnabled: boolean
+}) {
+  const meshRef = useRef<THREE.Mesh>(null!)
+
+  useFrame(({ clock }) => {
+    if (!meshRef.current) return
+    const mat = meshRef.current.material as THREE.MeshBasicMaterial
+    // 动态密度：使用正弦波缓慢变化
+    const dynamicOpacity = fogEnabled
+      ? baseOpacity * (0.7 + Math.sin(clock.elapsedTime * 0.1 + y * 0.5) * 0.3)
+      : 0
+    mat.opacity = dynamicOpacity
+  })
+
+  return (
+    <mesh ref={meshRef} position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[size, size]} />
+      <meshBasicMaterial
+        color={color}
+        transparent
+        opacity={fogEnabled ? baseOpacity : 0}
+        depthWrite={false}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
+  )
+}
+
 /* ───────── 完整 3D 场景 ───────── */
 
 export default function TowerScene({ projects, customTeams, onSelectProject, onSelectDept, onSelectTeam, onCreateTeam, cameraNav, onFocusFloor, activeDeptColor, fogEnabled = true }: {
@@ -194,9 +236,42 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
       {/* 赛博朋克世界 */}
       <CyberpunkBuildings buildings={buildings} />
+      <SkyBridge buildings={buildings} maxBridges={25} maxDistance={20} />
       <FlyingVehicles />
+      <FreightShip radius={80} height={45} speed={0.04} color="#0a84ff" size={1.0} />
+      <FreightShip radius={90} height={50} speed={0.03} color="#ff375f" size={0.8} />
+      <DroneSwarm count={8} radius={35} height={30} speed={0.08} color="#64d2ff" size={0.15} />
+      <DroneSwarm count={6} radius={50} height={45} speed={0.06} color="#bf5af2" size={0.12} />
       <CyberRain />
       <NeonLights />
+
+      {/* 蒸汽喷口效果 */}
+      <SteamVent position={[15, 0, 15]} color="#ffffff" particleCount={50} speed={1.0} height={3} />
+      <SteamVent position={[-15, 0, -15]} color="#aaccff" particleCount={40} speed={0.8} height={2.5} />
+      <SteamVent position={[0, 0, 20]} color="#ffffff" particleCount={45} speed={1.2} height={3.5} />
+
+      {/* 烟尘柱效果 */}
+      <SmokePlume position={[25, 5, -10]} color="#4a4a6a" size={2.5} speed={0.3} opacity={0.08} />
+      <SmokePlume position={[-20, 8, 15]} color="#3a3a5a" size={3.0} speed={0.25} opacity={0.06} />
+      <SmokePlume position={[10, 12, -25]} color="#5a5a7a" size={2.0} speed={0.35} opacity={0.1} />
+
+      {/* 地面人群与交通 */}
+      <PedestrianFlow roadLength={60} roadWidth={4} particleCount={100} speed={1.0} direction="east" position={[0, 0.1, 22]} />
+      <PedestrianFlow roadLength={60} roadWidth={4} particleCount={100} speed={1.0} direction="west" position={[0, 0.1, -22]} />
+      <PedestrianFlow roadLength={60} roadWidth={4} particleCount={100} speed={1.0} direction="north" position={[22, 0.1, 0]} />
+      <PedestrianFlow roadLength={60} roadWidth={4} particleCount={100} speed={1.0} direction="south" position={[-22, 0.1, 0]} />
+
+      <VehicleTraffic roadLength={60} roadWidth={4} particleCount={50} speed={2.0} direction="east" position={[0, 0.15, 20]} />
+      <VehicleTraffic roadLength={60} roadWidth={4} particleCount={50} speed={2.0} direction="west" position={[0, 0.15, -20]} />
+      <VehicleTraffic roadLength={60} roadWidth={4} particleCount={50} speed={2.0} direction="north" position={[20, 0.15, 0]} />
+      <VehicleTraffic roadLength={60} roadWidth={4} particleCount={50} speed={2.0} direction="south" position={[-20, 0.15, 0]} />
+
+      {/* 街道摊贩 */}
+      <StreetVendor position={[8, 0, 8]} color="#ff9f0a" size={0.5} steamParticleCount={30} />
+      <StreetVendor position={[-8, 0, -8]} color="#0a84ff" size={0.5} steamParticleCount={25} />
+      <StreetVendor position={[0, 0, 12]} color="#30d158" size={0.5} steamParticleCount={28} />
+      <StreetVendor position={[-12, 0, 0]} color="#bf5af2" size={0.5} steamParticleCount={32} />
+      <StreetVendor position={[12, 0, -8]} color="#ff375f" size={0.5} steamParticleCount={27} />
 
       {/* 透明碰撞检测层 */}
       <mesh
@@ -226,39 +301,43 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       <FloorLabels />
       <CEOTextLabel />
 
-      {/* 后处理：Bloom + 色差 + 胶片颗粒 + 暗角 */}
+      {/* 后处理：Bloom + 色差 + 胶片颗粒 + 暗角（高对比度赛博朋克视觉） */}
       <EffectComposer>
         <Bloom
-          luminanceThreshold={0.6}
+          luminanceThreshold={0.3}
           luminanceSmoothing={0.4}
-          intensity={1.0}
+          intensity={1.8}
         />
         <ChromaticAberration
-          offset={new THREE.Vector2(0.003, 0.003)}
+          offset={new THREE.Vector2(0.006, 0.006)}
           radialModulation={true}
           modulationOffset={0.5}
         />
         <Noise
           premultiply
           blendFunction={BlendFunction.ADD}
-          opacity={0.1}
+          opacity={0.15}
         />
         <Vignette
           offset={0.3}
-          darkness={0.4}
+          darkness={0.6}
         />
       </EffectComposer>
 
-      {/* 体积雾层 — 12层渐变雾，由云雾按钮控制 */}
+      {/* 体积雾层 — 12层渐变雾，由云雾按钮控制，动态密度 */}
       {[1, 2, 3, 5, 8, 12, 16, 20, 25, 30, 35, 40].map((y, i) => {
-        const opacity = 0.2 * Math.exp(-0.08 * (y - 1))
+        const baseOpacity = 0.2 * Math.exp(-0.08 * (y - 1))
         const color = y <= 2 ? '#3a3a4a' : '#2a2a4e'
         const size = 80 + y * 3
         return (
-          <mesh key={`fog-layer-${i}`} position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[size, size]} />
-            <meshBasicMaterial color={color} transparent opacity={fogEnabled ? opacity : 0} depthWrite={false} side={THREE.DoubleSide} />
-          </mesh>
+          <DynamicFogLayer
+            key={`fog-layer-${i}`}
+            y={y}
+            baseOpacity={baseOpacity}
+            color={color}
+            size={size}
+            fogEnabled={fogEnabled}
+          />
         )
       })}
     </>

@@ -1,0 +1,81 @@
+{
+  "matrix": [
+    {
+      "requirement": "n1",
+      "title": "Phase 1: 高密度建筑群与动态广告牌",
+      "successCriteria": ["sc1", "sc2"],
+      "design": ["n1a", "n1b"],
+      "tasks": ["n1t1", "n1t2", "n1t3", "n1t4"],
+      "evidence": ["nE3", "nE4"],
+      "acceptanceTests": [
+        "AC-1: 场景初始化后渲染200+栋建筑，间距缩小50%，楼间可见连桥",
+        "AC-2: 80%建筑立面显示故障艺术动态广告牌"
+      ],
+      "files": [
+        "src/components/cyberpunk/CyberpunkBuildings.tsx",
+        "src/components/cyberpunk/SkyBridge.tsx (新增)",
+        "src/components/cyberpunk/HolographicAds.tsx",
+        "src/components/cyberpunk/GlitchText.tsx (新增)"
+      ]
+    },
+    {
+      "requirement": "n2",
+      "title": "Phase 2: 立体空中交通与天气氛围",
+      "successCriteria": ["sc3", "sc5"],
+      "design": ["n2a", "n2b"],
+      "tasks": ["n2t1", "n2t2", "n2t3", "n2t4"],
+      "evidence": ["nE5", "nE6"],
+      "acceptanceTests": [
+        "AC-3: 100+飞行载具在3层航道飞行，含大型飞船和无人机蜂群",
+        "AC-5: 3000+雨滴粒子、蒸汽喷口、烟尘柱、动态体积雾"
+      ],
+      "files": [
+        "src/components/cyberpunk/FlyingVehicles.tsx",
+        "src/components/cyberpunk/FreightShip.tsx (新增)",
+        "src/components/cyberpunk/DroneSwarm.tsx (新增)",
+        "src/components/cyberpunk/CyberRain.tsx",
+        "src/components/cyberpunk/SteamVent.tsx (新增)",
+        "src/components/cyberpunk/SmokePlume.tsx (新增)"
+      ]
+    },
+    {
+      "requirement": "n3",
+      "title": "Phase 3: 地面生活感与建筑细节",
+      "successCriteria": ["sc4", "sc6"],
+      "design": ["n3a", "n3b"],
+      "tasks": ["n3t1", "n3t2", "n3t3", "n3t4"],
+      "evidence": ["nE7", "nE8"],
+      "acceptanceTests": [
+        "AC-4: 行人粒子光点、车辆尾灯光迹、广场蒸汽效果",
+        "AC-6: 远景建筑显示简化版建筑细节附件"
+      ],
+      "files": [
+        "src/components/cyberpunk/PedestrianFlow.tsx (新增)",
+        "src/components/cyberpunk/VehicleTraffic.tsx (新增)",
+        "src/components/cyberpunk/StreetVendor.tsx (新增)",
+        "src/components/cyberpunk/BuildingDetails.tsx"
+      ]
+    },
+    {
+      "requirement": "n4",
+      "title": "Phase 4: 光照对比与天空纵深",
+      "successCriteria": ["sc7", "sc8"],
+      "design": ["n4a", "n4b"],
+      "tasks": ["n4t1", "n4t2", "n4t3"],
+      "evidence": ["nE9", "nE10"],
+      "acceptanceTests": [
+        "AC-7: 高对比度霓虹饱和度视觉，色差可感知",
+        "AC-8: 地平线建筑剪影、天空巨型结构剪影"
+      ],
+      "files": [
+        "src/components/techtower/TowerScene.tsx",
+        "src/components/cyberpunk/SkyDome.tsx"
+      ]
+    }
+  ],
+  "provenance": {
+    "generationSource": "llm",
+    "model": "Kimi-K2.6",
+    "fingerprint": "traceability-20260608"
+  }
+}

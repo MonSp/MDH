@@ -1,0 +1,33 @@
+{
+  "entries": [
+    {
+      "gate": "spec_tree_validation",
+      "script": "scripts/validate_spec_tree.py",
+      "exitCode": 0,
+      "ts": "2026-06-08T21:27:00+08:00",
+      "passed": true,
+      "details": "节点数37(合法)、唯一根n0(requirement)、8条标准全部被覆盖、所有requirement含EARS验收、所有requirement/design挂evidenceRefs"
+    },
+    {
+      "gate": "content_quality",
+      "script": "scripts/check_content_quality.py",
+      "exitCode": 0,
+      "ts": "2026-06-08T21:27:30+08:00",
+      "passed": true,
+      "details": "requirements.md含目标/范围/功能要求/验收标准4章、design.md含设计目标/模块划分/失败处理策略/质量控制4章、tasks.md含里程碑/任务清单/完成定义3章、各文档均超200字、验收标准EARS句式"
+    },
+    {
+      "gate": "companion_check",
+      "script": "scripts/check_companion.py",
+      "exitCode": 0,
+      "ts": "2026-06-08T21:28:00+08:00",
+      "passed": true,
+      "details": "grounding有10条真实repo出处、critic有5条findings、repoAvailable=true且有真实接地"
+    }
+  ],
+  "provenance": {
+    "generationSource": "llm",
+    "model": "Kimi-K2.6",
+    "fingerprint": "checks-ledger-20260608"
+  }
+}

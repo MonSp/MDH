@@ -5,7 +5,7 @@ import * as THREE from 'three'
 /* ───────── 赛博朋克雨滴粒子系统 ───────── */
 
 export default function CyberRain() {
-  const count = 800
+  const count = 3000 // 扩展至3000+粒子
   const ref = useRef<THREE.Points>(null!)
 
   const [positions, velocities] = useMemo(() => {
@@ -13,9 +13,9 @@ export default function CyberRain() {
     const vel = new Float32Array(count)
 
     for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 80       // x: 分布范围
-      pos[i * 3 + 1] = Math.random() * 50            // y: 初始高度
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 80    // z: 分布范围
+      pos[i * 3] = (Math.random() - 0.5) * 120      // x: 分布范围扩展至120
+      pos[i * 3 + 1] = Math.random() * 60            // y: 初始高度扩展至60
+      pos[i * 3 + 2] = (Math.random() - 0.5) * 120   // z: 分布范围扩展至120
       vel[i] = 15 + Math.random() * 15               // 下落速度
     }
 

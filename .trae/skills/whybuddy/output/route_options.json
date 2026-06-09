@@ -1,0 +1,40 @@
+{
+  "routes": [
+    {
+      "id": "route-a",
+      "name": "渐进式单Agent迭代",
+      "description": "按优先级逐模块升级，每个模块独立可验收，单Agent顺序执行",
+      "cost": "low",
+      "risk": "low",
+      "benefit": "每步可验证，回滚成本低，适合当前单人开发模式",
+      "phases": [
+        "Phase 1: 建筑密度+广告牌(核心视觉冲击)",
+        "Phase 2: 空中交通+天气效果(动态氛围)",
+        "Phase 3: 地面人群+建筑细节(生活感)",
+        "Phase 4: 光照+天空穹顶(画龙点睛)"
+      ]
+    },
+    {
+      "id": "route-b",
+      "name": "并行多模块同时升级",
+      "description": "8个维度同时推进，一次性完成全部升级",
+      "cost": "high",
+      "risk": "high",
+      "benefit": "最快完成，但调试困难，性能风险大"
+    },
+    {
+      "id": "route-c",
+      "name": "性能优先分层策略",
+      "description": "先确定LOD和性能预算，再按预算分配各模块资源",
+      "cost": "medium",
+      "risk": "medium",
+      "benefit": "性能可控，但前期投入大"
+    }
+  ],
+  "selectedRoute": "route-a",
+  "selectionReason": "当前为单人开发，渐进式迭代风险最低，每阶段可独立验收，且可按性能表现动态调整后续计划",
+  "provenance": {
+    "generationSource": "llm",
+    "model": "Kimi-K2.6"
+  }
+}

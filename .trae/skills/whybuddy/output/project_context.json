@@ -1,0 +1,56 @@
+{
+  "id": "ctx-cyberpunk-city-v2",
+  "goal": "将赛博朋克3D城市场景从当前的低密度科技园区风格迭代至理想图中的高密度、高信息量、充满生命力的赛博朋克都市",
+  "summary": "当前 Three.js + React Three Fiber 实现的赛博朋克城市在8个维度上与理想图存在显著差距：建筑密度低、广告牌缺乏动态感、空中交通单一、无地面人群、天气效果弱、建筑细节受限、光照对比不足、天空缺乏远景。需要系统性迭代升级。",
+  "sources": [
+    {
+      "type": "repo",
+      "path": "src/components/cyberpunk/",
+      "files": [
+        "CyberpunkBuildings.tsx",
+        "BuildingWindows.tsx",
+        "BuildingDetails.tsx",
+        "HolographicAds.tsx",
+        "FlyingVehicles.tsx",
+        "SkyDome.tsx",
+        "NeonLights.tsx",
+        "CyberpunkGround.tsx",
+        "NeonGround.tsx",
+        "CyberRain.tsx"
+      ]
+    },
+    {
+      "type": "repo",
+      "path": "src/components/techtower/",
+      "files": [
+        "TowerScene.tsx",
+        "BuildingScene.tsx",
+        "PenthouseFurniture.tsx",
+        "FloorMarkers.tsx",
+        "constants.ts"
+      ]
+    }
+  ],
+  "grounding": {
+    "repoAvailable": true,
+    "evidenceCollected": true,
+    "keyFindings": [
+      "generateBuildings() 使用环形布局(3环)，radiusMin=18，建筑间距过大，密度仅55栋",
+      "HolographicAds 使用 Text + PlaneGeometry，无动态视频/故障艺术效果",
+      "FlyingVehicles 仅33个载具，沿固定圆形轨道飞行，无分层航道",
+      "CyberpunkGround 仅有程序化纹理，无行人/车辆/街道细节",
+      "CyberRain 仅800个 Points 粒子，无蒸汽/烟尘效果",
+      "BuildingDetails 在 simplified=true 时完全跳过，远景建筑无细节",
+      "Bloom luminanceThreshold=0.6，ChromaticAberration offset=0.003，对比度不足",
+      "SkyDome 使用 Shader 渐变+简单云层，无远景建筑剪影",
+      "建筑材质使用 MeshPhysicalMaterial + Canvas 纹理，缺乏 PBR 细节",
+      "CEO顶层公寓与大楼同宽(BUILDING_W=10)，使用半透明玻璃幕墙"
+    ]
+  },
+  "provenance": {
+    "generationSource": "llm",
+    "promptId": "cyberpunk-city-gap-analysis-v1",
+    "model": "Kimi-K2.6",
+    "fingerprint": "gap-analysis-20260608"
+  }
+}

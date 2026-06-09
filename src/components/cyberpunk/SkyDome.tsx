@@ -84,15 +84,64 @@ const skyFragmentShader = /* glsl */`
       skyColor = horizonColor;
     }
 
-    // 云层：上半部叠加 Simplex Noise
+    // 云层：上半部叠加 Simplex Noise（密度提升30%，速度提升50%）
     if (y > 0.05) {
       float cloudY = (y - 0.05) / 0.95;
-      vec3 samplePos = dir * 3.0 + vec3(uTime * 0.008, 0.0, uTime * 0.005);
+      vec3 samplePos = dir * 3.0 + vec3(uTime * 0.012, 0.0, uTime * 0.008);
       float n = snoise(samplePos * 2.0) * 0.5 + 0.5;
       n *= snoise(samplePos * 4.0 + 100.0) * 0.5 + 0.5;
-      float cloudDensity = smoothstep(0.35, 0.65, n) * cloudY * 0.35;
+      float cloudDensity = smoothstep(0.35, 0.65, n) * cloudY * 0.45;
       vec3 cloudColor = vec3(0.5, 0.55, 0.65);
       skyColor = mix(skyColor, cloudColor, cloudDensity);
+    }
+
+    // 远景建筑剪影：地平线处黑色锯齿状轮廓
+    if (y < 0.15 && y > -0.1) {
+      float angle = atan(dir.x, dir.z);
+      float buildingHeight = 0.0;
+
+      // 生成密集建筑剪影
+      for (float i = 0.0; i < 8.0; i++) {
+        float freq = 3.0 + i * 1.5;
+        float amp = 0.02 + i * 0.005;
+        float phase = i * 1.7;
+        buildingHeight += amp * sin(angle * freq + phase) * cos(angle * freq * 0.7 + phase * 0.5);
+      }
+
+      // 添加随机噪声
+      float noise = snoise(vec3(angle * 5.0, 0.0, uTime * 0.01)) * 0.01;
+      buildingHeight += noise;
+
+      float silhouette = smoothstep(0.0, 0.02, y - buildingHeight);
+      vec3 silhouetteColor = vec3(0.0, 0.0, 0.0);
+      skyColor = mix(silhouetteColor, skyColor, silhouette);
+    }
+
+    // 大型空中结构剪影：巨型飞船/平台轮廓
+    if (y > 0.2 && y < 0.6) {
+      float angle = atan(dir.x, dir.z);
+
+      // 巨型飞船1（缓慢移动）
+      float ship1X = sin(uTime * 0.02) * 0.3;
+      float ship1Y = 0.35;
+      float ship1Dist = length(vec2(angle - ship1X, y - ship1Y));
+      float ship1Shape = smoothstep(0.08, 0.06, ship1Dist);
+
+      // 巨型飞船2（更远，更慢）
+      float ship2X = cos(uTime * 0.015) * 0.5 + 1.5;
+      float ship2Y = 0.45;
+      float ship2Dist = length(vec2(angle - ship2X, y - ship2Y));
+      float ship2Shape = smoothstep(0.06, 0.04, ship2Dist);
+
+      // 平台结构
+      float platformX = sin(uTime * 0.01) * 0.2 + 3.0;
+      float platformY = 0.5;
+      float platformDist = length(vec2(angle - platformX, y - platformY));
+      float platformShape = smoothstep(0.1, 0.08, platformDist);
+
+      float megaStructure = max(max(ship1Shape, ship2Shape), platformShape);
+      vec3 megaColor = vec3(0.02, 0.02, 0.05);
+      skyColor = mix(megaColor, skyColor, 1.0 - megaStructure * 0.8);
     }
 
     gl_FragColor = vec4(skyColor, 1.0);

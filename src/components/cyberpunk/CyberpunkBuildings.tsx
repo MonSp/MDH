@@ -356,7 +356,7 @@ function CyberBuilding({ position, width, depth, height, neonColor, style, seed,
   const topEdgeGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(width + 0.1, 0.05, depth + 0.1)), [width, depth])
   const bottomEdgeGeo = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(width + 0.1, 0.1, depth + 0.1)), [width, depth])
 
-  // 竖向霓虹边线几何体
+  // 竖向霓虹边线几何体（以建筑中心为原点，范围 -height/2 到 height/2）
   const vertLineGeo = useMemo(() => {
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array([
@@ -405,12 +405,6 @@ function CyberBuilding({ position, width, depth, height, neonColor, style, seed,
       />
 
       {/* 霓虹边框 */}
-      <lineSegments position={[0, height, 0]} geometry={topEdgeGeo}>
-        <lineBasicMaterial color={neonColor} transparent opacity={0.5} />
-      </lineSegments>
-      <lineSegments position={[0, 0.05, 0]} geometry={bottomEdgeGeo}>
-        <lineBasicMaterial color={neonColor} transparent opacity={0.3} />
-      </lineSegments>
       <lineSegments position={[0, height / 2, 0]} geometry={vertLineGeo}>
         <lineBasicMaterial color={neonColor} transparent opacity={0.4} />
       </lineSegments>
@@ -510,11 +504,13 @@ function generateBuildings(_count: number, _mainBuildingRadius: number): Buildin
   const buildings: BuildingData[] = []
   let buildingIndex = 0
 
-  // 近处环形建筑 — 3 环
+  // 近处环形建筑 — 5环（扩展至220+栋）
   const nearRings = [
-    { count: 8, radiusMin: 18, radiusMax: 28, widthMin: 3, widthMax: 8 },
-    { count: 12, radiusMin: 28, radiusMax: 42, widthMin: 3, widthMax: 9 },
-    { count: 15, radiusMin: 42, radiusMax: 58, widthMin: 4, widthMax: 10 },
+    { count: 12, radiusMin: 8, radiusMax: 16, widthMin: 2, widthMax: 6 }, // 环1: 近距密集建筑
+    { count: 15, radiusMin: 16, radiusMax: 26, widthMin: 3, widthMax: 7 }, // 环2
+    { count: 20, radiusMin: 26, radiusMax: 40, widthMin: 3, widthMax: 8 }, // 环3
+    { count: 15, radiusMin: 40, radiusMax: 58, widthMin: 4, widthMax: 10 }, // 环4: 天际线层
+    { count: 15, radiusMin: 58, radiusMax: 75, widthMin: 5, widthMax: 12 }, // 环5: 远景层
   ]
 
   for (const ring of nearRings) {
@@ -543,42 +539,10 @@ function generateBuildings(_count: number, _mainBuildingRadius: number): Buildin
     }
   }
 
-  // 天际线层 — 2 层
-  const skylineLayers = [
-    { count: 10, radiusMin: 45, radiusMax: 65, widthMin: 5, widthMax: 12 },
-    { count: 10, radiusMin: 55, radiusMax: 75, widthMin: 6, widthMax: 14 },
-  ]
-
-  for (const layer of skylineLayers) {
-    for (let i = 0; i < layer.count; i++) {
-      const seed = buildingIndex * 37 + 1
-      const angle = (i / layer.count) * Math.PI * 2 + (pseudoRandom(seed) - 0.5) * 0.3
-      const radius = layer.radiusMin + pseudoRandom(seed + 1) * (layer.radiusMax - layer.radiusMin)
-      const x = Math.cos(angle) * radius
-      const z = Math.sin(angle) * radius
-      const width = layer.widthMin + pseudoRandom(seed + 2) * (layer.widthMax - layer.widthMin)
-      const depth = 4 + pseudoRandom(seed + 3) * 6
-      const style = assignStyle(seed)
-      const neonColor = getStyleNeonColor(style, seed)
-      const height = getBuildingHeight(radius, seed)
-
-      buildings.push({
-        position: [x, 0, z],
-        width,
-        depth,
-        height,
-        neonColor,
-        style,
-        seed,
-      })
-      buildingIndex++
-    }
-  }
-
-  // 远处简化建筑
-  for (let i = 0; i < 12; i++) {
+  // 远处简化建筑 — 15栋
+  for (let i = 0; i < 15; i++) {
     const seed = buildingIndex * 37 + 1
-    const angle = (i / 12) * Math.PI * 2 + (pseudoRandom(seed) - 0.5) * 0.5
+    const angle = (i / 15) * Math.PI * 2 + (pseudoRandom(seed) - 0.5) * 0.5
     const radius = 80 + pseudoRandom(seed + 1) * 40
     const x = Math.cos(angle) * radius
     const z = Math.sin(angle) * radius
