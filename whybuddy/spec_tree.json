@@ -1,0 +1,144 @@
+{
+  "rootNodeId": "n0",
+  "version": 2,
+  "successCriteria": [
+    { "id": "sc1", "text": "路网数据结构独立定义，作为建筑生成的输入" },
+    { "id": "sc2", "text": "建筑生成时自动避让路网区域" },
+    { "id": "sc3", "text": "地面、路网、建筑代码模块化分离" },
+    { "id": "sc4", "text": "保持现有视觉效果和性能" }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "parentId": null,
+      "type": "requirement",
+      "title": "重构赛博朋克城市地面系统",
+      "acceptance": "当系统初始化时，应先生成路网数据结构，再基于路网生成建筑布局。",
+      "coversCriteria": ["sc1", "sc2", "sc3", "sc4"],
+      "evidenceRefs": ["nE1", "nE2"]
+    },
+    {
+      "id": "n1",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "路网数据结构独立定义",
+      "acceptance": "若路网数据结构被调用，应返回包含环形路、放射路、十字主干道的完整数据。",
+      "coversCriteria": ["sc1"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n2",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "建筑避让路网区域",
+      "acceptance": "当建筑生成时，应自动检测并避让路网区域，确保建筑不与路网重叠。",
+      "coversCriteria": ["sc2"],
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n3",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "代码模块化分离",
+      "acceptance": "若代码被重构，应将地面、路网、建筑分离为独立模块，便于维护和扩展。",
+      "coversCriteria": ["sc3"],
+      "evidenceRefs": ["nE1", "nE2"]
+    },
+    {
+      "id": "n4",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "保持视觉效果和性能",
+      "acceptance": "当重构完成后，应保持现有的视觉风格和性能指标。",
+      "coversCriteria": ["sc4"],
+      "evidenceRefs": ["nE1", "nE2"]
+    },
+    {
+      "id": "n5",
+      "parentId": "n1",
+      "type": "design",
+      "title": "路网数据结构设计",
+      "notes": "定义RoadNetwork接口，包含环形路半径、放射路数量、路宽等参数",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n6",
+      "parentId": "n2",
+      "type": "design",
+      "title": "建筑避让算法设计",
+      "notes": "实现基于距离检测的避让算法，确保建筑与路网保持安全距离",
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n7",
+      "parentId": "n3",
+      "type": "design",
+      "title": "模块化架构设计",
+      "notes": "创建RoadNetworkManager、BuildingGenerator、GroundSystem等独立模块",
+      "evidenceRefs": ["nE1", "nE2"]
+    },
+    {
+      "id": "n8",
+      "parentId": "n4",
+      "type": "design",
+      "title": "性能优化策略",
+      "notes": "保持现有的InstancedMesh、LOD、纹理复用等优化策略",
+      "evidenceRefs": ["nE1", "nE2"]
+    },
+    {
+      "id": "n9",
+      "parentId": "n5",
+      "type": "task",
+      "title": "创建RoadNetwork数据结构",
+      "verify": "检查RoadNetwork接口是否包含所有必要参数"
+    },
+    {
+      "id": "n10",
+      "parentId": "n6",
+      "type": "task",
+      "title": "实现建筑避让检测函数",
+      "verify": "运行测试用例，验证建筑不与路网重叠"
+    },
+    {
+      "id": "n11",
+      "parentId": "n7",
+      "type": "task",
+      "title": "重构CyberpunkGround.tsx",
+      "verify": "检查代码是否成功分离地面和路网逻辑"
+    },
+    {
+      "id": "n12",
+      "parentId": "n7",
+      "type": "task",
+      "title": "重构CyberpunkBuildings.tsx",
+      "verify": "检查建筑生成是否使用路网数据作为输入"
+    },
+    {
+      "id": "n13",
+      "parentId": "n8",
+      "type": "task",
+      "title": "性能测试和优化",
+      "verify": "运行性能测试，确保帧率不低于原有水平"
+    },
+    {
+      "id": "nE1",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "CyberpunkGround.tsx代码分析",
+      "source": "repo://src/components/cyberpunk/CyberpunkGround.tsx#L212-L283"
+    },
+    {
+      "id": "nE2",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "CyberpunkBuildings.tsx代码分析",
+      "source": "repo://src/components/cyberpunk/CyberpunkBuildings.tsx#L486-L569"
+    }
+  ],
+  "provenance": {
+    "generationSource": "llm",
+    "promptId": "cyberpunk-ground-refactor",
+    "model": "whybuddy-llm",
+    "fingerprint": "refactor-road-network-first"
+  }
+}

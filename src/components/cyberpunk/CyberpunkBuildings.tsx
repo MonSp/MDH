@@ -6,6 +6,8 @@ import type { BuildingStyle } from './BuildingProfileGenerator'
 import { createBuildingMaterial, getStyleNeonColor } from './BuildingMaterials'
 import BuildingDetails from './BuildingDetails'
 import BuildingWindows from './BuildingWindows'
+import { generateCityLayout, DEFAULT_BUILDING_CONFIG } from './BuildingGenerator'
+import type { BuildingData } from './BuildingGenerator'
 
 /* ───────── 程序化纹理生成 ───────── */
 
@@ -498,73 +500,11 @@ interface BuildingData {
 
 export type { BuildingData }
 
+// 使用新的BuildingGenerator模块生成建筑
 export { generateBuildings }
 
 function generateBuildings(_count: number, _mainBuildingRadius: number): BuildingData[] {
-  const buildings: BuildingData[] = []
-  let buildingIndex = 0
-
-  // 近处环形建筑 — 5环（扩展至220+栋）
-  const nearRings = [
-    { count: 12, radiusMin: 8, radiusMax: 16, widthMin: 2, widthMax: 6 }, // 环1: 近距密集建筑
-    { count: 15, radiusMin: 16, radiusMax: 26, widthMin: 3, widthMax: 7 }, // 环2
-    { count: 20, radiusMin: 26, radiusMax: 40, widthMin: 3, widthMax: 8 }, // 环3
-    { count: 15, radiusMin: 40, radiusMax: 58, widthMin: 4, widthMax: 10 }, // 环4: 天际线层
-    { count: 15, radiusMin: 58, radiusMax: 75, widthMin: 5, widthMax: 12 }, // 环5: 远景层
-  ]
-
-  for (const ring of nearRings) {
-    for (let i = 0; i < ring.count; i++) {
-      const seed = buildingIndex * 37 + 1
-      const angle = (i / ring.count) * Math.PI * 2 + (pseudoRandom(seed) - 0.5) * 0.4
-      const radius = ring.radiusMin + pseudoRandom(seed + 1) * (ring.radiusMax - ring.radiusMin)
-      const x = Math.cos(angle) * radius
-      const z = Math.sin(angle) * radius
-      const width = ring.widthMin + pseudoRandom(seed + 2) * (ring.widthMax - ring.widthMin)
-      const depth = 3 + pseudoRandom(seed + 3) * 5
-      const style = assignStyle(seed)
-      const neonColor = getStyleNeonColor(style, seed)
-      const height = getBuildingHeight(radius, seed)
-
-      buildings.push({
-        position: [x, 0, z],
-        width,
-        depth,
-        height,
-        neonColor,
-        style,
-        seed,
-      })
-      buildingIndex++
-    }
-  }
-
-  // 远处简化建筑 — 15栋
-  for (let i = 0; i < 15; i++) {
-    const seed = buildingIndex * 37 + 1
-    const angle = (i / 15) * Math.PI * 2 + (pseudoRandom(seed) - 0.5) * 0.5
-    const radius = 80 + pseudoRandom(seed + 1) * 40
-    const x = Math.cos(angle) * radius
-    const z = Math.sin(angle) * radius
-    const width = 4 + pseudoRandom(seed + 2) * 4
-    const depth = 3 + pseudoRandom(seed + 3) * 4
-    const style = assignStyle(seed)
-    const neonColor = getStyleNeonColor(style, seed)
-    const height = getBuildingHeight(radius, seed)
-
-    buildings.push({
-      position: [x, 0, z],
-      width,
-      depth,
-      height,
-      neonColor,
-      style,
-      seed,
-      simplified: true,
-    })
-    buildingIndex++
-  }
-
+  const { buildings } = generateCityLayout()
   return buildings
 }
 

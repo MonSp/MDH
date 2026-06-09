@@ -28,6 +28,16 @@ export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSing
 
   const [cameraNav, setCameraNav] = useState<CameraTarget | null>(null)
   const [fogEnabled, setFogEnabled] = useState(true)
+
+  // 场景元素显示/隐藏控制
+  const [showBuildings, setShowBuildings] = useState(true)
+  const [showBillboards, setShowBillboards] = useState(true)
+  const [showFlyingVehicles, setShowFlyingVehicles] = useState(true)
+  const [showBridges, setShowBridges] = useState(true)
+  const [showParticles, setShowParticles] = useState(true)
+  const [showRain, setShowRain] = useState(true)
+  const [showNeonLines, setShowNeonLines] = useState(true)
+  const [controlsExpanded, setControlsExpanded] = useState(true)
   const handleNavigate = useCallback((pos: [number, number, number], target: [number, number, number]) => {
     setCameraNav({ pos, target })
   }, [])
@@ -74,6 +84,13 @@ export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSing
           onFocusFloor={handleFocusFloor}
           activeDeptColor={activeDeptColor}
           fogEnabled={fogEnabled}
+          showBuildings={showBuildings}
+          showBillboards={showBillboards}
+          showFlyingVehicles={showFlyingVehicles}
+          showBridges={showBridges}
+          showParticles={showParticles}
+          showRain={showRain}
+          showNeonLines={showNeonLines}
         />
       </Canvas>
 
@@ -104,23 +121,55 @@ export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSing
       <SidePanel panel={panel} onClose={handleClose} onCreateTeam={handleDoCreateTeam} onCreateProject={handleCreateProject} isMobile={isMobile} depts={DEFAULT_DEPTS} />
       <OverlayButtons onStartMeeting={onStartMeeting} onBackToSingle={onBackToSingle} />
 
-      {/* 云雾开关按钮 */}
-      <button
-        onClick={() => setFogEnabled(prev => !prev)}
-        style={{
-          position: 'absolute', bottom: 16, right: 16,
-          width: 40, height: 40, borderRadius: 8,
-          background: fogEnabled ? 'rgba(100,210,255,0.15)' : 'rgba(0,0,0,0.5)',
-          border: `1px solid ${fogEnabled ? 'rgba(100,210,255,0.5)' : 'rgba(100,210,255,0.2)'}`,
-          color: fogEnabled ? '#64d2ff' : '#4a5a7a',
-          fontSize: 16, cursor: 'pointer', zIndex: 10,
-          fontFamily: 'inherit', backdropFilter: 'blur(8px)',
-          transition: 'all 0.2s',
-        }}
-        title={fogEnabled ? '关闭云雾' : '开启云雾'}
-      >
-        ☁
-      </button>
+      {/* 右下角场景控制面板 */}
+      <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+        {controlsExpanded && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'rgba(5,5,15,0.85)', borderRadius: 8, padding: 10, border: '1px solid rgba(0,238,255,0.2)', backdropFilter: 'blur(12px)' }}>
+            <div style={{ color: '#00eeff', fontSize: 11, fontFamily: 'monospace', marginBottom: 4, opacity: 0.7 }}>SCENE CONTROLS</div>
+            {[
+              { label: 'Buildings', active: showBuildings, toggle: () => setShowBuildings(v => !v) },
+              { label: 'Billboards', active: showBillboards, toggle: () => setShowBillboards(v => !v) },
+              { label: 'Flying Objects', active: showFlyingVehicles, toggle: () => setShowFlyingVehicles(v => !v) },
+              { label: 'Sky Bridges', active: showBridges, toggle: () => setShowBridges(v => !v) },
+              { label: 'Particles', active: showParticles, toggle: () => setShowParticles(v => !v) },
+              { label: 'Rain', active: showRain, toggle: () => setShowRain(v => !v) },
+              { label: 'Neon Lines', active: showNeonLines, toggle: () => setShowNeonLines(v => !v) },
+              { label: 'Fog', active: fogEnabled, toggle: () => setFogEnabled(v => !v) },
+            ].map(btn => (
+              <button
+                key={btn.label}
+                onClick={btn.toggle}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 12px',
+                  border: `1px solid ${btn.active ? 'rgba(0,238,255,0.5)' : 'rgba(255,255,255,0.15)'}`,
+                  borderRadius: 4,
+                  background: btn.active ? 'rgba(0,238,255,0.1)' : 'rgba(0,0,0,0.4)',
+                  color: btn.active ? '#00eeff' : 'rgba(255,255,255,0.5)',
+                  cursor: 'pointer', fontSize: 12, fontFamily: 'monospace',
+                  transition: 'all 0.2s', userSelect: 'none', whiteSpace: 'nowrap',
+                }}
+              >
+                {btn.active ? '◈' : '◇'} {btn.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <button
+          onClick={() => setControlsExpanded(v => !v)}
+          style={{
+            width: 36, height: 36, borderRadius: 6,
+            border: '1px solid rgba(0,238,255,0.4)',
+            background: 'rgba(0,0,0,0.6)', color: '#00eeff',
+            cursor: 'pointer', fontSize: 18,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backdropFilter: 'blur(8px)',
+          }}
+          title="Scene Controls"
+        >
+          {controlsExpanded ? '×' : '⚙'}
+        </button>
+      </div>
     </div>
   )
 }

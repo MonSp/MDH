@@ -149,7 +149,7 @@ function DynamicFogLayer({ y, baseOpacity, color, size, fogEnabled }: {
 
 /* ───────── 完整 3D 场景 ───────── */
 
-export default function TowerScene({ projects, customTeams, onSelectProject, onSelectDept, onSelectTeam, onCreateTeam, cameraNav, onFocusFloor, activeDeptColor, fogEnabled = true }: {
+export default function TowerScene({ projects, customTeams, onSelectProject, onSelectDept, onSelectTeam, onCreateTeam, cameraNav, onFocusFloor, activeDeptColor, fogEnabled = true, showBuildings = true, showBillboards = true, showFlyingVehicles = true, showBridges = true, showParticles = true, showRain = true, showNeonLines = true }: {
   projects: Project[]
   customTeams: CustomTeam[]
   onSelectProject: (p: Project) => void
@@ -160,6 +160,13 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
   onFocusFloor?: (cameraPos: [number, number, number], target: [number, number, number]) => void
   activeDeptColor?: string
   fogEnabled?: boolean
+  showBuildings?: boolean
+  showBillboards?: boolean
+  showFlyingVehicles?: boolean
+  showBridges?: boolean
+  showParticles?: boolean
+  showRain?: boolean
+  showNeonLines?: boolean
 }) {
   const [hovering, setHovering] = useState(false)
   const onEnter = useCallback(() => setHovering(true), [])
@@ -230,28 +237,32 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       {/* 本地HDR环境反射（不从CDN下载） */}
       <Environment files="/dikhololo_night_1k.hdr" background={false} />
 
-      <Ground />
+      <Ground showNeonLines={showNeonLines} />
       <BuildingBody />
       <DataFlowParticles totalIterations={totalIterations} />
       <GlassCurtainWall />
       <NeonEdges />
 
       {/* 电影级赛博朋克城市 — 500+ 栋 InstancedMesh 建筑 */}
-      <CyberpunkCityInstanced count={500} />
-      <HolographicBillboard buildings={cityBuildings} maxBillboards={300} />
+      {showBuildings && <CyberpunkCityInstanced count={500} />}
+      {showBillboards && <HolographicBillboard buildings={cityBuildings} maxBillboards={300} />}
 
       {/* 楼间连桥（使用原始建筑数据） */}
-      <SkyBridge buildings={buildings} maxBridges={25} maxDistance={20} />
-      <FlyingVehicles />
-      <FreightShip radius={80} height={45} speed={0.04} color="#0a84ff" size={1.0} />
-      <FreightShip radius={90} height={50} speed={0.03} color="#ff375f" size={0.8} />
-      <DroneSwarm count={8} radius={35} height={30} speed={0.08} color="#64d2ff" size={0.15} />
-      <DroneSwarm count={6} radius={50} height={45} speed={0.06} color="#bf5af2" size={0.12} />
-      <CyberRain />
+      {showBridges && <SkyBridge buildings={buildings} maxBridges={25} maxDistance={20} />}
+      {showFlyingVehicles && (
+        <>
+          <FlyingVehicles />
+          <FreightShip radius={80} height={45} speed={0.04} color="#0a84ff" size={1.0} />
+          <FreightShip radius={90} height={50} speed={0.03} color="#ff375f" size={0.8} />
+          <DroneSwarm count={8} radius={35} height={30} speed={0.08} color="#64d2ff" size={0.15} />
+          <DroneSwarm count={6} radius={50} height={45} speed={0.06} color="#bf5af2" size={0.12} />
+        </>
+      )}
+      {showRain && <CyberRain />}
       <NeonLights />
 
       {/* 电影级多层粒子系统：车流/飞行器尾迹/灰尘 */}
-      <CyberpunkParticles trafficCount={500} trailCount={200} dustCount={800} />
+      {showParticles && <CyberpunkParticles trafficCount={500} trailCount={200} dustCount={800} />}
 
       {/* 蒸汽喷口效果 */}
       <SteamVent position={[15, 0, 15]} color="#ffffff" particleCount={50} speed={1.0} height={3} />

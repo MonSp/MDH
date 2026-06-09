@@ -1,0 +1,47 @@
+{
+  "objective": "重构赛博朋克城市地面系统，建立路网优先的生成架构",
+  "constraints": [
+    "保持现有的视觉风格和性能",
+    "不破坏现有的组件接口",
+    "支持程序化生成的城市布局"
+  ],
+  "successCriteria": [
+    {
+      "id": "sc1",
+      "text": "路网数据结构独立定义，作为建筑生成的输入"
+    },
+    {
+      "id": "sc2",
+      "text": "建筑生成时自动避让路网区域"
+    },
+    {
+      "id": "sc3",
+      "text": "地面、路网、建筑代码模块化分离"
+    },
+    {
+      "id": "sc4",
+      "text": "保持现有视觉效果和性能"
+    }
+  ],
+  "keyRequirements": [
+    "路网应先生成，建筑再结合路网生成",
+    "建筑不应放置在路网上",
+    "代码应模块化，便于维护和扩展"
+  ],
+  "technicalDetails": {
+    "currentRoadNetwork": {
+      "ringRadii": [22, 34, 48, 64, 82, 102],
+      "radialCount": 8,
+      "roadWidth": 4
+    },
+    "currentBuildingLayout": {
+      "nearRings": [
+        { "count": 12, "radiusMin": 8, "radiusMax": 16 },
+        { "count": 15, "radiusMin": 16, "radiusMax": 26 },
+        { "count": 20, "radiusMin": 26, "radiusMax": 40 },
+        { "count": 15, "radiusMin": 40, "radiusMax": 58 },
+        { "count": 15, "radiusMin": 58, "radiusMax": 75 }
+      ]
+    }
+  }
+}

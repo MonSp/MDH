@@ -211,8 +211,8 @@ export function NeonEdges() {
 
 /* ───────── 地面平台 ───────── */
 
-export function Ground() {
-  return <CyberpunkGround />
+export function Ground({ showNeonLines }: { showNeonLines?: boolean }) {
+  return <CyberpunkGround showNeonLines={showNeonLines} />
 }
 
 /* ───────── 信号塔天线 ───────── */

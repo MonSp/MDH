@@ -1,6 +1,12 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect, useState } from 'react'
 import { MeshReflectorMaterial } from '@react-three/drei'
 import * as THREE from 'three'
+import { loadPBRTextures } from './PBRTextureLoader'
+import type { PBRTextureSet } from './PBRTextureLoader'
+import { createRoadNetwork, DEFAULT_ROAD_CONFIG } from './RoadNetworkManager'
+import type { RoadNetwork, RoadSegment } from './RoadNetworkManager'
+import RoadsFlat, { roadMaterial } from './RoadsFlat'
+import NeonLinesFlat from './NeonLinesFlat'
 
 /* ───────── 赛博朋克城市地面系统 ───────── */
 
@@ -78,8 +84,18 @@ function generateAsphaltTexture(seed: number): THREE.CanvasTexture {
 const asphaltDiffuse = generateAsphaltTexture(42)
 
 /* ───────── 地面材质定义 ───────── */
+// 马路材质 → 从 RoadsFlat 导入（PBR 纹理加载也用同一个实例）
 
-// 基础地面材质 - 深蓝色背景 + 沥青纹理
+// 人行道材质 - 浅灰色混凝土，有纹理
+const sidewalkMaterial = new THREE.MeshStandardMaterial({
+  color: '#555570',
+  roughness: 0.6,
+  metalness: 0.15,
+  emissive: '#1a1a35',
+  emissiveIntensity: 0.6,
+})
+
+// 基础地面材质 - 深蓝色背景
 const baseGroundMaterial = new THREE.MeshStandardMaterial({
   map: asphaltDiffuse,
   color: '#2a2a4a',
@@ -89,7 +105,7 @@ const baseGroundMaterial = new THREE.MeshStandardMaterial({
   emissiveIntensity: 0.5,
 })
 
-// 广场地面材质 - 亮紫色调，金属质感
+// 广场材质 - 亮紫色调，金属质感
 const plazaMaterial = new THREE.MeshStandardMaterial({
   color: '#3d3d6a',
   roughness: 0.3,
@@ -98,31 +114,22 @@ const plazaMaterial = new THREE.MeshStandardMaterial({
   emissiveIntensity: 0.7,
 })
 
-// 马路材质 - 深色沥青，带微弱蓝光
-const roadMaterial = new THREE.MeshStandardMaterial({
-  color: '#252540',
-  roughness: 0.8,
-  metalness: 0.15,
-  emissive: '#121225',
-  emissiveIntensity: 0.4,
-})
-
-// 人行道材质 - 浅紫灰色
-const sidewalkMaterial = new THREE.MeshStandardMaterial({
-  color: '#5a5a7a',
-  roughness: 0.6,
-  metalness: 0.3,
-  emissive: '#1a1a30',
-  emissiveIntensity: 0.5,
-})
-
-// 草坪材质 - 带发光的青绿色
+// 草坪材质 - 深绿色
 const grassMaterial = new THREE.MeshStandardMaterial({
-  color: '#154530',
-  roughness: 0.85,
-  metalness: 0.05,
-  emissive: '#104028',
-  emissiveIntensity: 0.8,
+  color: '#0a3020',
+  roughness: 0.9,
+  metalness: 0.02,
+  emissive: '#082818',
+  emissiveIntensity: 0.6,
+})
+
+// 路缘石材质 - 浅灰色，有高光
+const curbMaterial = new THREE.MeshStandardMaterial({
+  color: '#6a6a80',
+  roughness: 0.4,
+  metalness: 0.3,
+  emissive: '#2a2a40',
+  emissiveIntensity: 0.5,
 })
 
 // 霓虹道路线材质 - 亮青色
@@ -163,7 +170,7 @@ function Plaza() {
       <GroundPlane position={[0, 0.02, 0]} size={[PLAZA_RADIUS * 2, PLAZA_RADIUS * 2]} material={plazaMaterial} />
 
       {/* 广场中心装饰环 - 紫色 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
         <ringGeometry args={[5, 6, 64]} />
         <meshStandardMaterial
           color="#cc66ff"
@@ -174,7 +181,7 @@ function Plaza() {
       </mesh>
 
       {/* 广场内圈装饰 - 绿色 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
         <ringGeometry args={[2, 2.8, 64]} />
         <meshStandardMaterial
           color="#44ee77"
@@ -185,7 +192,7 @@ function Plaza() {
       </mesh>
 
       {/* 广场外圈装饰 - 青色 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
         <ringGeometry args={[10, 11, 64]} />
         <meshStandardMaterial
           color="#00ddff"
@@ -198,49 +205,34 @@ function Plaza() {
   )
 }
 
-/* ───────── 马路组件 ───────── */
+/* ───────── 马路组件（放射+环形路网） ───────── */
+// 路面几何体由 RoadsFlat 组件负责（直接计算地面顶点，保证贴地）
 
-function Roads() {
-  const roads = useMemo(() => {
-    const result = []
+/* ───────── 路缘石组件（主干道两侧） ───────── */
 
-    // 东西向主干道
-    result.push({
-      position: [0, 0.01, PLAZA_RADIUS + SIDEWALK_WIDTH + ROAD_WIDTH / 2] as [number, number, number],
-      size: [GROUND_SIZE, ROAD_WIDTH] as [number, number],
-      rotation: 0,
-    })
-    result.push({
-      position: [0, 0.01, -(PLAZA_RADIUS + SIDEWALK_WIDTH + ROAD_WIDTH / 2)] as [number, number, number],
-      size: [GROUND_SIZE, ROAD_WIDTH] as [number, number],
-      rotation: 0,
-    })
+function Curbs() {
+  const curbH = 0.04
+  const curbW = 0.15
+  const curbBaseY = 0.025
+  const offset = ROAD_WIDTH / 2 + curbW / 2
 
-    // 南北向主干道
-    result.push({
-      position: [PLAZA_RADIUS + SIDEWALK_WIDTH + ROAD_WIDTH / 2, 0.01, 0] as [number, number, number],
-      size: [ROAD_WIDTH, GROUND_SIZE] as [number, number],
-      rotation: 0,
-    })
-    result.push({
-      position: [-(PLAZA_RADIUS + SIDEWALK_WIDTH + ROAD_WIDTH / 2), 0.01, 0] as [number, number, number],
-      size: [ROAD_WIDTH, GROUND_SIZE] as [number, number],
-      rotation: 0,
-    })
-
+  const curbs = useMemo(() => {
+    const result: { position: [number, number, number]; size: [number, number, number] }[] = []
+    // 东西主干道两侧
+    result.push({ position: [0, curbBaseY + curbH / 2, offset], size: [GROUND_SIZE, curbH, curbW] })
+    result.push({ position: [0, curbBaseY + curbH / 2, -offset], size: [GROUND_SIZE, curbH, curbW] })
+    // 南北主干道两侧
+    result.push({ position: [offset, curbBaseY + curbH / 2, 0], size: [curbW, curbH, GROUND_SIZE] })
+    result.push({ position: [-offset, curbBaseY + curbH / 2, 0], size: [curbW, curbH, GROUND_SIZE] })
     return result
   }, [])
 
   return (
     <group>
-      {roads.map((road, i) => (
-        <GroundPlane
-          key={i}
-          position={road.position}
-          size={road.size}
-          rotation={road.rotation}
-          material={roadMaterial}
-        />
+      {curbs.map((c, i) => (
+        <mesh key={i} position={c.position} material={curbMaterial}>
+          <boxGeometry args={c.size} />
+        </mesh>
       ))}
     </group>
   )
@@ -252,26 +244,26 @@ function Sidewalks() {
   const sidewalks = useMemo(() => {
     const result = []
 
-    // 广场周围的矩形人行道
+    // 人行道略高于路面（y=0.03 vs 路面 y=0.005）
     const offset = PLAZA_RADIUS + SIDEWALK_WIDTH / 2
 
     // 上下人行道
     result.push({
-      position: [0, 0.015, offset] as [number, number, number],
+      position: [0, 0.04, offset] as [number, number, number],
       size: [PLAZA_RADIUS * 2 + SIDEWALK_WIDTH * 2, SIDEWALK_WIDTH] as [number, number],
     })
     result.push({
-      position: [0, 0.015, -offset] as [number, number, number],
+      position: [0, 0.04, -offset] as [number, number, number],
       size: [PLAZA_RADIUS * 2 + SIDEWALK_WIDTH * 2, SIDEWALK_WIDTH] as [number, number],
     })
 
     // 左右人行道
     result.push({
-      position: [offset, 0.015, 0] as [number, number, number],
+      position: [offset, 0.04, 0] as [number, number, number],
       size: [SIDEWALK_WIDTH, PLAZA_RADIUS * 2] as [number, number],
     })
     result.push({
-      position: [-offset, 0.015, 0] as [number, number, number],
+      position: [-offset, 0.04, 0] as [number, number, number],
       size: [SIDEWALK_WIDTH, PLAZA_RADIUS * 2] as [number, number],
     })
 
@@ -302,10 +294,10 @@ function GrassAreas() {
 
     // 四个象限的草坪
     const positions: [number, number, number][] = [
-      [start + size / 2, 0.012, start + size / 2],
-      [-(start + size / 2), 0.012, start + size / 2],
-      [start + size / 2, 0.012, -(start + size / 2)],
-      [-(start + size / 2), 0.012, -(start + size / 2)],
+      [start + size / 2, 0.01, start + size / 2],
+      [-(start + size / 2), 0.01, start + size / 2],
+      [start + size / 2, 0.01, -(start + size / 2)],
+      [-(start + size / 2), 0.01, -(start + size / 2)],
     ]
 
     positions.forEach(pos => {
@@ -336,29 +328,58 @@ function GrassAreas() {
 
 function NeonRoadLines() {
   const lines = useMemo(() => {
-    const result = []
+    const result: { position: [number, number, number]; size: [number, number]; rotation: number; color: string }[] = []
+    const lineY = 0.035
+    const lineWidth = 0.12
     const roadCenter = PLAZA_RADIUS + SIDEWALK_WIDTH + ROAD_WIDTH / 2
-    const lineWidth = 0.15
 
-    // 东西向道路中心线
-    result.push({
-      position: [0, 0.025, roadCenter] as [number, number, number],
-      size: [GROUND_SIZE, lineWidth] as [number, number],
-    })
-    result.push({
-      position: [0, 0.025, -roadCenter] as [number, number, number],
-      size: [GROUND_SIZE, lineWidth] as [number, number],
-    })
+    // ═══ 主干道中心线（青色）═══
+    result.push({ position: [0, lineY, roadCenter], size: [GROUND_SIZE, lineWidth], rotation: 0, color: '#00eeff' })
+    result.push({ position: [0, lineY, -roadCenter], size: [GROUND_SIZE, lineWidth], rotation: 0, color: '#00eeff' })
+    result.push({ position: [roadCenter, lineY, 0], size: [lineWidth, GROUND_SIZE], rotation: 0, color: '#00eeff' })
+    result.push({ position: [-roadCenter, lineY, 0], size: [lineWidth, GROUND_SIZE], rotation: 0, color: '#00eeff' })
 
-    // 南北向道路中心线
-    result.push({
-      position: [roadCenter, 0.025, 0] as [number, number, number],
-      size: [lineWidth, GROUND_SIZE] as [number, number],
-    })
-    result.push({
-      position: [-roadCenter, 0.025, 0] as [number, number, number],
-      size: [lineWidth, GROUND_SIZE] as [number, number],
-    })
+    // ═══ 环形路边线（多色霓虹）═══
+    const ringRadii = [22, 34, 48, 64, 82, 102]
+    const ringColors = ['#ff00aa', '#00ddff', '#44ff88', '#ff6600', '#aa44ff', '#ffaa00']
+    for (let ri = 0; ri < ringRadii.length; ri++) {
+      const r = ringRadii[ri]
+      const segments = Math.max(6, Math.floor((2 * Math.PI * r) / 15))
+      const arcLen = (2 * Math.PI * r) / segments
+      const color = ringColors[ri % ringColors.length]
+      for (let i = 0; i < segments; i++) {
+        const angle = (i / segments) * Math.PI * 2
+        const cx = Math.cos(angle) * r
+        const cz = Math.sin(angle) * r
+        result.push({
+          position: [cx, lineY, cz],
+          size: [arcLen * 0.98, lineWidth],
+          rotation: -(angle + Math.PI / 2),
+          color,
+        })
+      }
+    }
+
+    // ═══ 放射路边线（粉色）═══
+    const numRadials = 8
+    for (let i = 0; i < numRadials; i++) {
+      const angle = (i / numRadials) * Math.PI * 2
+      const cos = Math.cos(angle)
+      const sin = Math.sin(angle)
+      for (let ri = 0; ri < ringRadii.length - 1; ri++) {
+        const rInner = ringRadii[ri] + 3
+        const rOuter = ringRadii[ri + 1] - 3
+        const rMid = (rInner + rOuter) / 2
+        const segLen = rOuter - rInner
+        if (segLen < 4) continue
+        result.push({
+          position: [cos * rMid, lineY, sin * rMid],
+          size: [lineWidth, segLen],
+          rotation: 3 * Math.PI / 2 - angle,
+          color: '#ff66cc',
+        })
+      }
+    }
 
     return result
   }, [])
@@ -366,12 +387,21 @@ function NeonRoadLines() {
   return (
     <group>
       {lines.map((line, i) => (
-        <GroundPlane
+        <mesh
           key={i}
           position={line.position}
-          size={line.size}
-          material={neonLineMaterial}
-        />
+          rotation={[-Math.PI / 2, line.rotation, 0]}
+        >
+          <planeGeometry args={line.size} />
+          <meshStandardMaterial
+            color={line.color}
+            emissive={line.color}
+            emissiveIntensity={3.5}
+            roughness={0.1}
+            metalness={0.9}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
       ))}
     </group>
   )
@@ -383,7 +413,7 @@ function OuterDecorations() {
   return (
     <group>
       {/* 第一圈装饰 - 红色 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.035, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
         <ringGeometry args={[38, 38.8, 64]} />
         <meshStandardMaterial
           color="#ff4466"
@@ -394,7 +424,7 @@ function OuterDecorations() {
       </mesh>
 
       {/* 第二圈装饰 - 橙色 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.035, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
         <ringGeometry args={[48, 48.8, 64]} />
         <meshStandardMaterial
           color="#ffaa22"
@@ -405,7 +435,7 @@ function OuterDecorations() {
       </mesh>
 
       {/* 第三圈装饰 - 青色 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.035, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
         <ringGeometry args={[56, 56.8, 64]} />
         <meshStandardMaterial
           color="#88ddff"
@@ -418,33 +448,203 @@ function OuterDecorations() {
   )
 }
 
-/* ───────── 主地面组件 ───────── */
+/* ───────── 霓虹水坑/反光叠层 ───────── */
 
-export default function CyberpunkGround() {
+function NeonPuddles() {
+  const puddles = useMemo(() => {
+    const result: { position: [number, number, number]; size: [number, number]; color: string; intensity: number }[] = []
+    const rand = (s: number) => {
+      const x = Math.sin(s * 127.1 + 311.7) * 43758.5453
+      return x - Math.floor(x)
+    }
+
+    // 在道路上随机放置水坑
+    const neonColors = ['#ff00aa', '#00ddff', '#44ff88', '#ff6600', '#aa44ff', '#ffaa00']
+    const roadOffset = PLAZA_RADIUS + SIDEWALK_WIDTH + ROAD_WIDTH / 2
+
+    for (let i = 0; i < 40; i++) {
+      const seed = i * 41 + 7
+      const isEastWest = rand(seed) > 0.5
+      const roadSign = rand(seed + 1) > 0.5 ? 1 : -1
+      const roadPos = roadSign * roadOffset
+
+      let x: number, z: number
+      if (isEastWest) {
+        x = (rand(seed + 2) - 0.5) * GROUND_SIZE * 0.8
+        z = roadPos + (rand(seed + 3) - 0.5) * ROAD_WIDTH * 0.6
+      } else {
+        x = roadPos + (rand(seed + 3) - 0.5) * ROAD_WIDTH * 0.6
+        z = (rand(seed + 2) - 0.5) * GROUND_SIZE * 0.8
+      }
+
+      const w = 1 + rand(seed + 4) * 3
+      const h = 0.5 + rand(seed + 5) * 2
+      const color = neonColors[Math.floor(rand(seed + 6) * neonColors.length)]
+      const intensity = 0.15 + rand(seed + 7) * 0.25
+
+      result.push({ position: [x, 0.012, z], size: [w, h], color, intensity })
+    }
+
+    // 在建筑间空地也放一些
+    for (let i = 0; i < 20; i++) {
+      const seed = i * 53 + 200
+      const angle = rand(seed) * Math.PI * 2
+      const radius = 25 + rand(seed + 1) * 80
+      const x = Math.cos(angle) * radius
+      const z = Math.sin(angle) * radius
+      const w = 1.5 + rand(seed + 2) * 4
+      const h = 1 + rand(seed + 3) * 3
+      const color = neonColors[Math.floor(rand(seed + 4) * neonColors.length)]
+      const intensity = 0.1 + rand(seed + 5) * 0.2
+
+      result.push({ position: [x, 0.012, z], size: [w, h], color, intensity })
+    }
+
+    return result
+  }, [])
+
   return (
     <group>
-      {/* 基础地面 — 湿润反射效果 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+      {puddles.map((p, i) => (
+        <mesh key={i} position={p.position} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={p.size} />
+          <meshStandardMaterial
+            color={p.color}
+            emissive={p.color}
+            emissiveIntensity={p.intensity}
+            transparent
+            opacity={0.25}
+            roughness={0.05}
+            metalness={0.9}
+            side={THREE.DoubleSide}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+/* ───────── 主地面组件 ───────── */
+
+export default function CyberpunkGround({ showNeonLines = true }: { showNeonLines?: boolean }) {
+  // 异步加载 PBR 贴图，应用到马路和人行道材质
+  useEffect(() => {
+    let cancelled = false
+
+    // 主干道使用带标线的路面贴图
+    loadPBRTextures('roadMarked', 1000).then(set => {
+      if (cancelled) return
+      if (set.color) {
+        set.color.wrapS = THREE.RepeatWrapping
+        set.color.wrapT = THREE.RepeatWrapping
+        set.color.repeat.set(8, 8)
+      }
+      if (set.roughness) {
+        set.roughness.wrapS = THREE.RepeatWrapping
+        set.roughness.wrapT = THREE.RepeatWrapping
+        set.roughness.repeat.set(8, 8)
+      }
+      if (set.normal) {
+        set.normal.wrapS = THREE.RepeatWrapping
+        set.normal.wrapT = THREE.RepeatWrapping
+        set.normal.repeat.set(8, 8)
+      }
+      roadMaterial.map = set.color
+      roadMaterial.roughnessMap = set.roughness
+      roadMaterial.normalMap = set.normal
+      roadMaterial.normalScale = new THREE.Vector2(1.5, 1.5)
+      roadMaterial.roughness = 0.35
+      roadMaterial.metalness = 0.25
+      // 提高亮度确保俯视可见
+      roadMaterial.color.set('#5a5a75')
+      roadMaterial.emissive.set('#2a2a45')
+      roadMaterial.emissiveIntensity = 0.9
+      roadMaterial.needsUpdate = true
+    })
+
+    // 人行道使用混凝土贴图
+    loadPBRTextures('concrete', 2000).then(set => {
+      if (cancelled) return
+      if (set.color) {
+        set.color.wrapS = THREE.RepeatWrapping
+        set.color.wrapT = THREE.RepeatWrapping
+        set.color.repeat.set(6, 6)
+      }
+      if (set.roughness) {
+        set.roughness.wrapS = THREE.RepeatWrapping
+        set.roughness.wrapT = THREE.RepeatWrapping
+        set.roughness.repeat.set(6, 6)
+      }
+      if (set.normal) {
+        set.normal.wrapS = THREE.RepeatWrapping
+        set.normal.wrapT = THREE.RepeatWrapping
+        set.normal.repeat.set(6, 6)
+      }
+      sidewalkMaterial.map = set.color
+      sidewalkMaterial.roughnessMap = set.roughness
+      sidewalkMaterial.normalMap = set.normal
+      sidewalkMaterial.normalScale = new THREE.Vector2(1.2, 1.2)
+      sidewalkMaterial.needsUpdate = true
+    })
+
+    // 广场使用水磨石贴图
+    loadPBRTextures('terrazzo', 3000).then(set => {
+      if (cancelled) return
+      if (set.color) {
+        set.color.wrapS = THREE.RepeatWrapping
+        set.color.wrapT = THREE.RepeatWrapping
+        set.color.repeat.set(4, 4)
+      }
+      if (set.roughness) {
+        set.roughness.wrapS = THREE.RepeatWrapping
+        set.roughness.wrapT = THREE.RepeatWrapping
+        set.roughness.repeat.set(4, 4)
+      }
+      if (set.normal) {
+        set.normal.wrapS = THREE.RepeatWrapping
+        set.normal.wrapT = THREE.RepeatWrapping
+        set.normal.repeat.set(4, 4)
+      }
+      plazaMaterial.map = set.color
+      plazaMaterial.roughnessMap = set.roughness
+      plazaMaterial.normalMap = set.normal
+      plazaMaterial.normalScale = new THREE.Vector2(1.0, 1.0)
+      plazaMaterial.needsUpdate = true
+    })
+
+    return () => { cancelled = true }
+  }, [])
+
+  return (
+    <group>
+      {/* 基础地面 — 潮湿霓虹反射 */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
         <planeGeometry args={[GROUND_SIZE, GROUND_SIZE]} />
         <MeshReflectorMaterial
-          blur={[300, 100]}
+          blur={[400, 400]}
           resolution={1024}
-          mixBlur={10}
-          mixStrength={60}
-          roughness={0.2}
+          mixBlur={6}
+          mixStrength={80}
+          roughness={0.35}
           depthScale={1.2}
-          color="#151528"
-          metalness={0.7}
+          color="#111122"
+          metalness={0.3}
         />
       </mesh>
 
       {/* 功能区域 */}
       <Plaza />
-      <Roads />
+      <RoadsFlat />
+      <Curbs />
       <Sidewalks />
       <GrassAreas />
-      <NeonRoadLines />
       <OuterDecorations />
+
+      {/* 霓虹线（可开关） */}
+      {showNeonLines && <NeonLinesFlat />}
+      {showNeonLines && <NeonPuddles />}
     </group>
   )
 }

@@ -1,0 +1,30 @@
+{
+  "checks": [
+    {
+      "script": "validate_spec_tree.py",
+      "command": "python .trae/skills/whybuddy/scripts/validate_spec_tree.py whybuddy/spec_tree.json",
+      "exitCode": 0,
+      "output": "通过 - 合法的规格树（16 个节点，4 条成功标准全覆盖）",
+      "timestamp": "2026-06-09T17:37:20+08:00",
+      "passed": true
+    },
+    {
+      "script": "check_content_quality.py",
+      "command": "python .trae/skills/whybuddy/scripts/check_content_quality.py whybuddy/docs/requirements.md whybuddy/docs/design.md whybuddy/docs/tasks.md",
+      "exitCode": 0,
+      "output": "通过 - 规格文档内容结构完整，验收为 EARS 句式",
+      "timestamp": "2026-06-09T17:37:45+08:00",
+      "passed": true
+    }
+  ],
+  "summary": {
+    "totalChecks": 2,
+    "passedChecks": 2,
+    "failedChecks": 0,
+    "allPassed": true
+  },
+  "provenance": {
+    "generatedBy": "whybuddy-skill",
+    "timestamp": "2026-06-09T17:37:45+08:00"
+  }
+}

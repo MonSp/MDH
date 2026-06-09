@@ -12,7 +12,7 @@ export interface PBRTextureSet {
   metalness: THREE.Texture | null
 }
 
-export type TextureType = 'concrete' | 'rustMetal' | 'dirtyGlass'
+export type TextureType = 'concrete' | 'rustMetal' | 'dirtyGlass' | 'asphalt' | 'roadMarked' | 'terrazzo'
 
 /* ───────── 贴图路径配置 ───────── */
 
@@ -27,6 +27,9 @@ interface TexturePaths {
 // 混凝土：Concrete048  https://ambientcg.com/view?id=Concrete048
 // 锈蚀金属：Metal053C   https://ambientcg.com/view?id=Metal053C
 // 脏污玻璃幕墙：Facade009 https://ambientcg.com/view?id=Facade009
+// 沥青路面：Asphalt031  https://ambientcg.com/view?id=Asphalt031
+// 带标线路面：Road007    https://ambientcg.com/view?id=Road007
+// 水磨石广场：Terrazzo013 https://ambientcg.com/view?id=Terrazzo013
 const TEXTURE_PATHS: Record<TextureType, TexturePaths> = {
   concrete: {
     color: '/textures/Concrete048_Color.jpg',
@@ -43,6 +46,21 @@ const TEXTURE_PATHS: Record<TextureType, TexturePaths> = {
     color: '/textures/Facade009_Color.jpg',
     roughness: '/textures/Facade009_Roughness.jpg',
     normal: '/textures/Facade009_NormalGL.jpg',
+  },
+  asphalt: {
+    color: '/textures/Asphalt031_Color.jpg',
+    roughness: '/textures/Asphalt031_Roughness.jpg',
+    normal: '/textures/Asphalt031_NormalGL.jpg',
+  },
+  roadMarked: {
+    color: '/textures/Road007_Color.jpg',
+    roughness: '/textures/Road007_Roughness.jpg',
+    normal: '/textures/Road007_NormalGL.jpg',
+  },
+  terrazzo: {
+    color: '/textures/Terrazzo013_Color.jpg',
+    roughness: '/textures/Terrazzo013_Roughness.jpg',
+    normal: '/textures/Terrazzo013_NormalGL.jpg',
   },
 }
 
@@ -90,13 +108,58 @@ function generateFallbackColor(type: TextureType, seed: number): THREE.CanvasTex
       ctx.fillStyle = `rgba(${150 + rand(i * 7) * 80}, ${70 + rand(i * 11) * 50}, ${15 + rand(i * 13) * 25}, 0.3)`
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill()
     }
-  } else {
+  } else if (type === 'dirtyGlass') {
     ctx.fillStyle = '#2a3a5a'
     ctx.fillRect(0, 0, size, size)
     for (let i = 0; i < 80; i++) {
       const x = rand(i * 3) * size, y = rand(i * 3 + 1) * size
       ctx.fillStyle = `rgba(${40 + rand(i * 5) * 40}, ${60 + rand(i * 7) * 40}, ${90 + rand(i * 9) * 40}, 0.2)`
       ctx.beginPath(); ctx.arc(x, y, rand(i * 11) * 15 + 3, 0, Math.PI * 2); ctx.fill()
+    }
+  } else if (type === 'roadMarked') {
+    // 带标线的路面 - 深灰底色+白色虚线
+    ctx.fillStyle = '#3a3a4a'
+    ctx.fillRect(0, 0, size, size)
+    // 噪点纹理
+    for (let i = 0; i < 2000; i++) {
+      const x = rand(i * 3) * size, y = rand(i * 3 + 1) * size
+      const b = rand(i * 5) * 20 - 10
+      ctx.fillStyle = `rgba(${50 + b}, ${50 + b}, ${65 + b}, 0.15)`
+      ctx.fillRect(x, y, rand(i * 7) * 2 + 1, rand(i * 11) * 2 + 1)
+    }
+    // 车道标线（白色虚线）
+    ctx.fillStyle = 'rgba(220, 220, 230, 0.85)'
+    const laneWidth = size / 4
+    for (let lane = 1; lane < 4; lane++) {
+      const x = lane * laneWidth
+      for (let y = 0; y < size; y += 40) {
+        ctx.fillRect(x - 3, y, 6, 24)
+      }
+    }
+    // 边缘实线
+    ctx.fillStyle = 'rgba(200, 200, 210, 0.7)'
+    ctx.fillRect(2, 0, 4, size)
+    ctx.fillRect(size - 6, 0, 4, size)
+  } else if (type === 'terrazzo') {
+    // 水磨石
+    ctx.fillStyle = '#4a4a5a'
+    ctx.fillRect(0, 0, size, size)
+    for (let i = 0; i < 500; i++) {
+      const x = rand(i * 3) * size, y = rand(i * 3 + 1) * size
+      const r = rand(i * 5) * 6 + 2
+      const shade = rand(i * 7) > 0.5 ? '#6a6a7a' : '#3a3a4a'
+      ctx.fillStyle = shade
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill()
+    }
+  } else {
+    // asphalt
+    ctx.fillStyle = '#252530'
+    ctx.fillRect(0, 0, size, size)
+    for (let i = 0; i < 4000; i++) {
+      const x = rand(i * 3) * size, y = rand(i * 3 + 1) * size
+      const b = rand(i * 5) * 20 - 10
+      ctx.fillStyle = `rgba(${37 + b}, ${37 + b}, ${48 + b}, 0.12)`
+      ctx.fillRect(x, y, rand(i * 7) * 2 + 1, rand(i * 11) * 2 + 1)
     }
   }
 
@@ -118,7 +181,7 @@ function generateFallbackRoughness(type: TextureType, seed: number): THREE.Canva
     return x - Math.floor(x)
   }
 
-  const base = type === 'concrete' ? 180 : type === 'rustMetal' ? 120 : 40
+  const base = type === 'concrete' ? 180 : type === 'rustMetal' ? 120 : type === 'asphalt' ? 150 : type === 'roadMarked' ? 140 : type === 'terrazzo' ? 200 : 40
   ctx.fillStyle = `rgb(${base},${base},${base})`
   ctx.fillRect(0, 0, size, size)
 
@@ -248,16 +311,25 @@ export function createFallbackMaterial(type: TextureType, seed: number): THREE.M
     concrete: '#5a5a6a',
     rustMetal: '#4a3020',
     dirtyGlass: '#2a3a5a',
+    asphalt: '#252530',
+    roadMarked: '#1a1a28',
+    terrazzo: '#4a4a5a',
   }
   const metalness: Record<TextureType, number> = {
     concrete: 0.0,
     rustMetal: 0.6,
     dirtyGlass: 0.9,
+    asphalt: 0.1,
+    roadMarked: 0.1,
+    terrazzo: 0.15,
   }
   const roughness: Record<TextureType, number> = {
     concrete: 0.85,
     rustMetal: 0.35,
     dirtyGlass: 0.05,
+    asphalt: 0.8,
+    roadMarked: 0.7,
+    terrazzo: 0.4,
   }
 
   return new THREE.MeshStandardMaterial({
