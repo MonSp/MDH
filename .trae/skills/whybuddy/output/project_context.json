@@ -1,56 +1,48 @@
 {
-  "id": "ctx-cyberpunk-city-v2",
-  "goal": "将赛博朋克3D城市场景从当前的低密度科技园区风格迭代至理想图中的高密度、高信息量、充满生命力的赛博朋克都市",
-  "summary": "当前 Three.js + React Three Fiber 实现的赛博朋克城市在8个维度上与理想图存在显著差距：建筑密度低、广告牌缺乏动态感、空中交通单一、无地面人群、天气效果弱、建筑细节受限、光照对比不足、天空缺乏远景。需要系统性迭代升级。",
+  "goal": "将现有赛博朋克城市三维场景迭代至电影级视觉质量，保持俯视/鸟瞰视角不变",
+  "summary": "现有场景基于 React Three Fiber 构建，包含约 220 栋独立 Mesh 建筑、Canvas 程序化纹理、线性雾、Bloom 后处理。需升级为：InstancedMesh 批量 500+ 建筑、ambientCG PBR 纹理（含 fallback）、FogExp2 指数雾、全息广告牌、增强灯光阴影、UnrealBloomPass 后处理、多层粒子系统。",
   "sources": [
-    {
-      "type": "repo",
-      "path": "src/components/cyberpunk/",
-      "files": [
-        "CyberpunkBuildings.tsx",
-        "BuildingWindows.tsx",
-        "BuildingDetails.tsx",
-        "HolographicAds.tsx",
-        "FlyingVehicles.tsx",
-        "SkyDome.tsx",
-        "NeonLights.tsx",
-        "CyberpunkGround.tsx",
-        "NeonGround.tsx",
-        "CyberRain.tsx"
-      ]
-    },
-    {
-      "type": "repo",
-      "path": "src/components/techtower/",
-      "files": [
-        "TowerScene.tsx",
-        "BuildingScene.tsx",
-        "PenthouseFurniture.tsx",
-        "FloorMarkers.tsx",
-        "constants.ts"
-      ]
-    }
+    "repo://src/components/cyberpunk/CyberpunkBuildings.tsx — 当前建筑生成器（220+ 栋独立 Mesh）",
+    "repo://src/components/cyberpunk/BuildingMaterials.ts — 材质工厂（MeshPhysicalMaterial）",
+    "repo://src/components/cyberpunk/BuildingProfileGenerator.ts — 退台轮廓生成",
+    "repo://src/components/cyberpunk/BuildingWindows.tsx — InstancedMesh 窗户系统",
+    "repo://src/components/cyberpunk/HolographicAds.tsx — 全息广告牌",
+    "repo://src/components/cyberpunk/SkyDome.tsx — Shader 天空穹顶",
+    "repo://src/components/cyberpunk/CyberpunkGround.tsx — MeshReflectorMaterial 地面",
+    "repo://src/components/techtower/TowerScene.tsx — 主场景入口（灯光/雾/后处理/相机）",
+    "package.json — three@0.170, @react-three/fiber@8.17, @react-three/drei@9.120, @react-three/postprocessing@2.19"
+  ],
+  "realEvidence": [
+    "CyberpunkBuildings.tsx:503-569 — generateBuildings() 函数，5 环布局 77 栋 + 15 栋远景 = 92 栋（代码标注 220+ 但实际计算为约 92 栋独立 CyberBuilding 组件）",
+    "CyberpunkBuildings.tsx:292-434 — CyberBuilding 组件，每栋使用退台 BoxGeometry 堆叠 + MeshPhysicalMaterial + BuildingWindows InstancedMesh",
+    "TowerScene.tsx:225 — 线性雾 fog args=['#1a1a3a', 5, 100]",
+    "TowerScene.tsx:305-325 — EffectComposer 后处理：Bloom(0.3, 0.4, 1.8) + ChromaticAberration + Noise + Vignette",
+    "TowerScene.tsx:56-73 — DuskSun 方向光，2048x2048 阴影贴图",
+    "BuildingMaterials.ts — createBuildingMaterial() 返回 MeshPhysicalMaterial，使用 Canvas 程序化纹理",
+    "HolographicAds.tsx — 为每栋建筑生成 3-4 面广告牌",
+    "CyberpunkGround.tsx — MeshReflectorMaterial 湿润反射地面"
   ],
   "grounding": {
     "repoAvailable": true,
-    "evidenceCollected": true,
+    "filesRead": [
+      "src/components/cyberpunk/CyberpunkBuildings.tsx",
+      "src/components/techtower/TowerScene.tsx",
+      "src/components/cyberpunk/BuildingMaterials.ts",
+      "src/components/cyberpunk/BuildingProfileGenerator.ts",
+      "src/components/cyberpunk/BuildingWindows.tsx",
+      "src/components/cyberpunk/HolographicAds.tsx",
+      "src/components/cyberpunk/SkyDome.tsx",
+      "src/components/cyberpunk/CyberpunkGround.tsx",
+      "package.json"
+    ],
     "keyFindings": [
-      "generateBuildings() 使用环形布局(3环)，radiusMin=18，建筑间距过大，密度仅55栋",
-      "HolographicAds 使用 Text + PlaneGeometry，无动态视频/故障艺术效果",
-      "FlyingVehicles 仅33个载具，沿固定圆形轨道飞行，无分层航道",
-      "CyberpunkGround 仅有程序化纹理，无行人/车辆/街道细节",
-      "CyberRain 仅800个 Points 粒子，无蒸汽/烟尘效果",
-      "BuildingDetails 在 simplified=true 时完全跳过，远景建筑无细节",
-      "Bloom luminanceThreshold=0.6，ChromaticAberration offset=0.003，对比度不足",
-      "SkyDome 使用 Shader 渐变+简单云层，无远景建筑剪影",
-      "建筑材质使用 MeshPhysicalMaterial + Canvas 纹理，缺乏 PBR 细节",
-      "CEO顶层公寓与大楼同宽(BUILDING_W=10)，使用半透明玻璃幕墙"
+      "建筑系统已用退台 BoxGeometry 堆叠 + MeshPhysicalMaterial，非 InstancedMesh（窗户子系统已用 InstancedMesh）",
+      "纹理全部为 Canvas 程序化生成，无外部 PBR 贴图文件",
+      "后处理使用 @react-three/postprocessing 的 Bloom（非 UnrealBloomPass 的 threshold/radius 参数）",
+      "雾效为 Three.js 线性雾 Fog，非 FogExp2",
+      "相机通过 OrbitControls 控制，限制极角 0.2 ~ PI/2.1",
+      "项目已有 HDR 环境贴图 public/dikhololo_night_1k.hdr",
+      "无 textures 目录，无 GLSL 着色器文件（SkyDome 和 GlitchText 使用内联 shader）"
     ]
-  },
-  "provenance": {
-    "generationSource": "llm",
-    "promptId": "cyberpunk-city-gap-analysis-v1",
-    "model": "Kimi-K2.6",
-    "fingerprint": "gap-analysis-20260608"
   }
 }

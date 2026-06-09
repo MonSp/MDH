@@ -59,7 +59,8 @@ export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSing
     <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080818', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       <Canvas
         shadows
-        camera={{ position: [30, 38, 30], fov: 40 }}
+        camera={{ position: [30, 55, 45], fov: 45 }}
+        onCreated={({ gl }) => { gl.shadowMap.type = 2 /* PCFSoftShadowMap */ }}
         style={{ width: '100%', height: isMobile ? '60%' : '100%' }}
       >
         <TowerScene

@@ -2,305 +2,221 @@
   "rootNodeId": "n0",
   "version": 2,
   "successCriteria": [
-    { "id": "sc1", "text": "建筑密度提升至200+栋，建筑间距缩小50%，形成密集城市天际线，楼间可见空中连桥结构" },
-    { "id": "sc2", "text": "巨型动态广告牌覆盖率达80%建筑立面，支持故障艺术(glitch)动画和霓虹闪烁效果" },
-    { "id": "sc3", "text": "空中载具数量提升至100+，支持3层以上分层航道，含大型飞船和密集无人机群" },
-    { "id": "sc4", "text": "地面系统包含行人粒子、车辆流、街道摊贩/蒸汽效果，形成生活气息" },
-    { "id": "sc5", "text": "天气系统包含雨滴、蒸汽、烟尘、地面湿气反射，体积雾层支持动态密度变化" },
-    { "id": "sc6", "text": "建筑细节附件(空调/管道/阳台/支架)在远景模式下仍保留简化版本，不完全跳过" },
-    { "id": "sc7", "text": "Bloom强度提升、ChromaticAberration加大、色彩饱和度提高，形成高对比度赛博朋克视觉" },
-    { "id": "sc8", "text": "天空穹顶包含远景建筑剪影和大型空中结构，增强城市纵深感" }
+    { "id": "sc1", "text": "场景中同时渲染不少于 500 栋建筑，全部使用 InstancedMesh，帧率不低于 30fps（中端 GPU）" },
+    { "id": "sc2", "text": "建筑材质使用至少 3 种 PBR 贴图组合（混凝土、锈蚀金属、脏污玻璃），加载失败时自动 fallback 到纯色材质" },
+    { "id": "sc3", "text": "相机保持透视投影，俯视角约 60-70 度，指数雾 FogExp2 密度让远处建筑消隐在深蓝紫色雾中" },
+    { "id": "sc4", "text": "场景中存在至少 3 类发光全息广告牌，使用 Canvas 动态生成霓虹文字/图案作为 emissiveMap" },
+    { "id": "sc5", "text": "至少 1 个方向光带阴影（PCFSoftShadowMap），多个点光源以青/品红/暖黄营造霓虹氛围" },
+    { "id": "sc6", "text": "后处理管线包含 UnrealBloomPass（阈值 0.1、强度 1.5、半径 0.4），霓虹元素产生明显光晕" },
+    { "id": "sc7", "text": "场景包含 3 层粒子系统：低层暖黄车流、中层红蓝飞行器尾迹、高层白色灰尘飘落，均使用 BufferGeometry" }
   ],
   "nodes": [
     {
       "id": "n0",
       "parentId": null,
       "type": "requirement",
-      "title": "赛博朋克城市场景全面升级",
-      "acceptance": "当用户加载3D场景时，系统应渲染出高密度、高信息量、充满生命力的赛博朋克都市，在8个维度上逼近理想图效果。",
-      "coversCriteria": ["sc1", "sc2", "sc3", "sc4", "sc5", "sc6", "sc7", "sc8"],
-      "evidenceRefs": ["nE1", "nE2"]
+      "title": "电影级赛博朋克城市场景升级",
+      "acceptance": "当场景加载完成时，系统应渲染不少于 500 栋建筑的电影级赛博朋克城市，保持俯视视角不变。",
+      "coversCriteria": ["sc1", "sc3"],
+      "evidenceRefs": ["nE1"]
     },
     {
       "id": "n1",
       "parentId": "n0",
       "type": "requirement",
-      "title": "Phase 1: 高密度建筑群与动态广告牌",
-      "acceptance": "当场景初始化时，系统应渲染200+栋建筑(间距缩小50%)，且80%建筑立面覆盖带故障艺术动画的巨型动态广告牌。",
-      "coversCriteria": ["sc1", "sc2"],
-      "evidenceRefs": ["nE3", "nE4"]
-    },
-    {
-      "id": "n1a",
-      "parentId": "n1",
-      "type": "design",
-      "title": "建筑密度升级方案",
-      "notes": "将 generateBuildings() 从3环/55栋扩展至5环/200+栋；新增近距建筑环(radiusMin=8)和楼间连桥(SharedBridgeGeometry)；远景建筑保留简化 BuildingDetails 而非跳过",
-      "evidenceRefs": ["nE3"]
-    },
-    {
-      "id": "n1b",
-      "parentId": "n1",
-      "type": "design",
-      "title": "动态广告牌升级方案",
-      "notes": "将 HolographicAds 从 Text+PlaneGeometry 升级为 ShaderMaterial 故障艺术效果；新增 GlitchText 组件支持霓虹闪烁+扫描线+色差偏移动画",
-      "evidenceRefs": ["nE4"]
-    },
-    {
-      "id": "n1t1",
-      "parentId": "n1a",
-      "type": "task",
-      "title": "重写 generateBuildings() 扩展至5环布局",
-      "verify": "调用 generateBuildings(220, 15) 返回220+栋建筑数据，近环 radiusMin=8"
-    },
-    {
-      "id": "n1t2",
-      "parentId": "n1a",
-      "type": "task",
-      "title": "新增 SkyBridge 组件实现楼间连桥",
-      "verify": "近环建筑间可见发光管道/走廊连接结构"
-    },
-    {
-      "id": "n1t3",
-      "parentId": "n1b",
-      "type": "task",
-      "title": "实现 GlitchText ShaderMaterial 故障艺术组件",
-      "verify": "广告牌文字显示故障闪烁、扫描线、色差偏移动画效果"
-    },
-    {
-      "id": "n1t4",
-      "parentId": "n1b",
-      "type": "task",
-      "title": "升级 HolographicAds 覆盖率达80%建筑立面",
-      "verify": "每栋建筑至少有3个面被动态广告牌覆盖"
+      "title": "InstancedMesh 批量建筑渲染",
+      "acceptance": "当场景初始化时，系统应使用 InstancedMesh 渲染至少 500 栋建筑，每栋随机化高度、宽度、位置和材质索引。",
+      "coversCriteria": ["sc1"],
+      "evidenceRefs": ["nE1"]
     },
     {
       "id": "n2",
       "parentId": "n0",
       "type": "requirement",
-      "title": "Phase 2: 立体空中交通与天气氛围",
-      "acceptance": "当场景运行时，系统应渲染100+飞行载具(含3层分层航道+大型飞船)，同时包含雨滴、蒸汽、烟尘粒子效果和动态体积雾。",
-      "coversCriteria": ["sc3", "sc5"],
-      "evidenceRefs": ["nE5", "nE6"]
-    },
-    {
-      "id": "n2a",
-      "parentId": "n2",
-      "type": "design",
-      "title": "空中交通分层方案",
-      "notes": "将 FlyingVehicles 从33个扩展至100+；新增3层航道(low:8-18, mid:18-32, high:32-50)；新增大型飞船(FreightShip)和密集无人机蜂群(DroneSwarm)组件",
-      "evidenceRefs": ["nE5"]
-    },
-    {
-      "id": "n2b",
-      "parentId": "n2",
-      "type": "design",
-      "title": "天气系统增强方案",
-      "notes": "将 CyberRain 从800粒子扩展至3000+；新增 SteamVent(蒸汽喷口)、SmokePlume(烟尘柱)、GroundMoisture(地面湿气反射)组件；体积雾层改为动态密度",
-      "evidenceRefs": ["nE6"]
-    },
-    {
-      "id": "n2t1",
-      "parentId": "n2a",
-      "type": "task",
-      "title": "扩展 FlyingVehicles 至100+并实现分层航道",
-      "verify": "场景中可见100+载具在3层不同高度航道飞行"
-    },
-    {
-      "id": "n2t2",
-      "parentId": "n2a",
-      "type": "task",
-      "title": "新增 FreightShip 大型飞船组件",
-      "verify": "场景中可见低多边形大型飞船缓慢飞行，带发光引擎"
-    },
-    {
-      "id": "n2t3",
-      "parentId": "n2b",
-      "type": "task",
-      "title": "扩展 CyberRain 至3000+粒子并新增 SteamVent/SmokePlume",
-      "verify": "场景中可见密集雨滴、地面蒸汽喷口、建筑间烟尘柱"
-    },
-    {
-      "id": "n2t4",
-      "parentId": "n2b",
-      "type": "task",
-      "title": "实现动态体积雾层(DynamicVolumetricFog)",
-      "verify": "体积雾密度随时间缓慢变化，支持开关控制"
+      "title": "PBR 材质纹理系统",
+      "acceptance": "当建筑材质初始化时，系统应加载至少 3 种 ambientCG PBR 贴图（混凝土、锈蚀金属、脏污玻璃），若加载失败则自动 fallback 到纯色 MeshStandardMaterial。",
+      "coversCriteria": ["sc2"],
+      "evidenceRefs": ["nE2"]
     },
     {
       "id": "n3",
       "parentId": "n0",
       "type": "requirement",
-      "title": "Phase 3: 地面生活感与建筑细节",
-      "acceptance": "当地面可见时，系统应渲染行人粒子流、车辆光迹、街道蒸汽效果，且远景建筑(simplified)仍保留简化版建筑细节附件。",
-      "coversCriteria": ["sc4", "sc6"],
-      "evidenceRefs": ["nE7", "nE8"]
-    },
-    {
-      "id": "n3a",
-      "parentId": "n3",
-      "type": "design",
-      "title": "地面人群与交通方案",
-      "notes": "新增 PedestrianFlow(行人粒子流)、VehicleTraffic(车辆光迹)、StreetVendor(街道摊贩发光)组件；使用粒子系统而非独立Mesh以控制性能",
-      "evidenceRefs": ["nE7"]
-    },
-    {
-      "id": "n3b",
-      "parentId": "n3",
-      "type": "design",
-      "title": "远景建筑细节保留方案",
-      "notes": "修改 BuildingDetails 组件，当 simplified=true 时生成简化版附件(仅保留天线和1-2个空调)，而非完全跳过",
-      "evidenceRefs": ["nE8"]
-    },
-    {
-      "id": "n3t1",
-      "parentId": "n3a",
-      "type": "task",
-      "title": "实现 PedestrianFlow 行人粒子流组件",
-      "verify": "街道上可见流动的行人光点粒子，沿道路方向移动"
-    },
-    {
-      "id": "n3t2",
-      "parentId": "n3a",
-      "type": "task",
-      "title": "实现 VehicleTraffic 车辆光迹组件",
-      "verify": "道路上可见车辆尾灯光迹流动"
-    },
-    {
-      "id": "n3t3",
-      "parentId": "n3a",
-      "type": "task",
-      "title": "实现 StreetVendor 街道蒸汽/发光效果",
-      "verify": "广场区域可见摊贩发光点和蒸汽粒子"
-    },
-    {
-      "id": "n3t4",
-      "parentId": "n3b",
-      "type": "task",
-      "title": "修改 BuildingDetails 支持 simplified 模式保留简化附件",
-      "verify": "远景建筑可见天线和简化空调外机"
+      "title": "俯视视角与指数雾氛围",
+      "acceptance": "当相机初始化时，系统应以透视投影、60-70 度俯视角呈现场景，并使用 FogExp2 指数雾（深蓝紫色 #0a0a1a）让远处建筑消隐。",
+      "coversCriteria": ["sc3"],
+      "evidenceRefs": ["nE3"]
     },
     {
       "id": "n4",
       "parentId": "n0",
       "type": "requirement",
-      "title": "Phase 4: 光照对比与天空纵深",
-      "acceptance": "当场景渲染时，系统应呈现高对比度赛博朋克视觉(Bloom threshold降低、色差加大)，天空穹顶应包含远景建筑剪影和大型空中结构剪影。",
-      "coversCriteria": ["sc7", "sc8"],
-      "evidenceRefs": ["nE9", "nE10"]
+      "title": "全息广告牌系统",
+      "acceptance": "当建筑生成时，系统应在建筑外墙上放置至少 3 类发光全息广告牌，使用 Canvas 动态生成霓虹文字和图案作为 emissiveMap。",
+      "coversCriteria": ["sc4"],
+      "evidenceRefs": ["nE4"]
     },
     {
-      "id": "n4a",
+      "id": "n5",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "灯光与阴影系统",
+      "acceptance": "当场景渲染时，系统应使用 PCFSoftShadowMap 阴影、至少 1 个带阴影的方向光，以及多个青/品红/暖黄点光源营造霓虹氛围。",
+      "coversCriteria": ["sc5"],
+      "evidenceRefs": ["nE5"]
+    },
+    {
+      "id": "n6",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "后处理管线",
+      "acceptance": "当场景渲染时，系统应使用 UnrealBloomPass（阈值 0.1、强度 1.5、半径 0.4）产生霓虹光晕，可选 FilmPass 增强电影感。",
+      "coversCriteria": ["sc6"],
+      "evidenceRefs": ["nE6"]
+    },
+    {
+      "id": "n7",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "多层粒子系统",
+      "acceptance": "当场景运行时，系统应渲染 3 层 BufferGeometry 粒子：低层暖黄车流、中层红蓝飞行器尾迹、高层白色灰尘飘落。",
+      "coversCriteria": ["sc7"],
+      "evidenceRefs": ["nE7"]
+    },
+    {
+      "id": "n8",
+      "parentId": "n1",
+      "type": "design",
+      "title": "InstancedMesh 建筑架构设计",
+      "notes": "使用单个 BoxGeometry 作为共享几何体，通过 InstancedMesh 批量渲染 500+ 栋。每栋通过 Matrix4 设置位置/旋转/缩放。退台效果简化为两段式（底部宽 + 顶部窄）。材质通过多个 InstancedMesh 分组（混凝土/金属/玻璃各一组）。使用 pseudoRandom 确定性生成布局数据。",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n9",
+      "parentId": "n2",
+      "type": "design",
+      "title": "PBR 纹理加载与 Fallback 管线",
+      "notes": "使用 THREE.TextureLoader 加载 ambientCG 贴图（颜色/粗糙度/法线/金属度），放入 public/textures/ 目录。加载失败时回退到 Canvas 程序化纹理或纯色材质。为混凝土、锈蚀金属、脏污玻璃各准备一组 4 张贴图。",
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n10",
       "parentId": "n4",
       "type": "design",
-      "title": "后处理参数调优方案",
-      "notes": "Bloom luminanceThreshold 从0.6降至0.3，intensity从1.0提升至1.8；ChromaticAberration offset从0.003提升至0.006；Noise opacity从0.1提升至0.15；Vignette darkness从0.4提升至0.6",
-      "evidenceRefs": ["nE9"]
+      "title": "Canvas 动态全息广告牌生成",
+      "notes": "使用 Canvas 2D API 绘制霓虹文字（中文/英文/假名）和几何发光图案。生成 CanvasTexture 作为 emissiveMap。每栋建筑随机分配 1-2 面广告牌。使用 Sprite 或 PlaneGeometry 挂载。颜色以青、品红、暖黄为主。",
+      "evidenceRefs": ["nE4"]
     },
     {
-      "id": "n4b",
-      "parentId": "n4",
-      "type": "design",
-      "title": "天空穹顶增强方案",
-      "notes": "在 SkyDome Shader 中新增远景建筑剪影层(底部黑色锯齿状轮廓)和大型空中结构剪影(巨型飞船/平台轮廓)；增强云层密度和运动速度",
-      "evidenceRefs": ["nE10"]
-    },
-    {
-      "id": "n4t1",
-      "parentId": "n4a",
+      "id": "n11",
+      "parentId": "n8",
       "type": "task",
-      "title": "调整 EffectComposer 后处理参数",
-      "verify": "场景呈现明显高对比度、霓虹饱和度提升、色差可感知"
+      "title": "实现 CyberpunkCityInstanced 组件",
+      "verify": "组件渲染 500+ 栋建筑，使用 InstancedMesh，支持材质分组"
     },
     {
-      "id": "n4t2",
-      "parentId": "n4b",
+      "id": "n12",
+      "parentId": "n9",
       "type": "task",
-      "title": "在 SkyDome Shader 中新增远景建筑剪影层",
-      "verify": "地平线处可见密集建筑黑色剪影轮廓"
+      "title": "实现 PBRTextureLoader 工具",
+      "verify": "加载 ambientCG 贴图，失败时 fallback 到纯色材质"
     },
     {
-      "id": "n4t3",
-      "parentId": "n4b",
+      "id": "n13",
+      "parentId": "n3",
       "type": "task",
-      "title": "在 SkyDome 中新增大型空中结构剪影",
-      "verify": "天空中可见巨型飞船/平台的黑色剪影"
+      "title": "修改 TowerScene 相机与雾效",
+      "verify": "FogExp2 生效，俯视角 60-70 度"
+    },
+    {
+      "id": "n14",
+      "parentId": "n10",
+      "type": "task",
+      "title": "实现 HolographicBillboard 组件",
+      "verify": "Canvas 动态生成霓虹广告牌，3 种类型，emissiveMap 生效"
+    },
+    {
+      "id": "n15",
+      "parentId": "n5",
+      "type": "task",
+      "title": "升级灯光阴影系统",
+      "verify": "PCFSoftShadowMap 生效，方向光带阴影，多色点光源"
+    },
+    {
+      "id": "n16",
+      "parentId": "n6",
+      "type": "task",
+      "title": "升级后处理管线为 UnrealBloomPass",
+      "verify": "Bloom 阈值 0.1、强度 1.5、半径 0.4，霓虹光晕明显"
+    },
+    {
+      "id": "n17",
+      "parentId": "n7",
+      "type": "task",
+      "title": "实现 CyberpunkParticles 多层粒子组件",
+      "verify": "3 层 BufferGeometry 粒子运行正常"
+    },
+    {
+      "id": "n18",
+      "parentId": "n0",
+      "type": "task",
+      "title": "集成所有组件到 TowerScene",
+      "verify": "所有新组件在 TowerScene 中正确组装，主塔楼交互不受影响"
     },
     {
       "id": "nE1",
       "parentId": "n0",
       "type": "evidence",
-      "title": "当前场景代码结构证据",
-      "source": "repo://src/components/techtower/TowerScene.tsx#L1-L266"
+      "title": "现有建筑系统使用独立 Mesh 渲染约 92 栋建筑",
+      "source": "repo://src/components/cyberpunk/CyberpunkBuildings.tsx#L503-L569"
     },
     {
       "id": "nE2",
       "parentId": "n0",
       "type": "evidence",
-      "title": "理想图与实现差距分析(8维度)",
-      "source": "clarified_brief:successCriteria"
+      "title": "现有材质使用 Canvas 程序化纹理，无外部 PBR 贴图",
+      "source": "repo://src/components/cyberpunk/BuildingMaterials.ts#L1-L50"
     },
     {
       "id": "nE3",
-      "parentId": "n1",
+      "parentId": "n0",
       "type": "evidence",
-      "title": "generateBuildings() 当前仅55栋、3环布局",
-      "source": "repo://src/components/cyberpunk/CyberpunkBuildings.tsx#L509-L605"
+      "title": "现有雾效为线性 Fog，相机极角限制 0.2~PI/2.1",
+      "source": "repo://src/components/techtower/TowerScene.tsx#L206-L225"
     },
     {
       "id": "nE4",
-      "parentId": "n1",
+      "parentId": "n0",
       "type": "evidence",
-      "title": "HolographicAds 使用 Text+PlaneGeometry 无动态效果",
-      "source": "repo://src/components/cyberpunk/HolographicAds.tsx#L129-L218"
+      "title": "现有 HolographicAds 组件为每栋建筑生成广告牌",
+      "source": "repo://src/components/cyberpunk/HolographicAds.tsx"
     },
     {
       "id": "nE5",
-      "parentId": "n2",
+      "parentId": "n0",
       "type": "evidence",
-      "title": "FlyingVehicles 仅33个、单一圆形轨道",
-      "source": "repo://src/components/cyberpunk/FlyingVehicles.tsx#L19-L53"
+      "title": "现有 DuskSun 方向光带 2048x2048 阴影，6 个动态点光源",
+      "source": "repo://src/components/techtower/TowerScene.tsx#L56-L113"
     },
     {
       "id": "nE6",
-      "parentId": "n2",
+      "parentId": "n0",
       "type": "evidence",
-      "title": "CyberRain 仅800个简单粒子",
-      "source": "repo://src/components/cyberpunk/CyberRain.tsx#L1-L62"
+      "title": "现有后处理使用 @react-three/postprocessing 的 Bloom(0.3, 0.4, 1.8)",
+      "source": "repo://src/components/techtower/TowerScene.tsx#L304-L325"
     },
     {
       "id": "nE7",
-      "parentId": "n3",
+      "parentId": "n0",
       "type": "evidence",
-      "title": "CyberpunkGround 无行人/车辆/街道细节",
-      "source": "repo://src/components/cyberpunk/CyberpunkGround.tsx#L1-L450"
-    },
-    {
-      "id": "nE8",
-      "parentId": "n3",
-      "type": "evidence",
-      "title": "BuildingDetails simplified=true 时完全跳过",
-      "source": "repo://src/components/cyberpunk/BuildingDetails.tsx#L33-L34"
-    },
-    {
-      "id": "nE9",
-      "parentId": "n4",
-      "type": "evidence",
-      "title": "当前后处理参数: Bloom threshold=0.6, CA offset=0.003",
-      "source": "repo://src/components/techtower/TowerScene.tsx#L230-L250"
-    },
-    {
-      "id": "nE10",
-      "parentId": "n4",
-      "type": "evidence",
-      "title": "SkyDome 仅渐变+简单云层，无远景剪影",
-      "source": "repo://src/components/cyberpunk/SkyDome.tsx#L1-L134"
+      "title": "现有粒子系统包括 CyberRain(3000)、VehicleTraffic、PedestrianFlow",
+      "source": "repo://src/components/cyberpunk/CyberRain.tsx"
     }
   ],
   "provenance": {
     "generationSource": "llm",
-    "promptId": "spec-tree-cyberpunk-city-v1",
-    "model": "Kimi-K2.6",
-    "fingerprint": "spec-tree-20260608"
+    "promptId": "cyberpunk-city-cinema-grade-upgrade",
+    "model": "llm",
+    "fingerprint": "whybuddy-v2-cyberpunk-2026-06-09"
   }
 }

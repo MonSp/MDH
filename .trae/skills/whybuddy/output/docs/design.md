@@ -1,134 +1,111 @@
-# 赛博朋克城市场景迭代升级 — 设计规格
+# 电影级赛博朋克城市场景升级 — 设计规格
 
 ## 设计目标
 
-在现有 Three.js + React Three Fiber 架构上进行最小侵入式升级，通过新增组件和参数调整实现8个维度的视觉提升，同时控制性能开销在60fps可接受范围内。
+在不破坏现有主塔楼项目管理交互功能的前提下，将赛博朋克城市背景场景升级至电影级视觉质量。采用渐进式升级策略，新组件独立开发，通过 TowerScene 组装层切换。
 
 ## 模块划分
 
-### 模块 A：建筑密度与连桥（Phase 1）
+### M1: CyberpunkCityInstanced — InstancedMesh 建筑系统
 
-**修改文件**：`CyberpunkBuildings.tsx`
-**新增文件**：`SkyBridge.tsx`
+新建组件 `src/components/cyberpunk/CyberpunkCityInstanced.tsx`，替换现有 CyberpunkBuildings 的背景建筑渲染。
 
-- `generateBuildings()` 扩展：从3环/55栋 → 5环/220+栋
-  - 环1(near): 12栋, radiusMin=8, radiusMax=16
-  - 环2: 15栋, radiusMin=16, radiusMax=26
-  - 环3: 20栋, radiusMin=26, radiusMax=40
-  - 环4(skyline): 15栋, radiusMin=40, radiusMax=58
-  - 环5(far): 15栋, radiusMin=58, radiusMax=75
-  - 远景简化: 15栋, radius=80-120, simplified=true
-- `SkyBridge` 组件：在环1-2建筑间生成发光管道连接
-  - 使用 CylinderGeometry 弯曲段 + MeshStandardMaterial emissive
-  - 每对相邻建筑间最多1条连桥
-  - 仅在环1-2(radius<30)建筑间生成
+**架构设计：**
+- 使用 3 个 InstancedMesh 分别渲染混凝土、金属、玻璃建筑
+- 共享 BoxGeometry（宽高深各 1 单位，通过 instanceMatrix 缩放）
+- 每栋建筑由两段组成：底部（宽）+ 顶部（窄），模拟退台效果
+- 因此共 6 个 InstancedMesh（3 种材质 x 2 段）
+- 布局数据通过 `generateCityLayout()` 确定性生成：
+  - 8 环同心圆布局（比现有 5 环更密）
+  - 每环建筑数量递增，总计 500+ 栋
+  - 高度按距离衰减函数 + 随机因子
+- 使用 `useEffect` + `Matrix4` 设置每个实例的变换矩阵
+- 建筑间距检测避免重叠
 
-### 模块 B：故障艺术广告牌（Phase 1）
+**性能优化：**
+- frustumCulling 保持默认开启（InstancedMesh 支持）
+- 远处建筑使用更小的几何体（LOD by distance）
+- 共享材质实例，减少 draw call
 
-**修改文件**：`HolographicAds.tsx`
-**新增文件**：`GlitchText.tsx`
+### M2: PBRTextureLoader — PBR 纹理加载管线
 
-- `GlitchText` ShaderMaterial 组件：
-  - Vertex Shader: 标准正交投影
-  - Fragment Shader: 基于 uTime 的 scanline + rgbShift + flicker
-  - Uniforms: uTime, uColor, uGlitchIntensity
-- `HolographicAds` 升级：
-  - 每栋建筑3-4个面覆盖（原2-4个）
-  - mega_billboard 使用 GlitchText 替代 Text
-  - 新增扫描线动画（水平线从上到下移动）
+新建工具 `src/components/cyberpunk/PBRTextureLoader.ts`。
 
-### 模块 C：立体空中交通（Phase 2）
+**架构设计：**
+- 预定义 3 组贴图路径（混凝土/金属/玻璃），每组含 color/roughness/normal/metalness
+- 使用 `THREE.TextureLoader` 异步加载，`useLoader` 或 `useEffect` + `useState`
+- 加载失败时 fallback 到 Canvas 程序化纹理（复用现有 `generateProceduralTexture`）
+- 贴图文件放入 `public/textures/` 目录（从 ambientCG 下载 1K-JPG zip 解压得到）：
+  - `Concrete048_Color.jpg`, `Concrete048_Roughness.jpg`, `Concrete048_NormalGL.jpg`
+  - `Metal053C_Color.jpg`, `Metal053C_Roughness.jpg`, `Metal053C_NormalGL.jpg`, `Metal053C_Metalness.jpg`
+  - `Facade009_Color.jpg`, `Facade009_Roughness.jpg`, `Facade009_NormalGL.jpg`
+- 贴图配置数据结构：
+```typescript
+interface PBRTextureSet {
+  color?: THREE.Texture
+  roughness?: THREE.Texture
+  normal?: THREE.Texture
+  metalness?: THREE.Texture
+  ao?: THREE.Texture
+}
+```
 
-**修改文件**：`FlyingVehicles.tsx`
-**新增文件**：`FreightShip.tsx`, `DroneSwarm.tsx`
+**Fallback 策略：**
+1. 尝试加载 PBR 贴图
+2. 若文件不存在（404），使用 Canvas 程序化纹理
+3. 若 Canvas 也失败，使用纯色 MeshStandardMaterial
 
-- 分层航道：
-  - LowLane (8-18): 40个小型飞行汽车
-  - MidLane (18-32): 35个飞行汽车+无人机
-  - HighLane (32-50): 25个无人机+运输载具
-- `FreightShip` 组件：
-  - 低多边形 BoxGeometry 组合（船身+引擎+翼面）
-  - MeshStandardMaterial + emissive 引擎发光
-  - 椭圆轨道，速度0.03-0.06
-- `DroneSwarm` 组件：
-  - 5-8个无人机编队，共享中心轨道
-  - 使用 InstancedMesh 渲染
-  - 编队内相对位置固定，整体沿轨道运动
+### M3: HolographicBillboard — 全息广告牌系统
 
-### 模块 D：天气系统增强（Phase 2）
+升级现有 `HolographicAds.tsx` 或新建组件。
 
-**修改文件**：`CyberRain.tsx`, `TowerScene.tsx`
-**新增文件**：`SteamVent.tsx`, `SmokePlume.tsx`
+**架构设计：**
+- Canvas 动态生成 3 类广告牌：
+  - 类型 A：中文霓虹文字（"赛博"、"未来"、"数据"等）
+  - 类型 B：英文/假名文字（"CYBER"、"NEON"、"データ"等）
+  - 类型 C：几何发光图案（圆形、三角形、网格线条）
+- 每类生成一张 256x128 CanvasTexture
+- 使用 PlaneGeometry + MeshBasicMaterial（emissiveMap = CanvasTexture）
+- 位置：建筑外墙侧面，朝向城市中心
+- 使用 InstancedMesh 或批量 Sprite 渲染（共用材质）
+- 发光强度足够被 Bloom 后处理拾取
 
-- CyberRain 扩展：count 800 → 3000，分布范围 80 → 120
-- `SteamVent` 组件：
-  - 位置：广场周围、建筑底部
-  - 使用 PointsMaterial 向上喷射白色半透明粒子
-  - 周期性喷射（useFrame 控制）
-- `SmokePlume` 组件：
-  - 位置：建筑间随机分布
-  - 使用 SphereGeometry 半透明团块 + 缓慢漂移动画
-  - opacity 0.05-0.12，颜色偏灰蓝
-- 体积雾层：每层 opacity 使用 `Math.sin(uTime * 0.1 + y)` 动态变化
+### M4: CyberpunkParticles — 多层粒子系统
 
-### 模块 E：地面生活感（Phase 3）
+新建组件 `src/components/cyberpunk/CyberpunkParticles.tsx`。
 
-**新增文件**：`PedestrianFlow.tsx`, `VehicleTraffic.tsx`, `StreetVendor.tsx`
+**架构设计：**
+- 3 个独立的 `<Points>` 组件，各使用 BufferGeometry：
+  - 低层车流：500 个粒子，y=0.1-0.5，暖黄色 #ffaa44，沿 X/Z 方向流动
+  - 中层飞行器：200 个粒子，y=8-25，红/蓝双色，缓慢漂移
+  - 高层灰尘：800 个粒子，y=15-50，白色 #ffffff，缓缓飘落
+- 粒子纹理：Canvas 绘制的模糊圆点（32x32 radialGradient）
+- 动态更新：useFrame 中更新 position BufferAttribute
+- 所有粒子复用同一几何体，仅更新 position 属性
 
-- `PedestrianFlow` 组件：
-  - 使用 Points + PointsMaterial 沿道路方向流动
-  - 4条主干道各100个光点粒子
-  - 颜色：暖黄/冷白随机
-- `VehicleTraffic` 组件：
-  - 使用 Points 沿道路方向流动（速度比行人快）
-  - 4条主干道各50个尾灯粒子
-  - 颜色：红/白尾灯交替
-- `StreetVendor` 组件：
-  - 广场区域5-8个摊贩点
-  - 每个点：发光 MeshStandardMaterial 小方块 + 蒸汽粒子
+### M5: TowerScene 升级 — 相机/雾效/灯光/后处理
 
-### 模块 F：建筑细节保留（Phase 3）
+修改现有 `TowerScene.tsx`。
 
-**修改文件**：`BuildingDetails.tsx`
-
-- 当 `simplified=true` 时：
-  - 保留天线（AntennaLight）
-  - 保留1-2个简化空调外机（scale 缩小50%）
-  - 跳过管道/阳台/支架
-- 性能影响：每栋远景建筑增加约3个Mesh，15栋共45个，可忽略
-
-### 模块 G：后处理调优（Phase 4）
-
-**修改文件**：`TowerScene.tsx`
-
-- 参数调整（仅改数值，不改结构）：
-  - Bloom: luminanceThreshold 0.6→0.3, intensity 1.0→1.8
-  - ChromaticAberration: offset (0.003,0.003)→(0.006,0.006)
-  - Noise: opacity 0.1→0.15
-  - Vignette: darkness 0.4→0.6
-
-### 模块 H：天空穹顶增强（Phase 4）
-
-**修改文件**：`SkyDome.tsx`
-
-- Fragment Shader 新增：
-  - `citySilhouette` 函数：基于极坐标生成地平线处黑色锯齿状建筑轮廓
-  - `megaStructure` 函数：生成2-3个巨型飞船/平台的黑色剪影
-  - 云层密度提升30%，运动速度提升50%
+**变更点：**
+1. **雾效**：`<fog>` 改为 `<fogExp>`（FogExp2），颜色 `#0a0a1a`，密度 0.015-0.025
+2. **背景**：`<color attach="background">` 改为深暗紫黑色 `#0a0a1a`
+3. **相机**：OrbitControls 初始位置调整为 60-70 度俯视，限制极角范围
+4. **阴影**：renderer.shadowMap.type 改为 PCFSoftShadowMap
+5. **后处理**：Bloom 参数调整为 threshold=0.1, intensity=1.5, radius=0.4
+6. **组件替换**：`<CyberpunkBuildings>` 替换为 `<CyberpunkCityInstanced>`
+7. **新增组件**：添加 `<CyberpunkParticles>`
 
 ## 失败处理策略
 
-- **性能降级**：若帧率低于45fps，按以下顺序关闭：
-  1. SmokePlume（烟尘柱）
-  2. CyberRain 降至1500粒子
-  3. FlyingVehicles 降至60个
-  4. 体积雾层数减半
-- **组件加载失败**：每个新增组件使用 React.lazy + Suspense，失败时显示空group
-- **Shader编译失败**：GlitchText 和 SkyDome 增强均提供 fallback 纯色材质
+- **PBR 贴图加载失败**：自动 fallback 到 Canvas 程序化纹理，控制台输出警告
+- **InstancedMesh 性能不足**：减少远处环的建筑数量（从 500 降到 300）
+- **后处理性能不足**：降低 Bloom resolution，或提供关闭后处理的选项
+- **浏览器不支持 WebGL2**：降级到基础 MeshStandardMaterial，禁用后处理
 
 ## 质量控制
 
-- 每个Phase完成后使用浏览器 Performance 面板测量帧率
-- 目标：全景视角60fps，近景视角45fps
-- 使用 Three.js `renderer.info.render.calls` 监控 draw call 数量
-- 目标：draw call < 500
+- 每个新组件独立可测试，不依赖其他新组件
+- TowerScene 修改保持向后兼容（通过 prop 控制新旧模式切换）
+- 所有 Canvas 纹理使用 useMemo 缓存，避免每帧重新生成
+- InstancedMesh 的 instanceMatrix 使用 Float32Array，避免 GC 压力

@@ -4,7 +4,7 @@ import { OrbitControls, Stars, Environment } from '@react-three/drei'
 import { EffectComposer, Bloom, ChromaticAberration, Noise, Vignette } from '@react-three/postprocessing'
 import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
-import { CyberpunkBuildings, FlyingVehicles, CyberRain, NeonLights, SkyDome, generateBuildings } from '../cyberpunk'
+import { CyberpunkBuildings, FlyingVehicles, CyberRain, NeonLights, SkyDome, generateBuildings, CyberpunkCityInstanced, HolographicBillboard, CyberpunkParticles, generateCityLayout } from '../cyberpunk'
 import SkyBridge from '../cyberpunk/SkyBridge'
 import FreightShip from '../cyberpunk/FreightShip'
 import DroneSwarm from '../cyberpunk/DroneSwarm'
@@ -99,8 +99,8 @@ function CyberpunkLights() {
 
   return (
     <>
-      <ambientLight intensity={0.5} color="#1a1a3a" />
-      <hemisphereLight intensity={0.5} color="#4a5a8a" groundColor="#1a2a4a" />
+      <ambientLight intensity={0.3} color="#0a0a1a" />
+      <hemisphereLight intensity={0.4} color="#2a3a5a" groundColor="#0a0a1a" />
 
       {/* 赛博朋克氛围灯光 - 动态点光源 */}
       <pointLight ref={light1Ref} position={[0, 32, 0]} intensity={2.0} color="#bf5af2" distance={30} decay={2} />
@@ -166,7 +166,7 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
   const onLeave = useCallback(() => setHovering(false), [])
 
   const controlsRef = useRef<any>(null)
-  const navPosRef = useRef(new THREE.Vector3(30, 38, 30))
+  const navPosRef = useRef(new THREE.Vector3(30, 55, 45))
   const navTargetRef = useRef(new THREE.Vector3(0, PENTHOUSE_Y, 0))
   const navActive = useRef(false)
 
@@ -196,6 +196,8 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
   // 生成建筑群数据（共享给CyberpunkBuildings和HolographicAds）— 三环分布
   const buildings = useMemo(() => generateBuildings(55, 15), [])
+  // 电影级城市布局数据（500+ 栋 InstancedMesh 建筑）
+  const cityBuildings = useMemo(() => generateCityLayout(500), [])
 
   return (
     <>
@@ -210,9 +212,9 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
         panSpeed={1.5}
         rotateSpeed={0.8}
         minDistance={8}
-        maxDistance={100}
-        minPolarAngle={0.2}
-        maxPolarAngle={Math.PI / 2.1}
+        maxDistance={150}
+        minPolarAngle={0.3}
+        maxPolarAngle={Math.PI / 2.3}
         mouseButtons={{
           LEFT: hovering ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE,
           MIDDLE: THREE.MOUSE.DOLLY,
@@ -221,9 +223,9 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
       <Stars radius={100} depth={50} count={2000} factor={4} saturation={0.5} fade speed={0.5} />
 
-      {/* 赛博朋克大气雾 — 由云雾按钮控制，关闭时near=far使雾完全消失 */}
-      <fog attach="fog" args={['#1a1a3a', 5, 100]} near={fogEnabled ? 5 : 9999} far={fogEnabled ? 100 : 10000} />
-      <color attach="background" args={['#1a1a3a']} />
+      {/* 赛博朋克大气雾 — 指数雾 FogExp2，深蓝紫色 */}
+      <fogExp2 attach="fog" args={['#0a0a1a', fogEnabled ? 0.018 : 0]} />
+      <color attach="background" args={['#0a0a1a']} />
 
       {/* 本地HDR环境反射（不从CDN下载） */}
       <Environment files="/dikhololo_night_1k.hdr" background={false} />
@@ -234,8 +236,11 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       <GlassCurtainWall />
       <NeonEdges />
 
-      {/* 赛博朋克世界 */}
-      <CyberpunkBuildings buildings={buildings} />
+      {/* 电影级赛博朋克城市 — 500+ 栋 InstancedMesh 建筑 */}
+      <CyberpunkCityInstanced count={500} />
+      <HolographicBillboard buildings={cityBuildings} maxBillboards={300} />
+
+      {/* 楼间连桥（使用原始建筑数据） */}
       <SkyBridge buildings={buildings} maxBridges={25} maxDistance={20} />
       <FlyingVehicles />
       <FreightShip radius={80} height={45} speed={0.04} color="#0a84ff" size={1.0} />
@@ -244,6 +249,9 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       <DroneSwarm count={6} radius={50} height={45} speed={0.06} color="#bf5af2" size={0.12} />
       <CyberRain />
       <NeonLights />
+
+      {/* 电影级多层粒子系统：车流/飞行器尾迹/灰尘 */}
+      <CyberpunkParticles trafficCount={500} trailCount={200} dustCount={800} />
 
       {/* 蒸汽喷口效果 */}
       <SteamVent position={[15, 0, 15]} color="#ffffff" particleCount={50} speed={1.0} height={3} />
@@ -301,12 +309,13 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       <FloorLabels />
       <CEOTextLabel />
 
-      {/* 后处理：Bloom + 色差 + 胶片颗粒 + 暗角（高对比度赛博朋克视觉） */}
+      {/* 后处理：Bloom（电影级参数） + 色差 + 胶片颗粒 + 暗角 */}
       <EffectComposer>
         <Bloom
-          luminanceThreshold={0.3}
+          luminanceThreshold={0.1}
           luminanceSmoothing={0.4}
-          intensity={1.8}
+          intensity={1.5}
+          radius={0.4}
         />
         <ChromaticAberration
           offset={new THREE.Vector2(0.006, 0.006)}
@@ -326,9 +335,9 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
       {/* 体积雾层 — 12层渐变雾，由云雾按钮控制，动态密度 */}
       {[1, 2, 3, 5, 8, 12, 16, 20, 25, 30, 35, 40].map((y, i) => {
-        const baseOpacity = 0.2 * Math.exp(-0.08 * (y - 1))
-        const color = y <= 2 ? '#3a3a4a' : '#2a2a4e'
-        const size = 80 + y * 3
+        const baseOpacity = 0.15 * Math.exp(-0.08 * (y - 1))
+        const color = y <= 2 ? '#1a1a2e' : '#0a0a1a'
+        const size = 100 + y * 3
         return (
           <DynamicFogLayer
             key={`fog-layer-${i}`}

@@ -9,3 +9,10 @@ export { default as HolographicAds } from './HolographicAds'
 export { default as CyberRain } from './CyberRain'
 export { default as NeonLights } from './NeonLights'
 export { default as SkyDome } from './SkyDome'
+
+// 电影级升级组件
+export { default as CyberpunkCityInstanced } from './CyberpunkCityInstanced'
+export { generateCityLayout } from './CyberpunkCityInstanced'
+export type { CityBuildingData } from './CyberpunkCityInstanced'
+export { default as HolographicBillboard } from './HolographicBillboard'
+export { default as CyberpunkParticles } from './CyberpunkParticles'

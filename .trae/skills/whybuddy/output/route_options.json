@@ -1,40 +1,30 @@
 {
   "routes": [
     {
-      "id": "route-a",
-      "name": "渐进式单Agent迭代",
-      "description": "按优先级逐模块升级，每个模块独立可验收，单Agent顺序执行",
-      "cost": "low",
-      "risk": "low",
-      "benefit": "每步可验证，回滚成本低，适合当前单人开发模式",
-      "phases": [
-        "Phase 1: 建筑密度+广告牌(核心视觉冲击)",
-        "Phase 2: 空中交通+天气效果(动态氛围)",
-        "Phase 3: 地面人群+建筑细节(生活感)",
-        "Phase 4: 光照+天空穹顶(画龙点睛)"
-      ]
-    },
-    {
-      "id": "route-b",
-      "name": "并行多模块同时升级",
-      "description": "8个维度同时推进，一次性完成全部升级",
-      "cost": "high",
-      "risk": "high",
-      "benefit": "最快完成，但调试困难，性能风险大"
-    },
-    {
-      "id": "route-c",
-      "name": "性能优先分层策略",
-      "description": "先确定LOD和性能预算，再按预算分配各模块资源",
+      "id": "A",
+      "name": "渐进式升级（推荐）",
+      "description": "保留现有 CyberpunkBuildings 作为 fallback，在新组件 CyberpunkCityInstanced 中实现 InstancedMesh 500+ 建筑。逐步替换 TowerScene 中的雾效、后处理、粒子系统。最小化对现有功能的影响。",
+      "risks": ["新旧组件共存期可能有视觉不一致", "InstancedMesh 退台效果需要简化为单 Box 或两段式"],
       "cost": "medium",
-      "risk": "medium",
-      "benefit": "性能可控，但前期投入大"
+      "benefit": "低风险、可渐进验证、不影响主塔楼交互"
+    },
+    {
+      "id": "B",
+      "name": "完全重写",
+      "description": "重写 CyberpunkBuildings、TowerScene 中的所有渲染逻辑。从零构建 InstancedMesh 建筑系统、新材质管线、新后处理管线。",
+      "risks": ["高风险，可能破坏现有交互功能", "工作量大"],
+      "cost": "high",
+      "benefit": "代码最干净、性能最优"
+    },
+    {
+      "id": "C",
+      "name": "最小改动",
+      "description": "仅升级 CyberpunkBuildings 使用 InstancedMesh，保持其他组件不变。增加建筑数量但不改变材质/后处理/粒子。",
+      "risks": ["视觉提升有限", "不满足用户的电影级要求"],
+      "cost": "low",
+      "benefit": "最快完成、风险最低"
     }
   ],
-  "selectedRoute": "route-a",
-  "selectionReason": "当前为单人开发，渐进式迭代风险最低，每阶段可独立验收，且可按性能表现动态调整后续计划",
-  "provenance": {
-    "generationSource": "llm",
-    "model": "Kimi-K2.6"
-  }
+  "selected": "A",
+  "rationale": "路线 A 在视觉质量提升和风险控制之间取得最佳平衡。新组件独立开发，通过 TowerScene 组装层切换，不影响主塔楼的项目管理交互功能。"
 }
