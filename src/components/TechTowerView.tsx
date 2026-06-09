@@ -28,6 +28,7 @@ export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSing
 
   const [cameraNav, setCameraNav] = useState<CameraTarget | null>(null)
   const [fogEnabled, setFogEnabled] = useState(true)
+  const [isDayMode, setIsDayMode] = useState(false)
 
   // 场景元素显示/隐藏控制
   const [showBuildings, setShowBuildings] = useState(true)
@@ -91,8 +92,28 @@ export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSing
           showParticles={showParticles}
           showRain={showRain}
           showNeonLines={showNeonLines}
+          isDayMode={isDayMode}
         />
       </Canvas>
+
+      {/* 白天/晚上切换按钮 */}
+      <div
+        onClick={() => setIsDayMode(v => !v)}
+        style={{
+          position: 'absolute', top: 16, left: 16, zIndex: 10,
+          padding: '10px 18px', borderRadius: 8, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 8,
+          fontSize: 14, fontWeight: 600, letterSpacing: '0.5px', border: 'none',
+          backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+          transition: 'background 0.4s, box-shadow 0.4s',
+          ...(isDayMode
+            ? { background: 'rgba(255,248,220,0.9)', color: '#8b6914', boxShadow: '0 2px 12px rgba(255,200,50,0.3)' }
+            : { background: 'rgba(15,10,30,0.85)', color: '#a78bfa', boxShadow: '0 2px 12px rgba(99,102,241,0.3)' }
+          ),
+        }}
+      >
+        {isDayMode ? '☀️ 白天模式' : '🌙 夜晚模式'}
+      </div>
 
       {/* 面板标题提示 */}
       {!panel && (

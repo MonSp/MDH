@@ -20,7 +20,7 @@ import { Desk, ComputerScreen, Chair, Minibar, Plant, CEOPerson, HolographicAI }
 import { FrontFaceProjects, RightFaceDepts, FloorLabels, CEOTextLabel } from './FloorMarkers'
 
 /* ───────── 赛博朋克黄昏太阳 ───────── */
-function DuskSun() {
+function DuskSun({ isDayMode }: { isDayMode?: boolean }) {
   const sunRef = useRef<THREE.Mesh>(null!)
   const sunLightRef = useRef<THREE.DirectionalLight>(null!)
   const glowRef = useRef<THREE.Mesh>(null!)
@@ -35,7 +35,7 @@ function DuskSun() {
     // 光晕效果
     if (glowRef.current) {
       const material = glowRef.current.material as THREE.MeshBasicMaterial
-      material.opacity = 0.3 + Math.sin(time * 0.5) * 0.1
+      material.opacity = isDayMode ? 0.6 + Math.sin(time * 0.3) * 0.1 : 0.3 + Math.sin(time * 0.5) * 0.1
     }
   })
 
@@ -44,21 +44,21 @@ function DuskSun() {
       {/* 太阳球体 */}
       <mesh ref={sunRef}>
         <sphereGeometry args={[8, 32, 32]} />
-        <meshBasicMaterial color="#ff6b35" />
+        <meshBasicMaterial color={isDayMode ? '#fff5e0' : '#ff6b35'} />
       </mesh>
 
       {/* 太阳光晕 */}
       <mesh ref={glowRef}>
         <sphereGeometry args={[12, 32, 32]} />
-        <meshBasicMaterial color="#ff8c42" transparent opacity={0.3} />
+        <meshBasicMaterial color={isDayMode ? '#fff8e7' : '#ff8c42'} transparent opacity={isDayMode ? 0.6 : 0.3} />
       </mesh>
 
-      {/* 黄昏方向光 */}
+      {/* 方向光（白天白光/黄昏橙光） */}
       <directionalLight
         ref={sunLightRef}
         position={[0, 0, 0]}
-        intensity={1.5}
-        color="#ff7e47"
+        intensity={isDayMode ? 3.0 : 1.5}
+        color={isDayMode ? '#fffbe6' : '#ff7e47'}
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
@@ -76,7 +76,7 @@ function DuskSun() {
 }
 
 /* ───────── 赛博朋克动态灯光组件 ───────── */
-function CyberpunkLights() {
+function CyberpunkLights({ isDayMode }: { isDayMode?: boolean }) {
   const light1Ref = useRef<THREE.PointLight>(null!)
   const light2Ref = useRef<THREE.PointLight>(null!)
   const light3Ref = useRef<THREE.PointLight>(null!)
@@ -86,29 +86,55 @@ function CyberpunkLights() {
 
   useFrame(({ clock }) => {
     const time = clock.elapsedTime
-    const pulse = Math.sin(time * 0.5) * 0.3 + 0.7
 
-    // 动态调整灯光强度
-    if (light1Ref.current) light1Ref.current.intensity = 2.0 * pulse
-    if (light2Ref.current) light2Ref.current.intensity = 1.5 * (1 - pulse * 0.5)
-    if (light3Ref.current) light3Ref.current.intensity = 1.0 * (Math.sin(time * 0.7) * 0.3 + 0.7)
-    if (light4Ref.current) light4Ref.current.intensity = 1.0 * (Math.cos(time * 0.6) * 0.3 + 0.7)
-    if (light5Ref.current) light5Ref.current.intensity = 0.8 * (Math.sin(time * 0.4) * 0.4 + 0.6)
-    if (light6Ref.current) light6Ref.current.intensity = 0.7 * (Math.cos(time * 0.3) * 0.4 + 0.6)
+    if (isDayMode) {
+      // 白天：微弱脉动，主要靠太阳和环境光
+      const gentle = Math.sin(time * 0.3) * 0.05 + 0.95
+      if (light1Ref.current) light1Ref.current.intensity = 0.3 * gentle
+      if (light2Ref.current) light2Ref.current.intensity = 0.5 * gentle
+      if (light3Ref.current) light3Ref.current.intensity = 0.15 * gentle
+      if (light4Ref.current) light4Ref.current.intensity = 0.15 * gentle
+      if (light5Ref.current) light5Ref.current.intensity = 0.4 * gentle
+      if (light6Ref.current) light6Ref.current.intensity = 0.2 * gentle
+    } else {
+      // 晚上：动态赛博朋克灯光
+      const pulse = Math.sin(time * 0.5) * 0.3 + 0.7
+      if (light1Ref.current) light1Ref.current.intensity = 2.0 * pulse
+      if (light2Ref.current) light2Ref.current.intensity = 1.5 * (1 - pulse * 0.5)
+      if (light3Ref.current) light3Ref.current.intensity = 1.0 * (Math.sin(time * 0.7) * 0.3 + 0.7)
+      if (light4Ref.current) light4Ref.current.intensity = 1.0 * (Math.cos(time * 0.6) * 0.3 + 0.7)
+      if (light5Ref.current) light5Ref.current.intensity = 0.8 * (Math.sin(time * 0.4) * 0.4 + 0.6)
+      if (light6Ref.current) light6Ref.current.intensity = 0.7 * (Math.cos(time * 0.3) * 0.4 + 0.6)
+    }
   })
 
   return (
     <>
-      <ambientLight intensity={0.3} color="#0a0a1a" />
-      <hemisphereLight intensity={0.4} color="#2a3a5a" groundColor="#0a0a1a" />
-
-      {/* 赛博朋克氛围灯光 - 动态点光源 */}
-      <pointLight ref={light1Ref} position={[0, 32, 0]} intensity={2.0} color="#bf5af2" distance={30} decay={2} />
-      <pointLight ref={light2Ref} position={[0, 28, 5]} intensity={1.5} color="#64d2ff" distance={20} decay={2} />
-      <pointLight ref={light3Ref} position={[-15, 5, 15]} intensity={1.0} color="#ff375f" distance={35} decay={2} />
-      <pointLight ref={light4Ref} position={[15, 8, -15]} intensity={1.0} color="#0a84ff" distance={35} decay={2} />
-      <pointLight ref={light5Ref} position={[0, 2, 0]} intensity={0.8} color="#bf5af2" distance={40} decay={2} />
-      <pointLight ref={light6Ref} position={[-20, 12, -20]} intensity={0.7} color="#ff9f0a" distance={30} decay={2} />
+      <ambientLight intensity={isDayMode ? 0.8 : 0.3} color={isDayMode ? '#b0c4de' : '#0a0a1a'} />
+      {isDayMode ? (
+        <>
+          <hemisphereLight intensity={1.0} color="#87ceeb" groundColor="#f5deb3" />
+          <directionalLight position={[50, 80, 30]} intensity={2.0} color="#fffbe6" />
+          {/* 白天环境补光 — 柔和暖色 */}
+          <pointLight ref={light1Ref} position={[0, 32, 0]} intensity={0.3} color="#ffe4b5" distance={60} decay={1} />
+          <pointLight ref={light2Ref} position={[0, 28, 5]} intensity={0.5} color="#b0c4de" distance={50} decay={1} />
+          <pointLight ref={light3Ref} position={[-15, 5, 15]} intensity={0.15} color="#ffd700" distance={40} decay={2} />
+          <pointLight ref={light4Ref} position={[15, 8, -15]} intensity={0.15} color="#87ceeb" distance={40} decay={2} />
+          <pointLight ref={light5Ref} position={[0, 2, 0]} intensity={0.4} color="#ffe4b5" distance={50} decay={1} />
+          <pointLight ref={light6Ref} position={[-20, 12, -20]} intensity={0.2} color="#ffd700" distance={40} decay={2} />
+        </>
+      ) : (
+        <>
+          <hemisphereLight intensity={0.4} color="#2a3a5a" groundColor="#0a0a1a" />
+          {/* 赛博朋克氛围灯光 - 动态点光源 */}
+          <pointLight ref={light1Ref} position={[0, 32, 0]} intensity={2.0} color="#bf5af2" distance={30} decay={2} />
+          <pointLight ref={light2Ref} position={[0, 28, 5]} intensity={1.5} color="#64d2ff" distance={20} decay={2} />
+          <pointLight ref={light3Ref} position={[-15, 5, 15]} intensity={1.0} color="#ff375f" distance={35} decay={2} />
+          <pointLight ref={light4Ref} position={[15, 8, -15]} intensity={1.0} color="#0a84ff" distance={35} decay={2} />
+          <pointLight ref={light5Ref} position={[0, 2, 0]} intensity={0.8} color="#bf5af2" distance={40} decay={2} />
+          <pointLight ref={light6Ref} position={[-20, 12, -20]} intensity={0.7} color="#ff9f0a" distance={30} decay={2} />
+        </>
+      )}
     </>
   )
 }
@@ -149,7 +175,7 @@ function DynamicFogLayer({ y, baseOpacity, color, size, fogEnabled }: {
 
 /* ───────── 完整 3D 场景 ───────── */
 
-export default function TowerScene({ projects, customTeams, onSelectProject, onSelectDept, onSelectTeam, onCreateTeam, cameraNav, onFocusFloor, activeDeptColor, fogEnabled = true, showBuildings = true, showBillboards = true, showFlyingVehicles = true, showBridges = true, showParticles = true, showRain = true, showNeonLines = true }: {
+export default function TowerScene({ projects, customTeams, onSelectProject, onSelectDept, onSelectTeam, onCreateTeam, cameraNav, onFocusFloor, activeDeptColor, fogEnabled = true, showBuildings = true, showBillboards = true, showFlyingVehicles = true, showBridges = true, showParticles = true, showRain = true, showNeonLines = true, isDayMode = false }: {
   projects: Project[]
   customTeams: CustomTeam[]
   onSelectProject: (p: Project) => void
@@ -167,6 +193,7 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
   showParticles?: boolean
   showRain?: boolean
   showNeonLines?: boolean
+  isDayMode?: boolean
 }) {
   const [hovering, setHovering] = useState(false)
   const onEnter = useCallback(() => setHovering(true), [])
@@ -209,8 +236,8 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
   return (
     <>
       <SkyDome />
-      <DuskSun />
-      <CyberpunkLights />
+      <DuskSun isDayMode={isDayMode} />
+      <CyberpunkLights isDayMode={isDayMode} />
 
       <OrbitControls
         ref={controlsRef}
@@ -230,9 +257,9 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
       <Stars radius={100} depth={50} count={2000} factor={4} saturation={0.5} fade speed={0.5} />
 
-      {/* 赛博朋克大气雾 — 指数雾 FogExp2，深蓝紫色 */}
-      <fogExp2 attach="fog" args={['#0a0a1a', fogEnabled ? 0.018 : 0]} />
-      <color attach="background" args={['#0a0a1a']} />
+      {/* 大气雾 — 白天/晚上不同颜色和密度 */}
+      <fogExp2 attach="fog" args={[isDayMode ? '#c8ddf0' : '#0a0a1a', fogEnabled ? (isDayMode ? 0.012 : 0.018) : 0]} />
+      <color attach="background" args={[isDayMode ? '#87ceeb' : '#0a0a1a']} />
 
       {/* 本地HDR环境反射（不从CDN下载） */}
       <Environment files="/dikhololo_night_1k.hdr" background={false} />
@@ -320,34 +347,38 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       <FloorLabels />
       <CEOTextLabel />
 
-      {/* 后处理：Bloom（电影级参数） + 色差 + 胶片颗粒 + 暗角 */}
+      {/* 后处理：Bloom + 色差 + 胶片颗粒 + 暗角（白天减弱） */}
       <EffectComposer>
         <Bloom
-          luminanceThreshold={0.1}
+          luminanceThreshold={isDayMode ? 0.6 : 0.1}
           luminanceSmoothing={0.4}
-          intensity={1.5}
+          intensity={isDayMode ? 0.6 : 1.5}
           radius={0.4}
         />
-        <ChromaticAberration
-          offset={new THREE.Vector2(0.006, 0.006)}
-          radialModulation={true}
-          modulationOffset={0.5}
-        />
-        <Noise
-          premultiply
-          blendFunction={BlendFunction.ADD}
-          opacity={0.15}
-        />
+        {!isDayMode && (
+          <>
+            <ChromaticAberration
+              offset={new THREE.Vector2(0.006, 0.006)}
+              radialModulation={true}
+              modulationOffset={0.5}
+            />
+            <Noise
+              premultiply
+              blendFunction={BlendFunction.ADD}
+              opacity={0.15}
+            />
+          </>
+        )}
         <Vignette
           offset={0.3}
-          darkness={0.6}
+          darkness={isDayMode ? 0.2 : 0.6}
         />
       </EffectComposer>
 
       {/* 体积雾层 — 12层渐变雾，由云雾按钮控制，动态密度 */}
       {[1, 2, 3, 5, 8, 12, 16, 20, 25, 30, 35, 40].map((y, i) => {
-        const baseOpacity = 0.15 * Math.exp(-0.08 * (y - 1))
-        const color = y <= 2 ? '#1a1a2e' : '#0a0a1a'
+        const baseOpacity = isDayMode ? 0.08 * Math.exp(-0.1 * (y - 1)) : 0.15 * Math.exp(-0.08 * (y - 1))
+        const color = isDayMode ? '#d0e0f0' : (y <= 2 ? '#1a1a2e' : '#0a0a1a')
         const size = 100 + y * 3
         return (
           <DynamicFogLayer
