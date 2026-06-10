@@ -609,95 +609,8 @@ async def ws_handler(ws: WebSocket):
                         result = await coordinator.process_user_message(content, send_complex_progress)
                         logger.info("复杂路径 process_user_message 完成: type=%s", result.get("type") if result else "None")
 
-                        if result and result.get("type") == "task_auto_assigned":
-                            # 发送任务分配消息
-                            assignment = result.get("assignment", {})
-                            routing_decision = None
-                            rd = coordinator.last_routing_decision
-                            if rd and rd.selected_dept:
-                                routing_decision = {
-                                    "selected_dept": rd.selected_dept,
-                                    "confidence": rd.confidence,
-                                    "reason": rd.reason,
-                                    "candidate_depts": rd.candidate_depts,
-                                    "matched_keywords": rd.matched_keywords,
-                                }
-
-                            session._sequence_no += 1
-                            msg_auto_assigned = {
-                                "type": "task_auto_assigned",
-                                "taskId": assignment.get("task_id", ""),
-                                "agentId": assignment.get("agent_id", ""),
-                                "description": assignment.get("description", ""),
-                                "reason": assignment.get("reason", ""),
-                                "status": assignment.get("status", "assigned"),
-                                "analysis": result.get("analysis", {}),
-                                "routing_decision": routing_decision,
-                                "sequence_no": session._sequence_no,
-                            }
-                            await ws.send_json(msg_auto_assigned)
-
-                            # 执行任务并审查
-                            task_description = assignment.get("description", "")
-                            logger.info("开始执行任务并审查: %s", task_description[:50])
-                            review_result = await coordinator.execute_and_review_task(task_description, send_complex_progress)
-                            logger.info("任务执行和审查完成")
-
-                            # 发送结构化反馈
-                            if review_result and review_result.get("structured_feedback"):
-                                session._sequence_no += 1
-                                feedback = review_result["structured_feedback"]
-                                msg_feedback = {
-                                    "type": "structured_feedback",
-                                    "taskId": assignment.get("task_id", ""),
-                                    "agentId": "agent-reviewer",
-                                    "feedback": feedback,
-                                    "sequence_no": session._sequence_no,
-                                }
-                                await ws.send_json(msg_feedback)
-
-                                # 迭代修正
-                                if feedback.get("status") == "revision_required":
-                                    session._sequence_no += 1
-                                    msg_iteration = {
-                                        "type": "iteration_update",
-                                        "taskId": assignment.get("task_id", ""),
-                                        "agentId": assignment.get("agent_id", ""),
-                                        "iteration_status": {
-                                            "task_id": assignment.get("task_id", ""),
-                                            "current_iteration": feedback.get("current_iteration", 1),
-                                            "max_iterations": feedback.get("max_iterations", 3),
-                                            "status": feedback.get("status", "revision_required"),
-                                            "corrections": [],
-                                        },
-                                        "sequence_no": session._sequence_no,
-                                    }
-                                    await ws.send_json(msg_iteration)
-
-                            # 发送审查结果
-                            if review_result:
-                                session._sequence_no += 1
-                                msg_review = {
-                                    "type": "review_completed",
-                                    "taskId": assignment.get("task_id", ""),
-                                    "critic_result": review_result.get("critic_result", {}),
-                                    "grounding_result": review_result.get("grounding_result", {}),
-                                    "sequence_no": session._sequence_no,
-                                }
-                                await ws.send_json(msg_review)
-
-                            # 最终结果
-                            await ws.send_json({
-                                "type": "task_result",
-                                "path_used": "complex",
-                                "project_id": project.project_id,
-                                "meeting_id": meeting_id,
-                                "task_id": assignment.get("task_id", ""),
-                                "status": "completed",
-                            })
-
-                        elif result and result.get("type") == "workflow_executed":
-                            # 工作流执行结果
+                        # 工作流模式
+                        if result and result.get("type") == "workflow_executed":
                             workflow_result = result.get("workflow_result", {})
                             await ws.send_json({
                                 "type": "workflow_executed",
@@ -716,21 +629,77 @@ async def ws_handler(ws: WebSocket):
                                 "status": workflow_result.get("status", ""),
                             })
 
-                        elif result and result.get("type") == "discussion":
-                            # 讨论结果
-                            await ws.send_json({
-                                "type": "discussion_result",
-                                "analysis": result.get("analysis", {}),
-                                "discussion_results": result.get("discussion_results", []),
-                            })
+                        # 串行流程模式（讨论→分派→审查已在内部完成）
+                        elif result and result.get("type") == "serial_completed":
+                            assignment = result.get("assignment", {})
+                            review_result = result.get("review_result", {})
 
+                            # 发送任务分配消息
+                            session._sequence_no += 1
+                            msg_auto_assigned = {
+                                "type": "task_auto_assigned",
+                                "taskId": assignment.get("task_id", ""),
+                                "agentId": assignment.get("agent_id", ""),
+                                "description": assignment.get("description", ""),
+                                "reason": assignment.get("reason", ""),
+                                "status": assignment.get("status", "assigned"),
+                                "analysis": result.get("analysis", {}),
+                                "sequence_no": session._sequence_no,
+                            }
+                            await ws.send_json(msg_auto_assigned)
+
+                            # 发送审查结果
+                            if review_result:
+                                # 结构化反馈
+                                if review_result.get("structured_feedback"):
+                                    session._sequence_no += 1
+                                    feedback = review_result["structured_feedback"]
+                                    await ws.send_json({
+                                        "type": "structured_feedback",
+                                        "taskId": assignment.get("task_id", ""),
+                                        "agentId": "agent-reviewer",
+                                        "feedback": feedback,
+                                        "sequence_no": session._sequence_no,
+                                    })
+
+                                    # 迭代修正
+                                    if feedback.get("status") == "revision_required":
+                                        session._sequence_no += 1
+                                        await ws.send_json({
+                                            "type": "iteration_update",
+                                            "taskId": assignment.get("task_id", ""),
+                                            "agentId": assignment.get("agent_id", ""),
+                                            "iteration_status": {
+                                                "task_id": assignment.get("task_id", ""),
+                                                "current_iteration": feedback.get("current_iteration", 1),
+                                                "max_iterations": feedback.get("max_iterations", 3),
+                                                "status": feedback.get("status", "revision_required"),
+                                                "corrections": [],
+                                            },
+                                            "sequence_no": session._sequence_no,
+                                        })
+
+                                # 审查完成
+                                session._sequence_no += 1
+                                await ws.send_json({
+                                    "type": "review_completed",
+                                    "taskId": assignment.get("task_id", ""),
+                                    "critic_result": review_result.get("critic_result", {}),
+                                    "grounding_result": review_result.get("grounding_result", {}),
+                                    "sequence_no": session._sequence_no,
+                                })
+
+                            # 最终结果
                             await ws.send_json({
                                 "type": "task_result",
                                 "path_used": "complex",
                                 "project_id": project.project_id,
                                 "meeting_id": meeting_id,
-                                "status": "discussion_completed",
+                                "task_id": assignment.get("task_id", ""),
+                                "status": "completed",
+                                "discussion_results": result.get("discussion_results", []),
                             })
+
                         else:
                             await ws.send_json({
                                 "type": "task_result",

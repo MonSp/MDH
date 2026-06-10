@@ -1,0 +1,80 @@
+{
+  "project": "复杂路径串行流程",
+  "version": "1.0.0",
+  "created_at": "2026-06-10T09:46:00Z",
+  "status": "ready_for_review",
+  "artifacts": {
+    "project_context": {
+      "path": "project_context.json",
+      "description": "项目上下文，包含目标、摘要、来源和证据",
+      "source": "grounding_from_repo"
+    },
+    "companion_log": {
+      "path": "companion_log.json",
+      "description": "伴随审查日志",
+      "source": "companion_analysis"
+    },
+    "clarified_brief": {
+      "path": "clarified_brief.json",
+      "description": "澄清后的需求简报",
+      "source": "clarification_with_critic"
+    },
+    "spec_tree": {
+      "path": "spec_tree.json",
+      "description": "规格树",
+      "source": "llm_generation",
+      "validation": "passed (15 nodes, 5 successCriteria, EARS acceptance, evidence refs)"
+    },
+    "documents": {
+      "requirements": {
+        "path": "docs/requirements.md",
+        "description": "需求规格文档",
+        "sections": ["目标", "范围", "功能要求", "验收标准"],
+        "source": "derived_from_spec_tree"
+      },
+      "design": {
+        "path": "docs/design.md",
+        "description": "设计规格文档",
+        "sections": ["设计目标", "模块划分", "数据流", "失败处理策略", "质量控制"],
+        "source": "derived_from_spec_tree"
+      },
+      "tasks": {
+        "path": "docs/tasks.md",
+        "description": "任务清单",
+        "sections": ["里程碑", "任务清单", "完成定义"],
+        "source": "derived_from_spec_tree"
+      }
+    },
+    "traceability_matrix": {
+      "path": "traceability_matrix.json",
+      "description": "可追溯矩阵",
+      "source": "derived_from_spec_tree"
+    },
+    "checks_ledger": {
+      "path": "checks_ledger.json",
+      "description": "校验台账",
+      "source": "gate_execution"
+    },
+    "architecture": {
+      "path": "docs/architecture.mmd",
+      "description": "架构总图",
+      "source": "deterministic_rendering"
+    }
+  },
+  "summary": {
+    "modified_files": [
+      "backend/meeting_coordinator.py (重构 process_user_message, 新增 _enhance_task_description)",
+      "backend/server.py (简化 unified_message 处理逻辑)"
+    ],
+    "tasks_total": 7,
+    "tasks_high_priority": 4,
+    "tasks_medium_priority": 3,
+    "success_criteria_total": 5,
+    "requirements_total": 5
+  },
+  "next_steps": [
+    "评审 spec_tree.json 和三份文档",
+    "开始 T1 (重构 process_user_message)",
+    "完成后运行测试验证"
+  ]
+}

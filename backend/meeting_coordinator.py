@@ -536,7 +536,7 @@ class MeetingCoordinator:
 
         ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
 
-        # 检查是否为工作流模式
+        # 1. 工作流模式保持不变
         if analysis.is_workflow and analysis.workflow_definition:
             self.logger.info("工作流模式: 创建并执行工作流")
             analysis_text = (
@@ -556,35 +556,109 @@ class MeetingCoordinator:
                 "analysis": semantic_analysis_to_dict(analysis),
                 "workflow_result": workflow_result,
             }
-        else:
-            analysis_text = (
-                f"CEO分析：意图={analysis.intent}"
-                + (f"，任务={analysis.task_description}，指派给={analysis.target_agent_id}，理由={analysis.reason}" if analysis.is_task else f"，主题={analysis.discussion_topic}")
-            )
-            await on_message(ceo_id, analysis_text, "")
-            self.meeting.add_message("agent", analysis_text, ceo_id)
 
-            if analysis.is_task and analysis.target_agent_id:
-                self.logger.info("任务模式: 指派给 %s", analysis.target_agent_id)
-                assign_result = await self.auto_assign_task(
-                    analysis.task_description or user_message,
-                    analysis.target_agent_id,
-                    analysis.reason,
-                )
+        # 2. 非工作流模式：串行流程（讨论→分派→审查）
+        analysis_text = (
+            f"CEO分析：意图={analysis.intent}"
+            + (f"，任务={analysis.task_description}，指派给={analysis.target_agent_id}，理由={analysis.reason}" if analysis.is_task else f"，主题={analysis.discussion_topic}")
+        )
+        await on_message(ceo_id, analysis_text, "")
+        self.meeting.add_message("agent", analysis_text, ceo_id)
 
-                return {
-                    "type": "task_auto_assigned",
-                    "analysis": semantic_analysis_to_dict(analysis),
-                    "assignment": assign_result,
-                }
-            else:
-                topic = analysis.discussion_topic or user_message
-                discussion_results = await self.run_discussion(topic, on_message)
-                return {
-                    "type": "discussion",
-                    "analysis": semantic_analysis_to_dict(analysis),
-                    "discussion_results": discussion_results,
-                }
+        # 2a. 讨论阶段（始终执行）
+        topic = analysis.discussion_topic or user_message
+        self.logger.info("串行流程 - 讨论阶段: topic=%s", topic[:50])
+        discussion_results = await self.run_discussion(topic, on_message)
+
+        # 2b. 整合讨论结果到任务描述
+        original_description = analysis.task_description or user_message
+        enhanced_description = self._enhance_task_description(original_description, discussion_results)
+        self.logger.info("串行流程 - 任务描述已整合讨论结果: 原始长度=%d, 增强后长度=%d",
+                        len(original_description), len(enhanced_description))
+
+        # 2c. 分派阶段
+        target_agent_id = analysis.target_agent_id
+        if not target_agent_id:
+            # 如果没有明确的目标 Agent，从讨论结果中推断或使用默认值
+            target_agent_id = self._infer_target_agent(discussion_results) or "agent-executor"
+
+        self.logger.info("串行流程 - 分派阶段: target=%s", target_agent_id)
+        assign_result = await self.auto_assign_task(
+            enhanced_description,
+            target_agent_id,
+            analysis.reason,
+        )
+
+        # 2d. 审查阶段
+        self.logger.info("串行流程 - 审查阶段: task=%s", assign_result.get("task_id", ""))
+        review_result = await self.execute_and_review_task(enhanced_description, on_message)
+
+        # 3. 返回所有阶段结果
+        return {
+            "type": "serial_completed",
+            "analysis": semantic_analysis_to_dict(analysis),
+            "discussion_results": discussion_results,
+            "assignment": assign_result,
+            "review_result": review_result,
+        }
+
+    def _enhance_task_description(self, original_description: str, discussion_results: list) -> str:
+        """整合讨论结果到任务描述
+
+        Args:
+            original_description: 原始任务描述
+            discussion_results: 讨论结果列表
+
+        Returns:
+            整合后的任务描述
+        """
+        if not discussion_results:
+            return original_description
+
+        # 提取讨论中的关键信息
+        key_points = []
+        for result in discussion_results:
+            content = result.get("content", "")
+            stance = result.get("stance", "neutral")
+            if content and stance in ["support", "modify"]:
+                # 截取前100个字符作为关键点
+                key_points.append(content[:100])
+
+        if not key_points:
+            return original_description
+
+        # 整合到任务描述
+        enhanced = f"{original_description}\n\n讨论要点：\n"
+        for i, point in enumerate(key_points, 1):
+            enhanced += f"{i}. {point}\n"
+
+        return enhanced
+
+    def _infer_target_agent(self, discussion_results: list) -> str:
+        """从讨论结果中推断目标 Agent
+
+        Args:
+            discussion_results: 讨论结果列表
+
+        Returns:
+            目标 Agent ID，如果无法推断则返回空字符串
+        """
+        if not discussion_results:
+            return ""
+
+        # 统计各角色的立场
+        role_votes = {}
+        for result in discussion_results:
+            agent_id = result.get("agentId", "")
+            stance = result.get("stance", "neutral")
+            if agent_id and stance in ["support", "modify"]:
+                role_votes[agent_id] = role_votes.get(agent_id, 0) + 1
+
+        if not role_votes:
+            return ""
+
+        # 返回支持/修改立场最多的 Agent
+        return max(role_votes, key=role_votes.get)
 
     async def _execute_workflow(
         self,

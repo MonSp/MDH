@@ -1,0 +1,45 @@
+graph TB
+    subgraph Input["用户输入"]
+        MSG[unified_message]
+    end
+
+    subgraph Classifier["复杂度判定"]
+        CC[ComplexityClassifier]
+    end
+
+    subgraph SimplePath["简单路径（不变）"]
+        SE[SimpleExecutor]
+    end
+
+    subgraph ComplexPath["复杂路径（重构）"]
+        direction TB
+        SA[semantic_analyze]
+        WF{is_workflow?}
+        EW[_execute_workflow<br/>保持不变]
+        
+        subgraph SerialFlow["串行流程"]
+            direction TB
+            RD[③ run_discussion]
+            EH[_enhance_task_description]
+            AA[④ auto_assign_task]
+            ER[⑤ execute_and_review_task]
+        end
+        
+        RET[返回所有阶段结果]
+    end
+
+    MSG --> CC
+    CC -->|simple| SE
+    CC -->|complex| ComplexPath
+
+    SA --> WF
+    WF -->|是| EW
+    WF -->|否| SerialFlow
+
+    RD --> EH
+    EH --> AA
+    AA --> ER
+    ER --> RET
+
+    style SerialFlow fill:#e6ffe6,stroke:#00cc00
+    style EW fill:#fff0e6,stroke:#ff9900

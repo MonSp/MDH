@@ -1,0 +1,56 @@
+{
+  "requirements": [
+    {
+      "id": "FR-1",
+      "title": "串行流程重构",
+      "successCriteria": ["sc1"],
+      "design": ["n10"],
+      "tasks": ["T1"],
+      "evidence": ["nE1"],
+      "acceptance": "AC-1"
+    },
+    {
+      "id": "FR-2",
+      "title": "讨论结果传递",
+      "successCriteria": ["sc2", "sc3"],
+      "design": ["n11"],
+      "tasks": ["T2"],
+      "evidence": ["nE5"],
+      "acceptance": "AC-2"
+    },
+    {
+      "id": "FR-3",
+      "title": "审查结果内置",
+      "successCriteria": ["sc1", "sc4"],
+      "design": ["n12"],
+      "tasks": ["T3"],
+      "evidence": ["nE4"],
+      "acceptance": "AC-3"
+    },
+    {
+      "id": "FR-4",
+      "title": "返回值格式",
+      "successCriteria": ["sc4"],
+      "design": ["n10"],
+      "tasks": ["T1", "T3"],
+      "evidence": ["nE1", "nE4"],
+      "acceptance": "AC-3"
+    },
+    {
+      "id": "FR-5",
+      "title": "工作流模式保持不变",
+      "successCriteria": ["sc5"],
+      "design": ["n10"],
+      "tasks": ["T7"],
+      "evidence": ["nE1"],
+      "acceptance": "AC-4"
+    }
+  ],
+  "successCriteriaCoverage": {
+    "sc1": {"coveredBy": ["FR-1", "FR-3"], "tasks": ["T1", "T3"]},
+    "sc2": {"coveredBy": ["FR-2"], "tasks": ["T2"]},
+    "sc3": {"coveredBy": ["FR-2"], "tasks": ["T2"]},
+    "sc4": {"coveredBy": ["FR-3", "FR-4"], "tasks": ["T1", "T3"]},
+    "sc5": {"coveredBy": ["FR-5"], "tasks": ["T7"]}
+  }
+}
