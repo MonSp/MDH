@@ -531,22 +531,49 @@ class MeetingCoordinator:
         user_message: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
     ) -> Dict[str, Any]:
+        """
+        处理用户消息
+        
+        架构说明：
+        - CEO（主智能体）只负责团队创建和任务交接
+        - COORDINATOR（团队负责人）接管所有内部流程管理
+        """
         self._on_message = on_message
-        analysis = await self.semantic_analyze(user_message)
-
+        
+        # 获取CEO和COORDINATOR的ID
         ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
+        coordinator_id = self._find_agent_id(AgentRole.COORDINATOR) or "agent-coordinator"
+        
+        # CEO将任务交给COORDINATOR
+        ceo_handoff_text = f"CEO：收到任务「{user_message[:50]}...」，已交给项目经理处理。"
+        await on_message(ceo_id, ceo_handoff_text, "")
+        self.meeting.add_message("agent", ceo_handoff_text, ceo_id)
+        
+        # COORDINATOR接管内部流程
+        coordinator = self._get_model(AgentRole.COORDINATOR)
+        
+        # COORDINATOR进行语义分析
+        analysis = await self.semantic_analyze(user_message)
+        
+        # COORDINATOR发布分析结果
+        analysis_text = (
+            f"项目经理分析：意图={analysis.intent}"
+            + (f"，任务={analysis.task_description}，指派给={analysis.target_agent_id}，理由={analysis.reason}" if analysis.is_task else f"，主题={analysis.discussion_topic}")
+        )
+        await on_message(coordinator_id, analysis_text, "")
+        self.meeting.add_message("agent", analysis_text, coordinator_id)
 
-        # 1. 工作流模式保持不变
+        # 1. 工作流模式
         if analysis.is_workflow and analysis.workflow_definition:
             self.logger.info("工作流模式: 创建并执行工作流")
-            analysis_text = (
-                f"CEO分析：检测到跨部门复杂任务，已创建工作流。\n"
+            workflow_text = (
+                f"项目经理：检测到跨部门复杂任务，已创建工作流。\n"
                 f"工作流名称：{analysis.workflow_definition.name}\n"
                 f"节点数量：{len(analysis.workflow_definition.nodes)}\n"
                 f"执行策略：{analysis.workflow_definition.execution_strategy}"
             )
-            await on_message(ceo_id, analysis_text, "")
-            self.meeting.add_message("agent", analysis_text, ceo_id)
+            await on_message(coordinator_id, workflow_text, "")
+            self.meeting.add_message("agent", workflow_text, coordinator_id)
 
             # 创建并执行工作流
             workflow_result = await self._execute_workflow(analysis.workflow_definition, on_message)
@@ -558,42 +585,64 @@ class MeetingCoordinator:
             }
 
         # 2. 非工作流模式：串行流程（讨论→分派→审查）
-        analysis_text = (
-            f"CEO分析：意图={analysis.intent}"
-            + (f"，任务={analysis.task_description}，指派给={analysis.target_agent_id}，理由={analysis.reason}" if analysis.is_task else f"，主题={analysis.discussion_topic}")
-        )
-        await on_message(ceo_id, analysis_text, "")
-        self.meeting.add_message("agent", analysis_text, ceo_id)
-
-        # 2a. 讨论阶段（始终执行）
+        # COORDINATOR组织讨论
         topic = analysis.discussion_topic or user_message
         self.logger.info("串行流程 - 讨论阶段: topic=%s", topic[:50])
+        
+        coordinator_discuss_text = f"项目经理：组织团队讨论「{topic[:30]}...」"
+        await on_message(coordinator_id, coordinator_discuss_text, "")
+        self.meeting.add_message("agent", coordinator_discuss_text, coordinator_id)
+        
         discussion_results = await self.run_discussion(topic, on_message)
 
-        # 2b. 整合讨论结果到任务描述
+        # COORDINATOR整合讨论结果
         original_description = analysis.task_description or user_message
         enhanced_description = self._enhance_task_description(original_description, discussion_results)
         self.logger.info("串行流程 - 任务描述已整合讨论结果: 原始长度=%d, 增强后长度=%d",
                         len(original_description), len(enhanced_description))
+        
+        coordinator_integrate_text = f"项目经理：已整合团队讨论结果，任务描述已更新。"
+        await on_message(coordinator_id, coordinator_integrate_text, "")
+        self.meeting.add_message("agent", coordinator_integrate_text, coordinator_id)
 
-        # 2c. 分派阶段
+        # COORDINATOR分派任务
         target_agent_id = analysis.target_agent_id
         if not target_agent_id:
             # 如果没有明确的目标 Agent，从讨论结果中推断或使用默认值
             target_agent_id = self._infer_target_agent(discussion_results) or "agent-executor"
 
         self.logger.info("串行流程 - 分派阶段: target=%s", target_agent_id)
+        
+        coordinator_assign_text = f"项目经理：将任务分派给{target_agent_id}执行。"
+        await on_message(coordinator_id, coordinator_assign_text, "")
+        self.meeting.add_message("agent", coordinator_assign_text, coordinator_id)
+        
         assign_result = await self.auto_assign_task(
             enhanced_description,
             target_agent_id,
             analysis.reason,
         )
 
-        # 2d. 审查阶段
+        # COORDINATOR监督审查
         self.logger.info("串行流程 - 审查阶段: task=%s", assign_result.get("task_id", ""))
+        
+        coordinator_review_text = f"项目经理：监督任务执行和质量审查。"
+        await on_message(coordinator_id, coordinator_review_text, "")
+        self.meeting.add_message("agent", coordinator_review_text, coordinator_id)
+        
         review_result = await self.execute_and_review_task(enhanced_description, on_message)
 
-        # 3. 返回所有阶段结果
+        # COORDINATOR汇报结果
+        coordinator_report_text = f"项目经理：任务执行完成，向CEO汇报结果。"
+        await on_message(coordinator_id, coordinator_report_text, "")
+        self.meeting.add_message("agent", coordinator_report_text, coordinator_id)
+
+        # CEO接收汇报
+        ceo_report_text = f"CEO：收到项目经理汇报，任务已完成。"
+        await on_message(ceo_id, ceo_report_text, "")
+        self.meeting.add_message("agent", ceo_report_text, ceo_id)
+
+        # 返回所有阶段结果
         return {
             "type": "serial_completed",
             "analysis": semantic_analysis_to_dict(analysis),

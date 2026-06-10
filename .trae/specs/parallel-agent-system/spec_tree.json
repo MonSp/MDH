@@ -1,0 +1,137 @@
+{
+  "rootNodeId": "n0",
+  "version": 2,
+  "successCriteria": [
+    { "id": "sc1", "text": "各Agent能够独立并行执行，讨论轮次时间减少50%以上" },
+    { "id": "sc2", "text": "每个Agent拥有独立的API密钥配置，支持不同的rate limit" },
+    { "id": "sc3", "text": "引入真正的消息队列，支持异步通信和消息持久化" },
+    { "id": "sc4", "text": "系统支持水平扩展，可以动态增加Agent实例" }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "parentId": null,
+      "type": "requirement",
+      "title": "并行多Agent系统改造",
+      "acceptance": "当系统执行多Agent讨论时，各Agent应能够并行执行，讨论轮次时间相比串行执行减少50%以上。",
+      "coversCriteria": ["sc1", "sc2", "sc3", "sc4"],
+      "evidenceRefs": ["nE1", "nE2"]
+    },
+    {
+      "id": "n1",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "并行执行引擎",
+      "acceptance": "当多个Agent需要同时响应时，系统应使用asyncio.gather实现并行调用，而不是串行循环。",
+      "coversCriteria": ["sc1"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n2",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "独立API密钥管理",
+      "acceptance": "当配置Agent时，系统应支持为每个Agent角色配置独立的API密钥和rate limit。",
+      "coversCriteria": ["sc2"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n3",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "消息队列系统",
+      "acceptance": "当Agent需要通信时，系统应通过消息队列进行异步消息传递，支持消息持久化和重试。",
+      "coversCriteria": ["sc3"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n4",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "水平扩展支持",
+      "acceptance": "当需要增加Agent实例时，系统应支持动态创建和销毁Agent实例，无需重启服务。",
+      "coversCriteria": ["sc4"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n5",
+      "parentId": "n1",
+      "type": "design",
+      "title": "并行讨论管理器",
+      "notes": "改造DiscussionManager，使用asyncio.gather替代串行循环，支持并发控制和超时处理。",
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n6",
+      "parentId": "n2",
+      "type": "design",
+      "title": "密钥管理服务",
+      "notes": "创建KeyManager类，支持按角色配置独立的API密钥，提供密钥轮换和rate limit管理。",
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n7",
+      "parentId": "n3",
+      "type": "design",
+      "title": "内存消息队列",
+      "notes": "实现基于asyncio.Queue的内存消息队列，支持消息持久化到SQLite，提供重试机制。",
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n8",
+      "parentId": "n4",
+      "type": "design",
+      "title": "Agent池管理器",
+      "notes": "实现AgentPool类，支持动态创建和销毁Agent实例，提供负载均衡和健康检查。",
+      "evidenceRefs": ["nE2"]
+    },
+    {
+      "id": "n9",
+      "parentId": "n5",
+      "type": "task",
+      "title": "改造DiscussionManager",
+      "verify": "运行并行讨论测试，验证讨论时间减少50%以上"
+    },
+    {
+      "id": "n10",
+      "parentId": "n6",
+      "type": "task",
+      "title": "实现KeyManager",
+      "verify": "运行密钥管理测试，验证独立密钥配置和rate limit"
+    },
+    {
+      "id": "n11",
+      "parentId": "n7",
+      "type": "task",
+      "title": "实现消息队列",
+      "verify": "运行消息队列测试，验证异步通信和消息持久化"
+    },
+    {
+      "id": "n12",
+      "parentId": "n8",
+      "type": "task",
+      "title": "实现AgentPool",
+      "verify": "运行Agent池测试，验证动态扩展和负载均衡"
+    },
+    {
+      "id": "nE1",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "当前系统串行执行证据",
+      "source": "discussion_manager.py#L67-L100"
+    },
+    {
+      "id": "nE2",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "当前系统共享API密钥证据",
+      "source": "meeting_coordinator.py#L182-L212"
+    }
+  ],
+  "provenance": {
+    "generationSource": "llm",
+    "promptId": "parallel-agent-spec",
+    "model": "whybuddy",
+    "fingerprint": "spec_tree_v2_parallel_agent"
+  }
+}

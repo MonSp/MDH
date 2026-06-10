@@ -21,10 +21,31 @@ description: Turn a vague idea into a closed-loop, reviewable, buildable WhyBudd
 - **Skill 内**：深度输入接地、澄清、路线规划、模式决策、伴随式审查/接地、规格树生成、文档派生、预览/交付产物约定、评审与重规划规则、**确定性校验脚本的调用与台账记录**。
 - **Skill 外**：一切运行时与基础设施（Job Store、Event Bus、Socket、Realtime Store、回放 UI、工作台、容器编排、权限托管）。
 
+## 输出目录规范
+
+所有产物输出到 `.trae/specs/<spec-name>/` 目录，结构如下：
+
+```text
+.trae/specs/<spec-name>/
+├── docs/
+│   ├── requirements.md
+│   ├── design.md
+│   └── tasks.md
+├── project_context.json
+├── clarified_brief.json
+├── spec_tree.json
+├── checks_ledger.json
+├── traceability_matrix.json
+├── handoff_manifest.json
+└── companion_log.json
+```
+
+**命名规范**：`<spec-name>` 使用小写字母和连字符，如 `parallel-agent-system`、`adaptive-collaboration`。
+
 ## 输入 / 输出契约
 
 - 输入：必填用户想法；可选 GitHub 仓库、代码文件/目录片段、截图/日志、约束/预算/成功标准。
-- 输出：`project_context`、`clarified_brief`、`route_options`+`selected_route`、`decision_mode`、`spec_tree.json`、`requirements.md`/`design.md`/`tasks.md`、`prompt_pack.md`、`effect_preview.md`、`traceability_matrix.json`、`checks_ledger.json`、`handoff_manifest.json`、`review_result`、以及视觉预览（生成/渲染两类，带来源标）。
+- 输出：`.trae/specs/<spec-name>/` 目录下的所有产物。
 
 ## 伴随式审查与接地（横切 · 按需触发）
 
@@ -49,6 +70,43 @@ description: Turn a vague idea into a closed-loop, reviewable, buildable WhyBudd
 
 注：原「决策门 / 头脑风暴」（复杂任务升级成全套多角色）保留为**重型档**；伴随层是**随时可调的轻量档**，两档分工。
 
+## project_context.json 格式
+
+```json
+{
+  "goal": "一句话目标",
+  "summary": "详细摘要",
+  "sources": [
+    {
+      "type": "repo",
+      "path": "d:\\trunk\\test-sidepanel-host\\backend",
+      "files_read": [
+        "file1.py (关键类/函数说明)",
+        "file2.py (关键类/函数说明)"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source": "repo://backend/file.py#L10-L50",
+      "fact": "从代码中提取的关键事实"
+    }
+  ],
+  "grounding": {
+    "repoAvailable": true,
+    "repoPath": "d:\\trunk\\test-sidepanel-host\\backend",
+    "accessMode": "direct_read"
+  }
+}
+```
+
+**关键字段说明**：
+- `sources[].files_read`：列出所有读取的文件，附带关键类/函数说明
+- `evidence[]`：从代码中提取的关键事实，使用 `repo://` 协议引用源码位置
+- `grounding.repoAvailable`：是否有真实仓库可读
+- `grounding.accessMode`：访问模式（`direct_read` 或 `api`）
+
 ## 规格树 Schema（生成器与校验器的唯一契约）
 
 ```json
@@ -66,12 +124,14 @@ description: Turn a vague idea into a closed-loop, reviewable, buildable WhyBudd
       "acceptance": "若<条件>，系统应<响应>。", "coversCriteria": ["sc2"], "evidenceRefs": ["nE1"] },
     { "id": "n2", "parentId": "n1", "type": "design", "title": "...", "notes": "...", "evidenceRefs": ["nE2"] },
     { "id": "n3", "parentId": "n2", "type": "task", "title": "...", "verify": "..." },
-    { "id": "nE1", "parentId": "n0", "type": "evidence", "title": "...", "source": "clarified_brief:successCriteria" },
-    { "id": "nE2", "parentId": "n0", "type": "evidence", "title": "...", "source": "repo://src/foo.ts#L20-L60" }
+    { "id": "nE1", "parentId": "n0", "type": "evidence", "title": "...", "source": "repo://backend/file.py#L10-L50" },
+    { "id": "nE2", "parentId": "n0", "type": "evidence", "title": "...", "source": "repo://backend/file.py#L60-L100" }
   ],
   "provenance": { "generationSource": "llm", "promptId": "...", "model": "...", "fingerprint": "..." }
 }
 ```
+
+**证据来源格式**：使用 `repo://` 协议，格式为 `repo://<相对路径>#L<起始行>-L<结束行>`
 
 硬约束（`scripts/validate_spec_tree.py` 逐条查）：
 
@@ -173,19 +233,12 @@ description: Turn a vague idea into a closed-loop, reviewable, buildable WhyBudd
 
 无论哪种后端：生成图一律标「预览·未验证」并把模型/提示词/时间记进 `previews/provenance.json`；**架构总图 / 规格树永远走 Mermaid 确定性渲染，不交给生图模型**（它会糊框、编错字）。
 
-## 推荐目录结构
-```text
-whybuddy/
-  SKILL.md
-  docs/   architecture.mmd（参考宿主，不是执行内容） requirements.md design.md tasks.md prompt_pack.md effect_preview.md
-  image_config.json   # 你自己的生图模型配置（密钥只放环境变量）
-  scripts/ gate.py validate_spec_tree.py fallback_tree.py check_content_quality.py gen_preview.py
-  examples/ handoff_manifest.json
-```
-
 ## 使用方式
-1. 把想法/仓库/文件/截图注入第 1 步；有仓库就让接地者真读代码。
-2. 按 1→8 推进；**第 5、6 步的脚本必须经 gate.py 真实运行，不能用文字描述代替执行。**
-3. 规格树以 `validate_spec_tree.py` 退出码为准，文档以 `check_content_quality.py` 退出码为准；两者都进台账。
-4. 运行时（存储/推送/回放/自动重算）交给宿主。
-5. 把文档、视觉预览、可追溯矩阵、契约草稿、未决项、台账打成交付包，交评审闭环；每件产物带来源/可信度标。
+
+1. **确定 spec-name**：根据用户想法，生成一个简洁的 spec 名称（小写字母+连字符），如 `parallel-agent-system`。
+2. **创建目录**：`.trae/specs/<spec-name>/` 和 `.trae/specs/<spec-name>/docs/`。
+3. **深度接地**：有仓库就读真代码，提取文件列表和关键事实，写入 `project_context.json`。
+4. **按 1→8 推进**：**第 5、6 步的脚本必须经 gate.py 真实运行，不能用文字描述代替执行。**
+5. **规格树校验**：以 `validate_spec_tree.py` 退出码为准，文档以 `check_content_quality.py` 退出码为准；两者都进台账。
+6. **运行时**（存储/推送/回放/自动重算）交给宿主。
+7. **交付包**：把文档、可追溯矩阵、契约草稿、未决项、台账打成交付包，交评审闭环；每件产物带来源/可信度标。
