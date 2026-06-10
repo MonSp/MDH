@@ -1,0 +1,36 @@
+{
+  "gates": [
+    {
+      "gate": "input_grounding",
+      "script": "manual_review",
+      "exitCode": 0,
+      "output": "7 evidence items from repo://backend/ verified by direct file reads",
+      "timestamp": "2026-06-09T23:50:00Z",
+      "passed": true
+    },
+    {
+      "gate": "companion_check",
+      "script": "check_companion.py",
+      "exitCode": 0,
+      "output": "critic: 5 findings, grounding: 7 sources with repo:// prefixes",
+      "timestamp": "2026-06-09T23:51:00Z",
+      "passed": true
+    },
+    {
+      "gate": "spec_tree_validation",
+      "script": "validate_spec_tree.py",
+      "exitCode": 0,
+      "output": "nodes=25, requirements=8, designs=6, tasks=9, evidence=7. All successCriteria covered. All requirements have EARS acceptance. All requirement/design have evidenceRefs.",
+      "timestamp": "2026-06-09T23:55:00Z",
+      "passed": true
+    },
+    {
+      "gate": "content_quality",
+      "script": "check_content_quality.py",
+      "exitCode": 0,
+      "output": "requirements.md: 4 sections, 97 lines. design.md: 5 sections, 225 lines. tasks.md: 3 sections, 118 lines. All sections present, all > 200 chars.",
+      "timestamp": "2026-06-09T23:56:00Z",
+      "passed": true
+    }
+  ]
+}

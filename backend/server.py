@@ -22,6 +22,8 @@ from project_manager import ProjectManager
 from experience_extractor import ExperienceExtractor
 from skill_packager import SkillPackager
 from dynamic_router import DynamicRouter, RouteEntry
+from complexity_classifier import ComplexityClassifier
+from simple_executor import SimpleExecutor
 
 logger = logging.getLogger("server")
 
@@ -56,6 +58,10 @@ experience_extractor = ExperienceExtractor(
 dynamic_router = DynamicRouter(
     routing_table_path=os.path.join(_DATA_DIR, "routing_table.json"),
 )
+
+# 自适应协作链路组件
+complexity_classifier = ComplexityClassifier()
+simple_executor = SimpleExecutor(project_manager=project_manager)
 
 
 def _ok(data=None):
@@ -366,6 +372,44 @@ async def ws_handler(ws: WebSocket):
 
     agent_task: asyncio.Task | None = None
 
+    def _get_or_create_coordinator_model(role: str):
+        """获取或创建协调器模型（用于 ComplexityClassifier 的 LLM 分类）"""
+        from agentscope.agent import Agent
+        from agent import PROVIDER_REGISTRY
+
+        role_prompts = {
+            "ceo": "你是编程团队的CTO。请用简洁果断的技术语言发言。",
+            "planner": "你是团队的系统架构师。请用专业的技术语言发言。",
+            "executor": "你是团队的全栈开发工程师。请用务实高效的开发语言发言。",
+        }
+
+        provider = session.provider or "deepseek"
+        reg = PROVIDER_REGISTRY.get(provider)
+        if reg is None:
+            raise ValueError(f"不支持的模型提供商: {provider}")
+
+        class _TempSession:
+            pass
+        temp_session = _TempSession()
+        temp_session.api_key = session.api_key
+        temp_session.base_url = session.base_url
+
+        credential = reg["credential_cls"](**reg["credential_kwargs"](temp_session))
+        formatter = reg["formatter_cls"]()
+        model_name = session.model_name or reg["default_model"]
+        model = reg["model_cls"](
+            credential=credential,
+            model=model_name,
+            stream=True,
+            formatter=formatter,
+        )
+        agent = Agent(
+            name=role,
+            system_prompt=role_prompts.get(role, "你是一个AI助手。"),
+            model=model,
+        )
+        return agent
+
     try:
         while True:
             raw = await ws.receive_text()
@@ -436,6 +480,269 @@ async def ws_handler(ws: WebSocket):
                         future.set_result(
                             {} if confirmed else {"rejected": True}
                         )
+
+            elif msg_type == "unified_message":
+                content = msg.get("content", "")
+                if not content:
+                    continue
+
+                # 更新模型配置
+                if msg.get("provider"):
+                    session.provider = msg["provider"]
+                if msg.get("model_name"):
+                    session.model_name = msg["model_name"]
+                if msg.get("api_key"):
+                    session.api_key = msg["api_key"]
+                if msg.get("base_url"):
+                    session.base_url = msg["base_url"]
+
+                logger.info("收到统一消息: session=%s content=%r", session.session_id, content[:50])
+
+                # 1. 复杂度判定
+                # 设置 ComplexityClassifier 的 LLM 模型获取函数
+                complexity_classifier._get_model = _get_or_create_coordinator_model
+                complexity = complexity_classifier.classify(content)
+
+                await ws.send_json({
+                    "type": "complexity_result",
+                    "level": complexity.level,
+                    "confidence": complexity.confidence,
+                    "reason": complexity.reason,
+                    "method": complexity.method,
+                })
+
+                if complexity.level == "simple" and complexity.confidence >= 0.7:
+                    # ===== 简单路径 =====
+                    logger.info("选择简单路径: confidence=%.2f", complexity.confidence)
+                    await ws.send_json({"type": "path_selected", "path": "simple"})
+
+                    async def send_simple_progress(agent_id: str, text: str, delta: str):
+                        session._sequence_no += 1
+                        await ws.send_json({
+                            "type": "agent_message",
+                            "agentId": agent_id,
+                            "content": text,
+                            "delta": delta,
+                            "sequence_no": session._sequence_no,
+                        })
+
+                    result = await simple_executor.execute(session, content, send_simple_progress)
+
+                    if result.retry_with_complex:
+                        # 升级到复杂路径
+                        logger.info("简单路径验收失败，升级到复杂路径")
+                        await ws.send_json({"type": "path_upgrade", "from": "simple", "to": "complex"})
+
+                        upgrade_result = await simple_executor.upgrade_to_complex(
+                            session, content, send_simple_progress
+                        )
+                        await ws.send_json({
+                            "type": "task_result",
+                            "path_used": "complex",
+                            "upgraded_from": "simple",
+                            **upgrade_result,
+                        })
+                    else:
+                        await ws.send_json({
+                            "type": "task_result",
+                            "path_used": "simple",
+                            "success": result.success,
+                            "result": result.result,
+                            "project_id": result.project_id,
+                            "review_passed": result.review_passed,
+                        })
+                else:
+                    # ===== 复杂路径 =====
+                    logger.info("选择复杂路径: level=%s confidence=%.2f", complexity.level, complexity.confidence)
+                    await ws.send_json({"type": "path_selected", "path": "complex"})
+
+                    # ① 创建正式项目
+                    project = project_manager.create_project(
+                        name=f"任务-{content[:20]}",
+                        brief={"source": "unified_message", "original_message": content}
+                    )
+
+                    # ② 组建多角色团队（6人）
+                    if session.meeting_session and session.meeting_session.is_running():
+                        await ws.send_json({"type": "meeting_error", "message": "会议已在进行中"})
+                        continue
+
+                    meeting_id = str(uuid.uuid4())[:8]
+                    meeting = MeetingSession(meeting_id)
+                    meeting.start()
+                    session.meeting_session = meeting
+                    session.meeting_mode = True
+
+                    # ③ 启动会议协调器
+                    coordinator = MeetingCoordinator(
+                        meeting_session=meeting,
+                        provider=session.provider,
+                        model_name=session.model_name or "",
+                        api_key=session.api_key,
+                        base_url=session.base_url or "",
+                    )
+                    session._meeting_coordinator = coordinator
+
+                    session._sequence_no += 1
+                    await ws.send_json({
+                        "type": "meeting_started",
+                        "meeting_id": meeting_id,
+                        "agents": meeting.get_agents_dict(),
+                        "project_id": project.project_id,
+                        "sequence_no": session._sequence_no,
+                    })
+
+                    # ④-⑦ 语义分析 → 任务分配/讨论 → 执行 → 审查
+                    async def send_complex_progress(agent_id: str, text: str, delta: str, **kwargs):
+                        session._sequence_no += 1
+                        msg_data = {
+                            "type": "agent_message",
+                            "agentId": agent_id,
+                            "content": text,
+                            "delta": delta,
+                            "sequence_no": session._sequence_no,
+                        }
+                        msg_data.update(kwargs)
+                        await ws.send_json(msg_data)
+
+                    try:
+                        result = await coordinator.process_user_message(content, send_complex_progress)
+                        logger.info("复杂路径 process_user_message 完成: type=%s", result.get("type") if result else "None")
+
+                        if result and result.get("type") == "task_auto_assigned":
+                            # 发送任务分配消息
+                            assignment = result.get("assignment", {})
+                            routing_decision = None
+                            rd = coordinator.last_routing_decision
+                            if rd and rd.selected_dept:
+                                routing_decision = {
+                                    "selected_dept": rd.selected_dept,
+                                    "confidence": rd.confidence,
+                                    "reason": rd.reason,
+                                    "candidate_depts": rd.candidate_depts,
+                                    "matched_keywords": rd.matched_keywords,
+                                }
+
+                            session._sequence_no += 1
+                            msg_auto_assigned = {
+                                "type": "task_auto_assigned",
+                                "taskId": assignment.get("task_id", ""),
+                                "agentId": assignment.get("agent_id", ""),
+                                "description": assignment.get("description", ""),
+                                "reason": assignment.get("reason", ""),
+                                "status": assignment.get("status", "assigned"),
+                                "analysis": result.get("analysis", {}),
+                                "routing_decision": routing_decision,
+                                "sequence_no": session._sequence_no,
+                            }
+                            await ws.send_json(msg_auto_assigned)
+
+                            # 执行任务并审查
+                            task_description = assignment.get("description", "")
+                            logger.info("开始执行任务并审查: %s", task_description[:50])
+                            review_result = await coordinator.execute_and_review_task(task_description, send_complex_progress)
+                            logger.info("任务执行和审查完成")
+
+                            # 发送结构化反馈
+                            if review_result and review_result.get("structured_feedback"):
+                                session._sequence_no += 1
+                                feedback = review_result["structured_feedback"]
+                                msg_feedback = {
+                                    "type": "structured_feedback",
+                                    "taskId": assignment.get("task_id", ""),
+                                    "agentId": "agent-reviewer",
+                                    "feedback": feedback,
+                                    "sequence_no": session._sequence_no,
+                                }
+                                await ws.send_json(msg_feedback)
+
+                                # 迭代修正
+                                if feedback.get("status") == "revision_required":
+                                    session._sequence_no += 1
+                                    msg_iteration = {
+                                        "type": "iteration_update",
+                                        "taskId": assignment.get("task_id", ""),
+                                        "agentId": assignment.get("agent_id", ""),
+                                        "iteration_status": {
+                                            "task_id": assignment.get("task_id", ""),
+                                            "current_iteration": feedback.get("current_iteration", 1),
+                                            "max_iterations": feedback.get("max_iterations", 3),
+                                            "status": feedback.get("status", "revision_required"),
+                                            "corrections": [],
+                                        },
+                                        "sequence_no": session._sequence_no,
+                                    }
+                                    await ws.send_json(msg_iteration)
+
+                            # 发送审查结果
+                            if review_result:
+                                session._sequence_no += 1
+                                msg_review = {
+                                    "type": "review_completed",
+                                    "taskId": assignment.get("task_id", ""),
+                                    "critic_result": review_result.get("critic_result", {}),
+                                    "grounding_result": review_result.get("grounding_result", {}),
+                                    "sequence_no": session._sequence_no,
+                                }
+                                await ws.send_json(msg_review)
+
+                            # 最终结果
+                            await ws.send_json({
+                                "type": "task_result",
+                                "path_used": "complex",
+                                "project_id": project.project_id,
+                                "meeting_id": meeting_id,
+                                "task_id": assignment.get("task_id", ""),
+                                "status": "completed",
+                            })
+
+                        elif result and result.get("type") == "workflow_executed":
+                            # 工作流执行结果
+                            workflow_result = result.get("workflow_result", {})
+                            await ws.send_json({
+                                "type": "workflow_executed",
+                                "workflow_id": workflow_result.get("execution_id", ""),
+                                "status": workflow_result.get("status", ""),
+                                "results": workflow_result.get("results", {}),
+                                "analysis": result.get("analysis", {}),
+                            })
+
+                            await ws.send_json({
+                                "type": "task_result",
+                                "path_used": "complex",
+                                "project_id": project.project_id,
+                                "meeting_id": meeting_id,
+                                "workflow_id": workflow_result.get("execution_id", ""),
+                                "status": workflow_result.get("status", ""),
+                            })
+
+                        elif result and result.get("type") == "discussion":
+                            # 讨论结果
+                            await ws.send_json({
+                                "type": "discussion_result",
+                                "analysis": result.get("analysis", {}),
+                                "discussion_results": result.get("discussion_results", []),
+                            })
+
+                            await ws.send_json({
+                                "type": "task_result",
+                                "path_used": "complex",
+                                "project_id": project.project_id,
+                                "meeting_id": meeting_id,
+                                "status": "discussion_completed",
+                            })
+                        else:
+                            await ws.send_json({
+                                "type": "task_result",
+                                "path_used": "complex",
+                                "project_id": project.project_id,
+                                "meeting_id": meeting_id,
+                                **(result or {}),
+                            })
+
+                    except Exception as e:
+                        logger.exception("复杂路径执行异常: %s", e)
+                        await ws.send_json({"type": "meeting_error", "message": str(e)})
 
             elif msg_type == "page_context":
                 ctx = msg.get("context", {})

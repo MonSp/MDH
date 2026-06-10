@@ -52,6 +52,16 @@ DEFAULT_MEETING_AGENTS = [
     },
 ]
 
+# 简单任务的单人助理模板
+PERSONAL_ASSISTANT_TEMPLATE = [
+    {
+        "id": "agent-assistant",
+        "name": "私人助理",
+        "role": AgentRole.EXECUTOR,
+        "capabilities": ["browser_automation", "file_operation", "code_generation", "frontend_dev", "backend_dev"],
+    },
+]
+
 
 class MeetingSession:
     def __init__(self, meeting_id: str):
@@ -62,9 +72,16 @@ class MeetingSession:
         self._running: bool = False
         self._created_at: float = time.time()
 
-    def start(self) -> None:
+    def start(self, team_template: list = None) -> None:
+        """启动会议，初始化团队成员。
+
+        Args:
+            team_template: 团队模板列表，默认为 DEFAULT_MEETING_AGENTS。
+                          可传入 PERSONAL_ASSISTANT_TEMPLATE 创建单人助理团队。
+        """
+        template = team_template or DEFAULT_MEETING_AGENTS
         self.agents = []
-        for agent_def in DEFAULT_MEETING_AGENTS:
+        for agent_def in template:
             agent = MeetingAgentInfo(
                 id=agent_def["id"],
                 name=agent_def["name"],

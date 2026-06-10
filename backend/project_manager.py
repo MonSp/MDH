@@ -212,6 +212,43 @@ class ProjectManager:
         logger.info("已创建项目: %s (%s)", name, project_id)
         return project
 
+    def create_lightweight_project(self, name: str, brief: dict) -> Project:
+        """创建轻量项目容器（不实例化员工）。
+
+        仅创建项目目录和 metadata.json，不创建 employees/ 和 logs/ 目录，
+        不调用 SkillRegistry.clone()。项目 brief 中标记 mode='lightweight'。
+
+        Args:
+            name: 项目名称。
+            brief: 项目简报。
+
+        Returns:
+            创建的 Project 对象。
+        """
+        project_id = str(uuid.uuid4())
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+        lightweight_brief = {**brief, "mode": "lightweight"}
+
+        project = Project(
+            project_id=project_id,
+            name=name,
+            status=PROJECT_STATUS_RUNNING,  # 直接标记为运行中
+            brief=lightweight_brief,
+            created_at=now,
+        )
+
+        # 仅创建项目目录和 metadata.json
+        project_dir = self._get_project_dir(project_id)
+        project_dir.mkdir(parents=True, exist_ok=True)
+
+        # 持久化并索引
+        self._save_project(project)
+        self._projects[project_id] = project
+
+        logger.info("已创建轻量项目: %s (%s)", name, project_id)
+        return project
+
     def instantiate_project(self, project_id: str, dag: dict) -> list:
         """根据 DAG 实例化项目。
 

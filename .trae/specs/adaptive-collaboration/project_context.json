@@ -1,0 +1,67 @@
+{
+  "goal": "实现自适应协作链路：根据任务复杂度自动分流到简单（单Agent私人助理）或复杂（多Agent团队协作）执行路径，保持统一的用户对话接口",
+  "summary": "现有系统已具备多Agent会议协作能力（MeetingCoordinator + 6角色团队 + 工作流引擎 + 审查流水线），但所有任务都走同一条重型链路（启动会议→CEO分析→讨论/分配→执行→审查），简单任务（如浏览器操作、文件处理）效率低下。需要增加复杂度判定层和轻量级执行路径。",
+  "sources": [
+    {
+      "type": "repo",
+      "path": "d:\\trunk\\test-sidepanel-host\\backend",
+      "files_read": [
+        "server.py (WebSocket handler, start_meeting, meeting_message, tool_result)",
+        "session.py (Session class: ws, provider, model_name, api_key, meeting_session, meeting_mode)",
+        "agent.py (run_agent_stream, PROVIDER_REGISTRY, _build_browser_tools, _stream_loop)",
+        "meeting.py (MeetingSession, DEFAULT_MEETING_AGENTS - 6角色)",
+        "meeting_coordinator.py (MeetingCoordinator, process_user_message, _execute_workflow)",
+        "semantic_analyzer.py (SemanticAnalyzer, analyze, _detect_complex_task, _generate_workflow_definition)",
+        "task_orchestrator.py (TaskOrchestrator, decompose, assign, execute)",
+        "review_pipeline.py (ReviewPipeline, review - Critic+Grounding+Reviewer+Monitor+Coordinator)",
+        "discussion_manager.py (DiscussionManager, run - 多角色讨论)",
+        "protocol.py (SemanticAnalysisResult, AgentRole, WorkflowDefinition, MeetingMessageType)",
+        "dynamic_router.py (DynamicRouter, route, rule_match, semantic_rank)",
+        "project_manager.py (ProjectManager, create_project, instantiate_project)",
+        "config.py (SYSTEM_PROMPT - 浏览器自动化助手, SKILLS_DIR)"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "E1",
+      "source": "repo://backend/semantic_analyzer.py#L139-L165",
+      "fact": "现有 _detect_complex_task 仅判断是否为跨部门复杂任务（返回bool），没有简单任务分类。复杂判定基于正则匹配多步骤模式和动词计数>=3"
+    },
+    {
+      "id": "E2",
+      "source": "repo://backend/server.py#L478-L524",
+      "fact": "start_meeting 始终创建完整的6人团队（DEFAULT_MEETING_AGENTS），无法按需创建轻量级单人团队"
+    },
+    {
+      "id": "E3",
+      "source": "repo://backend/server.py#L525-L671",
+      "fact": "meeting_message 始终走 coordinator.process_user_message → 语义分析 → 任务/工作流/讨论，无法跳过会议直接执行"
+    },
+    {
+      "id": "E4",
+      "source": "repo://backend/meeting_coordinator.py#L529-L587",
+      "fact": "process_user_message 的三种模式：工作流模式、任务模式（auto_assign_task）、讨论模式（run_discussion），但简单任务仍需启动完整会议"
+    },
+    {
+      "id": "E5",
+      "source": "repo://backend/meeting.py#L16-L53",
+      "fact": "DEFAULT_MEETING_AGENTS 硬编码6个角色，MeetingSession.start() 始终初始化全部角色，无配置选项"
+    },
+    {
+      "id": "E6",
+      "source": "repo://backend/agent.py#L147-L186",
+      "fact": "_build_browser_tools 提供了完整的浏览器自动化工具集（navigate, click, fill, screenshot等），可被单个Executor Agent直接使用"
+    },
+    {
+      "id": "E7",
+      "source": "repo://backend/server.py#L353-L421",
+      "fact": "user_message 处理直接调用 run_agent_stream（单Agent模式），与 meeting_message（多Agent模式）是独立的两条路径"
+    }
+  ],
+  "grounding": {
+    "repoAvailable": true,
+    "repoPath": "d:\\trunk\\test-sidepanel-host\\backend",
+    "accessMode": "direct_read"
+  }
+}

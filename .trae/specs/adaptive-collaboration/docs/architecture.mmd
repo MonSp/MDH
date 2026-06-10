@@ -1,0 +1,77 @@
+graph TB
+    subgraph Frontend["前端 (WebSocket Client)"]
+        UI[用户界面]
+    end
+
+    subgraph Server["server.py - WebSocket 服务器"]
+        WS[ws_handler]
+        UM[unified_message 路由]
+    end
+
+    subgraph Classifier["ComplexityClassifier<br/>complexity_classifier.py"]
+        RULE[_rule_classify<br/>规则引擎]
+        LLM[_llm_classify<br/>LLM 分类]
+    end
+
+    subgraph SimplePath["简单路径"]
+        SE[SimpleExecutor<br/>simple_executor.py]
+        LP[轻量项目容器<br/>ProjectManager.create_lightweight_project]
+        AT[助理团队<br/>PERSONAL_ASSISTANT_TEMPLATE]
+        EXEC[run_agent_stream<br/>agent.py]
+        RV[_lightweight_review<br/>轻量验收]
+    end
+
+    subgraph ComplexPath["复杂路径 (现有)"]
+        MC[MeetingCoordinator<br/>meeting_coordinator.py]
+        SA[SemanticAnalyzer<br/>语义_analyzer.py]
+        DM[DiscussionManager<br/>discussion_manager.py]
+        TO[TaskOrchestrator<br/>task_orchestrator.py]
+        RP[ReviewPipeline<br/>review_pipeline.py]
+        WE[WorkflowEngine<br/>workflow_engine.py]
+    end
+
+    subgraph Upgrade["升级重试"]
+        UP[_upgrade_to_complex]
+    end
+
+    subgraph Shared["共享组件"]
+        SESS[Session<br/>session.py]
+        MEET[MeetingSession<br/>meeting.py]
+        PM[ProjectManager<br/>project_manager.py]
+        DR[DynamicRouter<br/>dynamic_router.py]
+    end
+
+    UI -->|unified_message| WS
+    WS --> UM
+    UM --> Classifier
+
+    RULE -->|confidence >= 0.7| SimplePath
+    RULE -->|confidence < 0.7| LLM
+    LLM -->|simple| SimplePath
+    LLM -->|complex| ComplexPath
+
+    SE --> LP
+    SE --> AT
+    SE --> EXEC
+    SE --> RV
+    RV -->|passed| UI
+    RV -->|failed| UP
+    UP --> ComplexPath
+
+    MC --> SA
+    MC --> DM
+    MC --> TO
+    MC --> RP
+    MC --> WE
+
+    SimplePath --> SESS
+    ComplexPath --> SESS
+    SimplePath --> MEET
+    ComplexPath --> MEET
+    LP --> PM
+    ComplexPath --> DR
+
+    style SimplePath fill:#e6ffe6,stroke:#00cc00
+    style ComplexPath fill:#fff0e6,stroke:#ff9900
+    style Classifier fill:#e6f3ff,stroke:#0099ff
+    style Upgrade fill:#ffe6e6,stroke:#cc0000

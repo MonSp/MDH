@@ -1,0 +1,252 @@
+{
+  "rootNodeId": "n0",
+  "version": 2,
+  "successCriteria": [
+    { "id": "sc1", "text": "单步浏览器操作指令在3秒内走简单路径完成，不启动会议" },
+    { "id": "sc2", "text": "跨部门复杂指令自动走复杂路径，组建多角色团队并执行工作流" },
+    { "id": "sc3", "text": "复杂度判定准确率不低于90%，误判时降级到复杂路径" },
+    { "id": "sc4", "text": "简单任务端到端延迟不超过10秒" },
+    { "id": "sc5", "text": "统一入口unified_message对前端透明" },
+    { "id": "sc6", "text": "简单路径执行后自动轻量验收，失败时升级到复杂路径重试" }
+  ],
+  "nodes": [
+    {
+      "id": "n0",
+      "parentId": null,
+      "type": "requirement",
+      "title": "自适应协作链路",
+      "acceptance": "当用户发送unified_message时，系统 SHALL 根据任务复杂度自动选择简单或复杂执行路径，并返回结构化结果。",
+      "coversCriteria": ["sc1", "sc2", "sc5"],
+      "evidenceRefs": ["nE1", "nE2"]
+    },
+    {
+      "id": "n1",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "复杂度判定引擎",
+      "acceptance": "当用户消息进入系统时，系统 SHALL 先经过规则引擎快速判定，若规则引擎无法判定则调用LLM语义分析，最终输出simple/complex分类及置信度。",
+      "coversCriteria": ["sc3"],
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n2",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "轻量项目容器",
+      "acceptance": "当判定为简单任务时，系统 SHALL 在1秒内创建轻量项目容器（仅目录+metadata.json），不调用ProjectManager.instantiate_project。",
+      "coversCriteria": ["sc4"],
+      "evidenceRefs": ["nE3"]
+    },
+    {
+      "id": "n3",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "单人助理团队",
+      "acceptance": "当判定为简单任务时，系统 SHALL 创建仅包含1个Executor Agent的私人助理团队，复用agent.py的_build_browser_tools工具集。",
+      "coversCriteria": ["sc1", "sc4"],
+      "evidenceRefs": ["nE4", "nE5"]
+    },
+    {
+      "id": "n4",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "直接执行（跳过会议）",
+      "acceptance": "当简单任务的助理团队创建完成后，系统 SHALL 跳过会议讨论阶段，直接调用run_agent_stream执行任务。",
+      "coversCriteria": ["sc1", "sc4"],
+      "evidenceRefs": ["nE6"]
+    },
+    {
+      "id": "n5",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "轻量验收机制",
+      "acceptance": "当简单任务执行完成后，系统 SHALL 自动进行轻量验收（检查工具返回状态码和截图存在性），若验收失败则自动升级到复杂路径重试。",
+      "coversCriteria": ["sc6"],
+      "evidenceRefs": ["nE6"]
+    },
+    {
+      "id": "n6",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "复杂路径保持不变",
+      "acceptance": "当判定为复杂任务时，系统 SHALL 保持现有MeetingCoordinator全链路不变（语义分析→会议讨论→任务分配→工作流执行→多轮审查）。",
+      "coversCriteria": ["sc2"],
+      "evidenceRefs": ["nE2", "nE7"]
+    },
+    {
+      "id": "n7",
+      "parentId": "n0",
+      "type": "requirement",
+      "title": "统一消息入口",
+      "acceptance": "当前端发送unified_message类型消息时，系统 SHALL 自动触发自适应链路，前端无需关心内部路由细节。",
+      "coversCriteria": ["sc5"],
+      "evidenceRefs": ["nE7"]
+    },
+    {
+      "id": "n10",
+      "parentId": "n1",
+      "type": "design",
+      "title": "ComplexityClassifier 设计",
+      "notes": "新建 backend/complexity_classifier.py，包含 ComplexityClassifier 类。两层判定：1) _rule_classify() 基于正则匹配简单模式（单步操作、浏览器指令）和复杂模式（多步骤、跨部门）；2) _llm_classify() 调用CEO Agent进行精确分类。输出 ComplexityResult(level, confidence, reason)。",
+      "evidenceRefs": ["nE1"]
+    },
+    {
+      "id": "n11",
+      "parentId": "n2",
+      "type": "design",
+      "title": "轻量项目工厂设计",
+      "notes": "在 ProjectManager 中新增 create_lightweight_project() 方法，仅创建 projects_dir/{project_id}/metadata.json，不创建 employees/ 和 logs/ 目录，不调用 SkillRegistry.clone()。项目 brief 中标记 mode='lightweight'。",
+      "evidenceRefs": ["nE3"]
+    },
+    {
+      "id": "n12",
+      "parentId": "n3",
+      "type": "design",
+      "title": "助理团队模板设计",
+      "notes": "在 meeting.py 中新增 PERSONAL_ASSISTANT_TEMPLATE，仅包含1个Executor Agent。MeetingSession.start() 新增可选参数 team_template，默认为 DEFAULT_MEETING_AGENTS。",
+      "evidenceRefs": ["nE4", "nE5"]
+    },
+    {
+      "id": "n13",
+      "parentId": "n4",
+      "type": "design",
+      "title": "直接执行引擎设计",
+      "notes": "新建 backend/simple_executor.py，包含 SimpleExecutor 类。接收 Session 和用户消息，创建轻量项目+助理团队后，直接调用 agent.py 的 run_agent_stream() 执行，不经过 MeetingCoordinator。",
+      "evidenceRefs": ["nE6"]
+    },
+    {
+      "id": "n14",
+      "parentId": "n5",
+      "type": "design",
+      "title": "轻量验收器设计",
+      "notes": "在 simple_executor.py 中实现 _lightweight_review() 方法。检查：1) 工具调用是否有error；2) 截图是否成功获取；3) 结果文本是否为空。验收失败时设置 retry_with_complex=True。",
+      "evidenceRefs": ["nE6"]
+    },
+    {
+      "id": "n15",
+      "parentId": "n7",
+      "type": "design",
+      "title": "统一入口路由设计",
+      "notes": "在 server.py 的 ws_handler 中新增 unified_message 分支。流程：1) 读取用户消息；2) 调用 ComplexityClassifier.classify()；3) simple→SimpleExecutor.execute()；4) complex→现有 start_meeting + meeting_message 流程。",
+      "evidenceRefs": ["nE7"]
+    },
+    {
+      "id": "n20",
+      "parentId": "n10",
+      "type": "task",
+      "title": "实现 ComplexityClassifier 类",
+      "verify": "单元测试覆盖简单/复杂/边界场景，准确率>=90%"
+    },
+    {
+      "id": "n21",
+      "parentId": "n10",
+      "type": "task",
+      "title": "实现规则引擎 _rule_classify()",
+      "verify": "覆盖浏览器操作、文件处理、多步骤、跨部门等模式"
+    },
+    {
+      "id": "n22",
+      "parentId": "n10",
+      "type": "task",
+      "title": "实现 LLM 分类 _llm_classify()",
+      "verify": "调用CEO Agent，输出JSON格式分类结果"
+    },
+    {
+      "id": "n23",
+      "parentId": "n11",
+      "type": "task",
+      "title": "实现 ProjectManager.create_lightweight_project()",
+      "verify": "仅创建metadata.json，不创建员工实例"
+    },
+    {
+      "id": "n24",
+      "parentId": "n12",
+      "type": "task",
+      "title": "实现 PERSONAL_ASSISTANT_TEMPLATE 和 MeetingSession.start() 参数化",
+      "verify": "支持 team_template 参数，默认值为 DEFAULT_MEETING_AGENTS"
+    },
+    {
+      "id": "n25",
+      "parentId": "n13",
+      "type": "task",
+      "title": "实现 SimpleExecutor 类",
+      "verify": "端到端执行简单任务，延迟<10秒"
+    },
+    {
+      "id": "n26",
+      "parentId": "n14",
+      "type": "task",
+      "title": "实现 _lightweight_review() 轻量验收",
+      "verify": "检查工具状态码、截图存在性、结果非空"
+    },
+    {
+      "id": "n27",
+      "parentId": "n15",
+      "type": "task",
+      "title": "在 server.py 中实现 unified_message 路由",
+      "verify": "前端发送unified_message，系统自动选择路径并返回结果"
+    },
+    {
+      "id": "n28",
+      "parentId": "n15",
+      "type": "task",
+      "title": "实现简单→复杂的自动升级重试",
+      "verify": "简单路径验收失败时自动走复杂路径"
+    },
+    {
+      "id": "nE1",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "现有复杂度检测仅支持复杂判定，缺少简单分类",
+      "source": "repo://backend/semantic_analyzer.py#L139-L165"
+    },
+    {
+      "id": "nE2",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "现有系统始终创建6人团队，无法按需创建轻量级团队",
+      "source": "repo://backend/meeting.py#L16-L53"
+    },
+    {
+      "id": "nE3",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "ProjectManager.create_project 完整流程包含员工实例化，简单任务不需要",
+      "source": "repo://backend/project_manager.py#L163-L213"
+    },
+    {
+      "id": "nE4",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "DEFAULT_MEETING_AGENTS 硬编码6角色，需要支持可配置模板",
+      "source": "repo://backend/meeting.py#L16-L53"
+    },
+    {
+      "id": "nE5",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "agent.py 提供完整浏览器工具集，可被单Agent直接使用",
+      "source": "repo://backend/agent.py#L147-L186"
+    },
+    {
+      "id": "nE6",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "run_agent_stream 已支持单Agent流式执行，可直接复用",
+      "source": "repo://backend/agent.py#L206-L226"
+    },
+    {
+      "id": "nE7",
+      "parentId": "n0",
+      "type": "evidence",
+      "title": "server.py ws_handler 中 user_message 和 meeting_message 是独立分支",
+      "source": "repo://backend/server.py#L353-L421"
+    }
+  ],
+  "provenance": {
+    "generationSource": "llm",
+    "promptId": "adaptive-collaboration-spec",
+    "model": "deepseek-chat",
+    "fingerprint": "a1b2c3d4e5f6"
+  }
+}
