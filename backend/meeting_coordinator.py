@@ -44,12 +44,28 @@ class MeetingCoordinator:
         api_key: str,
         base_url: str = "",
         data_dir: str = "data",
+        workspace=None,
     ):
         self.meeting = meeting_session
         self.provider = provider
         self.model_name = model_name
         self.api_key = api_key
         self.base_url = base_url
+
+        from tool_registry import ToolRegistry
+        from tool_executor import ToolExecutor
+
+        if workspace:
+            self._tool_registry = ToolRegistry()
+            self._tool_executor = ToolExecutor(
+                registry=self._tool_registry,
+                workspace_root=workspace.root_path,
+            )
+            self._workspace = workspace
+        else:
+            self._tool_registry = None
+            self._tool_executor = None
+            self._workspace = None
         self._models: Dict[str, Agent] = {}
         self._tasks: List[Dict[str, Any]] = []
         self._on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
@@ -708,6 +724,29 @@ class MeetingCoordinator:
 
         # 返回支持/修改立场最多的 Agent
         return max(role_votes, key=role_votes.get)
+
+    async def execute_tool_call(self, tool_name: str, arguments: dict) -> dict:
+        if not self._tool_executor:
+            return {"success": False, "error": "工具系统未初始化"}
+
+        from tool_registry import ToolCall
+        tool_call = ToolCall(
+            tool_name=tool_name,
+            arguments=arguments,
+        )
+
+        result = self._tool_executor.execute(tool_call)
+
+        if self._on_message:
+            ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
+            status_text = f"[工具调用] {tool_name}: {'成功' if result.success else '失败'}"
+            await self._on_message(ceo_id, status_text, "")
+
+        return {
+            "success": result.success,
+            "output": result.output,
+            "error": result.error,
+        }
 
     async def _execute_workflow(
         self,
