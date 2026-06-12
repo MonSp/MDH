@@ -6,6 +6,7 @@ import OfficeScene from './office-team/OfficeScene'
 import MeetingChatPanel from './office-team/MeetingChatPanel'
 import TaskAssignPanel from './office-team/TaskAssignPanel'
 import MeetingLogPanel from './office-team/MeetingLogPanel'
+import AgendaPanel from './office-team/AgendaPanel'
 import SkillEvolutionDashboard from './skill-evolution/SkillEvolutionDashboard'
 import TechTowerView from './TechTowerView'
 import WorkflowPanel from './WorkflowPanel'
@@ -21,7 +22,6 @@ interface OfficeTeamModeProps {
 export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalCount = 0, onOpenApproval }: OfficeTeamModeProps) {
   const [taskInput, setTaskInput] = useState('')
   const [viewState, setViewState] = useState<ViewState>('tower')
-  const [agendaPhase, setAgendaPhase] = useState<string>('discussion')
   const [meetingTab, setMeetingTab] = useState<MeetingTab>('chat')
 
   const {
@@ -30,11 +30,13 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     chatMessages,
     isMeetingActive,
     lastWorkflow,
+    agendaState,
     clearWorkflow,
     startMeeting,
     sendMeetingMessage,
     assignTask,
     endMeeting,
+    sendAgendaAction,
   } = useMeetingSocket({ wsRef })
 
   const wanderIntervalRef = useRef<number | null>(null)
@@ -74,25 +76,6 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     setTaskInput('')
   }, [])
 
-  const handleAdvanceAgenda = useCallback(() => {
-    sendMeetingMessage('[AGENDA] advance')
-    const phases = ['idle', 'open_topic', 'discussion', 'proposal', 'voting', 'accepted']
-    const idx = phases.indexOf(agendaPhase)
-    if (idx >= 0 && idx < phases.length - 1) {
-      setAgendaPhase(phases[idx + 1])
-    }
-  }, [agendaPhase, sendMeetingMessage])
-
-  const handlePauseAgenda = useCallback(() => {
-    sendMeetingMessage('[AGENDA] pause')
-    setAgendaPhase('idle')
-  }, [sendMeetingMessage])
-
-  const handleEmergency = useCallback(() => {
-    sendMeetingMessage('[AGENDA] emergency')
-    setAgendaPhase('emergency')
-  }, [sendMeetingMessage])
-
   /* 从大楼屋顶办公室发送任务 → 直接进入会议并提交 */
   const handleTowerSendTask = useCallback((description: string) => {
     setViewState('transitioning-to-meeting')
@@ -129,6 +112,7 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
   if (isTower) {
     return (
       <TechTowerView
+        wsRef={wsRef}
         onStartMeeting={handleTowerEnterMeeting}
         onSendTask={handleTowerSendTask}
         onBackToSingle={onBackToSingle}
@@ -208,23 +192,12 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                   agents={agents}
                   messages={chatMessages}
                   onEndMeeting={handleEndMeeting}
-                  agendaPhase={agendaPhase}
+                  agendaPhase={agendaState?.phase || 'idle'}
                 />
-                <div style={styles.agendaControlBar}>
-                  <button style={styles.agendaBtn} onClick={handleAdvanceAgenda}>
-                    ⏭️ 推进议程
-                  </button>
-                  <button style={styles.agendaBtn} onClick={handlePauseAgenda}>
-                    ⏸️ 暂停
-                  </button>
-                  <button style={{
-                    ...styles.agendaBtn,
-                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                    borderColor: 'rgba(239, 68, 68, 0.5)',
-                  }} onClick={handleEmergency}>
-                    🚨 紧急中断
-                  </button>
-                </div>
+                <AgendaPanel
+                  agendaState={agendaState}
+                  onAction={sendAgendaAction}
+                />
                 <TaskAssignPanel
                   agents={agents}
                   taskInput={taskInput}
@@ -365,27 +338,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '11px',
     fontWeight: 700,
     lineHeight: 1,
-  },
-  agendaControlBar: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '6px 20px',
-    background: 'rgba(0, 0, 0, 0.2)',
-    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-  },
-  agendaBtn: {
-    padding: '4px 10px',
-    background: 'rgba(255, 255, 255, 0.08)',
-    color: '#e2e8f0',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: '6px',
-    fontSize: '11px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    transition: 'all 0.2s ease',
   },
   meetingTabBar: {
     display: 'flex',

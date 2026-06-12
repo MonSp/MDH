@@ -2,22 +2,25 @@ import React, { useState, useCallback, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import type { Project, ProjectDept, CustomTeam, PanelState, CameraTarget } from './techtower'
 import { DEFAULT_DEPTS, DEFAULT_PROJECTS, ALL_AGENTS, TowerScene, SidePanel, ViewBookmarks, OverlayButtons } from './techtower'
+import CeoChatPanel from './office-team/CeoChatPanel'
 
 /* ───────── 主组件 ───────── */
 
 interface TechTowerViewProps {
+  wsRef: React.MutableRefObject<WebSocket | null>
   onStartMeeting: () => void
   onSendTask: (description: string) => void
   onBackToSingle: () => void
 }
 
-export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSingle }: TechTowerViewProps) {
+export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBackToSingle }: TechTowerViewProps) {
   void onSendTask
 
   const [projects] = useState<Project[]>(DEFAULT_PROJECTS)
   const [customTeams, setCustomTeams] = useState<CustomTeam[]>([])
   const [panel, setPanel] = useState<PanelState>(null)
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches)
+  const [showCeoChat, setShowCeoChat] = useState(false)
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)')
@@ -141,6 +144,38 @@ export default function TechTowerView({ onStartMeeting, onSendTask, onBackToSing
       <ViewBookmarks onNavigate={handleNavigate} />
       <SidePanel panel={panel} onClose={handleClose} onCreateTeam={handleDoCreateTeam} onCreateProject={handleCreateProject} isMobile={isMobile} depts={DEFAULT_DEPTS} />
       <OverlayButtons onStartMeeting={onStartMeeting} onBackToSingle={onBackToSingle} />
+
+      {/* CEO对话入口按钮 */}
+      {!showCeoChat && (
+        <button
+          onClick={() => setShowCeoChat(true)}
+          style={{
+            position: 'absolute', top: 16, right: 16, zIndex: 10,
+            padding: '10px 18px', borderRadius: 10, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 8,
+            fontSize: 14, fontWeight: 600, border: 'none',
+            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(59, 130, 246, 0.9))',
+            color: '#fff',
+            boxShadow: '0 0 20px rgba(139, 92, 246, 0.4), 0 4px 16px rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(10px)',
+            transition: 'all 0.2s',
+          }}
+        >
+          🧠 与CEO对话
+        </button>
+      )}
+
+      {/* CEO对话面板 */}
+      {showCeoChat && (
+        <CeoChatPanel
+          wsRef={wsRef}
+          onEnterProject={() => {
+            setShowCeoChat(false)
+            onStartMeeting()
+          }}
+          onClose={() => setShowCeoChat(false)}
+        />
+      )}
 
       {/* 右下角场景控制面板 */}
       <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>

@@ -278,7 +278,7 @@ class SpecTreeValidator:
     
     def _validate_ears(self, tree: SpecTree) -> List[str]:
         """EARS验收句式校验"""
-        from backend.ears_validator import EarsValidator
+        from ears_validator import EarsValidator
         
         violations = []
         ears_validator = EarsValidator()

@@ -24,6 +24,7 @@ from skill_packager import SkillPackager
 from dynamic_router import DynamicRouter, RouteEntry
 from complexity_classifier import ComplexityClassifier
 from simple_executor import SimpleExecutor
+from ceo_agent import CeoAgent
 
 logger = logging.getLogger("server")
 
@@ -372,44 +373,6 @@ async def ws_handler(ws: WebSocket):
 
     agent_task: asyncio.Task | None = None
 
-    def _get_or_create_coordinator_model(role: str):
-        """获取或创建协调器模型（用于 ComplexityClassifier 的 LLM 分类）"""
-        from agentscope.agent import Agent
-        from agent import PROVIDER_REGISTRY
-
-        role_prompts = {
-            "ceo": "你是编程团队的CTO。请用简洁果断的技术语言发言。",
-            "planner": "你是团队的系统架构师。请用专业的技术语言发言。",
-            "executor": "你是团队的全栈开发工程师。请用务实高效的开发语言发言。",
-        }
-
-        provider = session.provider or "deepseek"
-        reg = PROVIDER_REGISTRY.get(provider)
-        if reg is None:
-            raise ValueError(f"不支持的模型提供商: {provider}")
-
-        class _TempSession:
-            pass
-        temp_session = _TempSession()
-        temp_session.api_key = session.api_key
-        temp_session.base_url = session.base_url
-
-        credential = reg["credential_cls"](**reg["credential_kwargs"](temp_session))
-        formatter = reg["formatter_cls"]()
-        model_name = session.model_name or reg["default_model"]
-        model = reg["model_cls"](
-            credential=credential,
-            model=model_name,
-            stream=True,
-            formatter=formatter,
-        )
-        agent = Agent(
-            name=role,
-            system_prompt=role_prompts.get(role, "你是一个AI助手。"),
-            model=model,
-        )
-        return agent
-
     try:
         while True:
             raw = await ws.receive_text()
@@ -498,220 +461,25 @@ async def ws_handler(ws: WebSocket):
 
                 logger.info("收到统一消息: session=%s content=%r", session.session_id, content[:50])
 
-                # 1. 复杂度判定
-                # 设置 ComplexityClassifier 的 LLM 模型获取函数
-                complexity_classifier._get_model = _get_or_create_coordinator_model
-                complexity = complexity_classifier.classify(content)
-
-                await ws.send_json({
-                    "type": "complexity_result",
-                    "level": complexity.level,
-                    "confidence": complexity.confidence,
-                    "reason": complexity.reason,
-                    "method": complexity.method,
-                })
-
-                if complexity.level == "simple" and complexity.confidence >= 0.7:
-                    # ===== 简单路径 =====
-                    logger.info("选择简单路径: confidence=%.2f", complexity.confidence)
-                    await ws.send_json({"type": "path_selected", "path": "simple"})
-
-                    async def send_simple_progress(agent_id: str, text: str, delta: str):
-                        session._sequence_no += 1
-                        await ws.send_json({
-                            "type": "agent_message",
-                            "agentId": agent_id,
-                            "content": text,
-                            "delta": delta,
-                            "sequence_no": session._sequence_no,
-                        })
-
-                    result = await simple_executor.execute(session, content, send_simple_progress)
-
-                    if result.retry_with_complex:
-                        # 升级到复杂路径
-                        logger.info("简单路径验收失败，升级到复杂路径")
-                        await ws.send_json({"type": "path_upgrade", "from": "simple", "to": "complex"})
-
-                        upgrade_result = await simple_executor.upgrade_to_complex(
-                            session, content, send_simple_progress
-                        )
-                        await ws.send_json({
-                            "type": "task_result",
-                            "path_used": "complex",
-                            "upgraded_from": "simple",
-                            **upgrade_result,
-                        })
-                    else:
-                        await ws.send_json({
-                            "type": "task_result",
-                            "path_used": "simple",
-                            "success": result.success,
-                            "result": result.result,
-                            "project_id": result.project_id,
-                            "review_passed": result.review_passed,
-                        })
-                else:
-                    # ===== 复杂路径 =====
-                    logger.info("选择复杂路径: level=%s confidence=%.2f", complexity.level, complexity.confidence)
-                    await ws.send_json({"type": "path_selected", "path": "complex"})
-
-                    # ① 创建正式项目
-                    project = project_manager.create_project(
-                        name=f"任务-{content[:20]}",
-                        brief={"source": "unified_message", "original_message": content}
+                # 委托给CEO Agent处理
+                if not hasattr(session, '_ceo_agent') or session._ceo_agent is None:
+                    session._ceo_agent = CeoAgent(
+                        session=session,
+                        project_manager=project_manager,
+                        complexity_classifier=complexity_classifier,
+                        simple_executor=simple_executor,
                     )
 
-                    # ② 组建多角色团队（6人）
-                    if session.meeting_session and session.meeting_session.is_running():
-                        await ws.send_json({"type": "meeting_error", "message": "会议已在进行中"})
-                        continue
-
-                    meeting_id = str(uuid.uuid4())[:8]
-                    meeting = MeetingSession(meeting_id)
-                    meeting.start()
-                    session.meeting_session = meeting
-                    session.meeting_mode = True
-
-                    # ③ 启动会议协调器
-                    coordinator = MeetingCoordinator(
-                        meeting_session=meeting,
-                        provider=session.provider,
-                        model_name=session.model_name or "",
-                        api_key=session.api_key,
-                        base_url=session.base_url or "",
-                    )
-                    session._meeting_coordinator = coordinator
-
-                    session._sequence_no += 1
-                    await ws.send_json({
-                        "type": "meeting_started",
-                        "meeting_id": meeting_id,
-                        "agents": meeting.get_agents_dict(),
-                        "project_id": project.project_id,
-                        "sequence_no": session._sequence_no,
-                    })
-
-                    # ④-⑦ 语义分析 → 任务分配/讨论 → 执行 → 审查
-                    async def send_complex_progress(agent_id: str, text: str, delta: str, **kwargs):
-                        session._sequence_no += 1
-                        msg_data = {
-                            "type": "agent_message",
-                            "agentId": agent_id,
-                            "content": text,
-                            "delta": delta,
-                            "sequence_no": session._sequence_no,
-                        }
-                        msg_data.update(kwargs)
-                        await ws.send_json(msg_data)
-
-                    try:
-                        result = await coordinator.process_user_message(content, send_complex_progress)
-                        logger.info("复杂路径 process_user_message 完成: type=%s", result.get("type") if result else "None")
-
-                        # 工作流模式
-                        if result and result.get("type") == "workflow_executed":
-                            workflow_result = result.get("workflow_result", {})
-                            await ws.send_json({
-                                "type": "workflow_executed",
-                                "workflow_id": workflow_result.get("execution_id", ""),
-                                "status": workflow_result.get("status", ""),
-                                "results": workflow_result.get("results", {}),
-                                "analysis": result.get("analysis", {}),
-                            })
-
-                            await ws.send_json({
-                                "type": "task_result",
-                                "path_used": "complex",
-                                "project_id": project.project_id,
-                                "meeting_id": meeting_id,
-                                "workflow_id": workflow_result.get("execution_id", ""),
-                                "status": workflow_result.get("status", ""),
-                            })
-
-                        # 串行流程模式（讨论→分派→审查已在内部完成）
-                        elif result and result.get("type") == "serial_completed":
-                            assignment = result.get("assignment", {})
-                            review_result = result.get("review_result", {})
-
-                            # 发送任务分配消息
-                            session._sequence_no += 1
-                            msg_auto_assigned = {
-                                "type": "task_auto_assigned",
-                                "taskId": assignment.get("task_id", ""),
-                                "agentId": assignment.get("agent_id", ""),
-                                "description": assignment.get("description", ""),
-                                "reason": assignment.get("reason", ""),
-                                "status": assignment.get("status", "assigned"),
-                                "analysis": result.get("analysis", {}),
-                                "sequence_no": session._sequence_no,
-                            }
-                            await ws.send_json(msg_auto_assigned)
-
-                            # 发送审查结果
-                            if review_result:
-                                # 结构化反馈
-                                if review_result.get("structured_feedback"):
-                                    session._sequence_no += 1
-                                    feedback = review_result["structured_feedback"]
-                                    await ws.send_json({
-                                        "type": "structured_feedback",
-                                        "taskId": assignment.get("task_id", ""),
-                                        "agentId": "agent-reviewer",
-                                        "feedback": feedback,
-                                        "sequence_no": session._sequence_no,
-                                    })
-
-                                    # 迭代修正
-                                    if feedback.get("status") == "revision_required":
-                                        session._sequence_no += 1
-                                        await ws.send_json({
-                                            "type": "iteration_update",
-                                            "taskId": assignment.get("task_id", ""),
-                                            "agentId": assignment.get("agent_id", ""),
-                                            "iteration_status": {
-                                                "task_id": assignment.get("task_id", ""),
-                                                "current_iteration": feedback.get("current_iteration", 1),
-                                                "max_iterations": feedback.get("max_iterations", 3),
-                                                "status": feedback.get("status", "revision_required"),
-                                                "corrections": [],
-                                            },
-                                            "sequence_no": session._sequence_no,
-                                        })
-
-                                # 审查完成
-                                session._sequence_no += 1
-                                await ws.send_json({
-                                    "type": "review_completed",
-                                    "taskId": assignment.get("task_id", ""),
-                                    "critic_result": review_result.get("critic_result", {}),
-                                    "grounding_result": review_result.get("grounding_result", {}),
-                                    "sequence_no": session._sequence_no,
-                                })
-
-                            # 最终结果
-                            await ws.send_json({
-                                "type": "task_result",
-                                "path_used": "complex",
-                                "project_id": project.project_id,
-                                "meeting_id": meeting_id,
-                                "task_id": assignment.get("task_id", ""),
-                                "status": "completed",
-                                "discussion_results": result.get("discussion_results", []),
-                            })
-
-                        else:
-                            await ws.send_json({
-                                "type": "task_result",
-                                "path_used": "complex",
-                                "project_id": project.project_id,
-                                "meeting_id": meeting_id,
-                                **(result or {}),
-                            })
-
-                    except Exception as e:
-                        logger.exception("复杂路径执行异常: %s", e)
-                        await ws.send_json({"type": "meeting_error", "message": str(e)})
+                ceo = session._ceo_agent
+                try:
+                    result = await ceo.process_message(content, ws.send_json)
+                    # CeoAgent已通过回调发送了所有中间消息，这里只需记录最终结果
+                    if result:
+                        logger.info("CEO处理完成: type=%s path=%s",
+                                   result.get("type"), result.get("path_used"))
+                except Exception as e:
+                    logger.exception("CEO处理异常: %s", e)
+                    await ws.send_json({"type": "meeting_error", "message": str(e)})
 
             elif msg_type == "page_context":
                 ctx = msg.get("context", {})
@@ -785,6 +553,18 @@ async def ws_handler(ws: WebSocket):
                 )
                 session._meeting_coordinator = coordinator
 
+                # 创建CeoAgent并同步引用
+                if not hasattr(session, '_ceo_agent') or session._ceo_agent is None:
+                    session._ceo_agent = CeoAgent(
+                        session=session,
+                        project_manager=project_manager,
+                        complexity_classifier=complexity_classifier,
+                        simple_executor=simple_executor,
+                    )
+                session._ceo_agent._meeting_coordinator = coordinator
+                session._ceo_agent._agenda = coordinator.agenda
+                session._agenda = coordinator.agenda
+
                 logger.info("会议已创建: meeting_id=%s session=%s", meeting_id, session.session_id)
                 session._sequence_no += 1
                 msg_meeting_started = {
@@ -798,6 +578,23 @@ async def ws_handler(ws: WebSocket):
                 session._message_buffer.append(msg_meeting_started)
                 await ws.send_json(msg_meeting_started)
 
+                session._agenda = coordinator.agenda
+                session._sequence_no += 1
+                agenda_init = {
+                    "type": "agenda_update",
+                    "phase": "idle",
+                    "topic": "",
+                    "current_speaker": None,
+                    "proposal_id": None,
+                    "token_queue": [],
+                    "event_history": [],
+                    "sequence_no": session._sequence_no,
+                }
+                if len(session._message_buffer) >= 100:
+                    session._message_buffer.pop(0)
+                session._message_buffer.append(agenda_init)
+                await ws.send_json(agenda_init)
+
             elif msg_type == "meeting_message":
                 if not session.meeting_session or not session.meeting_session.is_running():
                     await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
@@ -808,141 +605,18 @@ async def ws_handler(ws: WebSocket):
                     continue
 
                 logger.info("收到会议消息: session=%s content=%r", session.session_id, content[:100])
-
                 session.meeting_session.add_message("boss", content)
-                coordinator = getattr(session, "_meeting_coordinator", None)
 
-                async def send_agent_message(agent_id: str, text: str, delta: str, stance: str = None, confidence: float = None, msg_type: str = "agent_message", **kwargs):
-                    session._sequence_no += 1
-                    msg_with_seq = {
-                        "type": msg_type,
-                        "agentId": agent_id,
-                        "content": text,
-                        "delta": delta,
-                        "sequence_no": session._sequence_no,
-                    }
-                    if stance is not None:
-                        msg_with_seq["stance"] = stance
-                    if confidence is not None:
-                        msg_with_seq["confidence"] = confidence
-                    msg_with_seq.update(kwargs)
-                    if len(session._message_buffer) >= 100:
-                        session._message_buffer.pop(0)
-                    session._message_buffer.append(msg_with_seq)
-                    await ws.send_json(msg_with_seq)
-
-                if coordinator:
-                    logger.info("开始处理会议消息: session=%s", session.session_id)
+                # 委托给CeoAgent处理会议消息
+                ceo = getattr(session, '_ceo_agent', None)
+                if ceo:
                     try:
-                        result = await coordinator.process_user_message(content, send_agent_message)
-                        logger.info("会议消息处理完成: session=%s result=%s", session.session_id, result.get("type") if result else "None")
-                        if result.get("type") == "task_auto_assigned":
-                            session._sequence_no += 1
-                            assignment = result.get("assignment", {})
-                            routing_decision = None
-                            rd = coordinator.last_routing_decision
-                            if rd and rd.selected_dept:
-                                routing_decision = {
-                                    "selected_dept": rd.selected_dept,
-                                    "confidence": rd.confidence,
-                                    "reason": rd.reason,
-                                    "candidate_depts": rd.candidate_depts,
-                                    "matched_keywords": rd.matched_keywords,
-                                }
-                            msg_auto_assigned = {
-                                "type": "task_auto_assigned",
-                                "taskId": assignment.get("task_id", ""),
-                                "agentId": assignment.get("agent_id", ""),
-                                "description": assignment.get("description", ""),
-                                "reason": assignment.get("reason", ""),
-                                "status": assignment.get("status", "assigned"),
-                                "analysis": result.get("analysis", {}),
-                                "routing_decision": routing_decision,
-                                "sequence_no": session._sequence_no,
-                            }
-                            if len(session._message_buffer) >= 100:
-                                session._message_buffer.pop(0)
-                            session._message_buffer.append(msg_auto_assigned)
-                            await ws.send_json(msg_auto_assigned)
-
-                            task_description = assignment.get("description", "")
-                            logger.info("开始执行任务并审查: %s", task_description[:50])
-                            review_result = await coordinator.execute_and_review_task(task_description, send_agent_message)
-                            logger.info("任务执行和审查完成")
-
-                            # 发送结构化反馈消息
-                            if review_result and review_result.get("structured_feedback"):
-                                session._sequence_no += 1
-                                feedback = review_result["structured_feedback"]
-                                msg_feedback = {
-                                    "type": "structured_feedback",
-                                    "taskId": assignment.get("task_id", ""),
-                                    "agentId": "agent-reviewer",
-                                    "feedback": feedback,
-                                    "sequence_no": session._sequence_no,
-                                }
-                                if len(session._message_buffer) >= 100:
-                                    session._message_buffer.pop(0)
-                                session._message_buffer.append(msg_feedback)
-                                await ws.send_json(msg_feedback)
-
-                                # 如果需要迭代修正，发送迭代状态更新
-                                if feedback.get("status") == "revision_required":
-                                    session._sequence_no += 1
-                                    msg_iteration = {
-                                        "type": "iteration_update",
-                                        "taskId": assignment.get("task_id", ""),
-                                        "agentId": assignment.get("agent_id", ""),
-                                        "iteration_status": {
-                                            "task_id": assignment.get("task_id", ""),
-                                            "current_iteration": feedback.get("current_iteration", 1),
-                                            "max_iterations": feedback.get("max_iterations", 3),
-                                            "status": feedback.get("status", "revision_required"),
-                                            "corrections": [],
-                                        },
-                                        "sequence_no": session._sequence_no,
-                                    }
-                                    if len(session._message_buffer) >= 100:
-                                        session._message_buffer.pop(0)
-                                    session._message_buffer.append(msg_iteration)
-                                    await ws.send_json(msg_iteration)
-
-                            # T1: 发送审查结果（CriticAgent + GroundingAgent）
-                            if review_result:
-                                session._sequence_no += 1
-                                msg_review = {
-                                    "type": "review_completed",
-                                    "taskId": assignment.get("task_id", ""),
-                                    "critic_result": review_result.get("critic_result", {}),
-                                    "grounding_result": review_result.get("grounding_result", {}),
-                                    "sequence_no": session._sequence_no,
-                                }
-                                if len(session._message_buffer) >= 100:
-                                    session._message_buffer.pop(0)
-                                session._message_buffer.append(msg_review)
-                                await ws.send_json(msg_review)
-
-                        elif result.get("type") == "workflow_executed":
-                            session._sequence_no += 1
-                            workflow_result = result.get("workflow_result", {})
-                            msg_workflow = {
-                                "type": "workflow_executed",
-                                "workflow_id": workflow_result.get("execution_id", ""),
-                                "status": workflow_result.get("status", ""),
-                                "results": workflow_result.get("results", {}),
-                                "analysis": result.get("analysis", {}),
-                                "sequence_no": session._sequence_no,
-                            }
-                            if len(session._message_buffer) >= 100:
-                                session._message_buffer.pop(0)
-                            session._message_buffer.append(msg_workflow)
-                            await ws.send_json(msg_workflow)
-
+                        await ceo.handle_meeting_message(content, ws.send_json)
                     except Exception:
-                        logger.exception("会议讨论异常: session=%s", session.session_id)
-                        await ws.send_json({"type": "meeting_error", "message": "会议讨论出错"})
+                        logger.exception("会议消息处理异常: session=%s", session.session_id)
+                        await ws.send_json({"type": "meeting_error", "message": "会议消息处理出错"})
                 else:
-                    logger.warning("会议协调器未初始化: session=%s", session.session_id)
+                    logger.warning("CEO Agent未初始化: session=%s", session.session_id)
 
                 await ws.send_json({"type": "meeting_message_ack", "content": content})
 
@@ -1041,6 +715,65 @@ async def ws_handler(ws: WebSocket):
                         "type": "task_resumed",
                         "taskId": task_id,
                     })
+
+            elif msg_type == "agenda_action":
+                if not session.meeting_session or not session.meeting_session.is_running():
+                    await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
+                    continue
+
+                # 优先从CeoAgent获取agenda，然后从coordinator，最后从session
+                ceo = getattr(session, '_ceo_agent', None)
+                if ceo and ceo.agenda:
+                    agenda = ceo.agenda
+                else:
+                    coordinator = getattr(session, '_meeting_coordinator', None)
+                    if coordinator and hasattr(coordinator, 'agenda'):
+                        agenda = coordinator.agenda
+                    elif hasattr(session, '_agenda') and session._agenda is not None:
+                        agenda = session._agenda
+                    else:
+                        from agenda import AgendaStateMachine
+                        session._agenda = AgendaStateMachine()
+                        agenda = session._agenda
+                action = msg.get("action", "")
+                topic = msg.get("topic", "")
+                reason = msg.get("reason", "")
+
+                result = False
+                if action == "open_topic" and topic:
+                    result = agenda.open_topic(topic)
+                elif action == "start_discussion":
+                    result = agenda.start_discussion()
+                elif action == "propose":
+                    result = agenda.propose("")
+                elif action == "start_voting":
+                    result = agenda.start_voting()
+                elif action == "accept":
+                    result = agenda.accept()
+                elif action == "reject":
+                    result = agenda.reject()
+                elif action == "close":
+                    result = agenda.close()
+                elif action == "declare_emergency":
+                    result = agenda.declare_emergency(reason or "手动触发")
+                elif action == "resolve_emergency":
+                    result = agenda.resolve_emergency()
+
+                session._sequence_no += 1
+                agenda_snapshot = {
+                    "type": "agenda_update",
+                    "phase": agenda.get_phase().value,
+                    "topic": agenda._topic,
+                    "current_speaker": agenda.get_current_speaker(),
+                    "proposal_id": None,
+                    "token_queue": [{"agent_id": t.agent_id, "relevance_score": t.relevance_score} for t in agenda.get_token_queue()],
+                    "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
+                    "sequence_no": session._sequence_no,
+                }
+                if len(session._message_buffer) >= 100:
+                    session._message_buffer.pop(0)
+                session._message_buffer.append(agenda_snapshot)
+                await ws.send_json(agenda_snapshot)
 
             elif msg_type == "override_decision":
                 decision_id = msg.get("decision_id", "")

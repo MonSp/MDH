@@ -11,13 +11,13 @@ from datetime import datetime
 import json
 import os
 
-from backend.spec_tree import (
+from spec_tree import (
     SpecTree, SpecTreeNode, SpecTreeNodeType,
     SuccessCriterion, Provenance, SpecTreeValidator, ValidationResult,
 )
-from backend.gate_manager import GateManager, GateResult
-from backend.ears_validator import EarsValidator
-from backend.evidence_chain import EvidenceChain, Evidence
+from gate_manager import GateManager, GateResult
+from ears_validator import EarsValidator
+from evidence_chain import EvidenceChain, Evidence
 
 
 @dataclass

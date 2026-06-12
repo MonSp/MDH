@@ -13,6 +13,7 @@ from agentscope.message import Msg
 
 from agent import _extract_text
 from agent_pool import AgentPool, AgentInstance
+from agenda import AgendaStateMachine
 
 logger = logging.getLogger("parallel_discussion_manager")
 
@@ -28,6 +29,7 @@ class ParallelDiscussionManager:
     def __init__(
         self,
         agent_pool: AgentPool,
+        agenda: Optional[AgendaStateMachine] = None,
         max_concurrent: int = 5,
         timeout: float = 30.0
     ):
@@ -36,10 +38,12 @@ class ParallelDiscussionManager:
         
         Args:
             agent_pool: Agent池管理器
+            agenda: 议程状态机
             max_concurrent: 最大并发数
             timeout: 单个Agent响应超时时间（秒）
         """
         self._agent_pool = agent_pool
+        self._agenda = agenda
         self._max_concurrent = max_concurrent
         self._timeout = timeout
         self._semaphore = asyncio.Semaphore(max_concurrent)

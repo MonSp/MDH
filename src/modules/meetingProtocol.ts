@@ -268,6 +268,13 @@ export interface RequestRetransmitMsg {
   fromSequenceNo: number
 }
 
+export interface AgendaActionMsg {
+  type: 'agenda_action'
+  action: string
+  topic?: string
+  reason?: string
+}
+
 export type MeetingWSMessage =
   | StartMeetingMsg
   | EndMeetingMsg

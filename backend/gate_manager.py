@@ -164,7 +164,7 @@ class GateManager:
         Returns:
             GateResult
         """
-        from backend.spec_tree import SpecTreeValidator
+        from spec_tree import SpecTreeValidator
         
         validator = SpecTreeValidator()
         
@@ -203,7 +203,7 @@ class GateManager:
         Returns:
             GateResult
         """
-        from backend.ears_validator import EarsValidator
+        from ears_validator import EarsValidator
         
         validator = EarsValidator()
         

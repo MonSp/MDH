@@ -11,6 +11,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 from agent_pool import AgentPool, AgentConfig, DEFAULT_TEAM_TEMPLATE, PERSONAL_ASSISTANT_TEMPLATE
 from key_manager import KeyManager, KeyConfig
 from parallel_discussion_manager import ParallelDiscussionManager
+from agenda import AgendaStateMachine
 
 logger = logging.getLogger("parallel_meeting_coordinator")
 
@@ -67,9 +68,13 @@ class ParallelMeetingCoordinator:
             max_instances_per_role=max_instances_per_role
         )
         
+        # 初始化议程状态机
+        self.agenda = AgendaStateMachine()
+
         # 初始化ParallelDiscussionManager
         self.discussion_manager = ParallelDiscussionManager(
             agent_pool=self.agent_pool,
+            agenda=self.agenda,
             max_concurrent=max_concurrent,
             timeout=timeout
         )
@@ -160,6 +165,10 @@ class ParallelMeetingCoordinator:
         
         logger.info("开始并行讨论: topic=%s, agents=%d, max_rounds=%d", 
                    topic, len(agent_ids), max_rounds)
+        
+        # 推进议程：开题 → 讨论
+        self.agenda.open_topic(topic)
+        self.agenda.start_discussion()
         
         # 运行并行讨论
         discussions = await self.discussion_manager.run_discussion(

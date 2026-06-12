@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import type { MeetingAgentInfo, MeetingSummary } from '../modules/meetingProtocol'
-import type { TeamAgent, Task, ChatMessage } from '../components/office-team/types'
+import type { MeetingAgentInfo, MeetingSummary, AgendaPhase } from '../modules/meetingProtocol'
+import type { TeamAgent, Task, ChatMessage, AgendaState } from '../components/office-team/types'
 import { AgentRole } from '../modules/agentTypes'
 import type { WorkflowExecution, WorkflowDefinition } from '../modules/agentTypes'
 
@@ -42,6 +42,7 @@ export default function useMeetingSocket({
   const [isMeetingActive, setIsMeetingActive] = useState(false)
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected')
   const [lastWorkflow, setLastWorkflow] = useState<WorkflowExecution | null>(null)
+  const [agendaState, setAgendaState] = useState<AgendaState | null>(null)
 
   const pendingMessages = useRef<Map<string, string>>(new Map())
   const reconnectAttempts = useRef(0)
@@ -77,6 +78,10 @@ export default function useMeetingSocket({
 
   const endMeeting = useCallback(() => {
     send({ type: 'end_meeting' })
+  }, [send])
+
+  const sendAgendaAction = useCallback((action: string, payload?: Record<string, unknown>) => {
+    send({ type: 'agenda_action', action, ...payload })
   }, [send])
 
   const createReconnectSocket = useCallback(() => {
@@ -239,6 +244,27 @@ export default function useMeetingSocket({
             content: '会议已结束',
             timestamp: Date.now(),
           }])
+          break
+        }
+        case 'agenda_update': {
+          setAgendaState({
+            phase: msg.phase || 'idle',
+            topic: msg.topic || '',
+            currentSpeaker: msg.current_speaker || null,
+            proposalId: msg.proposal_id || null,
+            tokenQueue: (msg.token_queue || []).map((t: any) => ({
+              agentId: t.agent_id || t.agentId,
+              relevanceScore: t.relevance_score ?? t.relevanceScore ?? 0,
+            })),
+            eventHistory: (msg.event_history || []).map((e: any) => ({
+              type: e.type,
+              timestamp: e.timestamp,
+              from: e.from,
+              to: e.to,
+              agentId: e.agent_id || e.agentId,
+              reason: e.reason,
+            })),
+          })
           break
         }
         case 'meeting_error': {
@@ -458,10 +484,12 @@ export default function useMeetingSocket({
     isMeetingActive,
     connectionState,
     lastWorkflow,
+    agendaState,
     clearWorkflow,
     startMeeting,
     sendMeetingMessage,
     assignTask,
     endMeeting,
+    sendAgendaAction,
   }
 }

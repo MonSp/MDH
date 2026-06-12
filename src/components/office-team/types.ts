@@ -57,3 +57,21 @@ export interface AgentConfig {
   role: AgentRole
   workstationId: string
 }
+
+export interface AgendaEvent {
+  type: string
+  timestamp: number
+  from?: string
+  to?: string
+  agentId?: string
+  reason?: string
+}
+
+export interface AgendaState {
+  phase: string
+  topic: string
+  currentSpeaker: string | null
+  proposalId: string | null
+  tokenQueue: { agentId: string; relevanceScore: number }[]
+  eventHistory: AgendaEvent[]
+}

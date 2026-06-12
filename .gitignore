@@ -2,6 +2,8 @@ dist/
 
 node_modules/
 
+backend/data/*
+
 backend/__pycache__/*
 
 backend/*/__pycache__/*
@@ -10,3 +12,4 @@ backend/*/__pycache__/*
 third_party/
 
 logs/
+/companion_log.json
