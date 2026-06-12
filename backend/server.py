@@ -803,6 +803,37 @@ async def ws_handler(ws: WebSocket):
                     if buffered_msg.get("sequence_no", 0) >= from_seq:
                         await ws.send_json(buffered_msg)
 
+            elif msg_type == "workspace_action":
+                action = msg.get("action")
+                workspace_id = msg.get("workspace_id")
+
+                if action == "list":
+                    workspaces = session._workspace_manager.list_workspaces() if hasattr(session, '_workspace_manager') and session._workspace_manager else []
+                    await ws.send_json({
+                        "type": "workspace_list",
+                        "workspaces": [w.__dict__ for w in workspaces],
+                    })
+                elif action == "destroy":
+                    if hasattr(session, '_workspace_manager') and session._workspace_manager:
+                        success = session._workspace_manager.destroy_workspace(workspace_id)
+                        await ws.send_json({
+                            "type": "workspace_destroyed",
+                            "workspace_id": workspace_id,
+                            "success": success,
+                        })
+
+            elif msg_type == "tool_call":
+                tool_name = msg.get("tool_name")
+                arguments = msg.get("arguments", {})
+
+                if hasattr(session, '_meeting_coordinator') and session._meeting_coordinator and session._meeting_coordinator._tool_executor:
+                    result = await session._meeting_coordinator.execute_tool_call(tool_name, arguments)
+                    await ws.send_json({
+                        "type": "tool_result",
+                        "tool_name": tool_name,
+                        **result,
+                    })
+
     except WebSocketDisconnect:
         logger.info("WebSocket 断开: session=%s", session.session_id)
     except Exception:
