@@ -11,6 +11,7 @@ CeoAgent - CEO智能体
 
 import asyncio
 import logging
+import os
 import uuid
 from typing import Any, Awaitable, Callable, Dict, Optional
 
@@ -56,6 +57,8 @@ class CeoAgent:
         self._simple_executor = simple_executor
         self._meeting_coordinator: Optional[MeetingCoordinator] = None
         self._agenda: Optional[AgendaStateMachine] = None
+        self._workspace_manager = None
+        self._workspace = None
 
     @property
     def agenda(self) -> Optional[AgendaStateMachine]:
@@ -207,19 +210,41 @@ class CeoAgent:
         )
         await self._emit(send_message, f"CEO：项目已创建（{project.project_id}），组建团队中。")
 
-        # ② 检查是否已有会议进行中
+        # ② 创建工作区
+        from workspace_manager import WorkspaceManager, WorkspaceType
+        workspace_mgr = WorkspaceManager(
+            workspaces_dir=os.path.join("data", "workspaces"),
+            repo_path=os.getcwd(),
+        )
+        workspace = workspace_mgr.create_workspace(
+            task_id=project.project_id,
+            workspace_type=WorkspaceType.GIT_WORKTREE,
+            branch_name=f"agent/task-{project.project_id[:8]}",
+        )
+        self._workspace_manager = workspace_mgr
+        self._workspace = workspace
+
+        # 通知前端工作区已创建
+        await send_message({
+            "type": "workspace_created",
+            "workspace_id": workspace.workspace_id,
+            "workspace_path": workspace.root_path,
+            "branch_name": workspace.branch_name,
+        })
+
+        # ③ 检查是否已有会议进行中
         if self._session.meeting_session and self._session.meeting_session.is_running():
             await send_message({"type": "meeting_error", "message": "会议已在进行中"})
             return {"type": "error", "message": "会议已在进行中"}
 
-        # ③ 创建会议和团队
+        # ④ 创建会议和团队
         meeting_id = str(uuid.uuid4())[:8]
         meeting = MeetingSession(meeting_id)
         meeting.start()
         self._session.meeting_session = meeting
         self._session.meeting_mode = True
 
-        # ④ 启动协调器
+        # ⑤ 启动协调器
         coordinator = MeetingCoordinator(
             meeting_session=meeting,
             provider=self._session.provider,
@@ -244,7 +269,7 @@ class CeoAgent:
 
         await self._emit(send_message, "CEO：团队已就绪，将任务交给项目经理。项目经理将组织讨论、分派任务并监督执行。")
 
-        # ⑤ 交给Coordinator执行完整流程（讨论→分派→审查）
+        # ⑥ 交给Coordinator执行完整流程（讨论→分派→审查）
         send_progress = self._send_fn(send_message)
         try:
             result = await coordinator.process_user_message(content, send_progress)
