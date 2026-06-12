@@ -43,7 +43,7 @@ export interface ChatMessage {
 
 export type ViewState = 'tower' | 'office' | 'transitioning-to-meeting' | 'meeting' | 'transitioning-to-office'
 
-export type MeetingTab = 'chat' | 'skills' | 'projects' | 'rules' | 'routes'
+export type MeetingTab = 'chat' | 'skills' | 'projects' | 'rules' | 'routes' | 'workspace'
 
 export interface WorkstationConfig {
   id: string

@@ -10,6 +10,7 @@ import AgendaPanel from './office-team/AgendaPanel'
 import SkillEvolutionDashboard from './skill-evolution/SkillEvolutionDashboard'
 import TechTowerView from './TechTowerView'
 import WorkflowPanel from './WorkflowPanel'
+import WorkspacePanel from './office-team/WorkspacePanel'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 
 interface OfficeTeamModeProps {
@@ -31,12 +32,16 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     isMeetingActive,
     lastWorkflow,
     agendaState,
+    workspace,
+    toolCallLogs,
     clearWorkflow,
     startMeeting,
     sendMeetingMessage,
     assignTask,
     endMeeting,
     sendAgendaAction,
+    sendToolCall,
+    sendWorkspaceAction,
   } = useMeetingSocket({ wsRef })
 
   const wanderIntervalRef = useRef<number | null>(null)
@@ -184,6 +189,15 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
               >
                 🧬 技能进化
               </button>
+              <button
+                style={{
+                  ...styles.meetingTabBtn,
+                  ...(meetingTab === 'workspace' ? styles.meetingTabBtnActive : {}),
+                }}
+                onClick={() => setMeetingTab('workspace')}
+              >
+                💼 工作区
+              </button>
             </div>
 
             {meetingTab === 'chat' ? (
@@ -205,6 +219,13 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                   onSendMessage={handleSendMessage}
                 />
               </>
+            ) : meetingTab === 'workspace' ? (
+              <WorkspacePanel
+                workspace={workspace}
+                toolCallLogs={toolCallLogs}
+                onToolCall={(name, args) => sendToolCall(name, args)}
+                onDestroy={() => sendWorkspaceAction('destroy', workspace?.workspace_id)}
+              />
             ) : (
               <SkillEvolutionDashboard />
             )}

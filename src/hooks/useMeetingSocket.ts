@@ -4,6 +4,23 @@ import type { TeamAgent, Task, ChatMessage, AgendaState } from '../components/of
 import { AgentRole } from '../modules/agentTypes'
 import type { WorkflowExecution, WorkflowDefinition } from '../modules/agentTypes'
 
+interface Workspace {
+  workspace_id: string
+  task_id: string
+  workspace_type: string
+  root_path: string
+  branch_name?: string
+}
+
+interface ToolCallLog {
+  tool_name: string
+  arguments: Record<string, unknown>
+  success: boolean
+  output?: string
+  error?: string
+  timestamp: string
+}
+
 const WORKSTATION_MAP: Record<string, string> = {
   'agent-ceo': 'ws-0',
   'agent-planner': 'ws-1',
@@ -43,6 +60,8 @@ export default function useMeetingSocket({
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected')
   const [lastWorkflow, setLastWorkflow] = useState<WorkflowExecution | null>(null)
   const [agendaState, setAgendaState] = useState<AgendaState | null>(null)
+  const [workspace, setWorkspace] = useState<Workspace | null>(null)
+  const [toolCallLogs, setToolCallLogs] = useState<ToolCallLog[]>([])
 
   const pendingMessages = useRef<Map<string, string>>(new Map())
   const reconnectAttempts = useRef(0)
@@ -457,6 +476,27 @@ export default function useMeetingSocket({
           }
           break
         }
+        case 'workspace_created': {
+          setWorkspace({
+            workspace_id: msg.workspace_id,
+            task_id: msg.task_id || '',
+            workspace_type: msg.workspace_type || 'git_worktree',
+            root_path: msg.workspace_path,
+            branch_name: msg.branch_name,
+          })
+          break
+        }
+        case 'tool_result': {
+          setToolCallLogs(prev => [...prev, {
+            tool_name: msg.tool_name,
+            arguments: msg.arguments || {},
+            success: msg.success,
+            output: msg.output,
+            error: msg.error,
+            timestamp: new Date().toISOString(),
+          }])
+          break
+        }
       }
     }
 
@@ -476,6 +516,22 @@ export default function useMeetingSocket({
 
   const clearWorkflow = useCallback(() => setLastWorkflow(null), [])
 
+  const sendWorkspaceAction = useCallback((action: string, workspaceId?: string) => {
+    send({
+      type: 'workspace_action',
+      action,
+      workspace_id: workspaceId,
+    })
+  }, [send])
+
+  const sendToolCall = useCallback((toolName: string, args: Record<string, unknown>) => {
+    send({
+      type: 'tool_call',
+      tool_name: toolName,
+      arguments: args,
+    })
+  }, [send])
+
   return {
     meetingId,
     agents,
@@ -485,11 +541,15 @@ export default function useMeetingSocket({
     connectionState,
     lastWorkflow,
     agendaState,
+    workspace,
+    toolCallLogs,
     clearWorkflow,
     startMeeting,
     sendMeetingMessage,
     assignTask,
     endMeeting,
     sendAgendaAction,
+    sendWorkspaceAction,
+    sendToolCall,
   }
 }
