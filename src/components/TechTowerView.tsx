@@ -54,6 +54,9 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
   const handleSelectDept = useCallback((d: ProjectDept) => setPanel({ type: 'dept', data: d }), [])
   const handleSelectTeam = useCallback((t: CustomTeam) => setPanel({ type: 'team', data: t }), [])
   const handleCreateTeam = useCallback(() => setPanel({ type: 'create-team' }), [])
+  const handleOpenRoles = useCallback(() => setPanel({ type: 'roles' }), [])
+  const handleOpenSkills = useCallback(() => setPanel({ type: 'skills' }), [])
+  const handleOpenTools = useCallback(() => setPanel({ type: 'tools' }), [])
   const handleClose = useCallback(() => setPanel(null), [])
 
   const activeDeptColor = panel?.type === 'dept' ? panel.data.color : undefined
@@ -164,6 +167,52 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
           🧠 与CEO对话
         </button>
       )}
+
+      {/* 资源管理入口按钮组 - 左侧竖排 */}
+      <div style={{ position: 'absolute', top: 60, left: 16, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button
+          onClick={handleOpenRoles}
+          style={{
+            padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontSize: 12, fontWeight: 600, border: '1px solid rgba(48,209,88,0.3)',
+            background: 'rgba(48,209,88,0.15)',
+            color: '#30d158',
+            backdropFilter: 'blur(10px)',
+            transition: 'all 0.2s',
+          }}
+        >
+          👥 角色管理
+        </button>
+        <button
+          onClick={handleOpenSkills}
+          style={{
+            padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontSize: 12, fontWeight: 600, border: '1px solid rgba(10,132,255,0.3)',
+            background: 'rgba(10,132,255,0.15)',
+            color: '#0a84ff',
+            backdropFilter: 'blur(10px)',
+            transition: 'all 0.2s',
+          }}
+        >
+          📦 技能包
+        </button>
+        <button
+          onClick={handleOpenTools}
+          style={{
+            padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontSize: 12, fontWeight: 600, border: '1px solid rgba(191,90,242,0.3)',
+            background: 'rgba(191,90,242,0.15)',
+            color: '#bf5af2',
+            backdropFilter: 'blur(10px)',
+            transition: 'all 0.2s',
+          }}
+        >
+          🔧 工具包
+        </button>
+      </div>
 
       {/* CEO对话面板 */}
       {showCeoChat && (

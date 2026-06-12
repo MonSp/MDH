@@ -1,0 +1,384 @@
+"""
+AgentToolset - Agent工具集
+
+为每个Agent提供独立的工具集，包括：
+- 文件读写
+- 代码搜索
+- 命令执行
+- Git操作
+
+支持从roles_config.yaml加载角色配置，支持角色混搭。
+"""
+
+import logging
+import os
+from typing import Any, Dict, List, Optional
+
+import yaml
+
+from tool_registry import ToolRegistry, ToolDefinition, ToolParameter, ToolCall, ToolResult
+from tool_executor import ToolExecutor
+
+logger = logging.getLogger(__name__)
+
+# 配置文件路径
+ROLES_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "roles_config.yaml")
+
+
+def load_roles_config(config_path: str = None) -> Dict:
+    """加载角色配置文件
+    
+    Args:
+        config_path: 配置文件路径，默认为roles_config.yaml
+        
+    Returns:
+        配置字典
+    """
+    path = config_path or ROLES_CONFIG_PATH
+    if not os.path.exists(path):
+        logger.warning("角色配置文件不存在: %s，使用默认配置", path)
+        return {}
+    
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+class AgentToolset:
+    """Agent工具集
+    
+    为特定Agent提供工具调用能力。
+    
+    Args:
+        agent_id: Agent ID
+        agent_role: Agent角色 (executor, planner, reviewer, monitor, coordinator, ceo)
+        workspace_root: 工作区根目录
+        config_path: 角色配置文件路径（可选）
+    """
+    
+    # 类级别配置缓存
+    _config_cache: Optional[Dict] = None
+    
+    def __init__(
+        self,
+        agent_id: str,
+        agent_role: str,
+        workspace_root: str,
+        config_path: str = None,
+    ):
+        self._agent_id = agent_id
+        self._agent_role = agent_role
+        self._workspace_root = workspace_root
+        
+        # 加载配置
+        if AgentToolset._config_cache is None:
+            AgentToolset._config_cache = load_roles_config(config_path)
+        self._config = AgentToolset._config_cache
+        
+        # 解析角色配置
+        self._role_config = self._resolve_role_config(agent_role)
+        
+        # 创建工具注册中心和执行器
+        self._registry = ToolRegistry()
+        self._executor = ToolExecutor(
+            registry=self._registry,
+            workspace_root=workspace_root,
+        )
+        
+        # 过滤工具：只保留角色允许的工具
+        self._filter_tools()
+        
+        logger.info(
+            "为Agent %s (%s) 配置工具集: %s",
+            agent_id, agent_role, self._role_config.get("permissions", {}).get("tools", [])
+        )
+    
+    def _resolve_role_config(self, role_name: str) -> Dict:
+        """解析角色配置，支持自定义角色继承
+        
+        Args:
+            role_name: 角色名称
+            
+        Returns:
+            解析后的角色配置
+        """
+        # 先查找基础角色
+        base_roles = self._config.get("base_roles", {})
+        if role_name in base_roles:
+            return base_roles[role_name]
+        
+        # 再查找自定义角色
+        custom_roles = self._config.get("custom_roles", {})
+        if role_name in custom_roles:
+            custom_config = custom_roles[role_name]
+            base_role_name = custom_config.get("base_role")
+            
+            if base_role_name and base_role_name in base_roles:
+                # 继承基础角色配置
+                base_config = base_roles[base_role_name].copy()
+                
+                # 合并工具
+                base_tools = base_config.get("permissions", {}).get("tools", [])
+                extra_tools = custom_config.get("extra_tools", [])
+                base_config["permissions"]["tools"] = list(set(base_tools + extra_tools))
+                
+                # 合并技能
+                base_skills = base_config.get("skills", [])
+                extra_skills = custom_config.get("extra_skills", [])
+                base_config["skills"] = list(set(base_skills + extra_skills))
+                
+                # 使用自定义提示词
+                if custom_config.get("custom_prompt"):
+                    base_config["custom_prompt"] = custom_config["custom_prompt"]
+                    base_config["prompt_template"] = "custom"
+                
+                base_config["name"] = custom_config.get("name", base_config.get("name"))
+                base_config["description"] = custom_config.get("description", base_config.get("description"))
+                
+                return base_config
+        
+        # 默认使用executor配置
+        logger.warning("未知角色: %s，使用默认executor配置", role_name)
+        return base_roles.get("executor", {
+            "name": "开发工程师",
+            "description": "负责代码实现",
+            "permissions": {
+                "tools": ["read_file", "write_file", "edit_file", "list_directory", "bash", "git_status", "git_commit"],
+                "dangerous_tools": ["bash"]
+            },
+            "skills": ["fullstack_dev"],
+            "prompt_template": "executor"
+        })
+    
+    def _filter_tools(self) -> None:
+        """根据角色权限过滤工具"""
+        allowed_tools = set(self._role_config.get("permissions", {}).get("tools", []))
+        
+        # 获取所有已注册工具
+        all_tools = self._registry.list_tools()
+        
+        # 禁用不在允许列表中的工具
+        for tool in all_tools:
+            if tool.name not in allowed_tools:
+                if tool.name in self._registry._executors:
+                    del self._registry._executors[tool.name]
+    
+    @property
+    def agent_id(self) -> str:
+        return self._agent_id
+    
+    @property
+    def agent_role(self) -> str:
+        return self._agent_role
+    
+    @property
+    def role_name(self) -> str:
+        """获取角色显示名称"""
+        return self._role_config.get("name", self._agent_role)
+    
+    @property
+    def role_description(self) -> str:
+        """获取角色描述"""
+        return self._role_config.get("description", "")
+    
+    @property
+    def available_tools(self) -> List[str]:
+        """获取可用工具列表"""
+        return self._role_config.get("permissions", {}).get("tools", [])
+    
+    @property
+    def skills(self) -> List[str]:
+        """获取技能列表"""
+        return self._role_config.get("skills", [])
+    
+    @property
+    def tool_descriptions(self) -> str:
+        """获取工具描述（用于Agent提示词）"""
+        descriptions = []
+        tools_config = self._config.get("tools", {})
+        
+        for tool_name in self.available_tools:
+            tool_info = tools_config.get(tool_name, {})
+            desc = tool_info.get("description", tool_name)
+            dangerous = " ⚠️" if tool_info.get("dangerous", False) else ""
+            descriptions.append(f"- {tool_name}: {desc}{dangerous}")
+        
+        return "\n".join(descriptions)
+    
+    @property
+    def skill_descriptions(self) -> str:
+        """获取技能描述（用于Agent提示词）"""
+        descriptions = []
+        skills_config = self._config.get("skills", {})
+        
+        for skill_id in self.skills:
+            skill_info = skills_config.get(skill_id, {})
+            name = skill_info.get("name", skill_id)
+            desc = skill_info.get("description", "")
+            descriptions.append(f"- {name}: {desc}")
+        
+        return "\n".join(descriptions) if descriptions else "无特定技能"
+    
+    def execute(self, tool_name: str, arguments: Dict[str, Any]) -> ToolResult:
+        """执行工具调用
+        
+        Args:
+            tool_name: 工具名称
+            arguments: 工具参数
+            
+        Returns:
+            ToolResult
+        """
+        # 检查工具是否可用
+        if tool_name not in self.available_tools:
+            return ToolResult(
+                success=False,
+                error=f"工具 {tool_name} 不在您的权限范围内。可用工具: {', '.join(self.available_tools)}",
+            )
+        
+        # 创建工具调用
+        tool_call = ToolCall(
+            tool_name=tool_name,
+            arguments=arguments,
+        )
+        
+        # 执行工具
+        result = self._executor.execute(tool_call)
+        
+        # 记录工具调用
+        logger.info(
+            "Agent %s (%s) 调用工具 %s: %s",
+            self._agent_id, self._agent_role, tool_name,
+            "成功" if result.success else f"失败 - {result.error}",
+        )
+        
+        return result
+    
+    def read_file(self, path: str) -> ToolResult:
+        """读取文件"""
+        return self.execute("read_file", {"path": path})
+    
+    def write_file(self, path: str, content: str) -> ToolResult:
+        """写入文件"""
+        return self.execute("write_file", {"path": path, "content": content})
+    
+    def edit_file(self, path: str, old_text: str, new_text: str) -> ToolResult:
+        """编辑文件"""
+        return self.execute("edit_file", {
+            "path": path,
+            "old_text": old_text,
+            "new_text": new_text,
+        })
+    
+    def list_directory(self, path: str = ".") -> ToolResult:
+        """列出目录内容"""
+        return self.execute("list_directory", {"path": path})
+    
+    def run_command(self, command: str) -> ToolResult:
+        """执行shell命令"""
+        return self.execute("bash", {"command": command})
+    
+    def git_status(self) -> ToolResult:
+        """获取git状态"""
+        return self.execute("git_status", {})
+    
+    def git_commit(self, message: str) -> ToolResult:
+        """提交更改"""
+        return self.execute("git_commit", {"message": message, "add_all": True})
+    
+    def get_system_prompt(self, name: str = None, task_context: str = None) -> str:
+        """获取包含工具说明的系统提示词
+        
+        Args:
+            name: Agent名称
+            task_context: 任务上下文
+            
+        Returns:
+            完整的系统提示词
+        """
+        # 获取角色基础提示词
+        prompt_template = self._role_config.get("prompt_template", "executor")
+        
+        if prompt_template == "custom" and self._role_config.get("custom_prompt"):
+            # 使用自定义提示词
+            base_prompt = self._role_config["custom_prompt"]
+        else:
+            # 使用模板
+            templates = self._config.get("prompt_templates", {})
+            base_prompt = templates.get(prompt_template, templates.get("executor", ""))
+        
+        # 替换{name}
+        agent_name = name or self.role_name
+        base_prompt = base_prompt.replace("{name}", agent_name)
+        
+        # 构建完整提示词
+        prompt_parts = [base_prompt]
+        
+        # 添加工具说明
+        prompt_parts.append(f"""
+## 可用工具
+
+{self.tool_descriptions}
+""")
+        
+        # 添加技能说明
+        if self.skills:
+            prompt_parts.append(f"""
+## 已加载技能
+
+{self.skill_descriptions}
+""")
+        
+        # 添加工具使用格式说明
+        prompt_parts.append("""
+## 工具调用格式
+
+当需要使用工具时，请使用以下格式：
+
+```tool_call
+{
+    "tool": "工具名称",
+    "arguments": {
+        "参数名": "参数值"
+    }
+}
+```
+
+例如：
+- 读取文件: ```tool_call\n{"tool": "read_file", "arguments": {"path": "src/index.js"}}\n```
+- 写入文件: ```tool_call\n{"tool": "write_file", "arguments": {"path": "src/index.js", "content": "// 代码"}}\n```
+- 执行命令: ```tool_call\n{"tool": "bash", "arguments": {"command": "npm install"}}\n```
+""")
+        
+        # 添加任务上下文
+        if task_context:
+            prompt_parts.append(f"""
+## 当前任务
+
+{task_context}
+""")
+        
+        return "\n".join(prompt_parts)
+
+
+def create_agent_toolset(
+    agent_id: str,
+    agent_role: str,
+    workspace_root: str,
+    custom_config: Dict = None,
+) -> AgentToolset:
+    """创建Agent工具集的便捷函数
+    
+    Args:
+        agent_id: Agent ID
+        agent_role: 角色名称（基础角色或自定义角色）
+        workspace_root: 工作区根目录
+        custom_config: 自定义配置（可选，会覆盖默认配置）
+        
+    Returns:
+        AgentToolset实例
+    """
+    return AgentToolset(
+        agent_id=agent_id,
+        agent_role=agent_role,
+        workspace_root=workspace_root,
+    )

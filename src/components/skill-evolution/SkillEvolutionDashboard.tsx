@@ -3,14 +3,16 @@ import { SkillRegistryPanel } from './SkillRegistryPanel'
 import { ProjectListPanel } from './ProjectListPanel'
 import { ExperienceRulePanel } from './ExperienceRulePanel'
 import { RouteTablePanel } from './RouteTablePanel'
+import RoleConfigPanel from './RoleConfigPanel'
 
-type TabKey = 'skills' | 'projects' | 'rules' | 'routes'
+type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles'
 
 const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'skills', label: '技能包', icon: '📦' },
   { key: 'projects', label: '项目', icon: '📁' },
   { key: 'rules', label: '经验规则', icon: '📋' },
   { key: 'routes', label: '路由表', icon: '🧭' },
+  { key: 'roles', label: '角色配置', icon: '👥' },
 ]
 
 export default function SkillEvolutionDashboard() {
@@ -38,6 +40,7 @@ export default function SkillEvolutionDashboard() {
         {activeTab === 'projects' && <ProjectListPanel />}
         {activeTab === 'rules' && <ExperienceRulePanel />}
         {activeTab === 'routes' && <RouteTablePanel />}
+        {activeTab === 'roles' && <RoleConfigPanel />}
       </div>
     </div>
   )

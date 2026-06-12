@@ -212,14 +212,36 @@ class CeoAgent:
 
         # ② 创建工作区
         from workspace_manager import WorkspaceManager, WorkspaceType
-        workspace_mgr = WorkspaceManager(
-            workspaces_dir=os.path.join("data", "workspaces"),
-            repo_path=os.getcwd(),
+        workspaces_base = os.environ.get(
+            "AGENT_WORKSPACES_DIR",
+            os.path.join(os.path.expanduser("~"), ".agent-workspaces")
         )
+        workspace_mgr = WorkspaceManager(workspaces_dir=workspaces_base)
+        
+        # 根据任务内容判断工作区类型：
+        # - 新项目：创建空目录（STANDALONE）
+        # - 已有项目开发：从该项目git创建worktree（GIT_WORKTREE）
+        # 目前默认为新项目模式，后续可通过分析任务内容或用户指定来选择
+        workspace_type = WorkspaceType.STANDALONE
+        repo_path = None
+        branch_name = None
+        
+        # 检查是否指定了已有项目路径（简单启发式：包含"在xxx项目"或"修改xxx"）
+        import re
+        repo_match = re.search(r'(?:在|修改|更新|优化)\s*[「「]?([^\s」」]+(?:/[^\s」」]+)*)[」」]?', content)
+        if repo_match and os.path.isdir(repo_match.group(1)):
+            repo_path = repo_match.group(1)
+            workspace_type = WorkspaceType.GIT_WORKTREE
+            branch_name = f"agent/task-{project.project_id[:8]}"
+            await self._emit(send_message, f"CEO：检测到已有项目 {repo_path}，将创建隔离工作区。")
+        else:
+            await self._emit(send_message, "CEO：这是一个新项目，将创建全新的工作区。")
+        
         workspace = workspace_mgr.create_workspace(
             task_id=project.project_id,
-            workspace_type=WorkspaceType.GIT_WORKTREE,
-            branch_name=f"agent/task-{project.project_id[:8]}",
+            workspace_type=workspace_type,
+            repo_path=repo_path,
+            branch_name=branch_name,
         )
         self._workspace_manager = workspace_mgr
         self._workspace = workspace
@@ -388,6 +410,17 @@ class CeoAgent:
                 })
 
             await self._emit(send_message, "CEO：任务执行完成，质量审查已通过。")
+            
+            # 提取写入的文件信息
+            execution_results = result.get("execution_results", [])
+            written_files = []
+            for exec_result in execution_results:
+                written_files.extend(exec_result.get("written_files", []))
+            
+            # 如果有文件写入，通知前端
+            if written_files:
+                await self._emit(send_message, f"CEO：已将 {len(written_files)} 个文件写入工作区：{', '.join(written_files)}")
+            
             task_result = {
                 "type": "task_result",
                 "path_used": "complex",
@@ -397,6 +430,7 @@ class CeoAgent:
                 "task_id": assignment.get("task_id", ""),
                 "status": "completed",
                 "discussion_results": result.get("discussion_results", []),
+                "written_files": written_files,
             }
             logger.info("发送 task_result (serial_completed)")
             await send_message(task_result)

@@ -22,13 +22,13 @@ class Workspace:
     workspace_type: WorkspaceType
     root_path: str
     branch_name: Optional[str] = None
+    repo_path: Optional[str] = None  # 原始仓库路径（仅GIT_WORKTREE类型）
     metadata: Dict = field(default_factory=dict)
 
 
 class WorkspaceManager:
-    def __init__(self, workspaces_dir: str, repo_path: str):
+    def __init__(self, workspaces_dir: str):
         self.workspaces_dir = workspaces_dir
-        self.repo_path = repo_path
         self._workspaces: Dict[str, Workspace] = {}
         os.makedirs(workspaces_dir, exist_ok=True)
 
@@ -37,21 +37,25 @@ class WorkspaceManager:
         task_id: str,
         workspace_type: WorkspaceType,
         branch_name: Optional[str] = None,
+        repo_path: Optional[str] = None,
     ) -> Workspace:
         workspace_id = str(uuid.uuid4())[:8]
         root_path = os.path.join(self.workspaces_dir, workspace_id)
 
         if workspace_type == WorkspaceType.GIT_WORKTREE:
+            if not repo_path or not os.path.isdir(repo_path):
+                raise ValueError(f"GIT_WORKTREE类型需要有效的repo_path，当前: {repo_path}")
             if not branch_name:
                 branch_name = f"task/{task_id}"
             os.makedirs(root_path, exist_ok=True)
             subprocess.run(
                 ["git", "worktree", "add", "-b", branch_name, root_path],
-                cwd=self.repo_path,
+                cwd=repo_path,
                 check=True,
                 capture_output=True,
             )
         else:
+            # STANDALONE: 创建空目录
             os.makedirs(root_path, exist_ok=True)
 
         workspace = Workspace(
@@ -60,8 +64,10 @@ class WorkspaceManager:
             workspace_type=workspace_type,
             root_path=root_path,
             branch_name=branch_name,
+            repo_path=repo_path,
         )
         self._workspaces[workspace_id] = workspace
+        logger.info("创建工作区: %s (%s) -> %s", workspace_id, workspace_type.value, root_path)
         return workspace
 
     def get_workspace(self, workspace_id: str) -> Optional[Workspace]:
@@ -75,10 +81,10 @@ class WorkspaceManager:
         if not workspace:
             return
 
-        if workspace.workspace_type == WorkspaceType.GIT_WORKTREE:
+        if workspace.workspace_type == WorkspaceType.GIT_WORKTREE and workspace.repo_path:
             subprocess.run(
                 ["git", "worktree", "remove", "--force", workspace.root_path],
-                cwd=self.repo_path,
+                cwd=workspace.repo_path,
                 capture_output=True,
             )
 

@@ -21,32 +21,45 @@ def temp_dir():
 @pytest.fixture
 def workspace_manager(temp_dir):
     return WorkspaceManager(
-        workspaces_dir=os.path.join(temp_dir, ".workspaces"),
-        repo_path=temp_dir
+        workspaces_dir=os.path.join(temp_dir, ".workspaces")
     )
 
-def test_create_worktree(workspace_manager, temp_dir):
+def test_create_standalone(workspace_manager):
+    """新项目：创建空目录"""
     workspace = workspace_manager.create_workspace(
         task_id="task-001",
+        workspace_type=WorkspaceType.STANDALONE
+    )
+    
+    assert workspace.workspace_id is not None
+    assert workspace.workspace_type == WorkspaceType.STANDALONE
+    assert os.path.exists(workspace.root_path)
+    assert not os.path.exists(os.path.join(workspace.root_path, ".git"))
+    assert workspace.repo_path is None
+
+def test_create_worktree(workspace_manager, temp_dir):
+    """已有项目：从git创建worktree"""
+    workspace = workspace_manager.create_workspace(
+        task_id="task-002",
         workspace_type=WorkspaceType.GIT_WORKTREE,
-        branch_name="feature/test-001"
+        branch_name="feature/test-002",
+        repo_path=temp_dir
     )
     
     assert workspace.workspace_id is not None
     assert workspace.workspace_type == WorkspaceType.GIT_WORKTREE
     assert os.path.exists(workspace.root_path)
     assert os.path.exists(os.path.join(workspace.root_path, ".git"))
-    assert workspace.branch_name == "feature/test-001"
+    assert workspace.branch_name == "feature/test-002"
+    assert workspace.repo_path == temp_dir
 
-def test_create_standalone(workspace_manager, temp_dir):
-    workspace = workspace_manager.create_workspace(
-        task_id="task-002",
-        workspace_type=WorkspaceType.STANDALONE
-    )
-    
-    assert workspace.workspace_type == WorkspaceType.STANDALONE
-    assert os.path.exists(workspace.root_path)
-    assert not os.path.exists(os.path.join(workspace.root_path, ".git"))
+def test_create_worktree_without_repo_path(workspace_manager):
+    """GIT_WORKTREE类型缺少repo_path应报错"""
+    with pytest.raises(ValueError, match="repo_path"):
+        workspace_manager.create_workspace(
+            task_id="task-003",
+            workspace_type=WorkspaceType.GIT_WORKTREE
+        )
 
 def test_list_workspaces(workspace_manager):
     workspace_manager.create_workspace(task_id="task-1", workspace_type=WorkspaceType.STANDALONE)
@@ -55,7 +68,7 @@ def test_list_workspaces(workspace_manager):
     workspaces = workspace_manager.list_workspaces()
     assert len(workspaces) == 2
 
-def test_destroy_workspace(workspace_manager):
+def test_destroy_standalone(workspace_manager):
     workspace = workspace_manager.create_workspace(task_id="task-3", workspace_type=WorkspaceType.STANDALONE)
     workspace_id = workspace.workspace_id
     root_path = workspace.root_path
@@ -65,9 +78,24 @@ def test_destroy_workspace(workspace_manager):
     assert not os.path.exists(root_path)
     assert workspace_manager.get_workspace(workspace_id) is None
 
+def test_destroy_worktree(workspace_manager, temp_dir):
+    workspace = workspace_manager.create_workspace(
+        task_id="task-4",
+        workspace_type=WorkspaceType.GIT_WORKTREE,
+        branch_name="feature/test-004",
+        repo_path=temp_dir
+    )
+    workspace_id = workspace.workspace_id
+    root_path = workspace.root_path
+    
+    workspace_manager.destroy_workspace(workspace_id)
+    
+    assert not os.path.exists(root_path)
+    assert workspace_manager.get_workspace(workspace_id) is None
+
 def test_get_workspace(workspace_manager):
-    workspace = workspace_manager.create_workspace(task_id="task-4", workspace_type=WorkspaceType.STANDALONE)
+    workspace = workspace_manager.create_workspace(task_id="task-5", workspace_type=WorkspaceType.STANDALONE)
     
     retrieved = workspace_manager.get_workspace(workspace.workspace_id)
     assert retrieved is not None
-    assert retrieved.task_id == "task-4"
+    assert retrieved.task_id == "task-5"

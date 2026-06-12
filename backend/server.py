@@ -357,6 +357,224 @@ async def remove_route_entry(dept_id: str):
         return _fail(str(e))
 
 
+# ──────────────────── 角色配置 REST API ────────────────────
+
+_ROLES_CONFIG_PATH = os.path.join(_BASE_DIR, "roles_config.yaml")
+
+
+def _load_roles_config():
+    """加载角色配置"""
+    import yaml
+    if not os.path.exists(_ROLES_CONFIG_PATH):
+        return {"tools": {}, "skills": {}, "prompt_templates": {}, "base_roles": {}, "custom_roles": {}}
+    with open(_ROLES_CONFIG_PATH, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def _save_roles_config(config):
+    """保存角色配置"""
+    import yaml
+    with open(_ROLES_CONFIG_PATH, "w", encoding="utf-8") as f:
+        yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+
+
+@app.get("/api/roles/config")
+async def get_roles_config():
+    """获取完整角色配置"""
+    try:
+        config = _load_roles_config()
+        return _ok(config)
+    except Exception as e:
+        logger.exception("获取角色配置失败")
+        return _fail(str(e))
+
+
+@app.get("/api/roles/{role_id}")
+async def get_role(role_id: str):
+    """获取单个角色配置"""
+    try:
+        config = _load_roles_config()
+        role = config.get("base_roles", {}).get(role_id) or config.get("custom_roles", {}).get(role_id)
+        if not role:
+            return _fail(f"角色不存在: {role_id}")
+        return _ok(role)
+    except Exception as e:
+        logger.exception("获取角色失败")
+        return _fail(str(e))
+
+
+@app.post("/api/roles/{role_id}")
+async def create_role(role_id: str, body: dict = Body(...)):
+    """创建自定义角色"""
+    try:
+        config = _load_roles_config()
+        if role_id in config.get("base_roles", {}):
+            return _fail(f"不能覆盖基础角色: {role_id}")
+        if role_id in config.get("custom_roles", {}):
+            return _fail(f"角色已存在: {role_id}")
+        if "custom_roles" not in config:
+            config["custom_roles"] = {}
+        config["custom_roles"][role_id] = {
+            "name": body.get("name", role_id),
+            "description": body.get("description", ""),
+            "base_role": body.get("base_role", "executor"),
+            "extra_tools": body.get("extra_tools", []),
+            "extra_skills": body.get("extra_skills", []),
+            "prompt_template": "custom",
+            "custom_prompt": body.get("custom_prompt", ""),
+        }
+        _save_roles_config(config)
+        return _ok(config["custom_roles"][role_id])
+    except Exception as e:
+        logger.exception("创建角色失败")
+        return _fail(str(e))
+
+
+@app.put("/api/roles/{role_id}")
+async def update_role(role_id: str, body: dict = Body(...)):
+    """更新角色配置"""
+    try:
+        config = _load_roles_config()
+        if role_id in config.get("base_roles", {}):
+            # 更新基础角色
+            base = config["base_roles"][role_id]
+            if "name" in body:
+                base["name"] = body["name"]
+            if "description" in body:
+                base["description"] = body["description"]
+            if "permissions" in body:
+                base["permissions"] = body["permissions"]
+            if "skills" in body:
+                base["skills"] = body["skills"]
+            _save_roles_config(config)
+            return _ok(base)
+        elif role_id in config.get("custom_roles", {}):
+            # 更新自定义角色
+            custom = config["custom_roles"][role_id]
+            for key in ["name", "description", "base_role", "extra_tools", "extra_skills", "custom_prompt"]:
+                if key in body:
+                    custom[key] = body[key]
+            _save_roles_config(config)
+            return _ok(custom)
+        else:
+            return _fail(f"角色不存在: {role_id}")
+    except Exception as e:
+        logger.exception("更新角色失败")
+        return _fail(str(e))
+
+
+@app.delete("/api/roles/{role_id}")
+async def delete_role(role_id: str):
+    """删除自定义角色"""
+    try:
+        config = _load_roles_config()
+        if role_id in config.get("base_roles", {}):
+            return _fail(f"不能删除基础角色: {role_id}")
+        if role_id not in config.get("custom_roles", {}):
+            return _fail(f"角色不存在: {role_id}")
+        del config["custom_roles"][role_id]
+        _save_roles_config(config)
+        return _ok({"role_id": role_id, "deleted": True})
+    except Exception as e:
+        logger.exception("删除角色失败")
+        return _fail(str(e))
+
+
+@app.get("/api/roles/tools/list")
+async def list_tools():
+    """获取所有可用工具"""
+    try:
+        config = _load_roles_config()
+        return _ok(config.get("tools", {}))
+    except Exception as e:
+        logger.exception("获取工具列表失败")
+        return _fail(str(e))
+
+
+@app.post("/api/roles/tools/{tool_id}")
+async def create_tool(tool_id: str, body: dict = Body(...)):
+    """添加新工具"""
+    try:
+        config = _load_roles_config()
+        if "tools" not in config:
+            config["tools"] = {}
+        if tool_id in config["tools"]:
+            return _fail(f"工具已存在: {tool_id}")
+        config["tools"][tool_id] = {
+            "name": body.get("name", tool_id),
+            "description": body.get("description", ""),
+            "category": body.get("category", "general"),
+            "dangerous": body.get("dangerous", False),
+        }
+        _save_roles_config(config)
+        return _ok(config["tools"][tool_id])
+    except Exception as e:
+        logger.exception("创建工具失败")
+        return _fail(str(e))
+
+
+@app.delete("/api/roles/tools/{tool_id}")
+async def delete_tool(tool_id: str):
+    """删除工具"""
+    try:
+        config = _load_roles_config()
+        if tool_id not in config.get("tools", {}):
+            return _fail(f"工具不存在: {tool_id}")
+        del config["tools"][tool_id]
+        _save_roles_config(config)
+        return _ok({"tool_id": tool_id, "deleted": True})
+    except Exception as e:
+        logger.exception("删除工具失败")
+        return _fail(str(e))
+
+
+@app.get("/api/roles/skills/list")
+async def list_role_skills():
+    """获取所有可用技能"""
+    try:
+        config = _load_roles_config()
+        return _ok(config.get("skills", {}))
+    except Exception as e:
+        logger.exception("获取技能列表失败")
+        return _fail(str(e))
+
+
+@app.post("/api/roles/skills/{skill_id}")
+async def create_skill(skill_id: str, body: dict = Body(...)):
+    """添加新技能"""
+    try:
+        config = _load_roles_config()
+        if "skills" not in config:
+            config["skills"] = {}
+        if skill_id in config["skills"]:
+            return _fail(f"技能已存在: {skill_id}")
+        config["skills"][skill_id] = {
+            "name": body.get("name", skill_id),
+            "description": body.get("description", ""),
+            "required_tools": body.get("required_tools", []),
+        }
+        _save_roles_config(config)
+        return _ok(config["skills"][skill_id])
+    except Exception as e:
+        logger.exception("创建技能失败")
+        return _fail(str(e))
+
+
+@app.delete("/api/roles/skills/{skill_id}")
+async def delete_skill(skill_id: str):
+    """删除技能"""
+    try:
+        config = _load_roles_config()
+        if skill_id not in config.get("skills", {}):
+            return _fail(f"技能不存在: {skill_id}")
+        del config["skills"][skill_id]
+        _save_roles_config(config)
+        return _ok({"skill_id": skill_id, "deleted": True})
+    except Exception as e:
+        logger.exception("删除技能失败")
+        return _fail(str(e))
+
+
 @app.websocket("/ws")
 async def ws_handler(ws: WebSocket):
     await ws.accept()

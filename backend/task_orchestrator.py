@@ -15,6 +15,8 @@ from agentscope.agent import Agent
 from agentscope.message import Msg
 
 from agent import _extract_text
+from agent_toolset import AgentToolset
+from code_extractor import extract_code_blocks
 from protocol import AgentRole, MeetingAgentStatus
 from dynamic_router import DynamicRouter
 from spec_manager import SpecManager
@@ -35,6 +37,7 @@ class TaskOrchestrator:
         spec_manager: Optional[SpecManager] = None,
         evidence_chain: Optional[EvidenceChain] = None,
         fallback_executor: Optional[FallbackExecutor] = None,
+        workspace_root: Optional[str] = None,
     ):
         self._get_model = get_model_fn
         self._meeting = meeting
@@ -44,6 +47,7 @@ class TaskOrchestrator:
         self._fallback_executor = fallback_executor or FallbackExecutor()
         self._tasks: List[Dict[str, Any]] = []
         self._task_routing: Dict[str, str] = {}
+        self._workspace_root = workspace_root
     
     async def decompose(self, task_description: str) -> List[Dict[str, Any]]:
         """
@@ -169,12 +173,56 @@ class TaskOrchestrator:
             
             role = AgentRole(agent_info.role.value)
             model = self._get_model(role)
-            prompt = f"请执行以下任务：\n{task.description}\n\n请给出你的执行方案和结果。"
+            
+            # 为当前Agent创建工具集
+            agent_toolset = None
+            if self._workspace_root:
+                agent_toolset = AgentToolset(
+                    agent_id=task.agent_id,
+                    agent_role=role.value,
+                    workspace_root=self._workspace_root,
+                )
+            
+            # 构建包含工具说明的提示词
+            tool_prompt = ""
+            if agent_toolset:
+                tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}"
+            
+            prompt = (
+                f"请执行以下任务：\n{task.description}\n\n"
+                f"请给出你的执行方案，并使用工具将代码写入工作区。\n"
+                f"首先使用 list_directory 了解当前项目结构，然后使用 write_file 创建文件。{tool_prompt}"
+            )
             msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
             
             try:
                 response = await model.reply(msg)
                 text = _extract_text(response)
+                
+                # 提取代码块并使用Agent工具集写入工作区
+                code_blocks = extract_code_blocks(text)
+                written_files = []
+                
+                if code_blocks and agent_toolset:
+                    for block in code_blocks:
+                        result = agent_toolset.write_file(block["filename"], block["content"])
+                        if result.success:
+                            written_files.append(block["filename"])
+                            logger.info("Agent %s 已写入文件: %s", task.agent_id, block["filename"])
+                        else:
+                            logger.warning("Agent %s 写入文件失败: %s - %s", task.agent_id, block["filename"], result.error)
+                
+                # 如果Agent使用了工具调用格式，解析并执行
+                tool_calls = self._extract_tool_calls(text)
+                tool_results = []
+                for call in tool_calls:
+                    if agent_toolset:
+                        result = agent_toolset.execute(call["tool"], call.get("arguments", {}))
+                        tool_results.append({
+                            "tool": call["tool"],
+                            "success": result.success,
+                            "output": result.output if result.success else result.error,
+                        })
                 
                 self._meeting.update_task_status(task.id, "completed")
                 self._meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
@@ -188,6 +236,10 @@ class TaskOrchestrator:
                     "task_id": task.id,
                     "agent_id": task.agent_id,
                     "result": text,
+                    "written_files": written_files,
+                    "code_blocks_count": len(code_blocks),
+                    "tool_calls": tool_results,
+                    "agent_role": role.value,
                 })
             except Exception as e:
                 logger.error("任务执行失败: task_id=%s error=%s", task.id, e)
@@ -205,3 +257,27 @@ class TaskOrchestrator:
                 })
         
         return results
+    
+    def _extract_tool_calls(self, text: str) -> List[Dict[str, Any]]:
+        """从Agent回复中提取工具调用
+        
+        支持格式：
+        ```tool_call
+        {"tool": "read_file", "arguments": {"path": "..."}}
+        ```
+        """
+        import re
+        import json
+        
+        tool_calls = []
+        pattern = r'```tool_call\s*\n(.*?)```'
+        
+        for match in re.finditer(pattern, text, re.DOTALL):
+            try:
+                call_json = json.loads(match.group(1).strip())
+                if "tool" in call_json:
+                    tool_calls.append(call_json)
+            except json.JSONDecodeError:
+                continue
+        
+        return tool_calls

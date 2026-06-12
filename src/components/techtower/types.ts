@@ -35,13 +35,44 @@ export interface Project {
 
 export type CustomTeam = { id: string; name: string; members: TeamMember[] }
 
+/* ───────── 角色配置类型 ───────── */
+
+export interface RoleConfig {
+  name: string
+  description: string
+  department?: string
+  team_role?: string
+  permissions: {
+    tools: string[]
+    dangerous_tools: string[]
+  }
+  skills: string[]
+  prompt_template: string
+}
+
+export interface ToolInfo {
+  name: string
+  description: string
+  category: string
+  dangerous: boolean
+}
+
+export interface SkillInfo {
+  name: string
+  description: string
+  required_tools: string[]
+}
+
 /* ───────── 面板状态 ───────── */
 
 export interface PanelProject { type: 'project'; data: Project }
 export interface PanelDept { type: 'dept'; data: ProjectDept }
 export interface PanelTeam { type: 'team'; data: CustomTeam }
 export interface PanelCreate { type: 'create-team' }
-export type PanelState = PanelProject | PanelDept | PanelTeam | PanelCreate | null
+export interface PanelRoles { type: 'roles' }
+export interface PanelSkills { type: 'skills' }
+export interface PanelTools { type: 'tools' }
+export type PanelState = PanelProject | PanelDept | PanelTeam | PanelCreate | PanelRoles | PanelSkills | PanelTools | null
 
 /* ───────── 相机导航 ───────── */
 

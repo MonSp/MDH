@@ -5,6 +5,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
+    watch: {
+      ignored: ['**/data/workspaces/**'],
+    },
   },
   preview: {
     host: '0.0.0.0',

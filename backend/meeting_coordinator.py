@@ -96,6 +96,7 @@ class MeetingCoordinator:
             get_model_fn=self._get_model,
             meeting=self.meeting,
             router=self.router,
+            workspace_root=workspace.root_path if workspace else None,
         )
         self._review_pipeline = ReviewPipeline(
             get_model_fn=self._get_model,
@@ -648,6 +649,9 @@ class MeetingCoordinator:
         
         review_result = await self.execute_and_review_task(enhanced_description, on_message)
 
+        # 获取执行结果（包含写入的文件信息）
+        execution_results = await self.execute_assigned_tasks()
+
         # COORDINATOR汇报结果
         coordinator_report_text = f"项目经理：任务执行完成，向CEO汇报结果。"
         await on_message(coordinator_id, coordinator_report_text, "")
@@ -665,6 +669,7 @@ class MeetingCoordinator:
             "discussion_results": discussion_results,
             "assignment": assign_result,
             "review_result": review_result,
+            "execution_results": execution_results,
         }
 
     def _enhance_task_description(self, original_description: str, discussion_results: list) -> str:
