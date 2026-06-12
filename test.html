@@ -603,6 +603,9 @@ window.addEventListener('message', (event) => {
 function callParentHost(command, payload) {
   if (isStandalone) return executeMockCommand(command, payload);
   const id = `test_${++pendingCounter}_${Date.now()}`;
+  const timeoutMs = command === 'execute_plan' ? 120000
+      : command === 'execute_step' ? 60000
+      : 15000;
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
     window.parent.postMessage({ type: 'request', id, command, payload, timestamp: Date.now() }, PARENT_ORIGIN);
@@ -611,7 +614,7 @@ function callParentHost(command, payload) {
         pending.delete(id);
         reject(new Error('超时'));
       }
-    }, 15000);
+    }, timeoutMs);
   });
 }
 
