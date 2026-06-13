@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react'
 interface RoleConfig {
   name: string
   description: string
+  department?: string
+  team_role?: string
   permissions: {
     tools: string[]
     dangerous_tools: string[]
@@ -22,6 +24,15 @@ interface SkillInfo {
   name: string
   description: string
   required_tools: string[]
+}
+
+// 部门配置
+const DEPT_MAP: Record<string, { icon: string; name: string; color: string }> = {
+  'dept-software': { icon: '💻', name: '软件产品部', color: '#0a84ff' },
+  'dept-ai-movie': { icon: '🎬', name: 'AI影视部', color: '#ff375f' },
+  'dept-data': { icon: '📊', name: '数据智能部', color: '#bf5af2' },
+  'dept-content': { icon: '✍️', name: '内容创作部', color: '#ff9f0a' },
+  'dept-ppt': { icon: '🎯', name: '演示设计部', color: '#30d158' },
 }
 
 export default function RoleConfigPanel() {
@@ -151,52 +162,152 @@ export default function RoleConfigPanel() {
 
       <div style={{ display: 'flex', gap: 16 }}>
         {/* 角色列表 */}
-        <div style={{ width: 240, flexShrink: 0 }}>
-          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>基础角色</div>
-          {Object.entries(roles).map(([id, role]) => (
-            <div
-              key={id}
-              onClick={() => setSelectedRole(id)}
-              style={{
-                padding: '8px 12px', marginBottom: 4, borderRadius: 6, cursor: 'pointer',
-                background: selectedRole === id ? '#eff6ff' : 'transparent',
-                border: selectedRole === id ? '1px solid #bfdbfe' : '1px solid transparent',
-                transition: 'all 0.15s',
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 500, color: selectedRole === id ? '#1d4ed8' : '#374151' }}>{role.name}</div>
-              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{role.description}</div>
-            </div>
-          ))}
-
-          {Object.keys(customRoles).length > 0 && (
-            <>
-              <div style={{ fontSize: 12, color: '#6b7280', marginTop: 16, marginBottom: 8 }}>自定义角色</div>
-              {Object.entries(customRoles).map(([id, role]) => (
-                <div
-                  key={id}
-                  onClick={() => setSelectedRole(id)}
-                  style={{
-                    padding: '8px 12px', marginBottom: 4, borderRadius: 6, cursor: 'pointer',
-                    background: selectedRole === id ? '#eff6ff' : 'transparent',
-                    border: selectedRole === id ? '1px solid #bfdbfe' : '1px solid transparent',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: selectedRole === id ? '#1d4ed8' : '#374151' }}>{role.name}</div>
-                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>继承自 {role.base_role}</div>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDeleteRole(id) }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 14, padding: '2px 6px' }}
-                    title="删除"
-                  >
-                    ×
-                  </button>
+        <div style={{ width: 260, flexShrink: 0 }}>
+          {/* 按部门分组显示基础角色 */}
+          {Object.entries(DEPT_MAP).map(([deptId, dept]) => {
+            const deptRoles = Object.entries(roles).filter(([, r]) => r.department === deptId)
+            if (deptRoles.length === 0) return null
+            return (
+              <div key={deptId} style={{ marginBottom: 16 }}>
+                <div style={{ 
+                  display: 'flex', alignItems: 'center', gap: 6, 
+                  marginBottom: 8, padding: '4px 0',
+                  borderBottom: `1px solid ${dept.color}20`,
+                }}>
+                  <span style={{ fontSize: 14 }}>{dept.icon}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: dept.color }}>{dept.name}</span>
+                  <span style={{ fontSize: 10, color: '#9ca3af', marginLeft: 'auto' }}>{deptRoles.length}</span>
                 </div>
-              ))}
-            </>
+                {deptRoles.map(([id, role]) => (
+                  <div
+                    key={id}
+                    onClick={() => setSelectedRole(id)}
+                    style={{
+                      padding: '8px 10px', marginBottom: 2, borderRadius: 6, cursor: 'pointer',
+                      background: selectedRole === id ? `${dept.color}15` : 'transparent',
+                      border: selectedRole === id ? `1px solid ${dept.color}40` : '1px solid transparent',
+                      transition: 'all 0.15s',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                    }}
+                  >
+                    <div style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: dept.color, flexShrink: 0,
+                    }} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ 
+                        fontSize: 13, fontWeight: selectedRole === id ? 600 : 400, 
+                        color: selectedRole === id ? dept.color : '#374151',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>{role.name}</div>
+                      <div style={{ 
+                        fontSize: 10, color: '#9ca3af', marginTop: 1,
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>{role.description}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+
+          {/* 没有部门的角色 */}
+          {(() => {
+            const noDeptRoles = Object.entries(roles).filter(([, r]) => !r.department)
+            if (noDeptRoles.length === 0) return null
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>通用角色</div>
+                {noDeptRoles.map(([id, role]) => (
+                  <div
+                    key={id}
+                    onClick={() => setSelectedRole(id)}
+                    style={{
+                      padding: '8px 10px', marginBottom: 2, borderRadius: 6, cursor: 'pointer',
+                      background: selectedRole === id ? '#eff6ff' : 'transparent',
+                      border: selectedRole === id ? '1px solid #bfdbfe' : '1px solid transparent',
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 500, color: selectedRole === id ? '#1d4ed8' : '#374151' }}>{role.name}</div>
+                    <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>{role.description}</div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* 自定义角色 - 卡片式布局 */}
+          {Object.keys(customRoles).length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ 
+                display: 'flex', alignItems: 'center', gap: 6, 
+                marginBottom: 8, padding: '4px 0',
+                borderBottom: '1px solid rgba(139,92,246,0.2)',
+              }}>
+                <span style={{ fontSize: 14 }}>✨</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#8b5cf6' }}>自定义角色</span>
+                <span style={{ fontSize: 10, color: '#9ca3af', marginLeft: 'auto' }}>{Object.keys(customRoles).length}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {Object.entries(customRoles).map(([id, role]) => {
+                  const baseRole = roles[role.base_role || '']
+                  const baseDept = baseRole?.department ? DEPT_MAP[baseRole.department] : null
+                  return (
+                    <div
+                      key={id}
+                      onClick={() => setSelectedRole(id)}
+                      style={{
+                        padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
+                        background: selectedRole === id 
+                          ? 'linear-gradient(135deg, rgba(139,92,246,0.12), rgba(59,130,246,0.08))' 
+                          : 'rgba(255,255,255,0.03)',
+                        border: selectedRole === id 
+                          ? '1px solid rgba(139,92,246,0.4)' 
+                          : '1px solid rgba(139,92,246,0.15)',
+                        transition: 'all 0.15s',
+                        position: 'relative',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: selectedRole === id ? '#8b5cf6' : '#374151' }}>
+                            {role.name}
+                          </div>
+                          <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>
+                            继承自 {baseRole?.name || role.base_role}
+                            {baseDept && <span style={{ marginLeft: 6 }}>{baseDept.icon}</span>}
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteRole(id) }}
+                          style={{ 
+                            background: 'none', border: 'none', cursor: 'pointer', 
+                            color: '#ef4444', fontSize: 14, padding: '2px 4px',
+                            opacity: 0.6,
+                          }}
+                          title="删除"
+                        >
+                          ×
+                        </button>
+                      </div>
+                      {/* 显示额外工具和技能数量 */}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                        {role.extra_tools && role.extra_tools.length > 0 && (
+                          <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(100,210,255,0.1)', color: '#64d2ff' }}>
+                            +{role.extra_tools.length} 工具
+                          </span>
+                        )}
+                        {role.extra_skills && role.extra_skills.length > 0 && (
+                          <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: 'rgba(48,209,88,0.1)', color: '#30d158' }}>
+                            +{role.extra_skills.length} 技能
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           )}
         </div>
 

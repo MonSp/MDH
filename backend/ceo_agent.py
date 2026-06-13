@@ -121,6 +121,7 @@ class CeoAgent:
         self,
         content: str,
         send_message: Callable[[Dict[str, Any]], Awaitable[None]],
+        selected_roles: Optional[list] = None,
     ) -> Dict[str, Any]:
         """
         CEO处理用户消息的完整流程
@@ -128,6 +129,7 @@ class CeoAgent:
         Args:
             content: 用户消息内容
             send_message: 发送消息到前端的回调 (msg_dict) -> None
+            selected_roles: 用户选中的角色ID列表，如 ["planner", "executor", "reviewer"]
 
         Returns:
             执行结果
@@ -154,7 +156,7 @@ class CeoAgent:
         if complexity.level == "simple" and complexity.confidence >= 0.7:
             return await self._execute_simple(content, send_message)
         else:
-            return await self._execute_complex(content, send_message)
+            return await self._execute_complex(content, send_message, selected_roles)
 
     async def _execute_simple(
         self,
@@ -198,6 +200,7 @@ class CeoAgent:
         self,
         content: str,
         send_message: Callable[[Dict[str, Any]], Awaitable[None]],
+        selected_roles: Optional[list] = None,
     ) -> Dict[str, Any]:
         """复杂路径：创建项目 → 组建团队 → 启动会议 → 协调器接管"""
         await self._emit(send_message, "CEO：任务复杂，需要组建专业团队。正在创建项目并召集会议。")
@@ -262,7 +265,18 @@ class CeoAgent:
         # ④ 创建会议和团队
         meeting_id = str(uuid.uuid4())[:8]
         meeting = MeetingSession(meeting_id)
-        meeting.start()
+        
+        # 根据选中的角色创建团队
+        team_template = None
+        if selected_roles:
+            from meeting import create_team_from_roles
+            from agent_toolset import load_roles_config
+            roles_config = load_roles_config()
+            team_template = create_team_from_roles(selected_roles, roles_config)
+            if team_template:
+                await self._emit(send_message, f"CEO：已根据选中角色组建团队：{', '.join(t['name'] for t in team_template)}")
+        
+        meeting.start(team_template=team_template)
         self._session.meeting_session = meeting
         self._session.meeting_mode = True
 

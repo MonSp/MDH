@@ -679,6 +679,9 @@ async def ws_handler(ws: WebSocket):
 
                 logger.info("收到统一消息: session=%s content=%r", session.session_id, content[:50])
 
+                # 提取选中的角色（如果有）
+                selected_roles = msg.get("selected_roles", [])
+
                 # 委托给CEO Agent处理
                 if not hasattr(session, '_ceo_agent') or session._ceo_agent is None:
                     session._ceo_agent = CeoAgent(
@@ -690,7 +693,7 @@ async def ws_handler(ws: WebSocket):
 
                 ceo = session._ceo_agent
                 try:
-                    result = await ceo.process_message(content, ws.send_json)
+                    result = await ceo.process_message(content, ws.send_json, selected_roles=selected_roles)
                     # CeoAgent已通过回调发送了所有中间消息，这里只需记录最终结果
                     if result:
                         logger.info("CEO处理完成: type=%s path=%s",

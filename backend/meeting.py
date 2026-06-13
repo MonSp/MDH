@@ -1,3 +1,4 @@
+import logging
 import time
 import uuid
 from typing import Optional
@@ -12,6 +13,8 @@ from protocol import (
     meeting_summary_to_dict,
     meeting_task_to_dict,
 )
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MEETING_AGENTS = [
     {
@@ -61,6 +64,86 @@ PERSONAL_ASSISTANT_TEMPLATE = [
         "capabilities": ["browser_automation", "file_operation", "code_generation", "frontend_dev", "backend_dev"],
     },
 ]
+
+# 角色ID到AgentRole的映射
+ROLE_TO_AGENT_ROLE = {
+    "executor": AgentRole.EXECUTOR,
+    "planner": AgentRole.PLANNER,
+    "reviewer": AgentRole.REVIEWER,
+    "monitor": AgentRole.MONITOR,
+    "coordinator": AgentRole.COORDINATOR,
+    "ceo": AgentRole.CEO,
+    "director": AgentRole.COORDINATOR,
+    "screenwriter": AgentRole.PLANNER,
+    "image_artist": AgentRole.EXECUTOR,
+    "video_artist": AgentRole.EXECUTOR,
+    "video_editor": AgentRole.EXECUTOR,
+    "sound_designer": AgentRole.REVIEWER,
+    "data_lead": AgentRole.COORDINATOR,
+    "data_engineer": AgentRole.EXECUTOR,
+    "data_analyst": AgentRole.EXECUTOR,
+    "ml_engineer": AgentRole.EXECUTOR,
+    "data_visualizer": AgentRole.REVIEWER,
+    "content_director": AgentRole.COORDINATOR,
+    "content_writer": AgentRole.EXECUTOR,
+    "content_editor": AgentRole.REVIEWER,
+    "graphic_designer": AgentRole.EXECUTOR,
+    "ppt_lead": AgentRole.COORDINATOR,
+    "content_architect": AgentRole.PLANNER,
+    "slide_designer": AgentRole.EXECUTOR,
+    "animation_engineer": AgentRole.EXECUTOR,
+}
+
+
+def create_team_from_roles(selected_role_ids: list[str], roles_config: dict) -> list[dict]:
+    """根据选中的角色ID创建团队模板
+    
+    Args:
+        selected_role_ids: 选中的角色ID列表，如 ["planner", "executor", "reviewer"]
+        roles_config: roles_config.yaml 解析后的配置
+        
+    Returns:
+        团队模板列表，格式同 DEFAULT_MEETING_AGENTS
+    """
+    base_roles = roles_config.get("base_roles", {})
+    custom_roles = roles_config.get("custom_roles", {})
+    all_roles = {**base_roles, **custom_roles}
+    
+    team = []
+    for i, role_id in enumerate(selected_role_ids):
+        role_config = all_roles.get(role_id)
+        if not role_config:
+            logger.warning("角色不存在: %s，跳过", role_id)
+            continue
+        
+        # 获取角色名称
+        role_name = role_config.get("name", role_id)
+        
+        # 获取AgentRole
+        agent_role = ROLE_TO_AGENT_ROLE.get(role_id, AgentRole.EXECUTOR)
+        
+        # 获取技能作为capabilities
+        skills = role_config.get("skills", [])
+        
+        agent_def = {
+            "id": f"agent-{role_id}",
+            "name": role_name,
+            "role": agent_role,
+            "capabilities": skills,
+            "role_config_id": role_id,  # 保存角色配置ID，用于后续加载工具和提示词
+        }
+        team.append(agent_def)
+    
+    # 确保有CEO/coordinator角色
+    has_coordinator = any(
+        t["role"] in (AgentRole.CEO, AgentRole.COORDINATOR) 
+        for t in team
+    )
+    if not has_coordinator and team:
+        # 将第一个角色标记为coordinator
+        team[0]["role"] = AgentRole.COORDINATOR
+    
+    return team
 
 
 class MeetingSession:

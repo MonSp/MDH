@@ -6,10 +6,60 @@ interface CeoMessage {
   timestamp: number
 }
 
+interface RoleInfo {
+  id: string
+  name: string
+  description: string
+  department?: string
+}
+
 interface CeoChatPanelProps {
   wsRef: React.MutableRefObject<WebSocket | null>
   onEnterProject: (projectId: string, meetingId: string) => void
   onClose: () => void
+}
+
+// 预设角色列表（与后端 roles_config.yaml 对应）
+const PRESET_ROLES: RoleInfo[] = [
+  // 软件产品部
+  { id: 'coordinator', name: '产品经理', description: '需求分析与项目管理', department: 'dept-software' },
+  { id: 'planner', name: '架构师', description: '系统设计与技术选型', department: 'dept-software' },
+  { id: 'executor', name: '全栈开发', description: '前后端代码实现', department: 'dept-software' },
+  { id: 'reviewer', name: 'QA工程师', description: '测试与质量保障', department: 'dept-software' },
+  { id: 'monitor', name: 'DevOps', description: 'CI/CD与部署运维', department: 'dept-software' },
+  // AI影视部
+  { id: 'director', name: '导演', description: '创意把控与整体调度', department: 'dept-ai-movie' },
+  { id: 'screenwriter', name: '编剧', description: '剧本创作与分镜设计', department: 'dept-ai-movie' },
+  { id: 'image_artist', name: '图像生成师', description: 'AI图像生成', department: 'dept-ai-movie' },
+  { id: 'video_artist', name: '视频生成师', description: 'AI视频生成', department: 'dept-ai-movie' },
+  // 数据智能部
+  { id: 'data_lead', name: '数据负责人', description: '需求拆解与分析策略', department: 'dept-data' },
+  { id: 'data_engineer', name: '数据工程师', description: '数据采集/清洗/ETL', department: 'dept-data' },
+  { id: 'data_analyst', name: '数据分析师', description: '统计分析与洞察', department: 'dept-data' },
+  // 内容创作部
+  { id: 'content_director', name: '内容总监', description: '选题策划与风格把控', department: 'dept-content' },
+  { id: 'content_writer', name: '撰稿人', description: '深度文章与技术写作', department: 'dept-content' },
+  // 演示设计部
+  { id: 'ppt_lead', name: '演示负责人', description: '需求沟通与内容梳理', department: 'dept-ppt' },
+  { id: 'slide_designer', name: '视觉设计师', description: '版式/配色/图表设计', department: 'dept-ppt' },
+]
+
+// 部门颜色映射
+const DEPT_COLORS: Record<string, string> = {
+  'dept-software': '#0a84ff',
+  'dept-ai-movie': '#ff375f',
+  'dept-data': '#bf5af2',
+  'dept-content': '#ff9f0a',
+  'dept-ppt': '#30d158',
+}
+
+// 部门名称映射
+const DEPT_NAMES: Record<string, string> = {
+  'dept-software': '💻 软件产品部',
+  'dept-ai-movie': '🎬 AI影视部',
+  'dept-data': '📊 数据智能部',
+  'dept-content': '✍️ 内容创作部',
+  'dept-ppt': '🎯 演示设计部',
 }
 
 export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChatPanelProps) {
@@ -21,6 +71,8 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
   const [input, setInput] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [projectReady, setProjectReady] = useState<{ projectId: string; meetingId: string } | null>(null)
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(['coordinator', 'planner', 'executor', 'reviewer'])
+  const [showRoleSelector, setShowRoleSelector] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const listenerCleanupRef = useRef<(() => void) | null>(null)
 
@@ -108,12 +160,13 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
     ws.send(JSON.stringify({
       type: 'unified_message',
       content,
+      selected_roles: selectedRoles,
       provider: localStorage.getItem('llm_provider') || undefined,
       model_name: localStorage.getItem('llm_model_name') || undefined,
       api_key: localStorage.getItem('deepseek_api_key') || undefined,
       base_url: localStorage.getItem('deepseek_base_url') || undefined,
     }))
-  }, [wsRef, addMsg])
+  }, [wsRef, addMsg, selectedRoles])
 
   const handleSend = useCallback(() => {
     if (!input.trim() || isProcessing) return
@@ -209,7 +262,77 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
         <div ref={scrollRef} />
       </div>
 
-      {/* 底部项目栏已移除，按钮在对话消息内 */}
+      {/* 角色选择器 */}
+      <div style={styles.roleSection}>
+        <div
+          style={styles.roleHeader}
+          onClick={() => setShowRoleSelector(!showRoleSelector)}
+        >
+          <span style={{ fontSize: 12, color: '#8b9dc3' }}>
+            👥 团队成员 ({selectedRoles.length}人)
+          </span>
+          <span style={{ fontSize: 11, color: '#667', transform: showRoleSelector ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
+        </div>
+
+        {/* 已选角色标签 */}
+        {!showRoleSelector && (
+          <div style={styles.roleTags}>
+            {selectedRoles.map(id => {
+              const role = PRESET_ROLES.find(r => r.id === id)
+              if (!role) return null
+              const color = DEPT_COLORS[role.department || ''] || '#64d2ff'
+              return (
+                <span key={id} style={{ ...styles.roleTag, borderColor: color + '40', color }}>
+                  {role.name}
+                </span>
+              )
+            })}
+          </div>
+        )}
+
+        {/* 角色选择面板 */}
+        {showRoleSelector && (
+          <div style={styles.roleSelector}>
+            {Object.entries(DEPT_NAMES).map(([deptId, deptName]) => {
+              const deptRoles = PRESET_ROLES.filter(r => r.department === deptId)
+              if (deptRoles.length === 0) return null
+              const color = DEPT_COLORS[deptId]
+              return (
+                <div key={deptId} style={styles.deptGroup}>
+                  <div style={{ ...styles.deptLabel, color }}>{deptName}</div>
+                  <div style={styles.deptRoles}>
+                    {deptRoles.map(role => {
+                      const isSelected = selectedRoles.includes(role.id)
+                      return (
+                        <div
+                          key={role.id}
+                          onClick={() => {
+                            setSelectedRoles(prev =>
+                              isSelected
+                                ? prev.filter(id => id !== role.id)
+                                : [...prev, role.id]
+                            )
+                          }}
+                          style={{
+                            ...styles.roleOption,
+                            background: isSelected ? color + '20' : 'rgba(255,255,255,0.03)',
+                            borderColor: isSelected ? color + '60' : 'rgba(255,255,255,0.08)',
+                          }}
+                          title={role.description}
+                        >
+                          <div style={{ fontSize: 11, fontWeight: isSelected ? 600 : 400, color: isSelected ? color : '#8b9dc3' }}>
+                            {role.name}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       <div style={styles.inputArea}>
         <textarea
@@ -402,5 +525,56 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontFamily: 'inherit',
     alignSelf: 'flex-end',
+  },
+  roleSection: {
+    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+    background: 'rgba(0, 0, 0, 0.15)',
+  },
+  roleHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '8px 14px',
+    cursor: 'pointer',
+  },
+  roleTags: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: 4,
+    padding: '0 14px 8px',
+  },
+  roleTag: {
+    padding: '2px 8px',
+    borderRadius: 10,
+    fontSize: 10,
+    border: '1px solid',
+    background: 'rgba(255,255,255,0.03)',
+  },
+  roleSelector: {
+    padding: '0 14px 10px',
+    maxHeight: 200,
+    overflowY: 'auto' as const,
+  },
+  deptGroup: {
+    marginBottom: 8,
+  },
+  deptLabel: {
+    fontSize: 10,
+    fontWeight: 600,
+    marginBottom: 4,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  deptRoles: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: 4,
+  },
+  roleOption: {
+    padding: '4px 10px',
+    borderRadius: 6,
+    border: '1px solid',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
   },
 }

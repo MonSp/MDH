@@ -8,6 +8,16 @@ export default defineConfig({
     watch: {
       ignored: ['**/data/workspaces/**'],
     },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8765',
+        changeOrigin: true,
+      },
+      '/ws': {
+        target: 'ws://localhost:8765',
+        ws: true,
+      },
+    },
   },
   preview: {
     host: '0.0.0.0',
