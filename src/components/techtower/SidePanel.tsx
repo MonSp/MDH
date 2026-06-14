@@ -48,6 +48,10 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
   const [skills, setSkills] = useState<Record<string, SkillInfo>>({})
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const [editingRole, setEditingRole] = useState<string | null>(null)
+  const [selectedSkill, setSelectedSkill] = useState<string | null>(null)
+  const [selectedToolCategory, setSelectedToolCategory] = useState<string | null>(null)
+  const [selectedRoleDept, setSelectedRoleDept] = useState<string | null>(null)
+  const [selectedSkillCategory, setSelectedSkillCategory] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<any>({})
   const [showNewRole, setShowNewRole] = useState(false)
   const [newRoleForm, setNewRoleForm] = useState({ name: '', description: '', base_role: 'executor', extra_tools: [] as string[], extra_skills: [] as string[], custom_prompt: '' })
@@ -343,166 +347,186 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
 
   /* ───── 渲染：角色管理 ───── */
 
+  const [roleGroupBy, setRoleGroupBy] = useState<'department' | 'category' | 'none'>('department')
+
   const renderRoles = () => {
     const allRoles = { ...roles, ...customRoles }
     const selected = selectedRole ? allRoles[selectedRole] : null
     const isCustom = selectedRole ? selectedRole in customRoles : false
 
-    return (
-      <>
-        <div style={headerStyle}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#e0e8f0' }}>👥 角色管理</span>
-          <button style={closeBtn} onClick={onClose} autoFocus>×</button>
-        </div>
+    // 按部门分组
+    const groupByDepartment = () => {
+      const groups: Record<string, Array<[string, any]>> = {}
+      Object.entries(allRoles).forEach(([id, role]) => {
+        const deptId = role.department || 'no-dept'
+        if (!groups[deptId]) groups[deptId] = []
+        groups[deptId].push([id, role])
+      })
+      return groups
+    }
 
-        {/* 上半部分：角色列表（可滚动） */}
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-          <button onClick={() => { setShowNewRole(true); setSelectedRole(null); setEditingRole(null) }} style={{ ...btn('#30d158'), marginTop: 0, fontSize: 12, padding: '8px 0', marginBottom: 12 }}>
-            + 新建自定义角色
-          </button>
+    // 按类别分组（基础角色 vs 自定义角色）
+    const groupByCategory = () => {
+      return {
+        'base': Object.entries(roles),
+        'custom': Object.entries(customRoles),
+      }
+    }
 
-          {/* 基础角色 */}
-          <div style={{ fontSize: 11, color: '#667', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>基础角色</div>
-          {Object.entries(roles).map(([id, role]) => (
-            <div key={id} onClick={() => { setSelectedRole(id); setEditingRole(null); setShowNewRole(false) }} style={{ padding: '8px 10px', marginBottom: 4, borderRadius: 6, cursor: 'pointer', background: selectedRole === id ? 'rgba(100,210,255,0.12)' : 'transparent', border: selectedRole === id ? '1px solid rgba(100,210,255,0.3)' : '1px solid transparent' }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: selectedRole === id ? '#64d2ff' : '#c8d6e5' }}>{role.name}</div>
-              <div style={{ fontSize: 11, color: '#667', marginTop: 2 }}>{role.description}</div>
+    // 详情视图
+    if (selectedRole && selected && editingRole !== selectedRole && !showNewRole) {
+      return (
+        <>
+          <div style={headerStyle}>
+            <button onClick={() => setSelectedRole(null)} style={{ background: 'none', border: 'none', color: '#64d2ff', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+              ← 返回列表
+            </button>
+            <button style={closeBtn} onClick={onClose} autoFocus>×</button>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 2px' }}>
+            {/* 角色头部 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#e0e8f0' }}>{selected.name}</div>
+                <div style={{ fontSize: 11, color: '#556', fontFamily: 'monospace', marginTop: 2 }}>{selectedRole}</div>
+              </div>
+              <button onClick={() => { setEditingRole(selectedRole!); setEditForm({ ...selected }) }} style={{ padding: '4px 10px', background: 'rgba(100,210,255,0.15)', border: '1px solid rgba(100,210,255,0.3)', borderRadius: 4, color: '#64d2ff', fontSize: 11, cursor: 'pointer' }}>编辑</button>
             </div>
-          ))}
 
-          {/* 自定义角色 */}
-          {Object.keys(customRoles).length > 0 && (
-            <>
-              <div style={{ fontSize: 11, color: '#667', marginTop: 14, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>自定义角色</div>
-              {Object.entries(customRoles).map(([id, role]) => (
-                <div key={id} onClick={() => { setSelectedRole(id); setEditingRole(null); setShowNewRole(false) }} style={{ padding: '8px 10px', marginBottom: 4, borderRadius: 6, cursor: 'pointer', background: selectedRole === id ? 'rgba(100,210,255,0.12)' : 'transparent', border: selectedRole === id ? '1px solid rgba(100,210,255,0.3)' : '1px solid transparent', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: selectedRole === id ? '#64d2ff' : '#c8d6e5' }}>{role.name}</div>
-                    <div style={{ fontSize: 11, color: '#667', marginTop: 2 }}>继承自 {roles[role.base_role || '']?.name || role.base_role}</div>
-                  </div>
-                  <button onClick={(e) => { e.stopPropagation(); handleDeleteRole(id) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff453a', fontSize: 16, padding: '2px 6px' }}>×</button>
-                </div>
-              ))}
-            </>
-          )}
-        </div>
+            <p style={{ fontSize: 12, color: '#8899aa', margin: '0 0 12px' }}>{selected.description}</p>
 
-        {/* 下半部分：角色详情（固定显示） */}
-        {selectedRole && selected && editingRole !== selectedRole && !showNewRole && (
-          <div style={{ borderTop: '1px solid rgba(100,210,255,0.1)', padding: '12px 0', maxHeight: '45%', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#e0e8f0' }}>{selected.name}</div>
-              <button onClick={() => { setEditingRole(selectedRole); setEditForm({ ...selected }) }} style={{ padding: '4px 10px', background: 'rgba(100,210,255,0.15)', border: '1px solid rgba(100,210,255,0.3)', borderRadius: 4, color: '#64d2ff', fontSize: 11, cursor: 'pointer' }}>编辑</button>
-            </div>
-            <p style={{ fontSize: 12, color: '#8899aa', margin: '0 0 10px' }}>{selected.description}</p>
-            
-            {/* 关联部门和团队成员 */}
+            {/* 关联部门 */}
             {selected.department && (() => {
               const dept = deptList.find(d => d.deptId === selected.department)
               if (!dept) return null
               const teamMember = selected.team_role ? dept.team.find(m => m.role === selected.team_role) : null
               return (
-                <div style={{ marginBottom: 10, padding: '8px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 6, border: '1px solid rgba(100,210,255,0.08)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: teamMember ? 6 : 0 }}>
-                    <span style={{ fontSize: 14 }}>{dept.icon}</span>
-                    <span style={{ fontSize: 12, color: dept.color, fontWeight: 500 }}>{dept.name}</span>
+                <div style={{ marginBottom: 12, padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(100,210,255,0.08)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: teamMember ? 8 : 0 }}>
+                    <span style={{ fontSize: 16 }}>{dept.icon}</span>
+                    <span style={{ fontSize: 13, color: dept.color, fontWeight: 600 }}>{dept.name}</span>
                   </div>
                   {teamMember && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: `linear-gradient(135deg, ${dept.color}30, ${dept.color}15)`, border: `1px solid ${dept.color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#e0e8f0', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${dept.color}30, ${dept.color}15)`, border: `1px solid ${dept.color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: '#e0e8f0', fontWeight: 600 }}>
                         {teamMember.name.charAt(0)}
                       </div>
                       <div>
-                        <div style={{ fontSize: 12, color: '#e0e8f0' }}>{teamMember.name}</div>
-                        <div style={{ fontSize: 10, color: '#667' }}>{teamMember.title}</div>
+                        <div style={{ fontSize: 13, color: '#e0e8f0' }}>{teamMember.name}</div>
+                        <div style={{ fontSize: 11, color: '#667' }}>{teamMember.title} · {teamMember.description}</div>
                       </div>
                     </div>
                   )}
                 </div>
               )
             })()}
-            
-            <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>工具权限</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
-              {(selected.permissions?.tools || []).map(t => <span key={t} style={{ padding: '2px 8px', background: 'rgba(100,210,255,0.1)', borderRadius: 10, fontSize: 10, color: '#64d2ff' }}>{tools[t]?.name || t}</span>)}
-            </div>
-            <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>技能包</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {(selected.skills || []).map(s => <span key={s} style={{ padding: '2px 8px', background: 'rgba(48,209,88,0.1)', borderRadius: 10, fontSize: 10, color: '#30d158' }}>{skills[s]?.name || s}</span>)}
-            </div>
-          </div>
-        )}
 
-        {/* 编辑角色 */}
-        {editingRole && editForm.name && (
-          <div style={{ borderTop: '1px solid rgba(100,210,255,0.1)', padding: '12px 0', maxHeight: '50%', overflowY: 'auto' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#e0e8f0', marginBottom: 10 }}>编辑角色: {editForm.name}</div>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>名称</div>
-              <input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} style={inputStyle} />
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>描述</div>
-              <input value={editForm.description} onChange={e => setEditForm({ ...editForm, description: e.target.value })} style={inputStyle} />
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>工具权限（点击切换）</div>
+            {/* 工具权限 */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 6, fontWeight: 600 }}>🔧 工具权限</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {Object.entries(tools).map(([id, tool]) => {
-                  const active = editForm.permissions?.tools?.includes(id) || false
+                {(selected.permissions?.tools || []).map(t => {
+                  const tool = tools[t]
                   return (
-                    <span key={id} onClick={() => {
-                      const t = editForm.permissions?.tools || []
-                      setEditForm({ ...editForm, permissions: { ...editForm.permissions, tools: active ? t.filter((x: string) => x !== id) : [...t, id] } })
-                    }} style={tagStyle(active, '#64d2ff')}>
-                      {tool.name}{tool.dangerous ? ' ⚠' : ''}
+                    <span key={t} style={{ padding: '3px 8px', background: tool?.dangerous ? 'rgba(255,159,10,0.1)' : 'rgba(100,210,255,0.1)', borderRadius: 8, fontSize: 10, color: tool?.dangerous ? '#ff9f0a' : '#64d2ff', display: 'flex', alignItems: 'center', gap: 3 }}>
+                      {tool?.dangerous && '⚠'}{tool?.name || t}
                     </span>
                   )
                 })}
               </div>
             </div>
+
+            {/* 技能包 */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 6, fontWeight: 600 }}>📦 技能包</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {(selected.skills || []).map(s => {
+                  const skill = skills[s]
+                  return (
+                    <div key={s} style={{ padding: '6px 10px', background: 'rgba(48,209,88,0.08)', borderRadius: 6, border: '1px solid rgba(48,209,88,0.15)' }}>
+                      <div style={{ fontSize: 12, color: '#30d158', fontWeight: 500 }}>{skill?.name || s}</div>
+                      {skill?.description && <div style={{ fontSize: 10, color: '#667', marginTop: 2 }}>{skill.description}</div>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </>
+      )
+    }
+
+    // 编辑视图
+    if (editingRole && editForm.name) {
+      return (
+        <>
+          <div style={headerStyle}>
+            <button onClick={() => setEditingRole(null)} style={{ background: 'none', border: 'none', color: '#64d2ff', cursor: 'pointer', fontSize: 13 }}>← 取消编辑</button>
+            <button style={closeBtn} onClick={onClose} autoFocus>×</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 2px' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#e0e8f0', marginBottom: 12 }}>编辑: {editForm.name}</div>
             <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>技能包（点击切换）</div>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>名称</div>
+              <input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>描述</div>
+              <input value={editForm.description} onChange={e => setEditForm({ ...editForm, description: e.target.value })} style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 6 }}>工具权限（点击切换）</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {Object.entries(tools).map(([id, tool]) => {
+                  const active = editForm.permissions?.tools?.includes(id) || false
+                  return <span key={id} onClick={() => { const t = editForm.permissions?.tools || []; setEditForm({ ...editForm, permissions: { ...editForm.permissions, tools: active ? t.filter((x: string) => x !== id) : [...t, id] } }) }} style={tagStyle(active, tool.dangerous ? '#ff9f0a' : '#64d2ff')}>{tool.dangerous ? '⚠' : ''}{tool.name}</span>
+                })}
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 6 }}>技能包（点击切换）</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {Object.entries(skills).map(([id, skill]) => {
                   const active = editForm.skills?.includes(id) || false
-                  return (
-                    <span key={id} onClick={() => {
-                      const s = editForm.skills || []
-                      setEditForm({ ...editForm, skills: active ? s.filter((x: string) => x !== id) : [...s, id] })
-                    }} style={tagStyle(active, '#30d158')}>
-                      {skill.name}
-                    </span>
-                  )
+                  return <span key={id} onClick={() => { const s = editForm.skills || []; setEditForm({ ...editForm, skills: active ? s.filter((x: string) => x !== id) : [...s, id] }) }} style={tagStyle(active, '#30d158')}>{skill.name}</span>
                 })}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => handleSaveRole(editingRole)} style={{ flex: 1, padding: '6px 0', background: '#30d158', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, cursor: 'pointer' }}>保存</button>
-              <button onClick={() => setEditingRole(null)} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
+              <button onClick={() => handleSaveRole(editingRole)} style={{ flex: 1, padding: '8px 0', background: '#30d158', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>保存</button>
+              <button onClick={() => setEditingRole(null)} style={{ flex: 1, padding: '8px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
             </div>
           </div>
-        )}
+        </>
+      )
+    }
 
-        {/* 新建角色 */}
-        {showNewRole && (
-          <div style={{ borderTop: '1px solid rgba(100,210,255,0.1)', padding: '12px 0', maxHeight: '50%', overflowY: 'auto' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#e0e8f0', marginBottom: 10 }}>新建自定义角色</div>
-            <div style={{ marginBottom: 8 }}>
+    // 新建角色视图
+    if (showNewRole) {
+      return (
+        <>
+          <div style={headerStyle}>
+            <button onClick={() => setShowNewRole(false)} style={{ background: 'none', border: 'none', color: '#64d2ff', cursor: 'pointer', fontSize: 13 }}>← 取消</button>
+            <button style={closeBtn} onClick={onClose} autoFocus>×</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 2px' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#e0e8f0', marginBottom: 12 }}>新建自定义角色</div>
+            <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>角色名称 *</div>
               <input value={newRoleForm.name} onChange={e => setNewRoleForm({ ...newRoleForm, name: e.target.value })} placeholder="例如：安全开发工程师" style={inputStyle} />
             </div>
-            <div style={{ marginBottom: 8 }}>
+            <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>描述</div>
               <input value={newRoleForm.description} onChange={e => setNewRoleForm({ ...newRoleForm, description: e.target.value })} placeholder="角色职责描述" style={inputStyle} />
             </div>
-            <div style={{ marginBottom: 8 }}>
+            <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>继承基础角色</div>
               <select value={newRoleForm.base_role} onChange={e => setNewRoleForm({ ...newRoleForm, base_role: e.target.value })} style={selectStyle}>
                 {Object.entries(roles).map(([id, r]) => <option key={id} value={id} style={{ background: '#1a1a2e' }}>{r.name}</option>)}
               </select>
             </div>
-            <div style={{ marginBottom: 8 }}>
+            <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>额外工具</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {Object.entries(tools).map(([id, tool]) => {
@@ -511,7 +535,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
                 })}
               </div>
             </div>
-            <div style={{ marginBottom: 10 }}>
+            <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>额外技能</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {Object.entries(skills).map(([id, skill]) => {
@@ -520,95 +544,221 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
                 })}
               </div>
             </div>
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>自定义提示词（可选）</div>
-              <textarea value={newRoleForm.custom_prompt} onChange={e => setNewRoleForm({ ...newRoleForm, custom_prompt: e.target.value })} placeholder="留空则使用基础角色的提示词模板..." rows={3} style={{ ...inputStyle, resize: 'vertical' as const }} />
-            </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleCreateRole} disabled={!newRoleForm.name.trim()} style={{ flex: 1, padding: '6px 0', background: newRoleForm.name.trim() ? '#30d158' : '#333', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, cursor: newRoleForm.name.trim() ? 'pointer' : 'not-allowed' }}>创建</button>
-              <button onClick={() => setShowNewRole(false)} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
+              <button onClick={handleCreateRole} disabled={!newRoleForm.name.trim()} style={{ flex: 1, padding: '8px 0', background: newRoleForm.name.trim() ? '#30d158' : '#333', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: newRoleForm.name.trim() ? 'pointer' : 'not-allowed' }}>创建</button>
+              <button onClick={() => setShowNewRole(false)} style={{ flex: 1, padding: '8px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
             </div>
           </div>
-        )}
+        </>
+      )
+    }
+
+    // 列表视图（默认）
+    const deptGroups = groupByDepartment()
+
+    return (
+      <>
+        <div style={headerStyle}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: '#e0e8f0' }}>👥 角色管理</span>
+          <button style={closeBtn} onClick={onClose} autoFocus>×</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {/* 操作栏 */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <button onClick={() => { setShowNewRole(true); setSelectedRole(null); setEditingRole(null) }} style={{ ...btn('#30d158'), marginTop: 0, fontSize: 12, padding: '8px 0', flex: 1 }}>
+              + 新建角色
+            </button>
+          </div>
+
+          {/* 分组切换 */}
+          <div style={{ display: 'flex', gap: 4, marginBottom: 12, padding: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
+            {[
+              { key: 'department' as const, label: '按部门', icon: '🏢' },
+              { key: 'category' as const, label: '按类别', icon: '📁' },
+              { key: 'none' as const, label: '全部', icon: '📋' },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setRoleGroupBy(tab.key)}
+                style={{
+                  flex: 1, padding: '6px 0', borderRadius: 6, cursor: 'pointer', border: 'none',
+                  background: roleGroupBy === tab.key ? 'rgba(100,210,255,0.2)' : 'transparent',
+                  color: roleGroupBy === tab.key ? '#64d2ff' : '#667',
+                  fontSize: 11, fontWeight: 500,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                }}
+              >
+                <span>{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* 按部门分组 - 手风琴式 */}
+          {roleGroupBy === 'department' && Object.entries(deptGroups).map(([deptId, deptRoles]) => {
+            const dept = deptList.find(d => d.deptId === deptId)
+            const deptName = dept ? dept.name : '通用角色'
+            const deptIcon = dept ? dept.icon : '⚙️'
+            const deptColor = dept ? dept.color : '#667'
+            const isExpanded = selectedRoleDept === deptId
+            return (
+              <div key={deptId} style={{ marginBottom: 4 }}>
+                <div
+                  onClick={() => setSelectedRoleDept(isExpanded ? null : deptId)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
+                    background: 'rgba(255,255,255,0.02)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 14 }}>{deptIcon}</span>
+                    <span style={{ fontSize: 12, color: '#8899aa', fontWeight: 500 }}>{deptName}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 10, color: '#556', padding: '1px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>{deptRoles.length}</span>
+                    <span style={{ fontSize: 10, color: '#444', transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>›</span>
+                  </div>
+                </div>
+                {isExpanded && (
+                  <div style={{ paddingLeft: 12 }}>
+                    {deptRoles.map(([id, role]) => (
+                      <div key={id} onClick={() => setSelectedRole(id)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', marginBottom: 2, borderRadius: 4, cursor: 'pointer' }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: deptColor, flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, color: '#c8d6e5' }}>{role.name}</div>
+                          <div style={{ fontSize: 10, color: '#556' }}>{role.description}</div>
+                        </div>
+                        {id in customRoles && (
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteRole(id) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff453a', fontSize: 14, opacity: 0.4 }}>×</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {/* 按类别分组 */}
+          {roleGroupBy === 'category' && (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: '#667', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>基础角色 ({Object.keys(roles).length})</div>
+                {Object.entries(roles).map(([id, role]) => {
+                  const dept = role.department ? deptList.find(d => d.deptId === role.department) : null
+                  return (
+                    <div key={id} onClick={() => setSelectedRole(id)} style={{ padding: '8px 10px', marginBottom: 2, borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {dept && <span style={{ fontSize: 12 }}>{dept.icon}</span>}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, color: '#c8d6e5' }}>{role.name}</div>
+                        <div style={{ fontSize: 10, color: '#556' }}>{role.description}</div>
+                      </div>
+                      <span style={{ fontSize: 10, color: '#444' }}>›</span>
+                    </div>
+                  )
+                })}
+              </div>
+              {Object.keys(customRoles).length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, color: '#667', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>自定义角色 ({Object.keys(customRoles).length})</div>
+                  {Object.entries(customRoles).map(([id, role]) => (
+                    <div key={id} onClick={() => setSelectedRole(id)} style={{ padding: '8px 10px', marginBottom: 2, borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12 }}>✨</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, color: '#c8d6e5' }}>{role.name}</div>
+                        <div style={{ fontSize: 10, color: '#556' }}>继承自 {roles[role.base_role || '']?.name || role.base_role}</div>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteRole(id) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff453a', fontSize: 14, opacity: 0.5 }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* 全部列表 */}
+          {roleGroupBy === 'none' && Object.entries(allRoles).map(([id, role]) => {
+            const dept = role.department ? deptList.find(d => d.deptId === role.department) : null
+            const isCustom = id in customRoles
+            return (
+              <div key={id} onClick={() => setSelectedRole(id)} style={{ padding: '8px 10px', marginBottom: 2, borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                {dept ? <span style={{ fontSize: 12 }}>{dept.icon}</span> : <span style={{ fontSize: 12 }}>{isCustom ? '✨' : '👤'}</span>}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: '#c8d6e5' }}>{role.name}</div>
+                  <div style={{ fontSize: 10, color: '#556' }}>{role.description}</div>
+                </div>
+                {isCustom && (
+                  <button onClick={(e) => { e.stopPropagation(); handleDeleteRole(id) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff453a', fontSize: 14, opacity: 0.4 }}>×</button>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </>
     )
   }
 
   /* ───── 渲染：技能包管理 ───── */
 
-  const [selectedSkill, setSelectedSkill] = useState<string | null>(null)
-
   const renderSkills = () => {
     const selected = selectedSkill ? skills[selectedSkill] : null
 
-    return (
-      <>
-        <div style={headerStyle}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#e0e8f0' }}>📦 技能包管理</span>
-          <button style={closeBtn} onClick={onClose} autoFocus>×</button>
-        </div>
-
-        {/* 上半部分：技能包列表（可滚动） */}
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-          <button onClick={() => { setShowImportSkill(true); setImportError(''); setSelectedSkill(null) }} style={{ ...btn('#0a84ff'), marginTop: 0, fontSize: 12, padding: '8px 0', marginBottom: 12 }}>+ 新增技能包</button>
-
-          {Object.entries(skills).map(([id, skill]) => (
-            <div
-              key={id}
-              onClick={() => setSelectedSkill(id)}
-              style={{
-                padding: '8px 10px', marginBottom: 4, borderRadius: 6, cursor: 'pointer',
-                background: selectedSkill === id ? 'rgba(10,132,255,0.12)' : 'transparent',
-                border: selectedSkill === id ? '1px solid rgba(10,132,255,0.3)' : '1px solid transparent',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: selectedSkill === id ? '#0a84ff' : '#c8d6e5' }}>{skill.name}</div>
-                <div style={{ fontSize: 11, color: '#667', marginTop: 2 }}>{skill.description}</div>
-              </div>
-              <button onClick={(e) => { e.stopPropagation(); handleDeleteSkill(id) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff453a', fontSize: 16, padding: '2px 6px' }}>×</button>
-            </div>
-          ))}
-
-          {Object.keys(skills).length === 0 && !showImportSkill && (
-            <div style={{ textAlign: 'center', padding: 24, color: '#556', fontSize: 12 }}>暂无技能包，点击上方按钮新增</div>
-          )}
-        </div>
-
-        {/* 下半部分：技能包详情（固定显示） */}
-        {selectedSkill && selected && !showImportSkill && (
-          <div style={{ borderTop: '1px solid rgba(10,132,255,0.1)', padding: '12px 0' }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#e0e8f0', marginBottom: 4 }}>{selected.name}</div>
-            <div style={{ fontSize: 10, color: '#556', fontFamily: 'monospace', marginBottom: 8 }}>{selectedSkill}</div>
-            <p style={{ fontSize: 12, color: '#8899aa', margin: '0 0 10px' }}>{selected.description}</p>
-            <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>依赖工具</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {(selected.required_tools || []).map(t => <span key={t} style={{ padding: '2px 8px', background: 'rgba(100,210,255,0.1)', borderRadius: 10, fontSize: 10, color: '#64d2ff' }}>{tools[t]?.name || t}</span>)}
+    // 详情视图
+    if (selectedSkill && selected && !showImportSkill) {
+      return (
+        <>
+          <div style={headerStyle}>
+            <button onClick={() => setSelectedSkill(null)} style={{ background: 'none', border: 'none', color: '#0a84ff', cursor: 'pointer', fontSize: 13 }}>← 返回列表</button>
+            <button style={closeBtn} onClick={onClose} autoFocus>×</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 2px' }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#e0e8f0', marginBottom: 4 }}>{selected.name}</div>
+            <div style={{ fontSize: 11, color: '#556', fontFamily: 'monospace', marginBottom: 12 }}>{selectedSkill}</div>
+            <p style={{ fontSize: 12, color: '#8899aa', margin: '0 0 16px' }}>{selected.description}</p>
+            <div style={{ fontSize: 11, color: '#667', marginBottom: 6, fontWeight: 600 }}>依赖工具</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {(selected.required_tools || []).map(t => {
+                const tool = tools[t]
+                return (
+                  <div key={t} style={{ padding: '6px 10px', background: 'rgba(100,210,255,0.06)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 10, color: tool?.dangerous ? '#ff9f0a' : '#64d2ff' }}>{tool?.dangerous ? '⚠' : '✓'}</span>
+                    <span style={{ fontSize: 12, color: '#c8d6e5' }}>{tool?.name || t}</span>
+                    {tool?.description && <span style={{ fontSize: 10, color: '#556', marginLeft: 'auto' }}>{tool.description}</span>}
+                  </div>
+                )
+              })}
             </div>
           </div>
-        )}
+        </>
+      )
+    }
 
-        {/* 导入技能包表单 */}
-        {showImportSkill && (
-          <div style={{ borderTop: '1px solid rgba(10,132,255,0.1)', padding: '12px 0', maxHeight: '50%', overflowY: 'auto' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#e0e8f0', marginBottom: 10 }}>新增技能包</div>
-
-            {importError && <div style={{ padding: '6px 10px', marginBottom: 8, background: 'rgba(255,59,48,0.1)', border: '1px solid rgba(255,59,48,0.3)', borderRadius: 4, color: '#ff453a', fontSize: 11 }}>{importError}</div>}
-
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>技能ID * <span style={{ color: '#556' }}>(英文标识，如 frontend_dev)</span></div>
-              <input value={importSkillForm.id} onChange={e => setImportSkillForm({ ...importSkillForm, id: e.target.value })} placeholder="my_skill" style={inputStyle} />
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>名称 *</div>
-              <input value={importSkillForm.name} onChange={e => setImportSkillForm({ ...importSkillForm, name: e.target.value })} placeholder="我的技能" style={inputStyle} />
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>描述</div>
-              <input value={importSkillForm.description} onChange={e => setImportSkillForm({ ...importSkillForm, description: e.target.value })} placeholder="技能描述" style={inputStyle} />
+    // 导入表单视图
+    if (showImportSkill) {
+      return (
+        <>
+          <div style={headerStyle}>
+            <button onClick={() => setShowImportSkill(false)} style={{ background: 'none', border: 'none', color: '#0a84ff', cursor: 'pointer', fontSize: 13 }}>← 取消</button>
+            <button style={closeBtn} onClick={onClose} autoFocus>×</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 2px' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#e0e8f0', marginBottom: 12 }}>新增技能包</div>
+            {importError && <div style={{ padding: '6px 10px', marginBottom: 10, background: 'rgba(255,59,48,0.1)', border: '1px solid rgba(255,59,48,0.3)', borderRadius: 4, color: '#ff453a', fontSize: 11 }}>{importError}</div>}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>技能ID *</div>
+              <input value={importSkillForm.id} onChange={e => setImportSkillForm({ ...importSkillForm, id: e.target.value })} placeholder="frontend_dev" style={inputStyle} />
             </div>
             <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>名称 *</div>
+              <input value={importSkillForm.name} onChange={e => setImportSkillForm({ ...importSkillForm, name: e.target.value })} placeholder="前端开发" style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>描述</div>
+              <input value={importSkillForm.description} onChange={e => setImportSkillForm({ ...importSkillForm, description: e.target.value })} placeholder="React/Vue组件开发" style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>依赖工具</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {Object.entries(tools).map(([id, tool]) => {
@@ -617,111 +767,194 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
                 })}
               </div>
             </div>
-
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleImportSkill} style={{ flex: 1, padding: '6px 0', background: '#0a84ff', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, cursor: 'pointer' }}>添加</button>
-              <button onClick={() => setShowImportSkill(false)} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
+              <button onClick={handleImportSkill} style={{ flex: 1, padding: '8px 0', background: '#0a84ff', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>添加</button>
+              <button onClick={() => setShowImportSkill(false)} style={{ flex: 1, padding: '8px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
             </div>
           </div>
-        )}
+        </>
+      )
+    }
+
+    // 列表视图
+    const skillCategories: Record<string, { label: string; icon: string; match: (name: string) => boolean }> = {
+      dev: { label: '开发技能', icon: '💻', match: n => /开发|Dev|前端|后端|全栈|API|数据库/.test(n) },
+      data: { label: '数据技能', icon: '📊', match: n => /数据|Data|ML|机器学习|ETL|可视化/.test(n) },
+      content: { label: '内容技能', icon: '✍️', match: n => /内容|写作|文案|编辑|SEO/.test(n) },
+      design: { label: '设计技能', icon: '🎨', match: n => /设计|品牌|平面|UI/.test(n) },
+      testing: { label: '测试技能', icon: '🧪', match: n => /测试|审查|安全审计|性能/.test(n) },
+      ops: { label: '运维技能', icon: '⚙️', match: n => /运维|DevOps|部署|监控/.test(n) },
+      ux: { label: '用户研究', icon: '🔬', match: n => /用户|UX|可用性|画像/.test(n) },
+      sales: { label: '销售技能', icon: '💰', match: n => /销售|竞争|赋能/.test(n) },
+      general: { label: '通用技能', icon: '📋', match: () => true },
+    }
+
+    const categorizeSkill = (name: string): string => {
+      for (const [cat, config] of Object.entries(skillCategories)) {
+        if (cat !== 'general' && config.match(name)) return cat
+      }
+      return 'general'
+    }
+
+    const skillGroups: Record<string, Array<[string, SkillInfo]>> = {}
+    Object.entries(skills).forEach(([id, skill]) => {
+      const cat = categorizeSkill(skill.name)
+      if (!skillGroups[cat]) skillGroups[cat] = []
+      skillGroups[cat].push([id, skill])
+    })
+
+    return (
+      <>
+        <div style={headerStyle}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: '#e0e8f0' }}>📦 技能包管理</span>
+          <button style={closeBtn} onClick={onClose} autoFocus>×</button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <button onClick={() => { setShowImportSkill(true); setImportError(''); setSelectedSkill(null) }} style={{ ...btn('#0a84ff'), marginTop: 0, fontSize: 12, padding: '8px 0', marginBottom: 12 }}>+ 新增技能包</button>
+
+          {Object.entries(skillCategories).map(([cat, config]) => {
+            const catSkills = skillGroups[cat] || []
+            if (catSkills.length === 0) return null
+            const isExpanded = selectedSkillCategory === cat
+            return (
+              <div key={cat} style={{ marginBottom: 4 }}>
+                <div
+                  onClick={() => setSelectedSkillCategory(isExpanded ? null : cat)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
+                    background: 'rgba(255,255,255,0.02)',
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: '#8899aa', fontWeight: 500 }}>{config.icon} {config.label}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 10, color: '#556', padding: '1px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>{catSkills.length}</span>
+                    <span style={{ fontSize: 10, color: '#444', transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>›</span>
+                  </div>
+                </div>
+                {isExpanded && (
+                  <div style={{ paddingLeft: 12 }}>
+                    {catSkills.map(([id, skill]) => (
+                      <div key={id} onClick={() => setSelectedSkill(id)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', marginBottom: 2, borderRadius: 4, cursor: 'pointer' }}>
+                        <span style={{ fontSize: 10, color: '#0a84ff' }}>📦</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, color: '#c8d6e5' }}>{skill.name}</div>
+                          <div style={{ fontSize: 10, color: '#556' }}>{skill.description}</div>
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteSkill(id) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff453a', fontSize: 14, opacity: 0.4 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {Object.keys(skills).length === 0 && (
+            <div style={{ textAlign: 'center', padding: 24, color: '#556', fontSize: 12 }}>暂无技能包</div>
+          )}
+        </div>
       </>
     )
   }
 
   /* ───── 渲染：工具包管理 ───── */
 
-  const [selectedToolCategory, setSelectedToolCategory] = useState<string | null>(null)
-
   const renderTools = () => {
     const catLabel: Record<string, string> = { file: '📁 文件操作', shell: '💻 命令执行', git: '🔀 Git操作', search: '🔍 搜索', test: '🧪 测试', general: '⚙️ 通用', document: '📄 文档', design: '🎨 设计', data: '📊 数据', ai: '🤖 AI', content: '✍️ 内容' }
 
+    // 导入表单视图
+    if (showImportTool) {
+      return (
+        <>
+          <div style={headerStyle}>
+            <button onClick={() => setShowImportTool(false)} style={{ background: 'none', border: 'none', color: '#bf5af2', cursor: 'pointer', fontSize: 13 }}>← 取消</button>
+            <button style={closeBtn} onClick={onClose} autoFocus>×</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 2px' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#e0e8f0', marginBottom: 12 }}>新增工具</div>
+            {importError && <div style={{ padding: '6px 10px', marginBottom: 10, background: 'rgba(255,59,48,0.1)', border: '1px solid rgba(255,59,48,0.3)', borderRadius: 4, color: '#ff453a', fontSize: 11 }}>{importError}</div>}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>工具ID *</div>
+              <input value={importToolForm.id} onChange={e => setImportToolForm({ ...importToolForm, id: e.target.value })} placeholder="deploy_k8s" style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>名称 *</div>
+              <input value={importToolForm.name} onChange={e => setImportToolForm({ ...importToolForm, name: e.target.value })} placeholder="部署到K8s" style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>描述</div>
+              <input value={importToolForm.description} onChange={e => setImportToolForm({ ...importToolForm, description: e.target.value })} placeholder="部署应用到Kubernetes集群" style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>分类</div>
+              <select value={importToolForm.category} onChange={e => setImportToolForm({ ...importToolForm, category: e.target.value })} style={selectStyle}>
+                {Object.entries(catLabel).map(([id, label]) => <option key={id} value={id} style={{ background: '#1a1a2e' }}>{label}</option>)}
+              </select>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#c8d6e5', cursor: 'pointer' }}>
+                <input type="checkbox" checked={importToolForm.dangerous} onChange={e => setImportToolForm({ ...importToolForm, dangerous: e.target.checked })} />
+                标记为危险操作
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleImportTool} style={{ flex: 1, padding: '8px 0', background: '#bf5af2', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>添加</button>
+              <button onClick={() => setShowImportTool(false)} style={{ flex: 1, padding: '8px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
+            </div>
+          </div>
+        </>
+      )
+    }
+
+    // 列表视图
     return (
       <>
         <div style={headerStyle}>
           <span style={{ fontSize: 16, fontWeight: 700, color: '#e0e8f0' }}>🔧 工具包管理</span>
           <button style={closeBtn} onClick={onClose} autoFocus>×</button>
         </div>
-
-        {/* 上半部分：工具列表（可滚动） */}
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
           <button onClick={() => { setShowImportTool(true); setImportError('') }} style={{ ...btn('#bf5af2'), marginTop: 0, fontSize: 12, padding: '8px 0', marginBottom: 12 }}>+ 新增工具</button>
 
-          {/* 按分类分组 */}
+          {/* 按分类分组 - 手风琴式 */}
           {Object.entries(catLabel).map(([cat, label]) => {
             const catTools = Object.entries(tools).filter(([, t]) => t.category === cat)
             if (catTools.length === 0) return null
-            const isExpanded = selectedToolCategory === cat
             return (
-              <div key={cat} style={{ marginBottom: 8 }}>
+              <div key={cat} style={{ marginBottom: 4 }}>
                 <div
-                  onClick={() => setSelectedToolCategory(isExpanded ? null : cat)}
+                  onClick={() => setSelectedToolCategory(selectedToolCategory === cat ? null : cat)}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '6px 10px', borderRadius: 6, cursor: 'pointer',
-                    background: isExpanded ? 'rgba(191,90,242,0.1)' : 'transparent',
-                    marginBottom: 4,
+                    padding: '8px 10px', borderRadius: 6, cursor: 'pointer',
+                    background: 'rgba(255,255,255,0.02)',
                   }}
                 >
-                  <span style={{ fontSize: 11, color: '#8899aa', fontWeight: 600 }}>{label}</span>
-                  <span style={{ fontSize: 10, color: '#556' }}>{catTools.length}</span>
-                </div>
-                {isExpanded && catTools.map(([id, tool]) => (
-                  <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px 6px 20px', marginBottom: 2 }}>
-                    <div style={{ width: 20, height: 20, borderRadius: 4, background: tool.dangerous ? 'rgba(255,159,10,0.15)' : 'rgba(48,209,88,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, flexShrink: 0 }}>
-                      {tool.dangerous ? '⚠️' : '✓'}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, color: '#c8d6e5' }}>{tool.name}</div>
-                      <div style={{ fontSize: 10, color: '#556' }}>{tool.description}</div>
-                    </div>
-                    <button onClick={() => handleDeleteTool(id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff453a', fontSize: 14, padding: '2px 4px', flexShrink: 0, opacity: 0.6 }}>×</button>
+                  <span style={{ fontSize: 12, color: '#8899aa', fontWeight: 500 }}>{label}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 10, color: '#556', padding: '1px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>{catTools.length}</span>
+                    <span style={{ fontSize: 10, color: '#444', transform: selectedToolCategory === cat ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>›</span>
                   </div>
-                ))}
+                </div>
+                {selectedToolCategory === cat && (
+                  <div style={{ paddingLeft: 12 }}>
+                    {catTools.map(([id, tool]) => (
+                      <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', marginBottom: 2 }}>
+                        <span style={{ fontSize: 10, color: tool.dangerous ? '#ff9f0a' : '#30d158' }}>{tool.dangerous ? '⚠' : '✓'}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, color: '#c8d6e5' }}>{tool.name}</div>
+                          <div style={{ fontSize: 10, color: '#556' }}>{tool.description}</div>
+                        </div>
+                        <button onClick={() => handleDeleteTool(id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff453a', fontSize: 14, opacity: 0.4 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}
         </div>
-
-        {/* 下半部分：新增工具表单 */}
-        {showImportTool && (
-          <div style={{ borderTop: '1px solid rgba(191,90,242,0.1)', padding: '12px 0', maxHeight: '50%', overflowY: 'auto' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#e0e8f0', marginBottom: 10 }}>新增工具</div>
-
-            {importError && <div style={{ padding: '6px 10px', marginBottom: 8, background: 'rgba(255,59,48,0.1)', border: '1px solid rgba(255,59,48,0.3)', borderRadius: 4, color: '#ff453a', fontSize: 11 }}>{importError}</div>}
-
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>工具ID * <span style={{ color: '#556' }}>(英文标识，如 deploy_k8s)</span></div>
-              <input value={importToolForm.id} onChange={e => setImportToolForm({ ...importToolForm, id: e.target.value })} placeholder="my_tool" style={inputStyle} />
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>名称 *</div>
-              <input value={importToolForm.name} onChange={e => setImportToolForm({ ...importToolForm, name: e.target.value })} placeholder="我的工具" style={inputStyle} />
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>描述</div>
-              <input value={importToolForm.description} onChange={e => setImportToolForm({ ...importToolForm, description: e.target.value })} placeholder="工具功能描述" style={inputStyle} />
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>分类</div>
-              <select value={importToolForm.category} onChange={e => setImportToolForm({ ...importToolForm, category: e.target.value })} style={selectStyle}>
-                {Object.entries(catLabel).map(([id, label]) => (
-                  <option key={id} value={id} style={{ background: '#1a1a2e' }}>{label}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#c8d6e5', cursor: 'pointer' }}>
-                <input type="checkbox" checked={importToolForm.dangerous} onChange={e => setImportToolForm({ ...importToolForm, dangerous: e.target.checked })} />
-                标记为危险操作（需要额外确认）
-              </label>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleImportTool} style={{ flex: 1, padding: '6px 0', background: '#bf5af2', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, cursor: 'pointer' }}>添加</button>
-              <button onClick={() => setShowImportTool(false)} style={{ flex: 1, padding: '6px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
-            </div>
-          </div>
-        )}
       </>
     )
   }

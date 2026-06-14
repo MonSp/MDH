@@ -64,6 +64,59 @@ export const DEFAULT_DEPTS: ProjectDept[] = [
       { id: 'anim-ppt', name: '周子轩', role: AgentRole.Executor, title: '动画工程师', description: '转场/动画/交互效果' },
     ],
   },
+  {
+    deptId: 'dept-marketing', name: '市场营销部', icon: '📢', color: '#34c759', accent: '#5e9e6b',
+    desc: '品牌推广与用户增长：从策略到执行', projectType: '营销活动/社媒运营/增长',
+    keywords: ['增长', '内容', '社媒', 'SEO'], successRate: 0.85,
+    team: [
+      { id: 'lead-mk', name: '李明远', role: AgentRole.Coordinator, title: '营销总监', description: '营销策略与团队管理' },
+      { id: 'growth-mk', name: '王小虎', role: AgentRole.Executor, title: '增长黑客', description: '漏斗优化与病毒传播' },
+      { id: 'content-mk', name: '赵雨晴', role: AgentRole.Executor, title: '内容策略师', description: '多平台内容创作' },
+      { id: 'social-mk', name: '陈思琪', role: AgentRole.Executor, title: '社媒运营', description: '社交媒体运营' },
+    ],
+  },
+  {
+    deptId: 'dept-sales', name: '销售部', icon: '💰', color: '#ff9500', accent: '#ffb340',
+    desc: '客户开发与成交：从线索到签约', projectType: '客户拓展/商务谈判/合同',
+    keywords: ['外呼', '谈判', '成交', 'CRM'], successRate: 0.80,
+    team: [
+      { id: 'lead-sl', name: '张伟强', role: AgentRole.Coordinator, title: '销售总监', description: '销售策略与团队管理' },
+      { id: 'outbound-sl', name: '刘晓峰', role: AgentRole.Executor, title: '外呼专员', description: '精准外呼与线索开发' },
+      { id: 'deal-sl', name: '王思琪', role: AgentRole.Planner, title: '交易策略师', description: 'MEDDPICC资质评估' },
+      { id: 'support-sl', name: '李雨欣', role: AgentRole.Reviewer, title: '销售支持', description: '提案与合同支持' },
+    ],
+  },
+  {
+    deptId: 'dept-design', name: '设计部', icon: '🎨', color: '#af52de', accent: '#d4a0ff',
+    desc: '用户体验与品牌设计：从研究到视觉', projectType: 'UI设计/UX研究/品牌',
+    keywords: ['设计', '用户体验', '品牌', '原型'], successRate: 0.88,
+    team: [
+      { id: 'lead-ds', name: '林雅婷', role: AgentRole.Coordinator, title: '设计总监', description: '设计策略与团队管理' },
+      { id: 'ui-ds', name: '王子豪', role: AgentRole.Executor, title: 'UI设计师', description: '视觉设计与组件库' },
+      { id: 'ux-ds', name: '陈晓琳', role: AgentRole.Planner, title: 'UX研究员', description: '用户研究与可用性测试' },
+      { id: 'brand-ds', name: '赵思远', role: AgentRole.Executor, title: '品牌设计师', description: '品牌视觉与规范' },
+    ],
+  },
+  {
+    deptId: 'dept-product', name: '产品部', icon: '🧭', color: '#5856d6', accent: '#8b83ff',
+    desc: '产品规划与管理：从发现到交付', projectType: '产品规划/需求管理/路线图',
+    keywords: ['产品', '需求', '路线图', '用户'], successRate: 0.86,
+    team: [
+      { id: 'lead-pd', name: '周子涵', role: AgentRole.Coordinator, title: '产品总监', description: '产品战略与团队管理' },
+      { id: 'pm-pd', name: '林沐阳', role: AgentRole.Coordinator, title: '产品经理', description: '需求分析与产品规划' },
+      { id: 'research-pd', name: '李若涵', role: AgentRole.Planner, title: '产品研究员', description: '用户研究与竞品分析' },
+    ],
+  },
+  {
+    deptId: 'dept-finance', name: '财务部', icon: '📊', color: '#63e6be', accent: '#a7f3d0',
+    desc: '财务管理与分析：从预算到决策', projectType: '财务分析/预算/投资',
+    keywords: ['财务', '预算', '分析', '报表'], successRate: 0.92,
+    team: [
+      { id: 'lead-fi', name: '黄晓明', role: AgentRole.Coordinator, title: '财务总监', description: '财务策略与团队管理' },
+      { id: 'analyst-fi', name: '张雨欣', role: AgentRole.Executor, title: '财务分析师', description: '财务建模与预测' },
+      { id: 'audit-fi', name: '王思远', role: AgentRole.Reviewer, title: '审计专员', description: '合规审计与风险控制' },
+    ],
+  },
 ]
 
 /* ───────── 默认项目 ───────── */
