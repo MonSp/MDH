@@ -897,6 +897,7 @@ custom_roles:
   security_dev:
     name: "安全开发工程师"
     description: "负责安全编码和漏洞修复"
+    department: "dept-software"
     base_role: "executor"
     extra_tools: ["grep_content", "run_linter"]
     extra_skills: ["security_audit"]
@@ -919,6 +920,7 @@ custom_roles:
   cloud_architect:
     name: "云原生架构师"
     description: "负责云原生架构设计"
+    department: "dept-software"
     base_role: "planner"
     extra_tools: ["bash", "write_file"]
     extra_skills: ["devops", "deployment"]
@@ -941,6 +943,7 @@ custom_roles:
   fullstack_data:
     name: "全栈数据工程师"
     description: "前后端+数据一体化开发"
+    department: "dept-data"
     base_role: "executor"
     extra_tools: ["run_sql", "create_chart", "run_etl"]
     extra_skills: ["data_engineering", "data_visualization"]
@@ -963,6 +966,7 @@ custom_roles:
   ai_content_creator:
     name: "AI内容创作师"
     description: "结合AI工具进行内容创作"
+    department: "dept-content"
     base_role: "content_writer"
     extra_tools: ["generate_image", "generate_video"]
     extra_skills: ["image_generation", "video_generation"]
@@ -987,6 +991,7 @@ custom_roles:
   frontend_specialist:
     name: "前端开发专家"
     description: "现代Web技术专家，React/Vue/Angular，UI实现，性能优化"
+    department: "dept-software"
     base_role: "executor"
     extra_tools: ["run_tests", "run_linter"]
     extra_skills: ["frontend_dev", "performance"]
@@ -1017,6 +1022,7 @@ custom_roles:
   backend_specialist:
     name: "后端架构专家"
     description: "可扩展系统设计、数据库架构、API开发、云基础设施"
+    department: "dept-software"
     base_role: "planner"
     extra_tools: ["bash", "write_file", "run_sql"]
     extra_skills: ["backend_dev", "database", "api_design", "devops"]
@@ -1045,6 +1051,7 @@ custom_roles:
   devops_specialist:
     name: "DevOps自动化专家"
     description: "基础设施自动化、CI/CD流水线、云运维"
+    department: "dept-software"
     base_role: "monitor"
     extra_tools: ["write_file"]
     extra_skills: ["devops", "deployment", "monitoring"]
@@ -1072,6 +1079,7 @@ custom_roles:
   code_review_expert:
     name: "代码审查专家"
     description: "以导师心态进行代码审查，关注正确性、安全性、可维护性"
+    department: "dept-software"
     base_role: "reviewer"
     extra_tools: ["grep_content", "run_linter"]
     extra_skills: ["code_review", "security_audit"]
@@ -1100,6 +1108,7 @@ custom_roles:
   technical_writer:
     name: "技术文档专家"
     description: "开发者文档、API参考、README、教程"
+    department: "dept-software"
     base_role: "content_writer"
     extra_tools: ["write_file", "edit_file", "create_document"]
     extra_skills: ["content_writing"]
@@ -1136,6 +1145,7 @@ custom_roles:
   growth_hacker:
     name: "增长黑客"
     description: "数据驱动的用户获取和病毒式增长专家"
+    department: "dept-marketing"
     base_role: "coordinator"
     extra_tools: ["create_chart", "seo_optimize"]
     extra_skills: ["data_analysis", "copywriting"]
@@ -1165,6 +1175,7 @@ custom_roles:
   content_strategist:
     name: "内容策略师"
     description: "多平台内容策略和品牌故事专家"
+    department: "dept-marketing"
     base_role: "content_director"
     extra_tools: ["seo_optimize", "create_chart"]
     extra_skills: ["content_writing", "copywriting"]
@@ -1196,6 +1207,7 @@ custom_roles:
   sales_strategist:
     name: "销售策略师"
     description: "基于信号的精准外呼和多渠道序列设计"
+    department: "dept-sales"
     base_role: "coordinator"
     extra_tools: ["create_document", "write_file"]
     extra_skills: ["copywriting", "task_decomposition"]
@@ -1227,6 +1239,7 @@ custom_roles:
   ui_designer:
     name: "UI设计师"
     description: "视觉设计系统、组件库、像素级界面设计"
+    department: "dept-design"
     base_role: "slide_designer"
     extra_tools: ["generate_image", "create_document"]
     extra_skills: ["graphic_design"]
@@ -1257,6 +1270,7 @@ custom_roles:
   product_manager:
     name: "产品经理"
     description: "全生命周期产品管理，从发现到交付到衡量"
+    department: "dept-product"
     base_role: "coordinator"
     extra_tools: ["create_document", "create_chart", "write_file"]
     extra_skills: ["task_decomposition", "data_analysis"]
@@ -1294,6 +1308,7 @@ custom_roles:
   financial_analyst:
     name: "财务分析师"
     description: "财务建模、预测、情景分析、数据驱动决策支持"
+    department: "dept-finance"
     base_role: "data_analyst"
     extra_tools: ["create_document", "create_chart"]
     extra_skills: ["data_analysis"]
@@ -1330,6 +1345,7 @@ custom_roles:
   ux_researcher:
     name: "UX研究员"
     description: "用户行为分析、可用性测试、数据驱动设计洞察"
+    department: "dept-design"
     base_role: "reviewer"
     extra_tools: ["create_document", "create_chart", "write_file"]
     extra_skills: ["user_research", "usability_testing", "persona_development"]
@@ -1364,6 +1380,7 @@ custom_roles:
   brand_guardian:
     name: "品牌守护者"
     description: "品牌策略、视觉一致性、品牌保护"
+    department: "dept-design"
     base_role: "content_director"
     extra_tools: ["generate_image", "create_document"]
     extra_skills: ["brand_strategy", "brand_identity", "brand_voice"]
@@ -1400,6 +1417,7 @@ custom_roles:
   deal_strategist:
     name: "交易策略师"
     description: "MEDDPICC资质评估、竞争定位、赢单规划"
+    department: "dept-sales"
     base_role: "coordinator"
     extra_tools: ["create_document", "write_file", "search_files"]
     extra_skills: ["sales_qualification", "competitive_analysis"]
