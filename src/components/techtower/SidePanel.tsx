@@ -60,9 +60,11 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
   // 技能/工具导入状态
   const [showImportSkill, setShowImportSkill] = useState(false)
   const [showImportTool, setShowImportTool] = useState(false)
-  const [importSkillForm, setImportSkillForm] = useState({ id: '', name: '', description: '', required_tools: [] as string[] })
+  const [importSkillForm, setImportSkillForm] = useState({ id: '', name: '', description: '', category: '', methodology: '', practices: [] as string[], workflow: {} as Record<string, string>, required_tools: [] as string[] })
   const [importToolForm, setImportToolForm] = useState({ id: '', name: '', description: '', category: 'general', dangerous: false })
   const [importError, setImportError] = useState('')
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -117,6 +119,40 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
 
   /* ───── 技能操作 ───── */
 
+  const handleGenerateSkill = async () => {
+    if (!aiPrompt.trim()) { setImportError('请描述你需要的技能'); return }
+    setAiGenerating(true)
+    setImportError('')
+    try {
+      const res = await fetch('/api/roles/skills/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: aiPrompt,
+          api_key: localStorage.getItem('deepseek_api_key') || undefined,
+          base_url: localStorage.getItem('deepseek_base_url') || undefined,
+        })
+      })
+      const data = await res.json()
+      if (data.success && data.data) {
+        const d = data.data
+        setImportSkillForm({
+          id: d.id || '',
+          name: d.name || '',
+          description: d.description || '',
+          category: d.category || '',
+          methodology: d.methodology || '',
+          practices: d.practices || [],
+          workflow: d.workflow || {},
+          required_tools: d.required_tools || [],
+        })
+      } else {
+        setImportError(data.error || 'AI生成失败')
+      }
+    } catch (e) { setImportError('AI生成请求失败') }
+    finally { setAiGenerating(false) }
+  }
+
   const handleImportSkill = async () => {
     setImportError('')
     const id = importSkillForm.id.trim()
@@ -124,7 +160,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
     try {
       const res = await fetch(`/api/roles/skills/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(importSkillForm) })
       const data = await res.json()
-      if (data.success) { await loadRolesConfig(); setShowImportSkill(false); setImportSkillForm({ id: '', name: '', description: '', required_tools: [] }) }
+      if (data.success) { await loadRolesConfig(); setShowImportSkill(false); setImportSkillForm({ id: '', name: '', description: '', category: '', methodology: '', practices: [], workflow: {}, required_tools: [] }); setAiPrompt('') }
       else setImportError(data.error || '导入失败')
     } catch (e) { setImportError('导入失败') }
   }
@@ -773,12 +809,43 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
       return (
         <>
           <div style={headerStyle}>
-            <button onClick={() => setShowImportSkill(false)} style={{ background: 'none', border: 'none', color: '#0a84ff', cursor: 'pointer', fontSize: 13 }}>← 取消</button>
+            <button onClick={() => { setShowImportSkill(false); setAiPrompt('') }} style={{ background: 'none', border: 'none', color: '#0a84ff', cursor: 'pointer', fontSize: 13 }}>← 取消</button>
             <button style={closeBtn} onClick={onClose} autoFocus>×</button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 2px' }}>
             <div style={{ fontSize: 15, fontWeight: 600, color: '#e0e8f0', marginBottom: 12 }}>新增技能包</div>
             {importError && <div style={{ padding: '6px 10px', marginBottom: 10, background: 'rgba(255,59,48,0.1)', border: '1px solid rgba(255,59,48,0.3)', borderRadius: 4, color: '#ff453a', fontSize: 11 }}>{importError}</div>}
+
+            {/* AI生成区域 */}
+            <div style={{ marginBottom: 16, padding: '12px', background: 'rgba(100,210,255,0.04)', borderRadius: 8, border: '1px solid rgba(100,210,255,0.15)' }}>
+              <div style={{ fontSize: 11, color: '#64d2ff', marginBottom: 8, fontWeight: 600 }}>🤖 AI智能生成</div>
+              <div style={{ fontSize: 10, color: '#667', marginBottom: 8 }}>描述你需要的技能，AI自动生成完整配置（方法论、最佳实践、工作流）</div>
+              <textarea
+                value={aiPrompt}
+                onChange={e => setAiPrompt(e.target.value)}
+                placeholder="例如：我需要一个前端性能优化的技能，包括Core Web Vitals优化、代码分割、懒加载等..."
+                style={{ ...inputStyle, minHeight: 70, resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
+              />
+              <button
+                onClick={handleGenerateSkill}
+                disabled={aiGenerating || !aiPrompt.trim()}
+                style={{
+                  marginTop: 8, padding: '8px 16px', background: aiGenerating ? 'rgba(100,210,255,0.3)' : '#0a84ff',
+                  border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: aiGenerating ? 'not-allowed' : 'pointer',
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                }}
+              >
+                {aiGenerating ? '⏳ AI生成中...' : '✨ AI生成技能配置'}
+              </button>
+            </div>
+
+            {/* 分隔线 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0' }}>
+              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+              <span style={{ fontSize: 10, color: '#556' }}>或手动填写</span>
+              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }} />
+            </div>
+
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>技能ID *</div>
               <input value={importSkillForm.id} onChange={e => setImportSkillForm({ ...importSkillForm, id: e.target.value })} placeholder="frontend_dev" style={inputStyle} />
@@ -791,6 +858,39 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
               <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>描述</div>
               <input value={importSkillForm.description} onChange={e => setImportSkillForm({ ...importSkillForm, description: e.target.value })} placeholder="React组件开发" style={inputStyle} />
             </div>
+
+            {importSkillForm.methodology && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>📐 方法论</div>
+                <div style={{ padding: '8px 12px', background: 'rgba(100,210,255,0.06)', borderRadius: 6, fontSize: 11, color: '#c8d6e5', lineHeight: 1.5 }}>{importSkillForm.methodology}</div>
+              </div>
+            )}
+
+            {importSkillForm.practices.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>✅ 最佳实践</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {importSkillForm.practices.map((p, i) => (
+                    <div key={i} style={{ padding: '4px 10px', background: 'rgba(48,209,88,0.06)', borderRadius: 4, fontSize: 10, color: '#a0b0c0', borderLeft: '2px solid rgba(48,209,88,0.3)' }}>{p}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {Object.keys(importSkillForm.workflow).length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>🔄 工作流</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {Object.entries(importSkillForm.workflow).sort(([a], [b]) => Number(a) - Number(b)).map(([step, desc]) => (
+                    <div key={step} style={{ padding: '4px 10px', background: 'rgba(255,159,10,0.06)', borderRadius: 4, fontSize: 10, color: '#a0b0c0', display: 'flex', gap: 6 }}>
+                      <span style={{ color: '#ff9f0a', fontWeight: 600 }}>{step}.</span>
+                      <span>{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>依赖工具</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -802,7 +902,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={handleImportSkill} style={{ flex: 1, padding: '8px 0', background: '#0a84ff', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>添加</button>
-              <button onClick={() => setShowImportSkill(false)} style={{ flex: 1, padding: '8px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
+              <button onClick={() => { setShowImportSkill(false); setAiPrompt('') }} style={{ flex: 1, padding: '8px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
             </div>
           </div>
         </>

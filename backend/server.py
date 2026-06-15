@@ -539,6 +539,178 @@ async def list_role_skills():
         return _fail(str(e))
 
 
+
+@app.post("/api/roles/skills/generate")
+async def generate_skill(body: dict = Body(...)):
+    """用AI根据需求描述生成技能配置"""
+    try:
+        description = body.get("description", "").strip()
+        if not description:
+            return _fail("请提供技能需求描述")
+
+        # 获取session和API配置
+        from agent import PROVIDER_REGISTRY
+
+        session_id = body.get("session_id")
+        session = sessions.get(session_id) if session_id else None
+
+        # 如果没有指定session，找一个有API key的session
+        if not session:
+            for sid, s in sessions.items():
+                logger.info("检查session %s: api_key=%s", sid, bool(s.api_key))
+                if s.api_key:
+                    session = s
+                    logger.info("使用session %s", sid)
+                    break
+
+        provider = "deepseek"
+        model_name = None
+        api_key = None
+        base_url = None
+
+        # 优先从请求体获取API key
+        if body.get("api_key"):
+            api_key = body["api_key"]
+            base_url = body.get("base_url") or ""
+            logger.info("从请求体获取API key")
+
+        # 其次从session获取
+        if not api_key and session:
+            provider = session.provider or provider
+            model_name = session.model_name
+            api_key = session.api_key
+            base_url = session.base_url
+            logger.info("从session获取配置: provider=%s model=%s api_key=%s", provider, model_name, bool(api_key))
+
+        # 尝试从环境变量获取
+        if not api_key:
+            api_key = os.environ.get("DEEPSEEK_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
+
+        # 尝试从config获取
+        if not api_key:
+            from config import DEEPSEEK_API_KEY
+            api_key = DEEPSEEK_API_KEY
+
+        if not api_key and provider != "ollama":
+            return _fail("未配置API密钥，请先在CEO对话中设置API Key")
+
+        logger.info("最终API配置: provider=%s api_key=%s base_url=%s", provider, bool(api_key), base_url)
+
+        reg = PROVIDER_REGISTRY.get(provider)
+        if reg is None:
+            return _fail(f"不支持的模型提供商: {provider}")
+
+        if not api_key and provider != "ollama":
+            return _fail("未配置API密钥，请先在CEO对话中设置API Key")
+
+        # 创建模型
+        # 确保base_url有协议前缀
+        if base_url and not base_url.startswith(("http://", "https://")):
+            base_url = "https://" + base_url
+
+        # 如果没有base_url，使用provider的默认值
+        if not base_url:
+            # 从provider registry获取默认base_url
+            if provider == "deepseek":
+                base_url = "https://api.deepseek.com"
+            elif provider == "openai":
+                base_url = "https://api.openai.com/v1"
+            # 其他provider由credential_kwargs处理
+
+        class _TempSession:
+            pass
+        temp_session = _TempSession()
+        temp_session.api_key = api_key
+        temp_session.base_url = base_url
+
+        credential = reg["credential_cls"](**reg["credential_kwargs"](temp_session))
+        formatter = reg["formatter_cls"]()
+        final_model_name = model_name or reg["default_model"]
+        model = reg["model_cls"](
+            credential=credential,
+            model=final_model_name,
+            stream=False,
+            formatter=formatter,
+        )
+
+        # 构建prompt
+        existing_skills = list((_load_roles_config() or {}).get("skills", {}).keys())
+        existing_list = ", ".join(existing_skills[:20]) if existing_skills else "无"
+
+        prompt = f"""你是一位AI Harness Engineering技能设计专家。请根据以下需求描述，生成一个完整的技能配置。
+
+用户需求：{description}
+
+当前已有的技能ID（请避免重复）：{existing_list}
+
+请严格按以下JSON格式返回，不要包含其他内容：
+{{
+    "id": "技能ID（英文snake_case，简短有意义）",
+    "name": "技能中文名称",
+    "description": "一句话描述（20字以内）",
+    "category": "分类（dev/testing/ops/data/ai/ux/design/content/sales/general 选一）",
+    "methodology": "方法论描述（用 — 连接方法名和简要说明）",
+    "practices": [
+        "最佳实践1（具体可执行，含量化指标）",
+        "最佳实践2",
+        "最佳实践3",
+        "最佳实践4",
+        "最佳实践5",
+        "最佳实践6"
+    ],
+    "workflow": {{
+        "1": "第一步",
+        "2": "第二步",
+        "3": "第三步",
+        "4": "第四步",
+        "5": "第五步",
+        "6": "第六步"
+    }},
+    "required_tools": ["工具列表，从以下选择：read_file, write_file, edit_file, list_directory, bash, git_status, git_commit, git_push, git_branch, git_diff, git_log, search_files, grep_content, run_tests, run_linter, create_document, edit_document, create_slide, edit_slide, run_sql, create_chart, run_etl, generate_image, generate_video, edit_media, write_copy, seo_optimize, web_fetch"]
+}}"""
+
+        # 调用LLM
+        from agentscope.agent import Agent
+        from agentscope.message import Msg
+        from agent import _extract_text
+
+        agent = Agent(
+            name="skill_generator",
+            system_prompt="你是一位AI Harness Engineering技能设计专家。请严格按照JSON格式返回结果。",
+            model=model,
+        )
+
+        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+        response = await agent.reply(msg)
+
+        # 提取文本
+        text = _extract_text(response)
+        logger.info("AI生成技能返回: %s", text[:500])
+
+        # 解析JSON
+        import re
+        json_match = re.search(r'\{[\s\S]*\}', text)
+        if not json_match:
+            return _fail(f"AI未能生成有效配置，返回内容: {text[:200]}")
+
+        try:
+            skill_config = json.loads(json_match.group())
+        except json.JSONDecodeError as e:
+            return _fail(f"JSON解析失败: {str(e)}")
+
+        # 验证必要字段
+        if not skill_config.get("id"):
+            return _fail("AI未生成技能ID")
+        if not skill_config.get("name"):
+            skill_config["name"] = skill_config["id"]
+
+        return _ok(skill_config)
+
+    except Exception as e:
+        logger.exception("AI生成技能失败")
+        return _fail(str(e))
+
+
 @app.post("/api/roles/skills/{skill_id}")
 async def create_skill(skill_id: str, body: dict = Body(...)):
     """添加新技能"""
@@ -548,11 +720,21 @@ async def create_skill(skill_id: str, body: dict = Body(...)):
             config["skills"] = {}
         if skill_id in config["skills"]:
             return _fail(f"技能已存在: {skill_id}")
-        config["skills"][skill_id] = {
+        skill_entry = {
             "name": body.get("name", skill_id),
             "description": body.get("description", ""),
             "required_tools": body.get("required_tools", []),
         }
+        # 保存AI生成的扩展字段
+        if body.get("category"):
+            skill_entry["category"] = body["category"]
+        if body.get("methodology"):
+            skill_entry["methodology"] = body["methodology"]
+        if body.get("practices"):
+            skill_entry["practices"] = body["practices"]
+        if body.get("workflow"):
+            skill_entry["workflow"] = body["workflow"]
+        config["skills"][skill_id] = skill_entry
         _save_roles_config(config)
         return _ok(config["skills"][skill_id])
     except Exception as e:
