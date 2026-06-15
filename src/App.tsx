@@ -610,7 +610,7 @@ export default function App() {
               onSubmit={sendMessage}
               disabled={isProcessing}
               loading={isProcessing}
-              placeholder="输入指令，例如：打开 GitHub 搜索 vue..."
+              placeholder="输入指令，例如：打开 GitHub 搜索 react..."
               submitType="enter"
             />
             <div className="mode-switcher">

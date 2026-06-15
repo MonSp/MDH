@@ -717,6 +717,39 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
             <div style={{ fontSize: 16, fontWeight: 700, color: '#e0e8f0', marginBottom: 4 }}>{selected.name}</div>
             <div style={{ fontSize: 11, color: '#556', fontFamily: 'monospace', marginBottom: 12 }}>{selectedSkill}</div>
             <p style={{ fontSize: 12, color: '#8899aa', margin: '0 0 16px' }}>{selected.description}</p>
+
+            {selected.methodology && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: '#667', marginBottom: 6, fontWeight: 600 }}>📐 方法论</div>
+                <div style={{ padding: '8px 12px', background: 'rgba(100,210,255,0.06)', borderRadius: 6, fontSize: 12, color: '#c8d6e5', lineHeight: 1.6 }}>{selected.methodology}</div>
+              </div>
+            )}
+
+            {selected.practices && selected.practices.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: '#667', marginBottom: 6, fontWeight: 600 }}>✅ 最佳实践</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {selected.practices.map((p, i) => (
+                    <div key={i} style={{ padding: '6px 12px', background: 'rgba(48,209,88,0.06)', borderRadius: 6, fontSize: 11, color: '#a0b0c0', lineHeight: 1.5, borderLeft: '2px solid rgba(48,209,88,0.3)' }}>{p}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selected.workflow && Object.keys(selected.workflow).length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, color: '#667', marginBottom: 6, fontWeight: 600 }}>🔄 工作流</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {Object.entries(selected.workflow).sort(([a], [b]) => Number(a) - Number(b)).map(([step, desc]) => (
+                    <div key={step} style={{ padding: '6px 12px', background: 'rgba(255,159,10,0.06)', borderRadius: 6, fontSize: 11, color: '#a0b0c0', lineHeight: 1.5, display: 'flex', gap: 8 }}>
+                      <span style={{ color: '#ff9f0a', fontWeight: 600, minWidth: 16 }}>{step}.</span>
+                      <span>{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div style={{ fontSize: 11, color: '#667', marginBottom: 6, fontWeight: 600 }}>依赖工具</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {(selected.required_tools || []).map(t => {
@@ -756,7 +789,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
             </div>
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>描述</div>
-              <input value={importSkillForm.description} onChange={e => setImportSkillForm({ ...importSkillForm, description: e.target.value })} placeholder="React/Vue组件开发" style={inputStyle} />
+              <input value={importSkillForm.description} onChange={e => setImportSkillForm({ ...importSkillForm, description: e.target.value })} placeholder="React组件开发" style={inputStyle} />
             </div>
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, color: '#667', marginBottom: 4 }}>依赖工具</div>
@@ -840,6 +873,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12, color: '#c8d6e5' }}>{skill.name}</div>
                           <div style={{ fontSize: 10, color: '#556' }}>{skill.description}</div>
+                          {skill.methodology && <div style={{ fontSize: 10, color: '#64d2ff', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>📐 {skill.methodology}</div>}
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); handleDeleteSkill(id) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff453a', fontSize: 14, opacity: 0.4 }}>×</button>
                       </div>

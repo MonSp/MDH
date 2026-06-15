@@ -60,6 +60,10 @@ export interface ToolInfo {
 export interface SkillInfo {
   name: string
   description: string
+  category?: string
+  methodology?: string
+  practices?: string[]
+  workflow?: Record<string, string>
   required_tools: string[]
 }
 

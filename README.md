@@ -1,74 +1,95 @@
-# Browser Agent - Side Panel Host
+# 智能体公司 - AI Agent Company
 
-浏览器自动化助手，前端 Vue 3 + Vite，后端 Python FastAPI WebSocket，AI 引擎基于 AgentScope + DeepSeek。
+基于 React + Python FastAPI + AgentScope 的虚拟智能体公司系统，支持多角色AI Agent协作完成复杂任务。
+
+## 功能特性
+
+- 🏢 **虚拟办公室** - 3D科技大厦可视化场景
+- 👥 **多角色团队** - 产品经理、架构师、开发、QA、DevOps等角色
+- 🎯 **任务分配** - CEO智能分析需求并组建团队
+- 🔧 **工具执行** - Agent可调用18种工具（文件、Git、搜索、测试等）
+- 📋 **会议协作** - 支持实时讨论和任务协作
+- 📊 **技能进化** - 角色技能可配置和扩展
 
 ## 项目结构
 
-| 目录/文件 | 说明 |
-|---|---|
-| `src/` | Vue 3 前端源码 |
-| `index.html` | Plugin Shell 页面（侧边栏宿主，包裹 iframe） |
-| `company-app.html` | Vue 应用入口（iframe 内的业务页面） |
-| `backend/` | Python FastAPI 后端 + AgentScope 子模块 |
-| `backend/server.py` | WebSocket 服务入口，端口 8765 |
-| `dist/` | 构建产物目录 |
+```
+├── src/                    # React + TypeScript 前端
+│   ├── components/         # UI组件
+│   │   ├── techtower/      # 3D科技大厦
+│   │   ├── office-team/    # 办公团队
+│   │   └── skill-evolution/ # 技能进化
+│   ├── hooks/              # React Hooks
+│   └── modules/            # 功能模块
+├── backend/                # Python后端
+│   ├── server.py           # WebSocket服务
+│   ├── agent_toolset.py    # Agent工具集
+│   ├── tool_executor.py    # 工具执行器
+│   ├── tool_registry.py    # 工具注册中心
+│   └── roles_config.yaml   # 角色配置
+├── docs/                   # 文档
+└── index.html              # 入口页面
+```
 
-## 环境准备
+## 快速开始
 
 ### 前端
 
 ```bash
 npm install
+npm run dev
 ```
+
+访问 `http://localhost:5173`
 
 ### 后端
 
 ```bash
-git submodule update --init --recursive
-pip install -e backend/agentscope
-pip install fastapi uvicorn python-frontmatter
-```
-
-## 启动开发环境
-
-### 启动后端
-
-```bash
+pip install -r backend/requirements.txt
 python backend/server.py
 ```
 
-后端运行在 `0.0.0.0:8765`，提供 WebSocket 服务 `/ws`。
+后端运行在 `ws://localhost:8765/ws`
 
-> `npm run dev:backend` 硬编码了别人的 Python 路径，建议直接用上面命令，或修改 `package.json` 中的路径。
+## Agent工具系统
 
-### 启动前端（Vue 应用独立运行）
+系统提供18个内置工具：
 
-```bash
-npm run dev
+| 类别 | 工具 |
+|------|------|
+| 文件 | read_file, write_file, edit_file, list_directory |
+| Git | git_status, git_commit, git_push, git_branch, git_diff, git_log |
+| 搜索 | search_files, grep_content |
+| 测试 | run_tests, run_linter |
+| 文档 | create_document, edit_document |
+| Web | web_fetch |
+
+详细文档：[docs/agent-tools.md](docs/agent-tools.md)
+
+## 角色配置
+
+角色配置在 `backend/roles_config.yaml`：
+
+```yaml
+base_roles:
+  executor:
+    name: "执行者"
+    permissions:
+      tools: ["read_file", "write_file", "git_commit", ...]
+      dangerous_tools: ["bash"]
+    skills: ["fullstack_dev"]
 ```
 
-启动 Vite 开发服务器并自动打开 `company-app.html`。支持热更新。默认监听 `0.0.0.0:5173`。
-
-### 启动侧边栏宿主（Plugin Shell）
-
-Plugin Shell 需要构建产物，无法热更新：
-
-```bash
-npm run build && npm run preview
-# 或
-npm start
-```
-
-访问 `http://<本机IP>:4173/index.html`。
-
-局域网其他设备可通过同一地址打开侧边栏宿主页面。
-
-## WebSocket 地址
-
-前端默认连接 `ws://<当前页面hostname>:8765/ws`，也可在设置面板中手动修改。
+支持自定义角色和技能混搭。
 
 ## 技术栈
 
-- **前端**: Vue 3 + Vite 6 + esbuild
+- **前端**: React + TypeScript + Vite + Three.js
 - **后端**: Python FastAPI + WebSocket
 - **AI**: AgentScope + DeepSeek API
+- **工具**: 自研工具执行框架
+
+## 文档
+
+- [Agent工具系统](docs/agent-tools.md)
+- [角色配置](backend/roles_config.yaml)

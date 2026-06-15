@@ -105,6 +105,142 @@ class ToolExecutor:
                 ),
                 self._exec_git_commit,
             ),
+            # Git扩展工具
+            (
+                ToolDefinition(
+                    name="git_push",
+                    description="推送到远程仓库",
+                    parameters=[
+                        ToolParameter(name="remote", type="string", description="远程仓库名", required=False, default="origin"),
+                        ToolParameter(name="branch", type="string", description="分支名", required=False),
+                    ],
+                    category="git",
+                    dangerous=True,
+                ),
+                self._exec_git_push,
+            ),
+            (
+                ToolDefinition(
+                    name="git_branch",
+                    description="创建/切换分支",
+                    parameters=[
+                        ToolParameter(name="branch_name", type="string", description="分支名", required=False),
+                    ],
+                    category="git",
+                ),
+                self._exec_git_branch,
+            ),
+            (
+                ToolDefinition(
+                    name="git_diff",
+                    description="查看代码差异",
+                    parameters=[
+                        ToolParameter(name="staged", type="boolean", description="是否查看暂存区", required=False, default=False),
+                    ],
+                    category="git",
+                ),
+                self._exec_git_diff,
+            ),
+            (
+                ToolDefinition(
+                    name="git_log",
+                    description="查看提交历史",
+                    parameters=[
+                        ToolParameter(name="count", type="integer", description="显示条数", required=False, default=10),
+                    ],
+                    category="git",
+                ),
+                self._exec_git_log,
+            ),
+            # 搜索工具
+            (
+                ToolDefinition(
+                    name="search_files",
+                    description="按模式搜索文件",
+                    parameters=[
+                        ToolParameter(name="pattern", type="string", description="文件名模式"),
+                        ToolParameter(name="path", type="string", description="搜索目录", required=False, default="."),
+                    ],
+                    category="search",
+                ),
+                self._exec_search_files,
+            ),
+            (
+                ToolDefinition(
+                    name="grep_content",
+                    description="搜索文件内容",
+                    parameters=[
+                        ToolParameter(name="pattern", type="string", description="搜索模式"),
+                        ToolParameter(name="path", type="string", description="搜索目录", required=False, default="."),
+                        ToolParameter(name="include", type="string", description="文件类型过滤", required=False),
+                    ],
+                    category="search",
+                ),
+                self._exec_grep_content,
+            ),
+            # 测试工具
+            (
+                ToolDefinition(
+                    name="run_tests",
+                    description="运行测试套件",
+                    parameters=[
+                        ToolParameter(name="test_path", type="string", description="测试路径", required=False),
+                        ToolParameter(name="verbose", type="boolean", description="详细输出", required=False, default=False),
+                    ],
+                    category="test",
+                    dangerous=True,
+                ),
+                self._exec_run_tests,
+            ),
+            (
+                ToolDefinition(
+                    name="run_linter",
+                    description="运行代码质量检查",
+                    parameters=[
+                        ToolParameter(name="path", type="string", description="检查路径", required=False, default="."),
+                    ],
+                    category="test",
+                ),
+                self._exec_run_linter,
+            ),
+            # 文档工具
+            (
+                ToolDefinition(
+                    name="create_document",
+                    description="创建文档",
+                    parameters=[
+                        ToolParameter(name="path", type="string", description="文件路径"),
+                        ToolParameter(name="content", type="string", description="文档内容"),
+                    ],
+                    category="document",
+                ),
+                self._exec_create_document,
+            ),
+            (
+                ToolDefinition(
+                    name="edit_document",
+                    description="编辑文档",
+                    parameters=[
+                        ToolParameter(name="path", type="string", description="文件路径"),
+                        ToolParameter(name="old_text", type="string", description="要替换的文本"),
+                        ToolParameter(name="new_text", type="string", description="新文本"),
+                    ],
+                    category="document",
+                ),
+                self._exec_edit_document,
+            ),
+            # Web工具
+            (
+                ToolDefinition(
+                    name="web_fetch",
+                    description="获取网页内容",
+                    parameters=[
+                        ToolParameter(name="url", type="string", description="URL地址"),
+                    ],
+                    category="web",
+                ),
+                self._exec_web_fetch,
+            ),
         ]
         for definition, executor in tools:
             self.registry.register(definition, executor)
@@ -291,5 +427,257 @@ class ToolExecutor:
             )
         except subprocess.CalledProcessError as e:
             return ToolResult(success=False, error=e.stderr, call_id=tool_call.call_id)
+        except Exception as e:
+            return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)
+
+    # ───── Git扩展工具 ─────
+
+    def _exec_git_push(self, tool_call: ToolCall) -> ToolResult:
+        remote = tool_call.arguments.get("remote", "origin")
+        branch = tool_call.arguments.get("branch", "")
+        try:
+            cmd = ["git", "push", remote]
+            if branch:
+                cmd.append(branch)
+            result = subprocess.run(
+                cmd,
+                cwd=self.workspace_root,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            return ToolResult(
+                success=result.returncode == 0,
+                output=result.stdout,
+                error=result.stderr if result.returncode != 0 else "",
+                call_id=tool_call.call_id,
+            )
+        except Exception as e:
+            return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)
+
+    def _exec_git_branch(self, tool_call: ToolCall) -> ToolResult:
+        branch_name = tool_call.arguments.get("branch_name", "")
+        try:
+            if branch_name:
+                result = subprocess.run(
+                    ["git", "checkout", "-b", branch_name],
+                    cwd=self.workspace_root,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+            else:
+                result = subprocess.run(
+                    ["git", "branch"],
+                    cwd=self.workspace_root,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+            return ToolResult(
+                success=result.returncode == 0,
+                output=result.stdout,
+                error=result.stderr if result.returncode != 0 else "",
+                call_id=tool_call.call_id,
+            )
+        except Exception as e:
+            return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)
+
+    def _exec_git_diff(self, tool_call: ToolCall) -> ToolResult:
+        staged = tool_call.arguments.get("staged", False)
+        try:
+            cmd = ["git", "diff"]
+            if staged:
+                cmd.append("--staged")
+            result = subprocess.run(
+                cmd,
+                cwd=self.workspace_root,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            return ToolResult(
+                success=result.returncode == 0,
+                output=result.stdout,
+                error=result.stderr if result.returncode != 0 else "",
+                call_id=tool_call.call_id,
+            )
+        except Exception as e:
+            return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)
+
+    def _exec_git_log(self, tool_call: ToolCall) -> ToolResult:
+        count = tool_call.arguments.get("count", 10)
+        try:
+            result = subprocess.run(
+                ["git", "log", f"-{count}", "--oneline"],
+                cwd=self.workspace_root,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            return ToolResult(
+                success=result.returncode == 0,
+                output=result.stdout,
+                error=result.stderr if result.returncode != 0 else "",
+                call_id=tool_call.call_id,
+            )
+        except Exception as e:
+            return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)
+
+    # ───── 搜索工具 ─────
+
+    def _exec_search_files(self, tool_call: ToolCall) -> ToolResult:
+        pattern = tool_call.arguments["pattern"]
+        path = tool_call.arguments.get("path", ".")
+        resolved = self._resolve_path(path)
+        if not os.path.isdir(resolved):
+            return ToolResult(success=False, error=f"目录不存在: {path}", call_id=tool_call.call_id)
+        try:
+            import fnmatch
+            matches = []
+            for root, dirs, files in os.walk(resolved):
+                for filename in fnmatch.filter(files, pattern):
+                    matches.append(os.path.relpath(os.path.join(root, filename), resolved))
+            return ToolResult(
+                success=True,
+                output="\n".join(sorted(matches)) if matches else "未找到匹配文件",
+                call_id=tool_call.call_id,
+            )
+        except Exception as e:
+            return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)
+
+    def _exec_grep_content(self, tool_call: ToolCall) -> ToolResult:
+        pattern = tool_call.arguments["pattern"]
+        path = tool_call.arguments.get("path", ".")
+        include = tool_call.arguments.get("include", "")
+        resolved = self._resolve_path(path)
+        if not os.path.isdir(resolved):
+            return ToolResult(success=False, error=f"目录不存在: {path}", call_id=tool_call.call_id)
+        try:
+            import fnmatch
+            matches = []
+            for root, dirs, files in os.walk(resolved):
+                for filename in files:
+                    if include and not fnmatch.fnmatch(filename, include):
+                        continue
+                    filepath = os.path.join(root, filename)
+                    try:
+                        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                            for i, line in enumerate(f, 1):
+                                if pattern in line:
+                                    rel_path = os.path.relpath(filepath, resolved)
+                                    matches.append(f"{rel_path}:{i}: {line.rstrip()}")
+                    except (PermissionError, UnicodeDecodeError):
+                        continue
+            return ToolResult(
+                success=True,
+                output="\n".join(matches[:100]) if matches else "未找到匹配内容",
+                call_id=tool_call.call_id,
+            )
+        except Exception as e:
+            return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)
+
+    # ───── 测试工具 ─────
+
+    def _exec_run_tests(self, tool_call: ToolCall) -> ToolResult:
+        test_path = tool_call.arguments.get("test_path", "")
+        verbose = tool_call.arguments.get("verbose", False)
+        try:
+            cmd = ["python", "-m", "pytest"]
+            if verbose:
+                cmd.append("-v")
+            if test_path:
+                cmd.append(test_path)
+            result = subprocess.run(
+                cmd,
+                cwd=self.workspace_root,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            return ToolResult(
+                success=result.returncode == 0,
+                output=result.stdout,
+                error=result.stderr if result.returncode != 0 else "",
+                call_id=tool_call.call_id,
+            )
+        except Exception as e:
+            return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)
+
+    def _exec_run_linter(self, tool_call: ToolCall) -> ToolResult:
+        path = tool_call.arguments.get("path", ".")
+        resolved = self._resolve_path(path)
+        try:
+            result = subprocess.run(
+                ["python", "-m", "pylint", resolved],
+                cwd=self.workspace_root,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            return ToolResult(
+                success=result.returncode == 0,
+                output=result.stdout,
+                error=result.stderr if result.returncode != 0 else "",
+                call_id=tool_call.call_id,
+            )
+        except Exception as e:
+            return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)
+
+    # ───── 文档工具 ─────
+
+    def _exec_create_document(self, tool_call: ToolCall) -> ToolResult:
+        path = tool_call.arguments["path"]
+        content = tool_call.arguments["content"]
+        resolved = self._resolve_path(path)
+        try:
+            os.makedirs(os.path.dirname(resolved), exist_ok=True)
+            with open(resolved, "w", encoding="utf-8") as f:
+                f.write(content)
+            return ToolResult(
+                success=True,
+                output=f"文档已创建: {path}",
+                call_id=tool_call.call_id,
+            )
+        except Exception as e:
+            return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)
+
+    def _exec_edit_document(self, tool_call: ToolCall) -> ToolResult:
+        path = tool_call.arguments["path"]
+        old_text = tool_call.arguments["old_text"]
+        new_text = tool_call.arguments["new_text"]
+        resolved = self._resolve_path(path)
+        if not os.path.isfile(resolved):
+            return ToolResult(success=False, error=f"文件不存在: {path}", call_id=tool_call.call_id)
+        try:
+            with open(resolved, "r", encoding="utf-8") as f:
+                content = f.read()
+            if old_text not in content:
+                return ToolResult(success=False, error="未找到要替换的文本", call_id=tool_call.call_id)
+            new_content = content.replace(old_text, new_text, 1)
+            with open(resolved, "w", encoding="utf-8") as f:
+                f.write(new_content)
+            return ToolResult(
+                success=True,
+                output=f"文档已编辑: {path}",
+                call_id=tool_call.call_id,
+            )
+        except Exception as e:
+            return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)
+
+    # ───── Web工具 ─────
+
+    def _exec_web_fetch(self, tool_call: ToolCall) -> ToolResult:
+        url = tool_call.arguments["url"]
+        try:
+            import urllib.request
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=30) as response:
+                content = response.read().decode("utf-8", errors="replace")
+            return ToolResult(
+                success=True,
+                output=content[:10000],  # 限制输出大小
+                call_id=tool_call.call_id,
+            )
         except Exception as e:
             return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)

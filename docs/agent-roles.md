@@ -57,7 +57,7 @@
 
 | 技能ID | 名称 | 描述 | 依赖工具 |
 |--------|------|------|----------|
-| `frontend_dev` | 前端开发 | React/Vue/Angular组件开发 | write_file, edit_file, bash |
+| `frontend_dev` | 前端开发 | React/Angular组件开发 | write_file, edit_file, bash |
 | `backend_dev` | 后端开发 | Node.js/Python/Java服务开发 | write_file, edit_file, bash |
 | `fullstack_dev` | 全栈开发 | 前后端一体化开发 | write_file, edit_file, bash |
 | `api_design` | API设计 | RESTful/GraphQL接口设计 | read_file, write_file |
@@ -125,7 +125,7 @@
 - 确保代码可运行、可测试
 
 ## 技能
-- 前端：React, Vue, Angular, HTML/CSS/JS
+- 前端：React, Angular, HTML/CSS/JS
 - 后端：Node.js, Python, Java, Go
 - 数据库：MySQL, PostgreSQL, MongoDB, Redis
 - 工具：Git, Docker, CI/CD
@@ -422,7 +422,7 @@ system_prompt = f"""
 ## 已加载技能
 
 ### 前端开发
-- React/Vue/Angular组件开发
+- React/Angular组件开发
 - HTML/CSS/JS页面实现
 - 响应式设计和适配
 

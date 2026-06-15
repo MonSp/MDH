@@ -206,17 +206,35 @@ class AgentToolset:
     
     @property
     def skill_descriptions(self) -> str:
-        """获取技能描述（用于Agent提示词）"""
-        descriptions = []
+        """获取技能描述（用于Agent提示词）— 包含方法论、最佳实践和工作流"""
+        sections = []
         skills_config = self._config.get("skills", {})
         
         for skill_id in self.skills:
             skill_info = skills_config.get(skill_id, {})
             name = skill_info.get("name", skill_id)
             desc = skill_info.get("description", "")
-            descriptions.append(f"- {name}: {desc}")
+            methodology = skill_info.get("methodology", "")
+            practices = skill_info.get("practices", [])
+            workflow = skill_info.get("workflow", {})
+            
+            lines = [f"### {name}"]
+            if desc:
+                lines.append(f"_{desc}_")
+            if methodology:
+                lines.append(f"**方法论**: {methodology}")
+            if practices:
+                lines.append("**最佳实践**:")
+                for p in practices:
+                    lines.append(f"- {p}")
+            if workflow:
+                lines.append("**工作流**:")
+                for step_num, step_desc in sorted(workflow.items(), key=lambda x: int(x[0])):
+                    lines.append(f"{step_num}. {step_desc}")
+            
+            sections.append("\n".join(lines))
         
-        return "\n".join(descriptions) if descriptions else "无特定技能"
+        return "\n\n".join(sections) if sections else "无特定技能"
     
     def execute(self, tool_name: str, arguments: Dict[str, Any]) -> ToolResult:
         """执行工具调用
@@ -284,6 +302,61 @@ class AgentToolset:
     def git_commit(self, message: str) -> ToolResult:
         """提交更改"""
         return self.execute("git_commit", {"message": message, "add_all": True})
+    
+    def git_push(self, remote: str = "origin", branch: str = "") -> ToolResult:
+        """推送到远程仓库"""
+        args = {"remote": remote}
+        if branch:
+            args["branch"] = branch
+        return self.execute("git_push", args)
+    
+    def git_branch(self, branch_name: str = "") -> ToolResult:
+        """创建/切换分支"""
+        if branch_name:
+            return self.execute("git_branch", {"branch_name": branch_name})
+        return self.execute("git_branch", {})
+    
+    def git_diff(self, staged: bool = False) -> ToolResult:
+        """查看代码差异"""
+        return self.execute("git_diff", {"staged": staged})
+    
+    def git_log(self, count: int = 10) -> ToolResult:
+        """查看提交历史"""
+        return self.execute("git_log", {"count": count})
+    
+    def search_files(self, pattern: str, path: str = ".") -> ToolResult:
+        """搜索文件"""
+        return self.execute("search_files", {"pattern": pattern, "path": path})
+    
+    def grep_content(self, pattern: str, path: str = ".", include: str = "") -> ToolResult:
+        """搜索文件内容"""
+        args = {"pattern": pattern, "path": path}
+        if include:
+            args["include"] = include
+        return self.execute("grep_content", args)
+    
+    def run_tests(self, test_path: str = "", verbose: bool = False) -> ToolResult:
+        """运行测试"""
+        args = {"verbose": verbose}
+        if test_path:
+            args["test_path"] = test_path
+        return self.execute("run_tests", args)
+    
+    def run_linter(self, path: str = ".") -> ToolResult:
+        """运行代码检查"""
+        return self.execute("run_linter", {"path": path})
+    
+    def create_document(self, path: str, content: str) -> ToolResult:
+        """创建文档"""
+        return self.execute("create_document", {"path": path, "content": content})
+    
+    def edit_document(self, path: str, old_text: str, new_text: str) -> ToolResult:
+        """编辑文档"""
+        return self.execute("edit_document", {"path": path, "old_text": old_text, "new_text": new_text})
+    
+    def web_fetch(self, url: str) -> ToolResult:
+        """获取网页内容"""
+        return self.execute("web_fetch", {"url": url})
     
     def get_system_prompt(self, name: str = None, task_context: str = None) -> str:
         """获取包含工具说明的系统提示词

@@ -12,6 +12,14 @@ SHELL_WHITELIST = {
     "cargo", "go", "node", "npx", "yarn", "pnpm", "make", "cmake", "docker",
     "curl", "wget", "head", "tail", "wc", "sort", "uniq", "diff", "touch",
     "chmod", "chown", "whoami", "pwd", "date", "env", "which", "whereis",
+    "pylint", "black", "isort", "mypy", "flake8", "ruff",
+    "pip3", "pipenv", "poetry", "conda",
+    "tar", "zip", "unzip", "gzip", "gunzip",
+    "ssh", "scp", "rsync",
+    "sed", "awk", "xargs",
+    "ping", "nslookup", "dig",
+    "df", "du", "free", "top", "ps",
+    "tee", "tr", "cut", "paste",
 }
 
 SHELL_BLACKLIST_PATTERNS = [
