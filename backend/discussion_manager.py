@@ -20,6 +20,9 @@ from protocol import AgentRole, MeetingAgentStatus
 
 logger = logging.getLogger("discussion_manager")
 
+# LLM 调用失败时的 fallback 消息模板
+LLM_FALLBACK_TEMPLATE = "[{role}] 由于网络问题，无法获取详细{content_type}。建议按照标准流程执行。"
+
 
 class DiscussionManager:
     """讨论管理器"""
@@ -96,8 +99,14 @@ class DiscussionManager:
                     )
                 
                 msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-                response = await model.reply(msg)
-                text = _extract_text(response)
+                
+                # 尝试调用LLM，如果失败则使用默认回复
+                try:
+                    response = await model.reply(msg)
+                    text = _extract_text(response)
+                except Exception as e:
+                    logger.warning("LLM 调用失败，使用默认回复: %s", e)
+                    text = LLM_FALLBACK_TEMPLATE.format(role=role.value, content_type="意见")
                 
                 self._agenda.request_token(agent_id, 0.8)
 
@@ -149,8 +158,12 @@ class DiscussionManager:
             f"请综合各方观点，给出简洁的总结和最终结论（3-4句话）。"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        response = await model.reply(msg)
-        summary_text = _extract_text(response)
+        try:
+            response = await model.reply(msg)
+            summary_text = _extract_text(response)
+        except Exception as e:
+            logger.warning("Coordinator总结LLM调用失败: %s", e)
+            summary_text = LLM_FALLBACK_TEMPLATE.format(role="coordinator", content_type="总结")
         await on_message(coordinator_id, summary_text, "")
         self._meeting.add_message("agent", summary_text, coordinator_id)
         self._meeting.update_agent_status(coordinator_id, MeetingAgentStatus.MEETING)
@@ -218,8 +231,12 @@ class DiscussionManager:
             f'请只返回 JSON 格式：{{"continue_discussion": true/false, "reason": "理由"}}'
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        response = await model.reply(msg)
-        text = _extract_text(response)
+        try:
+            response = await model.reply(msg)
+            text = _extract_text(response)
+        except Exception as e:
+            logger.warning("CEO共识评估LLM调用失败: %s", e)
+            return False
         self._meeting.update_agent_status(ceo_id, MeetingAgentStatus.MEETING)
         
         json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)

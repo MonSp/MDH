@@ -29,6 +29,12 @@ from complexity_classifier import ComplexityClassifier, ComplexityResult
 from simple_executor import SimpleExecutor
 from agenda import AgendaStateMachine
 
+
+class _VirtualProject:
+    """虚拟项目对象，用于会议消息处理"""
+    def __init__(self, meeting_id: str = "unknown"):
+        self.project_id = meeting_id
+
 logger = logging.getLogger("ceo_agent")
 
 
@@ -139,7 +145,7 @@ class CeoAgent:
 
         # 1. 复杂度判定
         self._complexity_classifier._get_model = self._create_model
-        complexity = self._complexity_classifier.classify(content)
+        complexity = await self._complexity_classifier.classify(content)
 
         await self._emit(send_message, f"CEO：任务复杂度判定为 {complexity.level}（置信度 {complexity.confidence:.0%}）")
 
@@ -280,13 +286,14 @@ class CeoAgent:
         self._session.meeting_session = meeting
         self._session.meeting_mode = True
 
-        # ⑤ 启动协调器
+        # ⑤ 启动协调器（传入workspace以启用工具系统）
         coordinator = MeetingCoordinator(
             meeting_session=meeting,
             provider=self._session.provider,
             model_name=self._session.model_name or "",
             api_key=self._session.api_key,
             base_url=self._session.base_url or "",
+            workspace=workspace,
         )
         self._meeting_coordinator = coordinator
         self._agenda = coordinator.agenda
@@ -476,7 +483,9 @@ class CeoAgent:
         send_progress = self._send_fn(send_message)
         try:
             result = await self._meeting_coordinator.process_user_message(content, send_progress)
-            await self._handle_coordinator_result(result, None, "", send_message)
+            # 创建一个虚拟project对象用于结果处理
+            meeting_id = self._meeting_coordinator.meeting.meeting_id if self._meeting_coordinator else "unknown"
+            await self._handle_coordinator_result(result, _VirtualProject(meeting_id), "", send_message)
         except Exception as e:
             logger.exception("会议消息处理异常: %s", e)
             await send_message({"type": "meeting_error", "message": str(e)})

@@ -5,6 +5,7 @@ ComplexityClassifier - 复杂度判定器
 采用两层策略：规则引擎（快速）+ LLM 语义分析（精确）。
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -114,7 +115,7 @@ class ComplexityClassifier:
         """
         self._get_model = get_model_fn
 
-    def classify(self, message: str) -> ComplexityResult:
+    async def classify(self, message: str) -> ComplexityResult:
         """
         判定任务复杂度
 
@@ -140,7 +141,7 @@ class ComplexityClassifier:
         # 2. LLM 分类
         if self._get_model:
             try:
-                llm_result = self._llm_classify(message)
+                llm_result = await self._llm_classify(message)
                 logger.info(
                     "LLM 判定: level=%s confidence=%.2f reason=%s",
                     llm_result.level, llm_result.confidence, llm_result.reason
@@ -219,7 +220,7 @@ class ComplexityClassifier:
         # 无法判定
         return None
 
-    def _llm_classify(self, message: str) -> ComplexityResult:
+    async def _llm_classify(self, message: str) -> ComplexityResult:
         """
         LLM 语义分析分类
 
@@ -242,8 +243,18 @@ class ComplexityClassifier:
 
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
 
-        import asyncio
-        response = asyncio.get_event_loop().run_until_complete(model.reply(msg))
+        try:
+            response = await model.reply(msg)
+        except Exception as e:
+            logger.warning("LLM 调用失败: %s", e)
+            # 返回默认结果
+            return ComplexityResult(
+                level="complex",
+                confidence=0.5,
+                reason=f"LLM 调用失败，降级到复杂路径: {str(e)[:50]}",
+                method="fallback"
+            )
+        
         text = _extract_text(response)
 
         # 解析 JSON

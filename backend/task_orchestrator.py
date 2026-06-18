@@ -154,14 +154,19 @@ class TaskOrchestrator:
         self._tasks = subtasks or self._tasks
         return assignments
     
-    async def execute(self) -> List[Dict[str, Any]]:
+    async def execute(self, on_progress: Callable = None) -> List[Dict[str, Any]]:
         """
         执行已分配的任务
         
+        Args:
+            on_progress: 进度回调函数 (agent_id, message, delta) -> None
+            
         Returns:
             执行结果
         """
         results = []
+        total_tasks = len([t for t in self._meeting.tasks if t.status == "assigned"])
+        completed_tasks = 0
         
         for task in self._meeting.tasks:
             if task.status != "assigned":
@@ -170,6 +175,12 @@ class TaskOrchestrator:
             agent_info = self._meeting.get_agent(task.agent_id)
             if agent_info is None:
                 continue
+            
+            # 进度汇报
+            completed_tasks += 1
+            if on_progress:
+                progress_text = f"项目经理：正在执行任务 {completed_tasks}/{total_tasks} - {task.description[:30]}..."
+                await on_progress("agent-coordinator", progress_text, "")
             
             role = AgentRole(agent_info.role.value)
             model = self._get_model(role)

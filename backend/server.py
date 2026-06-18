@@ -947,12 +947,27 @@ async def ws_handler(ws: WebSocket):
                 session.meeting_session = meeting
                 session.meeting_mode = True
 
+                # 创建工作区
+                from workspace_manager import WorkspaceManager, WorkspaceType
+                workspaces_base = os.environ.get(
+                    "AGENT_WORKSPACES_DIR",
+                    os.path.join(os.path.expanduser("~"), ".agent-workspaces")
+                )
+                workspace_mgr = WorkspaceManager(workspaces_dir=workspaces_base)
+                workspace = workspace_mgr.create_workspace(
+                    task_id=meeting_id,
+                    workspace_type=WorkspaceType.STANDALONE,
+                )
+                session._workspace_manager = workspace_mgr
+                session._workspace = workspace
+
                 coordinator = MeetingCoordinator(
                     meeting_session=meeting,
                     provider=session.provider,
                     model_name=session.model_name or "",
                     api_key=session.api_key,
                     base_url=session.base_url or "",
+                    workspace=workspace,
                 )
                 session._meeting_coordinator = coordinator
 
@@ -1075,6 +1090,14 @@ async def ws_handler(ws: WebSocket):
                 session.meeting_session.cleanup()
                 meeting_id = session.meeting_session.meeting_id
                 session.clear_meeting()
+                
+                # 清理工作区
+                if hasattr(session, '_workspace_manager') and hasattr(session, '_workspace'):
+                    try:
+                        session._workspace_manager.cleanup_workspace(session._workspace)
+                        logger.info("工作区已清理: workspace=%s", session._workspace)
+                    except Exception as e:
+                        logger.warning("工作区清理失败: %s", e)
 
                 logger.info("会议已结束: meeting_id=%s session=%s", meeting_id, session.session_id)
                 session._sequence_no += 1

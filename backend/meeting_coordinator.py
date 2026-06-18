@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import uuid
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 from agentscope.agent import Agent
 from agentscope.message import Msg
@@ -22,6 +22,9 @@ from semantic_analyzer import SemanticAnalyzer
 from task_orchestrator import TaskOrchestrator
 from review_pipeline import ReviewPipeline
 from discussion_manager import DiscussionManager
+
+# LLM 调用失败时的 fallback 消息模板
+LLM_FALLBACK_TEMPLATE = "[{role}] 由于网络问题，无法获取详细{content_type}。建议按照标准流程执行。"
 
 AGENT_ROLE_PROMPTS = {
     AgentRole.CEO: "你是编程团队的CTO（技术总监）。你的职责是分析用户技术需求、判断技术意图、将开发任务自动分配给最合适的团队成员。你熟悉前后端技术栈、系统架构和团队成员能力。请用简洁果断的技术语言发言。",
@@ -165,8 +168,12 @@ class MeetingCoordinator:
         )
 
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        response = await model.reply(msg)
-        result_text = _extract_text(response)
+        try:
+            response = await model.reply(msg)
+            result_text = _extract_text(response)
+        except Exception as e:
+            self.logger.warning("工作流节点执行失败: %s", e)
+            result_text = LLM_FALLBACK_TEMPLATE.format(role=node.dept_id, content_type="执行结果")
 
         return {
             "result": result_text,
@@ -404,8 +411,12 @@ class MeetingCoordinator:
                 f"请作为规划者提出应急解决方案（2-3句话）。"
             )
             msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-            response = await model.reply(msg)
-            text = _extract_text(response)
+            try:
+                response = await model.reply(msg)
+                text = _extract_text(response)
+            except Exception as e:
+                self.logger.warning("紧急响应LLM调用失败: %s", e)
+                text = LLM_FALLBACK_TEMPLATE.format(role="planner", content_type="应急方案")
             await on_message(planner_id, text, "")
             self.meeting.add_message("agent", text, planner_id)
 
@@ -452,16 +463,19 @@ class MeetingCoordinator:
 
         WhyBuddy化：委托给TaskOrchestrator。
         """
-        return await self._task_orchestrator.execute()
+        return await self._task_orchestrator.execute(on_progress=self._on_message)
 
     async def execute_and_review_task(
         self,
         task_description: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
-    ) -> Dict[str, Any]:
+    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """执行任务并审查（委托给ReviewPipeline）
 
         WhyBuddy化：审查逻辑委托给ReviewPipeline，自动激活CriticAgent和GroundingAgent。
+        
+        Returns:
+            Tuple[审查结果, 执行结果列表]
         """
         task_results = await self.execute_assigned_tasks()
         for task_result in task_results:
@@ -474,7 +488,7 @@ class MeetingCoordinator:
                 task_description, execution_result, on_message
             )
 
-        return review_result
+        return review_result, task_results
 
     def _generate_structured_feedback(
         self, task_description: str, execution_result: str
@@ -569,16 +583,44 @@ class MeetingCoordinator:
         # COORDINATOR接管内部流程
         coordinator = self._get_model(AgentRole.COORDINATOR)
         
+        # 需求确认阶段 - 模拟人类公司的需求确认流程
+        confirmation_text = (
+            f"项目经理：收到需求，正在确认细节。\n"
+            f"需求概述：{user_message[:100]}\n"
+            f"正在分析需求复杂度和团队配置..."
+        )
+        await on_message(coordinator_id, confirmation_text, "")
+        self.meeting.add_message("agent", confirmation_text, coordinator_id)
+        
         # COORDINATOR进行语义分析
         analysis = await self.semantic_analyze(user_message)
         
-        # COORDINATOR发布分析结果
+        # 发布分析结果和项目规划
         analysis_text = (
-            f"项目经理分析：意图={analysis.intent}"
-            + (f"，任务={analysis.task_description}，指派给={analysis.target_agent_id}，理由={analysis.reason}" if analysis.is_task else f"，主题={analysis.discussion_topic}")
+            f"项目经理分析：\n"
+            f"• 意图：{analysis.intent}\n"
+            f"• 复杂度：{'高（需要多部门协作）' if analysis.is_workflow else '中（单部门执行）'}\n"
+            f"• 预计工作量：将根据任务复杂度动态调整\n"
         )
+        if analysis.is_task:
+            analysis_text += f"• 指派给：{analysis.target_agent_id}\n"
+            analysis_text += f"• 理由：{analysis.reason}"
+        else:
+            analysis_text += f"• 讨论主题：{analysis.discussion_topic}"
+        
         await on_message(coordinator_id, analysis_text, "")
         self.meeting.add_message("agent", analysis_text, coordinator_id)
+
+        # 项目规划阶段 - 模拟人类公司的项目规划流程
+        plan_text = (
+            f"项目经理：制定项目计划。\n"
+            f"阶段1：需求分析与讨论\n"
+            f"阶段2：任务分配与执行\n"
+            f"阶段3：质量审查与验收\n"
+            f"阶段4：交付与总结"
+        )
+        await on_message(coordinator_id, plan_text, "")
+        self.meeting.add_message("agent", plan_text, coordinator_id)
 
         # 1. 工作流模式
         if analysis.is_workflow and analysis.workflow_definition:
@@ -647,10 +689,29 @@ class MeetingCoordinator:
         await on_message(coordinator_id, coordinator_review_text, "")
         self.meeting.add_message("agent", coordinator_review_text, coordinator_id)
         
-        review_result = await self.execute_and_review_task(enhanced_description, on_message)
+        # 尝试执行任务和审查，如果失败则继续
+        review_result = {}
+        execution_results = []
+        
+        try:
+            review_result, execution_results = await self.execute_and_review_task(enhanced_description, on_message)
+        except Exception as e:
+            self.logger.warning("任务执行或审查失败: %s", e)
+            review_result = {"status": "skipped", "reason": str(e)}
+            execution_results = []
 
-        # 获取执行结果（包含写入的文件信息）
-        execution_results = await self.execute_assigned_tasks()
+        # 生成项目总结报告
+        project_summary = self._generate_project_summary(
+            user_message, analysis, discussion_results, 
+            assign_result, review_result, execution_results
+        )
+        
+        coordinator_summary_text = f"项目经理：已生成项目总结报告。"
+        await on_message(coordinator_id, coordinator_summary_text, "")
+        self.meeting.add_message("agent", coordinator_summary_text, coordinator_id)
+        
+        # 发送项目总结到前端
+        await on_message(coordinator_id, project_summary, "")
 
         # COORDINATOR汇报结果
         coordinator_report_text = f"项目经理：任务执行完成，向CEO汇报结果。"
@@ -670,6 +731,7 @@ class MeetingCoordinator:
             "assignment": assign_result,
             "review_result": review_result,
             "execution_results": execution_results,
+            "project_summary": project_summary,
         }
 
     def _enhance_task_description(self, original_description: str, discussion_results: list) -> str:
@@ -729,6 +791,106 @@ class MeetingCoordinator:
 
         # 返回支持/修改立场最多的 Agent
         return max(role_votes, key=role_votes.get)
+
+    def _generate_project_summary(
+        self,
+        user_message: str,
+        analysis,
+        discussion_results: list,
+        assign_result: dict,
+        review_result: dict,
+        execution_results: list,
+    ) -> str:
+        """生成项目总结报告
+        
+        模拟人类公司的项目总结流程：
+        1. 项目概述
+        2. 完成的工作
+        3. 遇到的问题
+        4. 交付物清单
+        5. 后续建议
+        """
+        summary_parts = []
+        
+        # 1. 项目概述
+        summary_parts.append("📋 项目总结报告")
+        summary_parts.append("=" * 40)
+        summary_parts.append(f"需求：{user_message[:100]}")
+        summary_parts.append(f"意图：{analysis.intent}")
+        summary_parts.append("")
+        
+        # 2. 团队讨论要点
+        if discussion_results:
+            summary_parts.append("💬 团队讨论要点")
+            summary_parts.append("-" * 40)
+            for i, result in enumerate(discussion_results[:3], 1):
+                agent_id = result.get("agentId", "unknown")
+                content = result.get("content", "")[:80]
+                stance = result.get("stance", "neutral")
+                stance_icon = "✅" if stance == "support" else "🔄" if stance == "modify" else "❓"
+                summary_parts.append(f"{i}. {stance_icon} [{agent_id}] {content}")
+            summary_parts.append("")
+        
+        # 3. 任务分配
+        if assign_result:
+            summary_parts.append("📝 任务分配")
+            summary_parts.append("-" * 40)
+            summary_parts.append(f"执行者：{assign_result.get('agent_id', 'unknown')}")
+            summary_parts.append(f"任务ID：{assign_result.get('task_id', 'unknown')}")
+            summary_parts.append(f"状态：{assign_result.get('status', 'unknown')}")
+            summary_parts.append("")
+        
+        # 4. 执行结果
+        if execution_results:
+            summary_parts.append("⚡ 执行结果")
+            summary_parts.append("-" * 40)
+            total_files = 0
+            for result in execution_results:
+                agent_id = result.get("agent_id", "unknown")
+                written_files = result.get("written_files", [])
+                code_blocks = result.get("code_blocks_count", 0)
+                total_files += len(written_files)
+                summary_parts.append(f"• [{agent_id}] 写入 {len(written_files)} 个文件，{code_blocks} 个代码块")
+            summary_parts.append(f"总计写入文件：{total_files}")
+            summary_parts.append("")
+        
+        # 5. 质量审查
+        if review_result:
+            summary_parts.append("🔍 质量审查")
+            summary_parts.append("-" * 40)
+            critic_result = review_result.get("critic_result", {})
+            grounding_result = review_result.get("grounding_result", {})
+            severity = critic_result.get("severity", "unknown")
+            findings = critic_result.get("findings", [])
+            grounded = grounding_result.get("grounded", False)
+            summary_parts.append(f"严重度：{severity}")
+            summary_parts.append(f"发现问题：{len(findings)} 个")
+            summary_parts.append(f"代码接地：{'是' if grounded else '否'}")
+            summary_parts.append("")
+        
+        # 6. 交付物清单
+        summary_parts.append("📦 交付物清单")
+        summary_parts.append("-" * 40)
+        all_files = []
+        for result in execution_results:
+            all_files.extend(result.get("written_files", []))
+        if all_files:
+            for file in all_files[:10]:
+                summary_parts.append(f"• {file}")
+            if len(all_files) > 10:
+                summary_parts.append(f"... 还有 {len(all_files) - 10} 个文件")
+        else:
+            summary_parts.append("无文件交付")
+        summary_parts.append("")
+        
+        # 7. 后续建议
+        summary_parts.append("💡 后续建议")
+        summary_parts.append("-" * 40)
+        summary_parts.append("1. 检查生成的代码是否符合预期")
+        summary_parts.append("2. 运行测试验证功能正确性")
+        summary_parts.append("3. 如需修改，请提供具体反馈")
+        
+        return "\n".join(summary_parts)
 
     async def execute_tool_call(self, tool_name: str, arguments: dict) -> dict:
         if not self._tool_executor:

@@ -98,26 +98,31 @@ class SemanticAnalyzer:
             f"5. 只返回JSON，不要其他内容"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        response = await ceo_model.reply(msg)
-        text = _extract_text(response)
         
-        json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
-        if json_match:
-            try:
-                data = json.loads(json_match.group())
-                llm_is_task = bool(data.get("is_task", False))
-                llm_confidence = float(data.get("confidence", 0.5))
-                
-                return SemanticAnalysisResult(
-                    is_task=llm_is_task,
-                    intent=str(data.get("intent", "discussion")),
-                    task_description=str(data.get("task_description", "")),
-                    target_agent_id=str(data.get("target_agent_id", "")),
-                    reason=str(data.get("reason", "")),
-                    discussion_topic=str(data.get("discussion_topic", "")),
-                )
-            except (json.JSONDecodeError, TypeError, KeyError):
-                pass
+        # 尝试调用LLM，如果失败则使用回退策略
+        try:
+            response = await ceo_model.reply(msg)
+            text = _extract_text(response)
+            
+            json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
+            if json_match:
+                try:
+                    data = json.loads(json_match.group())
+                    llm_is_task = bool(data.get("is_task", False))
+                    llm_confidence = float(data.get("confidence", 0.5))
+                    
+                    return SemanticAnalysisResult(
+                        is_task=llm_is_task,
+                        intent=str(data.get("intent", "discussion")),
+                        task_description=str(data.get("task_description", "")),
+                        target_agent_id=str(data.get("target_agent_id", "")),
+                        reason=str(data.get("reason", "")),
+                        discussion_topic=str(data.get("discussion_topic", "")),
+                    )
+                except (json.JSONDecodeError, TypeError, KeyError):
+                    pass
+        except Exception as e:
+            logger.warning("LLM 调用失败，使用回退策略: %s", e)
         
         # 回退：如果路由置信度足够高，直接使用路由结果
         if routing_decision.selected_dept and routing_decision.confidence >= 0.6:

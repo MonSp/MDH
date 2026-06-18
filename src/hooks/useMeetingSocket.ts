@@ -177,7 +177,7 @@ export default function useMeetingSocket({
 
       switch (msg.type) {
         case 'meeting_started': {
-          setMeetingId(msg.meetingId)
+          setMeetingId(msg.meetingId || msg.meeting_id)
           setAgents(msg.agents.map(mapAgentToTeamAgent))
           setTasks([])
           setChatMessages([])

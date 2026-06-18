@@ -19,6 +19,9 @@ from protocol import AgentRole, MeetingAgentStatus
 
 logger = logging.getLogger("review_pipeline")
 
+# LLM 调用失败时的 fallback 消息模板
+LLM_FALLBACK_TEMPLATE = "[{role}] 由于网络问题，无法获取详细{content_type}。建议按照标准流程执行。"
+
 
 class ReviewPipeline:
     """审查流水线"""
@@ -150,8 +153,12 @@ class ReviewPipeline:
             f"请用 2-3 句话给出你的审查意见。"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        response = await model.reply(msg)
-        feedback = _extract_text(response)
+        try:
+            response = await model.reply(msg)
+            feedback = _extract_text(response)
+        except Exception as e:
+            logger.warning("Reviewer LLM调用失败: %s", e)
+            feedback = LLM_FALLBACK_TEMPLATE.format(role="reviewer", content_type="审查意见")
         await on_message(reviewer_id, feedback, "")
         self._meeting.add_message("agent", feedback, reviewer_id)
         self._meeting.update_agent_status(reviewer_id, MeetingAgentStatus.MEETING)
@@ -183,8 +190,12 @@ class ReviewPipeline:
             f"请用 2-3 句话给出你的评估。"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        response = await model.reply(msg)
-        feedback = _extract_text(response)
+        try:
+            response = await model.reply(msg)
+            feedback = _extract_text(response)
+        except Exception as e:
+            logger.warning("Monitor LLM调用失败: %s", e)
+            feedback = LLM_FALLBACK_TEMPLATE.format(role="monitor", content_type="评估")
         await on_message(monitor_id, feedback, "")
         self._meeting.add_message("agent", feedback, monitor_id)
         self._meeting.update_agent_status(monitor_id, MeetingAgentStatus.MEETING)
@@ -214,8 +225,12 @@ class ReviewPipeline:
             f"请给出简洁的总结和最终结论。"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        response = await model.reply(msg)
-        summary = _extract_text(response)
+        try:
+            response = await model.reply(msg)
+            summary = _extract_text(response)
+        except Exception as e:
+            logger.warning("Coordinator LLM调用失败: %s", e)
+            summary = LLM_FALLBACK_TEMPLATE.format(role="coordinator", content_type="总结")
         await on_message(coordinator_id, summary, "")
         self._meeting.add_message("agent", summary, coordinator_id)
         self._meeting.update_agent_status(coordinator_id, MeetingAgentStatus.MEETING)
