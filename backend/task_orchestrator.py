@@ -201,40 +201,58 @@ class TaskOrchestrator:
             
             prompt = (
                 f"请执行以下任务：\n{task.description}\n\n"
-                f"请给出你的执行方案，并使用工具将代码写入工作区。\n"
-                f"首先使用 list_directory 了解当前项目结构，然后使用 write_file 创建文件。{tool_prompt}"
+                f"请使用工具将内容写入工作区。{tool_prompt}"
             )
             msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+            conversation = [msg]
             
             try:
-                response = await model.reply(msg)
-                text = _extract_text(response)
-                
-                # 提取代码块并使用Agent工具集写入工作区
-                code_blocks = extract_code_blocks(text)
                 written_files = []
-                
-                if code_blocks and agent_toolset:
-                    for block in code_blocks:
-                        result = agent_toolset.write_file(block["filename"], block["content"])
-                        if result.success:
-                            written_files.append(block["filename"])
-                            logger.info("Agent %s 已写入文件: %s", task.agent_id, block["filename"])
-                        else:
-                            logger.warning("Agent %s 写入文件失败: %s - %s", task.agent_id, block["filename"], result.error)
-                
-                # 如果Agent使用了工具调用格式，解析并执行
-                tool_calls = self._extract_tool_calls(text)
-                tool_results = []
-                for call in tool_calls:
-                    if agent_toolset:
+                all_tool_results = []
+                last_text = ""
+                max_tool_rounds = 5
+
+                for tool_round in range(max_tool_rounds + 1):
+                    response = await model.reply(conversation)
+                    last_text = _extract_text(response)
+
+                    # 提取代码块并写入
+                    code_blocks = extract_code_blocks(last_text)
+                    if code_blocks and agent_toolset:
+                        for block in code_blocks:
+                            result = agent_toolset.write_file(block["filename"], block["content"])
+                            if result.success:
+                                written_files.append(block["filename"])
+                                logger.info("Agent %s 已写入文件: %s", task.agent_id, block["filename"])
+                            else:
+                                logger.warning("Agent %s 写入文件失败: %s - %s", task.agent_id, block["filename"], result.error)
+
+                    # 提取工具调用并执行
+                    tool_calls = self._extract_tool_calls(last_text)
+                    if not tool_calls or not agent_toolset:
+                        break
+
+                    # 执行工具并收集结果
+                    result_parts = []
+                    for call in tool_calls:
                         result = agent_toolset.execute(call["tool"], call.get("arguments", {}))
-                        tool_results.append({
+                        tool_result = {
                             "tool": call["tool"],
                             "success": result.success,
                             "output": result.output if result.success else result.error,
-                        })
-                
+                        }
+                        all_tool_results.append(tool_result)
+                        output = result.output if result.success else f"ERROR: {result.error}"
+                        result_parts.append(f"[{call['tool']} result]\n{output}")
+
+                    # 将工具结果反馈给Agent继续执行
+                    tool_feedback = "\n\n".join(result_parts)
+                    followup_msg = Msg(
+                        name="user", role="user",
+                        content=[{"type": "text", "text": f"工具执行结果：\n{tool_feedback}\n\n请继续执行任务，使用 write_file 写入文件。"}],
+                    )
+                    conversation.append(followup_msg)
+
                 self._meeting.update_task_status(task.id, "completed")
                 self._meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
                 
@@ -246,10 +264,10 @@ class TaskOrchestrator:
                 results.append({
                     "task_id": task.id,
                     "agent_id": task.agent_id,
-                    "result": text,
+                    "result": last_text,
                     "written_files": written_files,
-                    "code_blocks_count": len(code_blocks),
-                    "tool_calls": tool_results,
+                    "code_blocks_count": len(extract_code_blocks(last_text)),
+                    "tool_calls": all_tool_results,
                     "agent_role": role.value,
                 })
             except Exception as e:

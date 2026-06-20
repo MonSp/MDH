@@ -14,7 +14,7 @@ from collaboration.planner_agent import PlannerAgent, SubTask
 from dynamic_router import DynamicRouter
 from meeting import MeetingSession
 from negotiation import NegotiationEngine, ConsensusStrategy
-from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict, WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowNodeStatus
+from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict, WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowNodeStatus, LLM_FALLBACK_TEMPLATE
 from workflow_engine import WorkflowEngine
 
 # WhyBuddy化：导入拆分后的子模块
@@ -23,9 +23,6 @@ from task_orchestrator import TaskOrchestrator
 from review_pipeline import ReviewPipeline
 from discussion_manager import DiscussionManager
 
-# LLM 调用失败时的 fallback 消息模板
-LLM_FALLBACK_TEMPLATE = "[{role}] 由于网络问题，无法获取详细{content_type}。建议按照标准流程执行。"
-
 AGENT_ROLE_PROMPTS = {
     AgentRole.CEO: "你是编程团队的CTO（技术总监）。你的职责是分析用户技术需求、判断技术意图、将开发任务自动分配给最合适的团队成员。你熟悉前后端技术栈、系统架构和团队成员能力。请用简洁果断的技术语言发言。",
     AgentRole.PLANNER: "你是团队的系统架构师。你的职责是分析技术任务、设计系统架构、将复杂需求分解为可执行的开发子任务，并为每个子任务定义验收标准和所需技能标签。请用专业的技术语言发言。",
@@ -33,6 +30,16 @@ AGENT_ROLE_PROMPTS = {
     AgentRole.MONITOR: "你是团队的DevOps工程师。你的职责是评估部署风险、监控系统性能、提出CI/CD和运维建议。你熟悉容器化、部署流水线和性能调优。请用严谨细致的语言发言。",
     AgentRole.REVIEWER: "你是团队的QA工程师。你的职责是审查代码质量、编写测试用例、发现潜在bug和安全漏洞、提出改进建议。你精通代码审查和测试方法论。请用客观公正的语言发言。",
     AgentRole.COORDINATOR: "你是团队的项目经理。你的职责是协调开发各方意见、整合技术方案、跟踪项目进度、管理风险和依赖。请用简明果断的语言发言。",
+}
+
+# 各AgentRole在协调器中实际可用的工具集（与AgentToolset权限对齐）
+AGENT_ROLE_TOOLS = {
+    AgentRole.CEO: {"read_file", "list_directory", "git_status"},
+    AgentRole.PLANNER: {"read_file", "list_directory", "search_files", "grep_content", "git_status", "git_diff", "git_log"},
+    AgentRole.EXECUTOR: {"read_file", "write_file", "edit_file", "list_directory", "bash", "git_status", "git_commit"},
+    AgentRole.MONITOR: {"read_file", "write_file", "list_directory", "bash", "git_status", "git_commit"},
+    AgentRole.REVIEWER: {"read_file", "list_directory", "bash", "grep_content", "run_tests", "run_linter", "git_status", "git_diff"},
+    AgentRole.COORDINATOR: {"read_file", "list_directory", "git_status", "git_log", "create_document"},
 }
 
 logger = logging.getLogger("meeting_coordinator")
@@ -290,6 +297,105 @@ class MeetingCoordinator:
                 return a.id
         return None
 
+    def _resolve_agent(self, agent_id: str) -> Optional['MeetingAgentInfo']:
+        """解析Agent ID，支持多种格式（直接ID、带前缀、不带前缀）"""
+        if not agent_id:
+            return None
+        # 直接匹配
+        agent = self.meeting.get_agent(agent_id)
+        if agent:
+            return agent
+        # 尝试加 "agent-" 前缀
+        if not agent_id.startswith("agent-"):
+            agent = self.meeting.get_agent(f"agent-{agent_id}")
+            if agent:
+                return agent
+        # 尝试去掉 "agent-" 前缀
+        if agent_id.startswith("agent-"):
+            agent = self.meeting.get_agent(agent_id[len("agent-"):])
+            if agent:
+                return agent
+        # 按角色名匹配
+        for a in self.meeting.agents:
+            if a.role.value == agent_id:
+                return a
+        return None
+
+    def _find_best_agent_for_task(self, task_description: str):
+        """根据任务内容选择最有能力执行的Agent（优先选择有write_file权限的）"""
+        task_lower = task_description.lower()
+        # 判断任务类型
+        needs_write = any(kw in task_lower for kw in [
+            '写', '创作', '生成', '编写', '撰写', 'write', 'create', 'generate',
+            '文件', '代码', '文章', '小说', '剧本', 'file', 'code',
+        ])
+        needs_review = any(kw in task_lower for kw in [
+            '审查', '审核', '校对', 'review', 'edit', '检查', '质量',
+        ])
+
+        candidates = []
+        for agent in self.meeting.agents:
+            if agent.role == AgentRole.CEO:
+                continue
+            tools = self._get_agent_tools(agent)
+            # 获取技能
+            from agent_toolset import load_roles_config
+            config = load_roles_config()
+            all_roles = {**config.get("base_roles", {}), **config.get("custom_roles", {})}
+            role_config_id = agent.id.replace("agent-", "") if agent.id.startswith("agent-") else agent.id
+            role_cfg = all_roles.get(role_config_id, {})
+            skills = set(role_cfg.get("skills", []))
+            score = 0
+            if needs_write:
+                if "write_file" in tools:
+                    score += 10
+                if "content_writing" in skills or "script_writing" in skills:
+                    score += 5
+                if agent.role == AgentRole.EXECUTOR:
+                    score += 3
+            elif needs_review:
+                if "edit_file" in tools:
+                    score += 5
+                if agent.role == AgentRole.REVIEWER:
+                    score += 5
+            else:
+                if agent.role == AgentRole.EXECUTOR:
+                    score += 5
+            candidates.append((agent, score))
+
+        if not candidates:
+            return None
+        # 按分数降序排列，返回最高分
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        best_agent, best_score = candidates[0]
+        self.logger.info("能力匹配: 选择 %s (score=%d)", best_agent.id, best_score)
+        return best_agent
+
+    def _get_agent_tools(self, agent) -> set:
+        """获取Agent实际可用的工具集。优先使用AGENT_ROLE_TOOLS，回退到角色配置。"""
+        role_tools = AGENT_ROLE_TOOLS.get(agent.role)
+        if role_tools is not None:
+            return role_tools
+        # 仅当AgentRole不在AGENT_ROLE_TOOLS中时，才从角色配置获取
+        from agent_toolset import load_roles_config
+        config = load_roles_config()
+        all_roles = {**config.get("base_roles", {}), **config.get("custom_roles", {})}
+        role_config_id = agent.id.replace("agent-", "") if agent.id.startswith("agent-") else agent.id
+        role_cfg = all_roles.get(role_config_id, {})
+        return set(role_cfg.get("permissions", {}).get("tools", []))
+
+    def _agent_can_execute(self, agent, task_description: str) -> bool:
+        """检查Agent是否有能力执行该任务"""
+        task_lower = task_description.lower()
+        needs_write = any(kw in task_lower for kw in [
+            '写', '创作', '生成', '编写', '撰写', 'write', 'create', 'generate',
+            '文件', '代码', '文章', '小说', '剧本', 'file', 'code',
+        ])
+        if not needs_write:
+            return True
+        tools = self._get_agent_tools(agent)
+        return "write_file" in tools
+
     def _ensure_default_routing_table(self, path: str) -> None:
         """如果路由表文件不存在，自动创建默认路由表"""
         if os.path.isfile(path):
@@ -525,12 +631,26 @@ class MeetingCoordinator:
         target_agent_id: str,
         reason: str,
     ) -> Dict[str, Any]:
-        agent_info = self.meeting.get_agent(target_agent_id)
+        agent_info = self._resolve_agent(target_agent_id)
+
+        # 验证解析到的Agent是否有能力执行任务（如写作任务需要write_file）
+        if agent_info and not self._agent_can_execute(agent_info, task_description):
+            self.logger.info("Agent %s 缺少执行能力，重新选择", agent_info.id)
+            better = self._find_best_agent_for_task(task_description)
+            if better:
+                agent_info = better
+                target_agent_id = better.id
+
         if agent_info is None:
-            for agent in self.meeting.agents:
-                if agent.role != AgentRole.CEO:
-                    target_agent_id = agent.id
-                    break
+            agent_info = self._find_best_agent_for_task(task_description)
+            if agent_info:
+                target_agent_id = agent_info.id
+            else:
+                for agent in self.meeting.agents:
+                    if agent.role != AgentRole.CEO:
+                        target_agent_id = agent.id
+                        agent_info = agent
+                        break
 
         task = self.meeting.add_task(target_agent_id, task_description)
         self.meeting.update_task_status(task.id, "assigned")
@@ -645,7 +765,7 @@ class MeetingCoordinator:
 
         # 2. 非工作流模式：串行流程（讨论→分派→审查）
         # COORDINATOR组织讨论
-        topic = analysis.discussion_topic or user_message
+        topic = (analysis.discussion_topic.strip() if analysis.discussion_topic else "") or user_message
         self.logger.info("串行流程 - 讨论阶段: topic=%s", topic[:50])
         
         coordinator_discuss_text = f"项目经理：组织团队讨论「{topic[:30]}...」"

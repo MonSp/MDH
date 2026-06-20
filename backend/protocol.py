@@ -2,6 +2,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List
 
+# LLM 调用失败时的 fallback 消息模板
+LLM_FALLBACK_TEMPLATE = "[{role}] 由于网络问题，无法获取详细{content_type}。建议按照标准流程执行。"
+
 
 # ============================================================================
 # 工作流相关数据结构（必须在SemanticAnalysisResult之前定义）

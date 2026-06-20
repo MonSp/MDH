@@ -15,12 +15,9 @@ from agent import _extract_text
 from collaboration.planner_agent import PlannerAgent, SubTask
 from collaboration.critic_agent import CriticAgent, CriticResult
 from collaboration.grounding_agent import GroundingAgent, GroundingResult
-from protocol import AgentRole, MeetingAgentStatus
+from protocol import AgentRole, MeetingAgentStatus, LLM_FALLBACK_TEMPLATE
 
 logger = logging.getLogger("review_pipeline")
-
-# LLM 调用失败时的 fallback 消息模板
-LLM_FALLBACK_TEMPLATE = "[{role}] 由于网络问题，无法获取详细{content_type}。建议按照标准流程执行。"
 
 
 class ReviewPipeline:

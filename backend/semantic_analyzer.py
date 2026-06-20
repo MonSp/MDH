@@ -111,13 +111,15 @@ class SemanticAnalyzer:
                     llm_is_task = bool(data.get("is_task", False))
                     llm_confidence = float(data.get("confidence", 0.5))
                     
+                    discussion_topic = data.get("discussion_topic") or ""
+                    task_description = data.get("task_description") or ""
                     return SemanticAnalysisResult(
                         is_task=llm_is_task,
                         intent=str(data.get("intent", "discussion")),
-                        task_description=str(data.get("task_description", "")),
-                        target_agent_id=str(data.get("target_agent_id", "")),
-                        reason=str(data.get("reason", "")),
-                        discussion_topic=str(data.get("discussion_topic", "")),
+                        task_description=str(task_description),
+                        target_agent_id=str(data.get("target_agent_id") or ""),
+                        reason=str(data.get("reason") or ""),
+                        discussion_topic=str(discussion_topic),
                     )
                 except (json.JSONDecodeError, TypeError, KeyError):
                     pass
