@@ -201,57 +201,130 @@ class TaskOrchestrator:
             
             prompt = (
                 f"请执行以下任务：\n{task.description}\n\n"
-                f"请使用工具将内容写入工作区。{tool_prompt}"
+                f"工作流程：\n"
+                f"1. 先用 list_directory 检查工作区现有文件\n"
+                f"2. 用代码块写入所有文件（格式：```文件名.扩展名\n内容\n```）\n"
+                f"3. 必须创建依赖文件（如 requirements.txt, package.json）\n"
+                f"4. 每个代码文件必须包含完整可运行的代码\n"
+                f"每个文件单独一个代码块，不要使用tool_call格式。{tool_prompt}"
             )
             msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
             conversation = [msg]
-            
+
             try:
                 written_files = []
                 all_tool_results = []
                 last_text = ""
                 max_tool_rounds = 5
 
+                # ── 阶段A: 环境检查 ──
+                if agent_toolset:
+                    ls_result = agent_toolset.list_directory(".")
+                    env_info = ls_result.output if ls_result.success else "(空目录)"
+                    conversation.append(Msg(
+                        name="user", role="user",
+                        content=[{"type": "text", "text": f"工作区当前内容：\n{env_info}\n\n请开始创建文件。"}],
+                    ))
+                    logger.info("Agent %s 环境检查: %s", task.agent_id, env_info[:100])
+
+                # ── 阶段B: 文件创建循环 ──
                 for tool_round in range(max_tool_rounds + 1):
                     response = await model.reply(conversation)
                     last_text = _extract_text(response)
 
-                    # 提取代码块并写入
+                    files_this_round = []
+
+                    # 1. 从代码块提取文件（优先，格式更紧凑）
                     code_blocks = extract_code_blocks(last_text)
                     if code_blocks and agent_toolset:
                         for block in code_blocks:
-                            result = agent_toolset.write_file(block["filename"], block["content"])
-                            if result.success:
+                            cb_result = agent_toolset.write_file(block["filename"], block["content"])
+                            if cb_result.success:
                                 written_files.append(block["filename"])
-                                logger.info("Agent %s 已写入文件: %s", task.agent_id, block["filename"])
+                                files_this_round.append(block["filename"])
+                                logger.info("Agent %s 代码块写入: %s", task.agent_id, block["filename"])
                             else:
-                                logger.warning("Agent %s 写入文件失败: %s - %s", task.agent_id, block["filename"], result.error)
+                                logger.warning("Agent %s 写入失败: %s - %s", task.agent_id, block["filename"], cb_result.error)
 
-                    # 提取工具调用并执行
-                    tool_calls = self._extract_tool_calls(last_text)
-                    if not tool_calls or not agent_toolset:
-                        break
+                    # 2. 提取tool_call（备用）
+                    if not files_this_round:
+                        tool_calls = self._extract_tool_calls(last_text)
+                        if tool_calls and agent_toolset:
+                            result_parts = []
+                            for call in tool_calls:
+                                tc_result = agent_toolset.execute(call["tool"], call.get("arguments", {}))
+                                tool_result = {
+                                    "tool": call["tool"],
+                                    "success": tc_result.success,
+                                    "output": tc_result.output if tc_result.success else tc_result.error,
+                                }
+                                all_tool_results.append(tool_result)
+                                if call["tool"] == "write_file" and tc_result.success:
+                                    path = call.get("arguments", {}).get("path", "")
+                                    if path:
+                                        written_files.append(path)
+                                        files_this_round.append(path)
+                                        logger.info("Agent %s tool_call写入: %s", task.agent_id, path)
+                                output = tc_result.output if tc_result.success else f"ERROR: {tc_result.error}"
+                                result_parts.append(f"[{call['tool']}]\n{output}")
 
-                    # 执行工具并收集结果
-                    result_parts = []
-                    for call in tool_calls:
-                        result = agent_toolset.execute(call["tool"], call.get("arguments", {}))
-                        tool_result = {
-                            "tool": call["tool"],
-                            "success": result.success,
-                            "output": result.output if result.success else result.error,
-                        }
-                        all_tool_results.append(tool_result)
-                        output = result.output if result.success else f"ERROR: {result.error}"
-                        result_parts.append(f"[{call['tool']} result]\n{output}")
+                            if result_parts:
+                                tool_feedback = "\n\n".join(result_parts)
+                                followup = Msg(
+                                    name="user", role="user",
+                                    content=[{"type": "text", "text": f"工具执行结果：\n{tool_feedback}\n\n请继续创建下一个文件。"}],
+                                )
+                                conversation.append(followup)
+                                continue
 
-                    # 将工具结果反馈给Agent继续执行
-                    tool_feedback = "\n\n".join(result_parts)
-                    followup_msg = Msg(
-                        name="user", role="user",
-                        content=[{"type": "text", "text": f"工具执行结果：\n{tool_feedback}\n\n请继续执行任务，使用 write_file 写入文件。"}],
-                    )
-                    conversation.append(followup_msg)
+                    # 3. 反馈本轮结果，请求继续
+                    if files_this_round:
+                        followup = Msg(
+                            name="user", role="user",
+                            content=[{"type": "text", "text": f"已写入文件: {', '.join(files_this_round)}\n请继续创建下一个文件。如果没有更多文件需要创建，请回复'任务完成'。"}],
+                        )
+                        conversation.append(followup)
+                        continue
+
+                    # 4. 无文件写入 → 结束
+                    break
+
+                # ── 阶段C: 依赖安装与验证 ──
+                verification_results = []
+                if agent_toolset and written_files:
+                    # 扫描依赖文件
+                    dep_files = {
+                        "requirements.txt": "pip install -r requirements.txt",
+                        "package.json": "npm install --prefix .",
+                        "Pipfile": "pipenv install",
+                        "pyproject.toml": "pip install -e .",
+                    }
+                    for dep_file, install_cmd in dep_files.items():
+                        if dep_file in written_files:
+                            logger.info("Agent %s 安装依赖: %s", task.agent_id, dep_file)
+                            install_result = agent_toolset.run_command(install_cmd)
+                            status = "成功" if install_result.success else f"失败: {install_result.error[:200]}"
+                            verification_results.append(f"依赖安装 {dep_file}: {status}")
+                            if install_result.success:
+                                logger.info("Agent %s 依赖安装成功: %s", task.agent_id, dep_file)
+                            else:
+                                logger.warning("Agent %s 依赖安装失败: %s - %s", task.agent_id, dep_file, install_result.error[:200])
+
+                    # 语法检查
+                    code_exts = {'.py', '.js', '.ts', '.json', '.yaml', '.yml'}
+                    for fname in written_files:
+                        ext = '.' + fname.rsplit('.', 1)[-1] if '.' in fname else ''
+                        if ext == '.py':
+                            check = agent_toolset.run_command(f'python -c "import ast; ast.parse(open(\'{fname}\', encoding=\'utf-8\').read()); print(\'OK\')"')
+                            status = "通过" if check.success else f"语法错误: {check.error[:100]}"
+                            verification_results.append(f"语法检查 {fname}: {status}")
+                        elif ext == '.json':
+                            check = agent_toolset.run_command(f'python -c "import json; json.load(open(\'{fname}\', encoding=\'utf-8\')); print(\'OK\')"')
+                            status = "通过" if check.success else f"格式错误: {check.error[:100]}"
+                            verification_results.append(f"语法检查 {fname}: {status}")
+
+                    if verification_results:
+                        logger.info("Agent %s 验证结果: %s", task.agent_id, "; ".join(verification_results))
 
                 self._meeting.update_task_status(task.id, "completed")
                 self._meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
@@ -268,6 +341,7 @@ class TaskOrchestrator:
                     "written_files": written_files,
                     "code_blocks_count": len(extract_code_blocks(last_text)),
                     "tool_calls": all_tool_results,
+                    "verification": verification_results,
                     "agent_role": role.value,
                 })
             except Exception as e:
@@ -289,7 +363,7 @@ class TaskOrchestrator:
     
     def _extract_tool_calls(self, text: str) -> List[Dict[str, Any]]:
         """从Agent回复中提取工具调用
-        
+
         支持格式：
         ```tool_call
         {"tool": "read_file", "arguments": {"path": "..."}}
@@ -297,16 +371,20 @@ class TaskOrchestrator:
         """
         import re
         import json
-        
+
         tool_calls = []
         pattern = r'```tool_call\s*\n(.*?)```'
-        
+
         for match in re.finditer(pattern, text, re.DOTALL):
+            raw = match.group(1).strip()
             try:
-                call_json = json.loads(match.group(1).strip())
+                call_json = json.loads(raw)
                 if "tool" in call_json:
                     tool_calls.append(call_json)
+                    logger.info("提取工具调用: %s args=%s", call_json["tool"], list(call_json.get("arguments", {}).keys()))
             except json.JSONDecodeError:
-                continue
-        
+                logger.warning("工具调用JSON解析失败: %s", raw[:100])
+
+        if tool_calls:
+            logger.info("共提取 %d 个工具调用", len(tool_calls))
         return tool_calls

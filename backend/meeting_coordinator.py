@@ -809,16 +809,92 @@ class MeetingCoordinator:
         await on_message(coordinator_id, coordinator_review_text, "")
         self.meeting.add_message("agent", coordinator_review_text, coordinator_id)
         
-        # 尝试执行任务和审查，如果失败则继续
+        # ── 开发循环：执行 → 审查 → 修复 → 再审查 ──
+        max_dev_iterations = 3
         review_result = {}
         execution_results = []
-        
-        try:
-            review_result, execution_results = await self.execute_and_review_task(enhanced_description, on_message)
-        except Exception as e:
-            self.logger.warning("任务执行或审查失败: %s", e)
-            review_result = {"status": "skipped", "reason": str(e)}
-            execution_results = []
+        all_review_feedback = []
+
+        for dev_iter in range(1, max_dev_iterations + 1):
+            # 执行
+            coordinator_exec_text = f"项目经理：第 {dev_iter} 轮开发，监督任务执行。"
+            await on_message(coordinator_id, coordinator_exec_text, "")
+            self.meeting.add_message("agent", coordinator_exec_text, coordinator_id)
+
+            try:
+                exec_results = await self.execute_assigned_tasks()
+                execution_results = exec_results
+
+                # 通知执行结果
+                for er in exec_results:
+                    await on_message(er["agent_id"], er["result"], "")
+                    # 报告写入的文件
+                    written = er.get("written_files", [])
+                    if written:
+                        file_msg = f"[第{dev_iter}轮] 已写入 {len(written)} 个文件: {', '.join(written)}"
+                        await on_message(er["agent_id"], file_msg, "")
+            except Exception as e:
+                self.logger.warning("第 %d 轮执行失败: %s", dev_iter, e)
+                exec_results = []
+
+            # 审查
+            coordinator_review_text = f"项目经理：第 {dev_iter} 轮质量审查。"
+            await on_message(coordinator_id, coordinator_review_text, "")
+            self.meeting.add_message("agent", coordinator_review_text, coordinator_id)
+
+            execution_text = ""
+            if exec_results:
+                execution_text = "\n\n".join([r.get("result", "") for r in exec_results])
+
+            try:
+                review_result = await self._review_pipeline.review(
+                    enhanced_description, execution_text, on_message
+                )
+            except Exception as e:
+                self.logger.warning("第 %d 轮审查失败: %s", dev_iter, e)
+                review_result = {"status": "skipped", "reason": str(e)}
+
+            # 提取审查反馈
+            reviewer_feedback = review_result.get("reviewer_feedback", "")
+            monitor_feedback = review_result.get("monitor_feedback", "")
+            coordinator_summary = review_result.get("coordinator_summary", "")
+            feedback_text = f"[审查反馈]\n{reviewer_feedback}\n\n[评估反馈]\n{monitor_feedback}\n\n[总结]\n{coordinator_summary}"
+            all_review_feedback.append(feedback_text)
+
+            # 判断是否需要继续修复
+            structured = review_result.get("structured_feedback", {})
+            feedback_status = structured.get("status", "approved")
+
+            if feedback_status == "approved" or dev_iter >= max_dev_iterations:
+                # 审查通过或达到最大迭代次数
+                if feedback_status == "approved":
+                    coordinator_pass_text = f"项目经理：第 {dev_iter} 轮审查通过！"
+                else:
+                    coordinator_pass_text = f"项目经理：已达最大迭代次数({max_dev_iterations})，结束开发循环。"
+                await on_message(coordinator_id, coordinator_pass_text, "")
+                self.meeting.add_message("agent", coordinator_pass_text, coordinator_id)
+                break
+
+            # 审查未通过 → 将反馈注入下一轮任务描述
+            coordinator_fix_text = f"项目经理：第 {dev_iter} 轮审查发现问题，启动修复。"
+            await on_message(coordinator_fix_text, coordinator_fix_text, "")
+            self.meeting.add_message("agent", coordinator_fix_text, coordinator_id)
+
+            # 将审查反馈作为修复要求注入任务描述
+            fix_description = (
+                f"{enhanced_description}\n\n"
+                f"## 第 {dev_iter} 轮审查反馈（请据此修复）\n"
+                f"{feedback_text}\n\n"
+                f"请根据以上反馈修改已有文件或创建补充文件，修复所有指出的问题。"
+            )
+
+            # 重置executor任务状态为assigned，更新描述
+            for task in self.meeting.tasks:
+                if task.status == "completed":
+                    task.status = "assigned"
+                    task.description = fix_description
+
+            self.logger.info("第 %d 轮审查未通过，启动第 %d 轮修复", dev_iter, dev_iter + 1)
 
         # 生成项目总结报告
         project_summary = self._generate_project_summary(
