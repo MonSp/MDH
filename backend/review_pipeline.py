@@ -43,6 +43,7 @@ class ReviewPipeline:
         execution_result: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
         repo_context: Optional[Dict[str, Any]] = None,
+        discussion_context: str = "",
     ) -> Dict[str, Any]:
         """
         执行审查流水线
@@ -54,6 +55,7 @@ class ReviewPipeline:
             execution_result: 执行结果
             on_message: 消息回调
             repo_context: 仓库上下文
+            discussion_context: 团队讨论决策摘要
             
         Returns:
             审查结果
@@ -90,11 +92,13 @@ class ReviewPipeline:
             grounding_result = GroundingResult(grounded=False, sources=[])
         
         # 3. Reviewer LLM审查
-        reviewer_feedback = await self._reviewer_review(task_description, execution_result, on_message)
+        reviewer_feedback = await self._reviewer_review(
+            task_description, execution_result, on_message, discussion_context
+        )
         
         # 4. Monitor评估
         monitor_feedback = await self._monitor_evaluate(
-            task_description, execution_result, reviewer_feedback, on_message
+            task_description, execution_result, reviewer_feedback, on_message, discussion_context
         )
         
         # 5. Coordinator总结
@@ -131,6 +135,7 @@ class ReviewPipeline:
         task_description: str,
         execution_result: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
+        discussion_context: str = "",
     ) -> str:
         """Reviewer审查"""
         reviewer_id = self._find_agent_id(AgentRole.REVIEWER)
@@ -139,14 +144,17 @@ class ReviewPipeline:
         
         self._meeting.update_agent_status(reviewer_id, MeetingAgentStatus.SPEAKING)
         model = self._get_model(AgentRole.REVIEWER)
+        
+        context_block = f"\n\n团队讨论确定的方案：\n{discussion_context}" if discussion_context else ""
         prompt = (
             f"你是团队的审查者。以下是一位同事的工作成果，请审查并提出改进建议。\n\n"
-            f"任务：{task_description}\n"
+            f"任务：{task_description}{context_block}\n"
             f"执行结果：{execution_result}\n\n"
             f"请从以下角度审查：\n"
-            f"1. 方案的完整性和可行性\n"
-            f"2. 潜在的问题和风险\n"
-            f"3. 具体的改进建议\n\n"
+            f"1. 代码是否符合团队讨论确定的方案\n"
+            f"2. 方案的完整性和可行性\n"
+            f"3. 潜在的问题和风险\n"
+            f"4. 具体的改进建议\n\n"
             f"请用 2-3 句话给出你的审查意见。"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
@@ -167,6 +175,7 @@ class ReviewPipeline:
         execution_result: str,
         reviewer_feedback: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
+        discussion_context: str = "",
     ) -> str:
         """Monitor评估"""
         monitor_id = self._find_agent_id(AgentRole.MONITOR)
@@ -175,15 +184,18 @@ class ReviewPipeline:
         
         self._meeting.update_agent_status(monitor_id, MeetingAgentStatus.SPEAKING)
         model = self._get_model(AgentRole.MONITOR)
+        
+        context_block = f"\n\n团队讨论确定的方案：\n{discussion_context}" if discussion_context else ""
         prompt = (
             f"你是团队的监控者。请评估以下任务的执行情况。\n\n"
-            f"任务：{task_description}\n"
+            f"任务：{task_description}{context_block}\n"
             f"执行结果：{execution_result}\n"
             f"审查意见：{reviewer_feedback}\n\n"
             f"请评估：\n"
-            f"1. 任务完成度\n"
-            f"2. 潜在风险\n"
-            f"3. 是否需要补充\n\n"
+            f"1. 实现是否符合讨论确定的方案\n"
+            f"2. 任务完成度\n"
+            f"3. 潜在风险\n"
+            f"4. 是否需要补充\n\n"
             f"请用 2-3 句话给出你的评估。"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])

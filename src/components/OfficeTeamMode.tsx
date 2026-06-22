@@ -42,6 +42,8 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     sendAgendaAction,
     sendToolCall,
     sendWorkspaceAction,
+    meetingPhase,
+    meetingStartTime,
   } = useMeetingSocket({ wsRef })
 
   const wanderIntervalRef = useRef<number | null>(null)
@@ -133,6 +135,8 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
         hasMessages={chatMessages.length > 0}
         onBackToSingle={onBackToSingle}
         onStartMeeting={handleStartMeeting}
+        meetingPhase={meetingPhase}
+        meetingStartTime={meetingStartTime}
       />
 
       {pendingApprovalCount > 0 && (

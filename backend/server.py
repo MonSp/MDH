@@ -874,15 +874,33 @@ async def ws_handler(ws: WebSocket):
                     )
 
                 ceo = session._ceo_agent
-                try:
-                    result = await ceo.process_message(content, ws.send_json, selected_roles=selected_roles)
-                    # CeoAgent已通过回调发送了所有中间消息，这里只需记录最终结果
-                    if result:
-                        logger.info("CEO处理完成: type=%s path=%s",
-                                   result.get("type"), result.get("path_used"))
-                except Exception as e:
-                    logger.exception("CEO处理异常: %s", e)
-                    await ws.send_json({"type": "meeting_error", "message": str(e)})
+                async def _run_ceo():
+                    try:
+                        result = await ceo.process_message(content, ws.send_json, selected_roles=selected_roles)
+                        if result:
+                            logger.info("CEO处理完成: type=%s path=%s",
+                                       result.get("type"), result.get("path_used"))
+                    except Exception as e:
+                        logger.exception("CEO处理异常: %s", e)
+                        await ws.send_json({"type": "meeting_error", "message": str(e)})
+                asyncio.create_task(_run_ceo())
+
+            elif msg_type == "workspace_confirm_response":
+                # 用户回复了工作区确认
+                logger.info("收到 workspace_confirm_response: session=%s type=%s output_dir=%s",
+                           session.session_id,
+                           msg.get("workspace_type", ""),
+                           msg.get("output_dir", ""))
+                if hasattr(session, '_ceo_agent') and session._ceo_agent:
+                    session._ceo_agent.handle_workspace_confirm_response({
+                        "workspace_type": msg.get("workspace_type", "standalone"),
+                        "repo_path": msg.get("repo_path", ""),
+                        "branch_name": msg.get("branch_name", ""),
+                        "output_dir": msg.get("output_dir", ""),
+                    })
+                    logger.info("工作区确认响应已处理: session=%s", session.session_id)
+                else:
+                    logger.warning("收到 workspace_confirm_response 但 ceo_agent 不存在")
 
             elif msg_type == "page_context":
                 ctx = msg.get("context", {})

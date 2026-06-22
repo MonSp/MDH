@@ -25,8 +25,8 @@ def extract_code_blocks(text: str) -> List[Dict[str, str]]:
         [{"filename": "path/to/file.js", "content": "...", "language": "javascript"}, ...]
     """
     blocks = []
-    # 匹配 ```language\n...\n``` 或 ```filename\n...\n```
-    pattern = r'```(\w+(?:\.\w+)?)\s*\n(.*?)```'
+    # 匹配 ```language\n...\n``` 或 ```path/filename.ext\n...\n```
+    pattern = r'```([\w/\\]+(?:\.\w+)?)\s*\n(.*?)```'
     
     for match in re.finditer(pattern, text, re.DOTALL):
         lang_or_file = match.group(1)
@@ -35,11 +35,15 @@ def extract_code_blocks(text: str) -> List[Dict[str, str]]:
         if not content:
             continue
         
-        # 判断是文件名还是语言标识
-        if '.' in lang_or_file:
-            # 有扩展名，认为是文件名
+        # 跳过 tool_call 块（由 _extract_tool_calls 处理）
+        if lang_or_file == 'tool_call':
+            continue
+        
+        # 判断是文件名/路径还是语言标识
+        if '.' in lang_or_file or '/' in lang_or_file or '\\' in lang_or_file:
+            # 有扩展名或路径分隔符，认为是文件名
             filename = lang_or_file
-            language = filename.rsplit('.', 1)[-1]
+            language = filename.rsplit('.', 1)[-1] if '.' in filename else ''
         else:
             # 语言标识，生成默认文件名
             language = lang_or_file

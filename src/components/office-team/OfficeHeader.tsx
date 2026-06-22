@@ -1,5 +1,11 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import type { Task } from './types'
+import type { MeetingPhase } from '../../hooks/useMeetingSocket'
+import { PHASE_LABELS } from '../../hooks/useMeetingSocket'
+
+const PHASE_ORDER: MeetingPhase[] = [
+  'analyzing', 'planning', 'discussing', 'assigning', 'executing', 'reviewing', 'summarizing',
+]
 
 interface OfficeHeaderProps {
   viewState: string
@@ -7,6 +13,8 @@ interface OfficeHeaderProps {
   hasMessages: boolean
   onBackToSingle: () => void
   onStartMeeting: () => void
+  meetingPhase?: MeetingPhase
+  meetingStartTime?: number | null
 }
 
 export default function OfficeHeader({
@@ -15,9 +23,28 @@ export default function OfficeHeader({
   hasMessages,
   onBackToSingle,
   onStartMeeting,
+  meetingPhase = 'idle',
+  meetingStartTime,
 }: OfficeHeaderProps) {
   const completedTasks = tasks.filter(t => t.status === 'completed').length
   const executingTasks = tasks.filter(t => t.status === 'executing').length
+  const [elapsed, setElapsed] = useState(0)
+
+  useEffect(() => {
+    if (!meetingStartTime || meetingPhase === 'idle' || meetingPhase === 'done') return
+    const timer = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - meetingStartTime) / 1000))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [meetingStartTime, meetingPhase])
+
+  const formatElapsed = (seconds: number): string => {
+    const m = Math.floor(seconds / 60)
+    const s = seconds % 60
+    return m > 0 ? `${m}分${s.toString().padStart(2, '0')}秒` : `${s}秒`
+  }
+
+  const isActive = meetingPhase !== 'idle' && meetingPhase !== 'done'
 
   return (
     <div style={styles.header}>
@@ -26,7 +53,31 @@ export default function OfficeHeader({
       </button>
       <div style={styles.headerCenter}>
         <h2 style={styles.title}>🏢 多智能体团队协作</h2>
-        {tasks.length > 0 && (
+        {isActive && (
+          <div style={styles.phaseInfo}>
+            <span style={styles.phaseLabel}>{PHASE_LABELS[meetingPhase]}</span>
+            <span style={styles.phaseTime}>{formatElapsed(elapsed)}</span>
+          </div>
+        )}
+        {isActive && (
+          <div style={styles.progressBar}>
+            {PHASE_ORDER.map((phase, i) => {
+              const phaseIdx = PHASE_ORDER.indexOf(meetingPhase)
+              const isDone = i < phaseIdx
+              const isCurrent = i === phaseIdx
+              return (
+                <div key={phase} style={{
+                  ...styles.progressStep,
+                  background: isDone ? '#10b981' : isCurrent ? '#8b5cf6' : 'rgba(255,255,255,0.08)',
+                  color: isDone || isCurrent ? '#fff' : '#6b7280',
+                }}>
+                  {isDone ? '✓' : i + 1}
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {!isActive && tasks.length > 0 && (
           <div style={styles.stats}>
             <span style={styles.stat}>
               <span style={styles.statLabel}>任务</span>
@@ -91,6 +142,37 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent',
+  },
+  phaseInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '12px',
+  },
+  phaseLabel: {
+    color: '#a78bfa',
+    fontWeight: 600,
+  },
+  phaseTime: {
+    color: '#6b7280',
+    fontFamily: 'monospace',
+  },
+  progressBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  progressStep: {
+    width: 20,
+    height: 20,
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 9,
+    fontWeight: 700,
+    transition: 'all 0.3s ease',
   },
   stats: {
     display: 'flex',

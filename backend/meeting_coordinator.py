@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import uuid
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
@@ -815,6 +816,9 @@ class MeetingCoordinator:
         execution_results = []
         all_review_feedback = []
 
+        # 从讨论中提取决策摘要，供审查阶段使用
+        discussion_context = self._extract_discussion_decisions(discussion_results)
+
         for dev_iter in range(1, max_dev_iterations + 1):
             # 执行
             coordinator_exec_text = f"项目经理：第 {dev_iter} 轮开发，监督任务执行。"
@@ -848,7 +852,8 @@ class MeetingCoordinator:
 
             try:
                 review_result = await self._review_pipeline.review(
-                    enhanced_description, execution_text, on_message
+                    enhanced_description, execution_text, on_message,
+                    discussion_context=discussion_context,
                 )
             except Exception as e:
                 self.logger.warning("第 %d 轮审查失败: %s", dev_iter, e)
@@ -880,10 +885,10 @@ class MeetingCoordinator:
             await on_message(coordinator_fix_text, coordinator_fix_text, "")
             self.meeting.add_message("agent", coordinator_fix_text, coordinator_id)
 
-            # 将审查反馈作为修复要求注入任务描述
+            # 将审查反馈作为修复要求注入任务描述（只保留最新一轮）
             fix_description = (
                 f"{enhanced_description}\n\n"
-                f"## 第 {dev_iter} 轮审查反馈（请据此修复）\n"
+                f"## 审查反馈（请据此修复）\n"
                 f"{feedback_text}\n\n"
                 f"请根据以上反馈修改已有文件或创建补充文件，修复所有指出的问题。"
             )
@@ -943,24 +948,64 @@ class MeetingCoordinator:
         if not discussion_results:
             return original_description
 
-        # 提取讨论中的关键信息
-        key_points = []
+        # 提取结构化决策（技术选型、架构约束、关键设计点）
+        decisions = []
+        constraints = []
         for result in discussion_results:
             content = result.get("content", "")
-            stance = result.get("stance", "neutral")
-            if content and stance in ["support", "modify"]:
-                # 截取前100个字符作为关键点
-                key_points.append(content[:100])
+            stance = result.get("parsed_stance", "neutral")
+            role = result.get("role", "")
+            if stance in ["support", "modify"] and content:
+                # 截取核心观点，去掉标签
+                core = re.sub(r'\[STANCE:.*?\]', '', content)
+                core = re.sub(r'\[CONFIDENCE:.*?\]', '', core).strip()
+                if len(core) > 150:
+                    core = core[:150] + "..."
+                if role in ("planner", "coordinator"):
+                    decisions.append(f"- {core}")
+                else:
+                    constraints.append(f"- [{role}] {core}")
 
-        if not key_points:
+        if not decisions and not constraints:
             return original_description
 
-        # 整合到任务描述
-        enhanced = f"{original_description}\n\n讨论要点：\n"
-        for i, point in enumerate(key_points, 1):
-            enhanced += f"{i}. {point}\n"
+        enhanced = f"{original_description}\n\n"
+        if decisions:
+            enhanced += "## 团队讨论确定的方案\n" + "\n".join(decisions[:5]) + "\n"
+        if constraints:
+            enhanced += "\n## 约束与注意事项\n" + "\n".join(constraints[:5]) + "\n"
+        enhanced += "\n请严格按以上方案和约束执行。"
 
         return enhanced
+
+    def _extract_discussion_decisions(self, discussion_results: list) -> str:
+        """从讨论结果中提取结构化决策摘要
+        
+        Args:
+            discussion_results: 讨论结果列表
+            
+        Returns:
+            决策摘要文本（供审查阶段使用）
+        """
+        if not discussion_results:
+            return ""
+        
+        decisions = []
+        for result in discussion_results:
+            content = result.get("content", "")
+            stance = result.get("parsed_stance", "neutral")
+            role = result.get("role", "")
+            if stance in ["support", "modify"] and content:
+                core = re.sub(r'\[STANCE:.*?\]', '', content)
+                core = re.sub(r'\[CONFIDENCE:.*?\]', '', core).strip()
+                if len(core) > 120:
+                    core = core[:120] + "..."
+                icon = "+" if stance == "support" else "~"
+                decisions.append(f"  {icon} [{role}] {core}")
+        
+        if not decisions:
+            return ""
+        return "团队讨论确定的方案与约束：\n" + "\n".join(decisions[:8])
 
     def _infer_target_agent(self, discussion_results: list) -> str:
         """从讨论结果中推断目标 Agent

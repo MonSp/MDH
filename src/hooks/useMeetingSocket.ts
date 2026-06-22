@@ -4,6 +4,29 @@ import type { TeamAgent, Task, ChatMessage, AgendaState } from '../components/of
 import { AgentRole } from '../modules/agentTypes'
 import type { WorkflowExecution, WorkflowDefinition } from '../modules/agentTypes'
 
+export type MeetingPhase =
+  | 'idle'
+  | 'analyzing'
+  | 'planning'
+  | 'discussing'
+  | 'assigning'
+  | 'executing'
+  | 'reviewing'
+  | 'summarizing'
+  | 'done'
+
+export const PHASE_LABELS: Record<MeetingPhase, string> = {
+  idle: '等待中',
+  analyzing: '需求分析',
+  planning: '项目规划',
+  discussing: '团队讨论',
+  assigning: '任务分派',
+  executing: '代码执行',
+  reviewing: '质量审查',
+  summarizing: '生成报告',
+  done: '已完成',
+}
+
 interface Workspace {
   workspace_id: string
   task_id: string
@@ -62,6 +85,8 @@ export default function useMeetingSocket({
   const [agendaState, setAgendaState] = useState<AgendaState | null>(null)
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [toolCallLogs, setToolCallLogs] = useState<ToolCallLog[]>([])
+  const [meetingPhase, setMeetingPhase] = useState<MeetingPhase>('idle')
+  const [meetingStartTime, setMeetingStartTime] = useState<number | null>(null)
 
   const pendingMessages = useRef<Map<string, string>>(new Map())
   const reconnectAttempts = useRef(0)
@@ -182,6 +207,8 @@ export default function useMeetingSocket({
           setTasks([])
           setChatMessages([])
           setIsMeetingActive(true)
+          setMeetingStartTime(Date.now())
+          setMeetingPhase('analyzing')
           pendingMessages.current.clear()
           setChatMessages([{
             role: 'boss',
@@ -218,6 +245,17 @@ export default function useMeetingSocket({
             })
           } else {
             pendingMessages.current.delete(msg.agentId)
+            // 检测会议阶段
+            const content = msg.content || ''
+            if (content.includes('确认细节') || content.includes('项目经理分析')) setMeetingPhase('analyzing')
+            else if (content.includes('制定项目计划') || content.includes('阶段1')) setMeetingPhase('planning')
+            else if (content.includes('组织团队讨论')) setMeetingPhase('discussing')
+            else if (content.includes('整合') && content.includes('讨论')) setMeetingPhase('discussing')
+            else if (content.includes('分派') && content.includes('任务')) setMeetingPhase('assigning')
+            else if (content.includes('正在执行任务') || content.includes('轮开发') || content.includes('写入文件')) setMeetingPhase('executing')
+            else if (content.includes('轮质量审查') || content.includes('轮审查') || content.includes('审查通过')) setMeetingPhase('reviewing')
+            else if (content.includes('项目总结') || content.includes('总结报告')) setMeetingPhase('summarizing')
+            else if (content.includes('汇报结果') || content.includes('任务已完成')) setMeetingPhase('done')
             setChatMessages(prev => {
               const filtered = prev.filter(
                 m => !(m.role === 'agent' && m.agentId === msg.agentId && (m as any)._streaming)
@@ -258,6 +296,8 @@ export default function useMeetingSocket({
         }
         case 'meeting_ended': {
           setIsMeetingActive(false)
+          setMeetingPhase('idle')
+          setMeetingStartTime(null)
           setChatMessages(prev => [...prev, {
             role: 'boss' as const,
             content: '会议已结束',
@@ -551,5 +591,7 @@ export default function useMeetingSocket({
     sendAgendaAction,
     sendWorkspaceAction,
     sendToolCall,
+    meetingPhase,
+    meetingStartTime,
   }
 }

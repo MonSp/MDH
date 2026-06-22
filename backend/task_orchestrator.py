@@ -201,12 +201,14 @@ class TaskOrchestrator:
             
             prompt = (
                 f"请执行以下任务：\n{task.description}\n\n"
-                f"工作流程：\n"
-                f"1. 先用 list_directory 检查工作区现有文件\n"
-                f"2. 用代码块写入所有文件（格式：```文件名.扩展名\n内容\n```）\n"
-                f"3. 必须创建依赖文件（如 requirements.txt, package.json）\n"
-                f"4. 每个代码文件必须包含完整可运行的代码\n"
-                f"每个文件单独一个代码块，不要使用tool_call格式。{tool_prompt}"
+                f"重要：直接使用代码块写入文件，格式为：\n"
+                f"```文件路径.扩展名\n文件内容\n```\n"
+                f"例如：\n```backend/app/main.py\nfrom fastapi import FastAPI\n...\n```\n"
+                f"注意：\n"
+                f"- 不要使用bash/mkdir创建目录，write_file会自动创建父目录\n"
+                f"- 每个文件单独一个代码块\n"
+                f"- 不要使用tool_call格式\n"
+                f"- 代码必须完整可运行，不要省略{tool_prompt}"
             )
             msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
             conversation = [msg]
@@ -233,6 +235,11 @@ class TaskOrchestrator:
                     last_text = _extract_text(response)
 
                     files_this_round = []
+
+                    # 提取agent的计划说明（代码块/tool_call之前的文字）
+                    plan_text = self._extract_plan(last_text)
+                    if plan_text and on_progress:
+                        await on_progress(task.agent_id, plan_text, "")
 
                     # 1. 从代码块提取文件（优先，格式更紧凑）
                     code_blocks = extract_code_blocks(last_text)
@@ -277,7 +284,17 @@ class TaskOrchestrator:
                                 conversation.append(followup)
                                 continue
 
-                    # 3. 反馈本轮结果，请求继续
+                    # 3. 通知前端本轮写入了什么文件
+                    if files_this_round and on_progress:
+                        file_list = ", ".join(files_this_round)
+                        char_count = sum(len(b.get("content", "")) for b in code_blocks if b.get("filename") in files_this_round) if code_blocks else 0
+                        await on_progress(
+                            task.agent_id,
+                            f"[写入文件] {file_list} ({char_count} 字符)",
+                            "",
+                        )
+
+                    # 4. 反馈本轮结果，请求继续
                     if files_this_round:
                         followup = Msg(
                             name="user", role="user",
@@ -361,6 +378,21 @@ class TaskOrchestrator:
         
         return results
     
+    @staticmethod
+    def _extract_plan(text: str) -> str:
+        """从Agent回复中提取计划说明（代码块/tool_call之前的文字）"""
+        import re
+        # 找到第一个代码块或tool_call的位置
+        match = re.search(r'```', text)
+        if match:
+            plan = text[:match.start()].strip()
+        else:
+            plan = text.strip()
+        # 截断过长的说明
+        if len(plan) > 200:
+            plan = plan[:200] + "..."
+        return plan if len(plan) > 10 else ""
+
     def _extract_tool_calls(self, text: str) -> List[Dict[str, Any]]:
         """从Agent回复中提取工具调用
 

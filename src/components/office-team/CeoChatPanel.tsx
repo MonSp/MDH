@@ -4,7 +4,53 @@ interface CeoMessage {
   role: 'user' | 'ceo' | 'system'
   content: string
   timestamp: number
+  _workspaceConfirm?: WorkspaceConfirmRequest
 }
+
+interface WorkspaceConfirmRequest {
+  project_id: string
+  task_description: string
+  suggested_type: string
+  suggested_path: string
+  existing_project?: {
+    path: string
+    has_git: boolean
+    file_count: number
+    files: string[]
+    project_hints: string[]
+  }
+  options: {
+    workspace_types: Array<{ id: string; name: string; desc: string }>
+    default_output_dir: string
+  }
+}
+
+type MeetingPhase =
+  | 'idle'
+  | 'analyzing'
+  | 'planning'
+  | 'discussing'
+  | 'assigning'
+  | 'executing'
+  | 'reviewing'
+  | 'summarizing'
+  | 'done'
+
+const PHASE_LABELS: Record<MeetingPhase, string> = {
+  idle: '等待中',
+  analyzing: '需求分析',
+  planning: '项目规划',
+  discussing: '团队讨论',
+  assigning: '任务分派',
+  executing: '代码执行',
+  reviewing: '质量审查',
+  summarizing: '生成报告',
+  done: '已完成',
+}
+
+const PHASE_ORDER: MeetingPhase[] = [
+  'analyzing', 'planning', 'discussing', 'assigning', 'executing', 'reviewing', 'summarizing',
+]
 
 interface RoleInfo {
   id: string
@@ -71,14 +117,54 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
   const [input, setInput] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [projectReady, setProjectReady] = useState<{ projectId: string; meetingId: string } | null>(null)
-  const [selectedRoles, setSelectedRoles] = useState<string[]>(['coordinator', 'planner', 'executor', 'reviewer'])
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [showRoleSelector, setShowRoleSelector] = useState(false)
+  const [autoMode, setAutoMode] = useState(true)
+  const [workspaceConfirm, setWorkspaceConfirm] = useState<WorkspaceConfirmRequest | null>(null)
+  const [wsType, setWsType] = useState('standalone')
+  const [wsRepoPath, setWsRepoPath] = useState('')
+  const [wsBranchName, setWsBranchName] = useState('')
+  const [wsOutputDir, setWsOutputDir] = useState('')
+  const [meetingPhase, setMeetingPhase] = useState<MeetingPhase>('idle')
+  const [meetingStartTime, setMeetingStartTime] = useState<number | null>(null)
+  const [elapsed, setElapsed] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const listenerCleanupRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // 计时器：会议进行中每秒更新elapsed
+  useEffect(() => {
+    if (!meetingStartTime || meetingPhase === 'idle' || meetingPhase === 'done') return
+    const timer = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - meetingStartTime) / 1000))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [meetingStartTime, meetingPhase])
+
+  const detectPhase = useCallback((text: string): MeetingPhase | null => {
+    if (text.includes('确认细节') || text.includes('需求确认')) return 'analyzing'
+    if (text.includes('项目经理分析') || text.includes('意图')) return 'analyzing'
+    if (text.includes('制定项目计划') || text.includes('阶段1')) return 'planning'
+    if (text.includes('组织团队讨论')) return 'discussing'
+    if (text.includes('整合') && text.includes('讨论')) return 'discussing'
+    if (text.includes('分派') && text.includes('任务')) return 'assigning'
+    if (text.includes('正在执行任务') || text.includes('轮开发')) return 'executing'
+    if (text.includes('写入文件')) return 'executing'
+    if (text.includes('轮质量审查') || text.includes('轮审查')) return 'reviewing'
+    if (text.includes('审查通过')) return 'reviewing'
+    if (text.includes('项目总结') || text.includes('总结报告')) return 'summarizing'
+    if (text.includes('汇报结果') || text.includes('任务已完成')) return 'done'
+    return null
+  }, [])
+
+  const formatElapsed = useCallback((seconds: number): string => {
+    const m = Math.floor(seconds / 60)
+    const s = seconds % 60
+    return m > 0 ? `${m}分${s.toString().padStart(2, '0')}秒` : `${s}秒`
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -106,10 +192,11 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
         const msg = JSON.parse(event.data)
         const t = msg.type
 
-        // 会议启动后，只处理关键状态消息，不显示会议内部细节
+        // 会议启动后，显示关键进度消息
         if (meetingStarted) {
           if (t === 'task_result') {
             setIsProcessing(false)
+            setMeetingPhase('done')
             if (currentProjectId && currentMeetingId) {
               setProjectReady({ projectId: currentProjectId, meetingId: currentMeetingId })
               addMsg('ceo', 'task_done:enter_project')
@@ -119,8 +206,33 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
             cleanup()
           } else if (t === 'meeting_error') {
             setIsProcessing(false)
+            setMeetingPhase('done')
             addMsg('system', `❌ ${msg.message}`)
             cleanup()
+          } else if (t === 'agent_message' && !msg.delta) {
+            const agentId = msg.agentId || ''
+            const text = msg.content || ''
+            // 检测阶段变化
+            const phase = detectPhase(text)
+            if (phase) setMeetingPhase(phase)
+            // 显示会议中的关键消息
+            const isKeyMessage =
+              agentId === 'agent-coordinator' ||
+              agentId === 'agent-ceo' ||
+              text.includes('项目经理') ||
+              text.includes('讨论') ||
+              text.includes('审查') ||
+              text.includes('执行任务') ||
+              text.includes('分派') ||
+              text.includes('汇报') ||
+              text.includes('写入文件') ||
+              text.includes('已写入') ||
+              text.includes('总结') ||
+              text.includes('轮开发') ||
+              text.includes('轮审查')
+            if (isKeyMessage) {
+              addMsg('system', `[${agentId}] ${text}`)
+            }
           }
           return
         }
@@ -135,12 +247,30 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
         } else if (t === 'complexity_result') {
           const level = msg.level === 'simple' ? '简单任务' : '复杂任务'
           addMsg('system', `📊 任务分析：${level}（置信度 ${Math.round((msg.confidence || 0) * 100)}%）`)
+        } else if (t === 'workspace_confirm_request') {
+          // 收到工作区确认请求，显示配置UI
+          console.log('[CeoChatPanel] 收到 workspace_confirm_request:', msg)
+          const req: WorkspaceConfirmRequest = {
+            project_id: msg.project_id || '',
+            task_description: msg.task_description || '',
+            suggested_type: msg.suggested_type || 'standalone',
+            suggested_path: msg.suggested_path || '',
+            options: msg.options || { workspace_types: [], default_output_dir: '' },
+          }
+          setWorkspaceConfirm(req)
+          setWsType(req.existing_project ? 'continue' : req.suggested_type)
+          setWsRepoPath(req.suggested_path)
+          setWsOutputDir(req.options.default_output_dir)
+          setWsBranchName(`agent/task-${req.project_id.slice(0, 8)}`)
+          addMsg('ceo', 'workspace_confirm:pending')
         } else if (t === 'meeting_started') {
           meetingStarted = true
           currentMeetingId = msg.meeting_id || ''
           currentProjectId = msg.project_id || ''
           const agentCount = (msg.agents || []).length
           setProjectReady({ projectId: currentProjectId, meetingId: currentMeetingId })
+          setMeetingStartTime(Date.now())
+          setMeetingPhase('analyzing')
           addMsg('ceo', `meeting_ready:${agentCount}`)
         } else if (t === 'meeting_error') {
           setIsProcessing(false)
@@ -160,7 +290,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
     ws.send(JSON.stringify({
       type: 'unified_message',
       content,
-      selected_roles: selectedRoles,
+      selected_roles: autoMode ? [] : selectedRoles,
       provider: localStorage.getItem('llm_provider') || undefined,
       model_name: localStorage.getItem('llm_model_name') || undefined,
       api_key: localStorage.getItem('deepseek_api_key') || undefined,
@@ -188,6 +318,42 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
     }
   }, [projectReady, onEnterProject])
 
+  const handleWorkspaceConfirm = useCallback(() => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+
+    const isExistingProject = !!workspaceConfirm?.existing_project
+
+    if (isExistingProject) {
+      // 目录非空确认：发送 action 字段
+      ws.send(JSON.stringify({
+        type: 'workspace_confirm_response',
+        action: wsType,  // 'continue' | 'git_worktree' | 'new_dir'
+        workspace_type: wsType === 'continue' ? 'standalone' : wsType,
+        repo_path: wsType === 'git_worktree' ? wsRepoPath : '',
+        branch_name: wsType === 'git_worktree' ? wsBranchName : '',
+        output_dir: wsOutputDir,
+      }))
+      const actionLabels: Record<string, string> = {
+        continue: '继续在此目录',
+        git_worktree: 'Git Worktree模式',
+        new_dir: '使用新目录',
+      }
+      addMsg('system', `✅ 已确认：${actionLabels[wsType] || wsType}`)
+    } else {
+      // 正常工作区配置
+      ws.send(JSON.stringify({
+        type: 'workspace_confirm_response',
+        workspace_type: wsType,
+        repo_path: wsType === 'git_worktree' ? wsRepoPath : '',
+        branch_name: wsType === 'git_worktree' ? wsBranchName : '',
+        output_dir: wsOutputDir,
+      }))
+      addMsg('system', `✅ 工作区配置已确认：${wsType === 'git_worktree' ? 'Git Worktree' : '独立工作区'}`)
+    }
+    setWorkspaceConfirm(null)
+  }, [wsRef, wsType, wsRepoPath, wsBranchName, wsOutputDir, addMsg, workspaceConfirm])
+
   return (
     <div style={styles.panel}>
       <div style={styles.header}>
@@ -195,16 +361,41 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
           <span style={styles.avatar}>🧠</span>
           <div>
             <div style={styles.title}>CEO 智能助手</div>
-            <div style={styles.subtitle}>分析需求 · 组建团队 · 分配任务</div>
+            <div style={styles.subtitle}>
+              {meetingPhase !== 'idle' && meetingPhase !== 'done'
+                ? `${PHASE_LABELS[meetingPhase]} · ${formatElapsed(elapsed)}`
+                : '分析需求 · 组建团队 · 分配任务'}
+            </div>
           </div>
         </div>
         <button style={styles.closeBtn} onClick={onClose}>×</button>
       </div>
 
+      {/* 进度条：会议进行中显示 */}
+      {meetingPhase !== 'idle' && meetingPhase !== 'done' && (
+        <div style={styles.progressBar}>
+          {PHASE_ORDER.map((phase, i) => {
+            const phaseIdx = PHASE_ORDER.indexOf(meetingPhase)
+            const isActive = i === phaseIdx
+            const isDone = i < phaseIdx
+            return (
+              <div key={phase} style={{
+                ...styles.progressStep,
+                background: isDone ? '#10b981' : isActive ? '#8b5cf6' : 'rgba(255,255,255,0.08)',
+                color: isDone || isActive ? '#fff' : '#6b7280',
+              }}>
+                {isDone ? '✓' : i + 1}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       <div style={styles.messages}>
         {messages.map((msg, i) => {
           const isMeetingReady = msg.content.startsWith('meeting_ready:')
           const isTaskDone = msg.content === 'task_done:enter_project'
+          const isWsConfirm = msg.content === 'workspace_confirm:pending'
           const agentCount = isMeetingReady ? msg.content.split(':')[1] : ''
           return (
             <div key={i} style={{
@@ -239,6 +430,110 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
                       🚀 进入项目工作间查看详情 →
                     </button>
                   </div>
+                ) : isWsConfirm && workspaceConfirm ? (
+                  <div>
+                    <div style={{ marginBottom: 10, fontWeight: 600 }}>
+                      {workspaceConfirm.existing_project ? '⚠️ 目录已有内容' : '📁 工作区配置'}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 10 }}>
+                      项目: {workspaceConfirm.task_description}
+                    </div>
+
+                    {/* 已有项目信息 */}
+                    {workspaceConfirm.existing_project && (
+                      <div style={{ marginBottom: 10, padding: '8px 10px', background: 'rgba(245,158,11,0.1)', borderRadius: 6, border: '1px solid rgba(245,158,11,0.3)' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b', marginBottom: 4 }}>
+                          目标目录: {workspaceConfirm.existing_project.path}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#d4a056' }}>
+                          已有 {workspaceConfirm.existing_project.file_count} 个文件/目录
+                          {workspaceConfirm.existing_project.project_hints.length > 0 &&
+                            ` · 检测到: ${workspaceConfirm.existing_project.project_hints.join(', ')}`}
+                        </div>
+                        {workspaceConfirm.existing_project.files.length > 0 && (
+                          <div style={{ fontSize: 10, color: '#92744c', marginTop: 4, fontFamily: 'monospace' }}>
+                            {workspaceConfirm.existing_project.files.slice(0, 8).join(', ')}
+                            {workspaceConfirm.existing_project.files.length > 8 && '...'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ marginBottom: 8 }}>
+                      <label style={styles.wsLabel}>
+                        {workspaceConfirm.existing_project ? '请选择操作' : '工作区类型'}
+                      </label>
+                      <div style={styles.wsOptionGroup}>
+                        {workspaceConfirm.options.workspace_types.map(wt => (
+                          <div
+                            key={wt.id}
+                            onClick={() => setWsType(wt.id)}
+                            style={{
+                              ...styles.wsOption,
+                              ...(wsType === wt.id ? styles.wsOptionActive : {}),
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, fontSize: 12 }}>{wt.name}</div>
+                            <div style={{ fontSize: 11, color: '#6b7280' }}>{wt.desc}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {wsType === 'git_worktree' && (
+                      <>
+                        <div style={{ marginBottom: 8 }}>
+                          <label style={styles.wsLabel}>仓库路径</label>
+                          <input
+                            style={styles.wsInput}
+                            value={wsRepoPath}
+                            onChange={e => setWsRepoPath(e.target.value)}
+                            placeholder="/path/to/repo"
+                          />
+                        </div>
+                        <div style={{ marginBottom: 8 }}>
+                          <label style={styles.wsLabel}>分支名</label>
+                          <input
+                            style={styles.wsInput}
+                            value={wsBranchName}
+                            onChange={e => setWsBranchName(e.target.value)}
+                            placeholder="agent/task-xxx"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {wsType === 'new_dir' && (
+                      <div style={{ marginBottom: 10 }}>
+                        <label style={styles.wsLabel}>新目录路径</label>
+                        <input
+                          style={styles.wsInput}
+                          value={wsOutputDir}
+                          onChange={e => setWsOutputDir(e.target.value)}
+                          placeholder="请输入空目录路径"
+                        />
+                      </div>
+                    )}
+
+                    {!workspaceConfirm.existing_project && (
+                      <div style={{ marginBottom: 10 }}>
+                        <label style={styles.wsLabel}>输出目录</label>
+                        <input
+                          style={styles.wsInput}
+                          value={wsOutputDir}
+                          onChange={e => setWsOutputDir(e.target.value)}
+                          placeholder="留空使用默认目录"
+                        />
+                      </div>
+                    )}
+
+                    <button
+                      style={styles.wsConfirmBtn}
+                      onClick={handleWorkspaceConfirm}
+                    >
+                      ✅ 确认配置并继续
+                    </button>
+                  </div>
                 ) : (
                   msg.content
                 )}
@@ -269,7 +564,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
           onClick={() => setShowRoleSelector(!showRoleSelector)}
         >
           <span style={{ fontSize: 12, color: '#8b9dc3' }}>
-            👥 团队成员 ({selectedRoles.length}人)
+            👥 团队成员 {autoMode ? '(CEO智能组队)' : `(${selectedRoles.length}人)`}
           </span>
           <span style={{ fontSize: 11, color: '#667', transform: showRoleSelector ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
         </div>
@@ -277,22 +572,58 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
         {/* 已选角色标签 */}
         {!showRoleSelector && (
           <div style={styles.roleTags}>
-            {selectedRoles.map(id => {
-              const role = PRESET_ROLES.find(r => r.id === id)
-              if (!role) return null
-              const color = DEPT_COLORS[role.department || ''] || '#64d2ff'
-              return (
-                <span key={id} style={{ ...styles.roleTag, borderColor: color + '40', color }}>
-                  {role.name}
-                </span>
-              )
-            })}
+            {autoMode ? (
+              <span style={{ ...styles.roleTag, borderColor: '#8b5cf640', color: '#a78bfa' }}>
+                🤖 CEO智能组队
+              </span>
+            ) : (
+              selectedRoles.map(id => {
+                const role = PRESET_ROLES.find(r => r.id === id)
+                if (!role) return null
+                const color = DEPT_COLORS[role.department || ''] || '#64d2ff'
+                return (
+                  <span key={id} style={{ ...styles.roleTag, borderColor: color + '40', color }}>
+                    {role.name}
+                  </span>
+                )
+              })
+            )}
           </div>
         )}
 
         {/* 角色选择面板 */}
         {showRoleSelector && (
           <div style={styles.roleSelector}>
+            {/* CEO智能组队选项 */}
+            <div
+              onClick={() => {
+                setAutoMode(true)
+                setSelectedRoles([])
+              }}
+              style={{
+                ...styles.roleOption,
+                background: autoMode ? '#8b5cf620' : 'rgba(255,255,255,0.03)',
+                borderColor: autoMode ? '#8b5cf660' : 'rgba(255,255,255,0.08)',
+                marginBottom: 8,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span style={{ fontSize: 16 }}>🤖</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: autoMode ? 700 : 400, color: autoMode ? '#a78bfa' : '#8b9dc3' }}>
+                  CEO智能组队
+                </div>
+                <div style={{ fontSize: 10, color: '#6b7280' }}>根据任务自动选择最佳团队配置</div>
+              </div>
+            </div>
+
+            {/* 手动选择分隔线 */}
+            <div style={{ fontSize: 10, color: '#4b5563', padding: '4px 0', marginBottom: 4, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8 }}>
+              或手动选择角色：
+            </div>
+
             {Object.entries(DEPT_NAMES).map(([deptId, deptName]) => {
               const deptRoles = PRESET_ROLES.filter(r => r.department === deptId)
               if (deptRoles.length === 0) return null
@@ -307,6 +638,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
                         <div
                           key={role.id}
                           onClick={() => {
+                            setAutoMode(false)
                             setSelectedRoles(prev =>
                               isSelected
                                 ? prev.filter(id => id !== role.id)
@@ -317,6 +649,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
                             ...styles.roleOption,
                             background: isSelected ? color + '20' : 'rgba(255,255,255,0.03)',
                             borderColor: isSelected ? color + '60' : 'rgba(255,255,255,0.08)',
+                            opacity: autoMode ? 0.5 : 1,
                           }}
                           title={role.description}
                         >
@@ -576,5 +909,76 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid',
     cursor: 'pointer',
     transition: 'all 0.15s',
+  },
+  wsLabel: {
+    display: 'block',
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#8b9dc3',
+    marginBottom: 4,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  wsOptionGroup: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 4,
+  },
+  wsOption: {
+    padding: '8px 10px',
+    borderRadius: 6,
+    border: '1px solid rgba(255,255,255,0.1)',
+    background: 'rgba(255,255,255,0.03)',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  },
+  wsOptionActive: {
+    borderColor: 'rgba(139, 92, 246, 0.6)',
+    background: 'rgba(139, 92, 246, 0.15)',
+  },
+  wsInput: {
+    width: '100%',
+    padding: '6px 10px',
+    borderRadius: 6,
+    border: '1px solid rgba(255,255,255,0.1)',
+    background: 'rgba(0,0,0,0.3)',
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontFamily: 'monospace',
+    outline: 'none',
+    boxSizing: 'border-box' as const,
+  },
+  wsConfirmBtn: {
+    width: '100%',
+    padding: '8px 16px',
+    borderRadius: 8,
+    border: '1px solid rgba(16, 185, 129, 0.5)',
+    background: 'linear-gradient(135deg, #10b981, #059669)',
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    boxShadow: '0 0 12px rgba(16, 185, 129, 0.3)',
+  },
+  progressBar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: '6px 16px',
+    background: 'rgba(0, 0, 0, 0.2)',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+  },
+  progressStep: {
+    width: 22,
+    height: 22,
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 10,
+    fontWeight: 700,
+    transition: 'all 0.3s ease',
   },
 }

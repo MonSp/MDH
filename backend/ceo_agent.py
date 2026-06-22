@@ -65,6 +65,8 @@ class CeoAgent:
         self._agenda: Optional[AgendaStateMachine] = None
         self._workspace_manager = None
         self._workspace = None
+        self._workspace_confirm_event: Optional[asyncio.Event] = None
+        self._workspace_confirm_response: Optional[Dict[str, Any]] = None
 
     @property
     def agenda(self) -> Optional[AgendaStateMachine]:
@@ -219,39 +221,142 @@ class CeoAgent:
         )
         await self._emit(send_message, f"CEO：项目已创建（{project.project_id}），组建团队中。")
 
-        # ② 创建工作区
+        # ② 创建工作区（先询问用户确认）
         from workspace_manager import WorkspaceManager, WorkspaceType
         workspaces_base = os.environ.get(
             "AGENT_WORKSPACES_DIR",
             os.path.join(os.path.expanduser("~"), ".agent-workspaces")
         )
         workspace_mgr = WorkspaceManager(workspaces_dir=workspaces_base)
-        
-        # 根据任务内容判断工作区类型：
-        # - 新项目：创建空目录（STANDALONE）
-        # - 已有项目开发：从该项目git创建worktree（GIT_WORKTREE）
-        # 目前默认为新项目模式，后续可通过分析任务内容或用户指定来选择
-        workspace_type = WorkspaceType.STANDALONE
-        repo_path = None
-        branch_name = None
-        
-        # 检查是否指定了已有项目路径（简单启发式：包含"在xxx项目"或"修改xxx"）
+
+        # 检测是否指定了已有项目路径
         import re
         repo_match = re.search(r'(?:在|修改|更新|优化)\s*[「「]?([^\s」」]+(?:/[^\s」」]+)*)[」」]?', content)
-        if repo_match and os.path.isdir(repo_match.group(1)):
-            repo_path = repo_match.group(1)
-            workspace_type = WorkspaceType.GIT_WORKTREE
-            branch_name = f"agent/task-{project.project_id[:8]}"
-            await self._emit(send_message, f"CEO：检测到已有项目 {repo_path}，将创建隔离工作区。")
+        suggested_type = "git_worktree" if (repo_match and os.path.isdir(repo_match.group(1))) else "standalone"
+        suggested_path = repo_match.group(1) if repo_match else ""
+
+        # 发送工作区确认请求给前端，等待用户选择
+        self._workspace_confirm_event = asyncio.Event()
+        self._workspace_confirm_response = None
+        await send_message({
+            "type": "workspace_confirm_request",
+            "project_id": project.project_id,
+            "task_description": content[:200],
+            "suggested_type": suggested_type,
+            "suggested_path": suggested_path,
+            "options": {
+                "workspace_types": [
+                    {"id": "standalone", "name": "新建独立工作区", "desc": "创建全新空目录，适合新项目"},
+                    {"id": "git_worktree", "name": "Git Worktree", "desc": "从已有仓库创建隔离分支，适合已有项目开发"},
+                ],
+                "default_output_dir": workspaces_base,
+            },
+        })
+
+        # 等待用户响应（不设超时，由前端控制）
+        logger.info("等待工作区确认: project_id=%s", project.project_id)
+        await self._workspace_confirm_event.wait()
+        logger.info("收到工作区确认响应")
+
+        # 根据用户选择创建工作区
+        resp = self._workspace_confirm_response or {}
+        workspace_type = WorkspaceType.GIT_WORKTREE if resp.get("workspace_type") == "git_worktree" else WorkspaceType.STANDALONE
+        repo_path = resp.get("repo_path") or (suggested_path if workspace_type == WorkspaceType.GIT_WORKTREE else None)
+        branch_name = resp.get("branch_name") or (f"agent/task-{project.project_id[:8]}" if workspace_type == WorkspaceType.GIT_WORKTREE else None)
+        custom_output_dir = resp.get("output_dir") or ""
+
+        if custom_output_dir:
+            workspaces_base = custom_output_dir
+            workspace_mgr = WorkspaceManager(workspaces_dir=workspaces_base)
+
+        if workspace_type == WorkspaceType.GIT_WORKTREE:
+            await self._emit(send_message, f"CEO：将从 {repo_path} 创建隔离工作区。")
         else:
-            await self._emit(send_message, "CEO：这是一个新项目，将创建全新的工作区。")
-        
-        workspace = workspace_mgr.create_workspace(
-            task_id=project.project_id,
-            workspace_type=workspace_type,
-            repo_path=repo_path,
-            branch_name=branch_name,
-        )
+            await self._emit(send_message, "CEO：将创建全新的工作区。")
+
+        try:
+            workspace = workspace_mgr.create_workspace(
+                task_id=project.project_id,
+                workspace_type=workspace_type,
+                repo_path=repo_path,
+                branch_name=branch_name,
+            )
+        except DirectoryNotEmptyError as e:
+            # 目录非空，需要用户确认
+            from workspace_manager import DirectoryNotEmptyError
+            scan = e.scan
+            await self._emit(send_message, f"CEO：检测到目标目录已有内容，需要您确认。")
+
+            # 发送确认请求给前端
+            self._workspace_confirm_event = asyncio.Event()
+            self._workspace_confirm_response = None
+            await send_message({
+                "type": "workspace_confirm_request",
+                "project_id": project.project_id,
+                "task_description": content[:200],
+                "suggested_type": "standalone",
+                "suggested_path": custom_output_dir or workspaces_base,
+                "existing_project": {
+                    "path": scan.path,
+                    "has_git": scan.has_git,
+                    "file_count": scan.file_count,
+                    "files": scan.files,
+                    "project_hints": scan.project_hints,
+                },
+                "options": {
+                    "workspace_types": [
+                        {"id": "continue", "name": "继续在此目录", "desc": "追加文件到现有目录"},
+                        {"id": "git_worktree", "name": "Git Worktree", "desc": "从已有仓库创建隔离分支"},
+                        {"id": "new_dir", "name": "选择新目录", "desc": "指定一个空目录"},
+                    ],
+                    "default_output_dir": workspaces_base,
+                },
+            })
+
+            # 等待用户响应
+            await self._workspace_confirm_event.wait()
+            resp2 = self._workspace_confirm_response or {}
+
+            if resp2.get("action") == "continue":
+                # 用户确认继续
+                workspace = workspace_mgr.create_workspace(
+                    task_id=project.project_id,
+                    workspace_type=workspace_type,
+                    repo_path=repo_path,
+                    branch_name=branch_name,
+                    force=True,
+                )
+            elif resp2.get("action") == "new_dir":
+                # 用户指定新目录
+                new_dir = resp2.get("output_dir", "")
+                if new_dir:
+                    workspace_mgr = WorkspaceManager(workspaces_dir=new_dir)
+                    workspace = workspace_mgr.create_workspace(
+                        task_id=project.project_id,
+                        workspace_type=WorkspaceType.STANDALONE,
+                    )
+                else:
+                    await self._emit(send_message, "CEO：未指定新目录，操作取消。")
+                    return {"type": "error", "message": "未指定新目录"}
+            elif resp2.get("action") == "git_worktree":
+                # 用户选择用 git worktree
+                new_repo = resp2.get("repo_path", custom_output_dir or workspaces_base)
+                workspace = workspace_mgr.create_workspace(
+                    task_id=project.project_id,
+                    workspace_type=WorkspaceType.GIT_WORKTREE,
+                    repo_path=new_repo,
+                    branch_name=f"agent/task-{project.project_id[:8]}",
+                )
+            else:
+                await self._emit(send_message, "CEO：用户取消了操作。")
+                return {"type": "error", "message": "用户取消"}
+
+        except ValueError as e:
+            # Git项目目录等不可恢复的错误
+            await self._emit(send_message, f"CEO：工作区创建失败 - {e}")
+            await send_message({"type": "meeting_error", "message": str(e)})
+            return {"type": "error", "message": str(e)}
+
         self._workspace_manager = workspace_mgr
         self._workspace = workspace
 
@@ -489,6 +594,12 @@ class CeoAgent:
         except Exception as e:
             logger.exception("会议消息处理异常: %s", e)
             await send_message({"type": "meeting_error", "message": str(e)})
+
+    def handle_workspace_confirm_response(self, response: Dict[str, Any]) -> None:
+        """处理前端返回的工作区确认响应"""
+        self._workspace_confirm_response = response
+        if self._workspace_confirm_event:
+            self._workspace_confirm_event.set()
 
     async def _emit(
         self,

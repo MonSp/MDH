@@ -196,7 +196,19 @@ class DiscussionManager:
     def _build_previous_context(self, results: List[Dict[str, Any]]) -> str:
         if not results:
             return "（尚无发言）"
-        return "\n".join([f"[{r['role']}]: {r['content']}" for r in results])
+        lines = []
+        for r in results:
+            role = r.get('role', '?')
+            content = r.get('content', '')
+            stance = r.get('parsed_stance', 'neutral')
+            # 截取核心观点（前80字），去掉STANCE/CONFIDENCE标签
+            core = re.sub(r'\[STANCE:.*?\]', '', content)
+            core = re.sub(r'\[CONFIDENCE:.*?\]', '', core).strip()
+            if len(core) > 80:
+                core = core[:80] + "..."
+            stance_icon = {"support": "+", "oppose": "-", "modify": "~"}.get(stance, "=")
+            lines.append(f"[{role}]({stance_icon}) {core}")
+        return "\n".join(lines)
     
     def _parse_stance_from_response(self, text: str) -> tuple[str, float]:
         stance_match = re.search(r'\[STANCE:(support|oppose|modify|neutral)\]', text, re.IGNORECASE)

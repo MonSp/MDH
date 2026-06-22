@@ -354,6 +354,10 @@ class ToolExecutor:
                     call_id=tool_call.call_id,
                 )
 
+        # Windows兼容：翻译常见Linux命令
+        if os.name == 'nt':
+            command = self._translate_for_windows(command)
+
         try:
             result = subprocess.run(
                 command,
@@ -378,6 +382,24 @@ class ToolExecutor:
                 error=f"命令超时 ({timeout}s)",
                 call_id=tool_call.call_id,
             )
+
+    @staticmethod
+    def _translate_for_windows(command: str) -> str:
+        """将常见Linux命令翻译为Windows等价命令"""
+        # mkdir -p dir1 dir2 → mkdir dir1 dir2 (Windows mkdir自动创建父目录)
+        command = re.sub(r'\bmkdir\s+-p\b', 'mkdir', command)
+        # ls -la → dir
+        command = re.sub(r'\bls\s+-la\b', 'dir', command)
+        command = re.sub(r'\bls\s+-l\b', 'dir', command)
+        command = re.sub(r'\bls\b', 'dir', command)
+        # cat file → type file
+        command = re.sub(r'\bcat\b', 'type', command)
+        # cp -r → xcopy /E /I
+        command = re.sub(r'\bcp\s+-r\b', 'xcopy /E /I', command)
+        # rm -rf → rmdir /S /Q
+        command = re.sub(r'\brm\s+-rf\b', 'rmdir /S /Q', command)
+        # && → ; (PowerShell style, but cmd.exe supports && too)
+        return command
 
     def _exec_git_status(self, tool_call: ToolCall) -> ToolResult:
         try:
