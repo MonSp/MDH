@@ -914,6 +914,29 @@ class MeetingCoordinator:
         # 发送项目总结到前端
         await on_message(coordinator_id, project_summary, "")
 
+        # 技能进化：从项目结果中提取经验规则
+        try:
+            from experience_extractor import ExperienceExtractor
+            import os
+            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
+            evolution_rules = extractor.extract_from_meeting(
+                project_id=self.meeting.meeting_id,
+                task_description=user_message,
+                discussion_results=discussion_results,
+                review_result=review_result,
+                execution_results=execution_results,
+            )
+            if evolution_rules:
+                evolution_text = (
+                    f"项目经理：已从本次项目中提取 {len(evolution_rules)} 条经验规则，"
+                    f"可在「技能进化」面板中查看和审核。"
+                )
+                await on_message(coordinator_id, evolution_text, "")
+                self.meeting.add_message("agent", evolution_text, coordinator_id)
+        except Exception as e:
+            self.logger.warning("技能进化提取失败: %s", e)
+
         # COORDINATOR汇报结果
         coordinator_report_text = f"项目经理：任务执行完成，向CEO汇报结果。"
         await on_message(coordinator_id, coordinator_report_text, "")

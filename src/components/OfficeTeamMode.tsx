@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import type { ViewState, MeetingTab } from './office-team/types'
+import type { ViewState } from './office-team/types'
 import { isOfficeView, isMeetingView } from './office-team/utils'
 import OfficeHeader from './office-team/OfficeHeader'
 import OfficeScene from './office-team/OfficeScene'
@@ -7,10 +7,10 @@ import MeetingChatPanel from './office-team/MeetingChatPanel'
 import TaskAssignPanel from './office-team/TaskAssignPanel'
 import MeetingLogPanel from './office-team/MeetingLogPanel'
 import AgendaPanel from './office-team/AgendaPanel'
-import SkillEvolutionDashboard from './skill-evolution/SkillEvolutionDashboard'
 import TechTowerView from './TechTowerView'
 import WorkflowPanel from './WorkflowPanel'
 import WorkspacePanel from './office-team/WorkspacePanel'
+import SkillEvolutionPanel from './skill-evolution/SkillEvolutionPanel'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 
 interface OfficeTeamModeProps {
@@ -23,7 +23,7 @@ interface OfficeTeamModeProps {
 export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalCount = 0, onOpenApproval }: OfficeTeamModeProps) {
   const [taskInput, setTaskInput] = useState('')
   const [viewState, setViewState] = useState<ViewState>('tower')
-  const [meetingTab, setMeetingTab] = useState<MeetingTab>('chat')
+  const [meetingTab, setMeetingTab] = useState<'chat' | 'files' | 'skills'>('chat')
 
   const {
     agents,
@@ -111,6 +111,11 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     }, 1000)
   }, [endMeeting])
 
+  /* 从会议返回大楼（保留CEO对话） */
+  const handleBackToTower = useCallback(() => {
+    setViewState('tower')
+  }, [])
+
   const isTower = viewState === 'tower'
   const isOffice = isOfficeView(viewState)
   const isMeeting = isMeetingView(viewState)
@@ -134,6 +139,7 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
         tasks={tasks}
         hasMessages={chatMessages.length > 0}
         onBackToSingle={onBackToSingle}
+        onBackToTower={handleBackToTower}
         onStartMeeting={handleStartMeeting}
         meetingPhase={meetingPhase}
         meetingStartTime={meetingStartTime}
@@ -152,20 +158,21 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
       )}
 
       <div style={styles.mainContent}>
-        <div
-          style={{
-            ...styles.officePanel,
-            ...(isMeeting ? styles.officePanelMinimized : {}),
-            ...(viewState === 'transitioning-to-meeting' ? styles.officePanelAnimating : {}),
-            ...(viewState === 'transitioning-to-office' ? styles.officePanelExpanding : {}),
-          }}
-        >
-          <OfficeScene
-            agents={agents}
-            viewState={viewState}
-            onStartMeeting={handleStartMeeting}
-          />
-        </div>
+        {!isMeeting && (
+          <div
+            style={{
+              ...styles.officePanel,
+              ...(viewState === 'transitioning-to-meeting' ? styles.officePanelAnimating : {}),
+              ...(viewState === 'transitioning-to-office' ? styles.officePanelExpanding : {}),
+            }}
+          >
+            <OfficeScene
+              agents={agents}
+              viewState={viewState}
+              onStartMeeting={handleStartMeeting}
+            />
+          </div>
+        )}
 
         {isMeeting && (
           <div style={{
@@ -182,7 +189,16 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                 }}
                 onClick={() => setMeetingTab('chat')}
               >
-                💬 会议
+                💬 对话
+              </button>
+              <button
+                style={{
+                  ...styles.meetingTabBtn,
+                  ...(meetingTab === 'files' ? styles.meetingTabBtnActive : {}),
+                }}
+                onClick={() => setMeetingTab('files')}
+              >
+                📄 文件
               </button>
               <button
                 style={{
@@ -192,15 +208,6 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                 onClick={() => setMeetingTab('skills')}
               >
                 🧬 技能进化
-              </button>
-              <button
-                style={{
-                  ...styles.meetingTabBtn,
-                  ...(meetingTab === 'workspace' ? styles.meetingTabBtnActive : {}),
-                }}
-                onClick={() => setMeetingTab('workspace')}
-              >
-                💼 工作区
               </button>
             </div>
 
@@ -223,15 +230,16 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                   onSendMessage={handleSendMessage}
                 />
               </>
-            ) : meetingTab === 'workspace' ? (
+            ) : meetingTab === 'files' ? (
               <WorkspacePanel
                 workspace={workspace}
                 toolCallLogs={toolCallLogs}
                 onToolCall={(name, args) => sendToolCall(name, args)}
                 onDestroy={() => sendWorkspaceAction('destroy', workspace?.workspace_id)}
+                messages={chatMessages}
               />
             ) : (
-              <SkillEvolutionDashboard />
+              <SkillEvolutionPanel />
             )}
           </div>
         )}
@@ -308,7 +316,6 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    marginLeft: '300px',
     transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
     opacity: 0,
     transform: 'translateX(20px)',

@@ -307,6 +307,48 @@ async def preview_package(base_skill_path: str, incremental_path: str):
         return _fail(str(e))
 
 
+@app.post("/api/skills/evolve")
+async def evolve_skills(body: dict = Body(...)):
+    """从项目结果中提取经验规则，触发技能进化"""
+    try:
+        project_id = body.get("project_id", "")
+        task_description = body.get("task_description", "")
+        discussion_results = body.get("discussion_results", [])
+        review_result = body.get("review_result", {})
+        execution_results = body.get("execution_results", [])
+
+        if not project_id:
+            return _fail("缺少 project_id")
+
+        rules = experience_extractor.extract_from_meeting(
+            project_id=project_id,
+            task_description=task_description,
+            discussion_results=discussion_results,
+            review_result=review_result,
+            execution_results=execution_results,
+        )
+
+        return _ok({
+            "project_id": project_id,
+            "rules_count": len(rules),
+            "rules": [
+                {
+                    "rule_id": r.rule_id,
+                    "trigger_condition": r.trigger_condition,
+                    "action": r.action,
+                    "note": r.note,
+                    "rule_type": r.rule_type,
+                    "status": r.status,
+                    "keywords": r.keywords,
+                }
+                for r in rules
+            ],
+        })
+    except Exception as e:
+        logger.exception("evolve_skills 失败")
+        return _fail(str(e))
+
+
 # ──────────────────── DynamicRouter REST API ────────────────────
 
 

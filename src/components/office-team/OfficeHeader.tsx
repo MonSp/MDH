@@ -12,6 +12,7 @@ interface OfficeHeaderProps {
   tasks: Task[]
   hasMessages: boolean
   onBackToSingle: () => void
+  onBackToTower: () => void
   onStartMeeting: () => void
   meetingPhase?: MeetingPhase
   meetingStartTime?: number | null
@@ -22,6 +23,7 @@ export default function OfficeHeader({
   tasks,
   hasMessages,
   onBackToSingle,
+  onBackToTower,
   onStartMeeting,
   meetingPhase = 'idle',
   meetingStartTime,
@@ -48,8 +50,8 @@ export default function OfficeHeader({
 
   return (
     <div style={styles.header}>
-      <button style={styles.backButton} onClick={onBackToSingle}>
-        ← 返回单智能体
+      <button style={styles.backButton} onClick={viewState === 'meeting' ? onBackToTower : onBackToSingle}>
+        {viewState === 'meeting' ? '← 返回对话' : '← 返回'}
       </button>
       <div style={styles.headerCenter}>
         <h2 style={styles.title}>🏢 多智能体团队协作</h2>

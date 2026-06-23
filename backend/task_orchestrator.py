@@ -199,6 +199,9 @@ class TaskOrchestrator:
             if agent_toolset:
                 tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}"
             
+            # 注入历史经验规则
+            experience_context = self._get_experience_context(task.description)
+            
             prompt = (
                 f"请执行以下任务：\n{task.description}\n\n"
                 f"重要：直接使用代码块写入文件，格式为：\n"
@@ -208,7 +211,8 @@ class TaskOrchestrator:
                 f"- 不要使用bash/mkdir创建目录，write_file会自动创建父目录\n"
                 f"- 每个文件单独一个代码块\n"
                 f"- 不要使用tool_call格式\n"
-                f"- 代码必须完整可运行，不要省略{tool_prompt}"
+                f"- 代码必须完整可运行，不要省略"
+                f"{experience_context}{tool_prompt}"
             )
             msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
             conversation = [msg]
@@ -392,6 +396,33 @@ class TaskOrchestrator:
         if len(plan) > 200:
             plan = plan[:200] + "..."
         return plan if len(plan) > 10 else ""
+
+    def _get_experience_context(self, task_description: str) -> str:
+        """从经验库中检索相关规则，格式化为提示上下文"""
+        try:
+            import os
+            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
+
+            # 提取关键词
+            import re
+            words = re.findall(r'[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}', task_description)
+            keywords = set(w.lower() for w in words)
+
+            # 推断任务类型
+            task_type = extractor._infer_task_type(task_description)
+
+            # 检索相关规则
+            rules = extractor.retrieve_relevant_rules(task_type, keywords)
+            if not rules:
+                return ""
+
+            context = extractor.build_experience_context(rules)
+            logger.info("注入 %d 条经验规则 (task_type=%s)", len(rules), task_type)
+            return f"\n\n{context}" if context else ""
+        except Exception as e:
+            logger.debug("经验注入跳过: %s", e)
+            return ""
 
     def _extract_tool_calls(self, text: str) -> List[Dict[str, Any]]:
         """从Agent回复中提取工具调用

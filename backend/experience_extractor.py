@@ -6,6 +6,7 @@
 
 import logging
 import os
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -601,3 +602,149 @@ class ExperienceExtractor:
             if status is None or rule.status == status:
                 rules.append(rule)
         return rules
+
+    def extract_from_meeting(
+        self,
+        project_id: str,
+        task_description: str,
+        discussion_results: list,
+        review_result: dict,
+        execution_results: list,
+    ) -> List[ExperienceRule]:
+        """从会议结果中提炼经验规则
+
+        分析讨论决策、审查反馈、执行结果，生成可复用的经验规则。
+
+        Args:
+            project_id: 项目ID
+            task_description: 任务描述
+            discussion_results: 讨论结果列表
+            review_result: 审查结果
+            execution_results: 执行结果列表
+
+        Returns:
+            提炼出的经验规则列表
+        """
+        rules: List[ExperienceRule] = []
+        task_type = self._infer_task_type(task_description)
+
+        # 从任务描述中提取内容关键词
+        content_keywords = self._extract_content_keywords(task_description)
+
+        # 1. 从讨论决策中提取成功模式
+        for result in discussion_results:
+            stance = result.get("parsed_stance", "neutral")
+            role = result.get("role", "")
+            content = result.get("content", "")
+            if stance in ("support", "modify") and content:
+                core = re.sub(r'\[STANCE:.*?\]', '', content)
+                core = re.sub(r'\[CONFIDENCE:.*?\]', '', core).strip()
+                if len(core) > 20:
+                    rule_keywords = sorted(set(content_keywords | {task_type, role, stance}))
+                    rule = ExperienceRule(
+                        rule_id=_new_rule_id(),
+                        trigger_condition=f"task_type is {task_type} and role is {role}",
+                        action=core[:200],
+                        note=f"来自{role}的讨论建议，立场: {stance}",
+                        source_task_id=project_id,
+                        source_task_type=task_type,
+                        rule_type="success_pattern",
+                        status="pending_review",
+                        keywords=rule_keywords,
+                        created_at=_now_iso(),
+                    )
+                    rules.append(rule)
+
+        # 2. 从审查反馈中提取改进点
+        reviewer_feedback = review_result.get("reviewer_feedback", "")
+        monitor_feedback = review_result.get("monitor_feedback", "")
+        if reviewer_feedback:
+            rule = ExperienceRule(
+                rule_id=_new_rule_id(),
+                trigger_condition=f"task_type is {task_type} and review stage",
+                action=reviewer_feedback[:200],
+                note="审查者反馈",
+                source_task_id=project_id,
+                source_task_type=task_type,
+                rule_type="correction_tip",
+                status="pending_review",
+                keywords=sorted(content_keywords | {task_type, "review", "quality"}),
+                created_at=_now_iso(),
+            )
+            rules.append(rule)
+        if monitor_feedback:
+            rule = ExperienceRule(
+                rule_id=_new_rule_id(),
+                trigger_condition=f"task_type is {task_type} and monitoring stage",
+                action=monitor_feedback[:200],
+                note="监控者评估",
+                source_task_id=project_id,
+                source_task_type=task_type,
+                rule_type="failure_avoidance",
+                status="pending_review",
+                keywords=sorted(content_keywords | {task_type, "monitor", "risk"}),
+                created_at=_now_iso(),
+            )
+            rules.append(rule)
+
+        # 3. 从执行结果中提取文件模式
+        for exec_result in execution_results:
+            written_files = exec_result.get("written_files", [])
+            if written_files:
+                file_types = set()
+                for f in written_files:
+                    if '.' in f:
+                        ext = f.rsplit('.', 1)[-1]
+                        file_types.add(ext)
+                if file_types:
+                    rule = ExperienceRule(
+                        rule_id=_new_rule_id(),
+                        trigger_condition=f"task_type is {task_type}",
+                        action=f"创建文件类型: {', '.join(sorted(file_types))}",
+                        note=f"本次项目创建了 {len(written_files)} 个文件",
+                        source_task_id=project_id,
+                        source_task_type=task_type,
+                        rule_type="success_pattern",
+                        status="pending_review",
+                        keywords=sorted(file_types | {task_type}),
+                        created_at=_now_iso(),
+                    )
+                    rules.append(rule)
+
+        # 保存规则
+        for rule in rules:
+            self._save_rule(rule)
+
+        logger.info("从项目 %s 提取了 %d 条经验规则", project_id, len(rules))
+        return rules
+
+    @staticmethod
+    def _infer_task_type(task_description: str) -> str:
+        """从任务描述推断任务类型"""
+        desc = task_description.lower()
+        if any(kw in desc for kw in ['ppt', '演示', '幻灯片']):
+            return 'ppt-design'
+        if any(kw in desc for kw in ['视频', '短片', '动画']):
+            return 'video-production'
+        if any(kw in desc for kw in ['小说', '故事', '写作', '文章']):
+            return 'content-writing'
+        if any(kw in desc for kw in ['代码', '开发', '系统', '程序', '网站', 'app']):
+            return 'software-dev'
+        if any(kw in desc for kw in ['数据', '分析', '报表']):
+            return 'data-analysis'
+        return 'general'
+
+    @staticmethod
+    def _extract_content_keywords(text: str) -> set:
+        """从文本中提取内容关键词（中文词+英文词）"""
+        keywords = set()
+        # 提取中文词（2-6字）
+        for kw in re.findall(r'[\u4e00-\u9fff]{2,6}', text):
+            keywords.add(kw)
+        # 提取英文词（3字母以上）
+        for kw in re.findall(r'[a-zA-Z]{3,}', text):
+            keywords.add(kw.lower())
+        # 过滤常见停用词
+        stop_words = {'the', 'and', 'for', 'with', 'this', 'that', 'from', 'are', 'was', 'has', 'can', 'will'}
+        keywords -= stop_words
+        return keywords
