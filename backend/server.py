@@ -152,6 +152,32 @@ async def create_project(body: dict = Body(...)):
         return _fail(str(e))
 
 
+@app.get("/api/projects/categories")
+async def get_project_categories():
+    """获取所有项目分类及每个分类下的项目。"""
+    try:
+        categories = project_manager.get_categories()
+        return _ok(categories)
+    except Exception as e:
+        logger.exception("get_categories 失败")
+        return _fail(str(e))
+
+
+@app.post("/api/projects/classify-all")
+async def classify_all_projects():
+    """批量自动分类所有未分类项目。"""
+    try:
+        results = []
+        for project in project_manager._projects.values():
+            if not project.category:
+                category = project_manager.auto_classify_project(project.project_id)
+                results.append({"project_id": project.project_id, "category": category})
+        return _ok({"classified": len(results), "results": results})
+    except Exception as e:
+        logger.exception("classify_all 失败")
+        return _fail(str(e))
+
+
 @app.get("/api/projects/{project_id}")
 async def get_project(project_id: str):
     try:
@@ -179,6 +205,27 @@ async def instantiate_project(project_id: str, body: dict = Body(...)):
     except KeyError as e:
         return _fail(str(e))
     except ValueError as e:
+        return _fail(str(e))
+
+
+@app.post("/api/projects/{project_id}/category")
+async def set_project_category(project_id: str, body: dict = Body(...)):
+    """设置项目分类。"""
+    try:
+        category = body.get("category", "")
+        project_manager.set_project_category(project_id, category)
+        return _ok({"project_id": project_id, "category": category})
+    except KeyError as e:
+        return _fail(str(e))
+
+
+@app.post("/api/projects/{project_id}/classify")
+async def classify_project(project_id: str):
+    """自动分类项目。"""
+    try:
+        category = project_manager.auto_classify_project(project_id)
+        return _ok({"project_id": project_id, "category": category})
+    except KeyError as e:
         return _fail(str(e))
 
 

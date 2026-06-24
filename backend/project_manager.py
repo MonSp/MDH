@@ -56,6 +56,7 @@ class Project:
     status: str                 # created / instantiating / running / archiving / archived / failed
     brief: dict                 # 项目简报（用户偏好、约束条件）
     created_at: str
+    category: str = ""          # 项目分类（如 "软件开发", "AI影视", "数据分析" 等）
     skill_packages: list = field(default_factory=list)   # 关联的技能包信息
     employees: list = field(default_factory=list)        # EmployeeInstance 列表
     execution_logs: list = field(default_factory=list)   # 执行日志
@@ -120,6 +121,7 @@ class ProjectManager:
             status=metadata["status"],
             brief=metadata.get("brief", {}),
             created_at=metadata.get("created_at", ""),
+            category=metadata.get("category", ""),
             skill_packages=metadata.get("skill_packages", []),
             employees=employees,
             execution_logs=metadata.get("execution_logs", []),
@@ -144,6 +146,7 @@ class ProjectManager:
             "status": project.status,
             "brief": project.brief,
             "created_at": project.created_at,
+            "category": project.category,
             "skill_packages": project.skill_packages,
             "employees": [asdict(e) for e in project.employees],
             "execution_logs": project.execution_logs,
@@ -525,7 +528,7 @@ class ProjectManager:
         """返回所有项目列表。
 
         Returns:
-            项目摘要列表，每个元素包含 project_id、name、status、created_at。
+            项目摘要列表，每个元素包含 project_id、name、status、created_at、category。
         """
         return [
             {
@@ -533,9 +536,87 @@ class ProjectManager:
                 "name": p.name,
                 "status": p.status,
                 "created_at": p.created_at,
+                "category": p.category,
             }
             for p in self._projects.values()
         ]
+
+    def get_categories(self) -> dict:
+        """获取所有项目分类及每个分类下的项目。
+
+        Returns:
+            分类字典，key为分类名，value为该分类下的项目列表。
+        """
+        categories = {}
+        for p in self._projects.values():
+            try:
+                cat = getattr(p, 'category', '') or "未分类"
+            except Exception:
+                cat = "未分类"
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append({
+                "project_id": p.project_id,
+                "name": p.name,
+                "status": p.status,
+                "created_at": p.created_at,
+            })
+        return categories
+
+    def set_project_category(self, project_id: str, category: str) -> None:
+        """设置项目分类。
+
+        Args:
+            project_id: 项目 ID。
+            category: 分类名称。
+
+        Raises:
+            KeyError: 项目不存在。
+        """
+        project = self._get_or_raise(project_id)
+        project.category = category
+        self._save_project(project)
+        logger.info("项目 %s 分类设置为: %s", project_id, category)
+
+    def auto_classify_project(self, project_id: str) -> str:
+        """根据项目名称和简报自动分类。
+
+        Args:
+            project_id: 项目 ID。
+
+        Returns:
+            分类结果。
+
+        Raises:
+            KeyError: 项目不存在。
+        """
+        project = self._get_or_raise(project_id)
+        name_lower = project.name.lower()
+        brief_str = json.dumps(project.brief, ensure_ascii=False).lower()
+        combined = name_lower + " " + brief_str
+
+        # 分类规则
+        category_rules = [
+            ("软件开发", ["软件", "系统", "平台", "网站", "app", "api", "后端", "前端", "全栈", "开发", "代码", "编程"]),
+            ("AI影视", ["视频", "影视", "宣传片", "电影", "动画", "特效", "拍摄", "剪辑"]),
+            ("数据分析", ["数据", "分析", "统计", "可视化", "报表", "大屏", "bi", "dashboard"]),
+            ("内容创作", ["文章", "博客", "内容", "写作", "文案", "编辑"]),
+            ("PPT设计", ["ppt", "演示", "汇报", "路演", "幻灯片"]),
+            ("物流系统", ["物流", "运输", "仓储", "供应链", "配送", "快递"]),
+            ("客服系统", ["客服", "对话", "聊天", "问答", "支持"]),
+        ]
+
+        for category, keywords in category_rules:
+            if any(kw in combined for kw in keywords):
+                project.category = category
+                self._save_project(project)
+                logger.info("项目 %s 自动分类为: %s", project_id, category)
+                return category
+
+        # 默认分类
+        project.category = "其他"
+        self._save_project(project)
+        return "其他"
 
     def get_project(self, project_id: str) -> Project:
         """获取项目详情。

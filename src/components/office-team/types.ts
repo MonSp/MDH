@@ -41,7 +41,7 @@ export interface ChatMessage {
   _msgSubtype?: 'feedback' | 'routing' | 'experience' | 'iteration'
 }
 
-export type ViewState = 'tower' | 'office' | 'transitioning-to-meeting' | 'meeting' | 'transitioning-to-office'
+export type ViewState = 'tower' | 'office' | 'meeting'
 
 export type MeetingTab = 'chat' | 'skills' | 'projects' | 'rules' | 'routes' | 'workspace'
 

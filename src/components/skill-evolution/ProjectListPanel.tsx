@@ -6,13 +6,13 @@ interface Props {
   onProjectSelect?: (project: Project) => void
 }
 
-const statusColorMap: Record<string, { bg: string; text: string; label: string }> = {
-  created: { bg: '#f3f4f6', text: '#6b7280', label: '已创建' },
-  instantiating: { bg: '#fef3c7', text: '#92400e', label: '实例化中' },
-  running: { bg: '#dbeafe', text: '#1d4ed8', label: '运行中' },
-  archiving: { bg: '#e0e7ff', text: '#4338ca', label: '归档中' },
-  archived: { bg: '#d1fae5', text: '#065f46', label: '已归档' },
-  failed: { bg: '#fee2e2', text: '#dc2626', label: '失败' },
+const statusConfig: Record<string, { bg: string; color: string; label: string }> = {
+  created: { bg: 'rgba(107,114,128,0.15)', color: '#9ca3af', label: '已创建' },
+  instantiating: { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b', label: '实例化中' },
+  running: { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa', label: '运行中' },
+  archiving: { bg: 'rgba(99,102,241,0.15)', color: '#818cf8', label: '归档中' },
+  archived: { bg: 'rgba(16,185,129,0.15)', color: '#10b981', label: '已归档' },
+  failed: { bg: 'rgba(239,68,68,0.15)', color: '#ef4444', label: '失败' },
 }
 
 export function ProjectListPanel({ onProjectSelect }: Props) {
@@ -26,209 +26,134 @@ export function ProjectListPanel({ onProjectSelect }: Props) {
   const loadProjects = async () => {
     setLoading(true)
     setError(null)
-    try {
-      const data = await listProjects()
-      setProjects(data)
-    } catch (e: any) {
-      setError(e.message || '加载项目列表失败')
-    } finally {
-      setLoading(false)
-    }
+    try { setProjects(await listProjects()) }
+    catch (e: any) { setError(e.message || '加载失败') }
+    finally { setLoading(false) }
   }
 
-  useEffect(() => {
-    loadProjects()
-  }, [])
+  useEffect(() => { loadProjects() }, [])
 
-  const handleSelectProject = async (project: Project) => {
-    setSelectedProject(project)
-    onProjectSelect?.(project)
-    try {
-      const status = await getProjectStatus(project.project_id)
-      setProjectStatus(status)
-    } catch {
-      setProjectStatus(null)
-    }
+  const handleSelect = async (p: Project) => {
+    setSelectedProject(p)
+    onProjectSelect?.(p)
+    try { setProjectStatus(await getProjectStatus(p.project_id)) }
+    catch { setProjectStatus(null) }
   }
 
-  const handleArchive = async (projectId: string) => {
-    setArchiving(projectId)
+  const handleArchive = async (id: string) => {
+    setArchiving(id)
     try {
-      await archiveProject(projectId)
+      await archiveProject(id)
       await loadProjects()
-      if (selectedProject?.project_id === projectId) {
-        setSelectedProject(null)
-        setProjectStatus(null)
-      }
-    } catch (e: any) {
-      setError(e.message || '归档失败')
-    } finally {
-      setArchiving(null)
-    }
+      if (selectedProject?.project_id === id) { setSelectedProject(null); setProjectStatus(null) }
+    } catch (e: any) { setError(e.message || '归档失败') }
+    finally { setArchiving(null) }
   }
 
-  const formatDate = (iso: string) => {
-    try {
-      return new Date(iso).toLocaleString('zh-CN')
-    } catch {
-      return iso
-    }
-  }
-
-  const getStatusStyle = (status: string) => {
-    return statusColorMap[status] || statusColorMap.created
+  const fmt = (iso: string) => {
+    try { return new Date(iso).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }
+    catch { return iso }
   }
 
   return (
-    <div style={{ padding: 16, fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>📁 项目管理</h3>
-        <button
-          onClick={loadProjects}
-          disabled={loading}
-          style={{
-            padding: '4px 12px',
-            border: '1px solid #d1d5db',
-            borderRadius: 4,
-            background: '#fff',
-            cursor: 'pointer',
-          }}
-        >
-          刷新
+    <div style={s.container}>
+      <div style={s.header}>
+        <div style={s.headerLeft}>
+          <span style={s.headerIcon}>📁</span>
+          <div>
+            <div style={s.title}>项目管理</div>
+            <div style={s.subtitle}>查看和管理已创建的项目</div>
+          </div>
+        </div>
+        <button style={s.refreshBtn} onClick={loadProjects} disabled={loading}>
+          {loading ? '加载中...' : '刷新'}
         </button>
       </div>
 
-      {error && <div style={{ color: '#ef4444', marginBottom: 8, fontSize: 13 }}>{error}</div>}
+      {error && <div style={s.error}>{error}</div>}
 
-      {loading ? (
-        <div style={{ color: '#6b7280', padding: 20, textAlign: 'center' }}>加载中...</div>
-      ) : projects.length === 0 ? (
-        <div style={{ color: '#9ca3af', padding: 20, textAlign: 'center' }}>暂无项目</div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {projects.map((project) => {
-            const statusStyle = getStatusStyle(project.status)
+      <div style={s.list}>
+        {loading ? (
+          <div style={s.empty}>加载中...</div>
+        ) : projects.length === 0 ? (
+          <div style={s.empty}>暂无项目</div>
+        ) : (
+          projects.map(p => {
+            const st = statusConfig[p.status] || statusConfig.created
+            const isSel = selectedProject?.project_id === p.project_id
             return (
-              <div
-                key={project.project_id}
-                onClick={() => handleSelectProject(project)}
-                style={{
-                  padding: 12,
-                  border: `1px solid ${selectedProject?.project_id === project.project_id ? '#3b82f6' : '#e5e7eb'}`,
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  background: selectedProject?.project_id === project.project_id ? '#eff6ff' : '#fff',
-                  transition: 'border-color 0.15s, background 0.15s',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{project.name}</span>
-                  <span style={{
-                    padding: '2px 10px',
-                    borderRadius: 10,
-                    fontSize: 11,
-                    background: statusStyle.bg,
-                    color: statusStyle.text,
-                  }}>
-                    {statusStyle.label}
-                  </span>
+              <div key={p.project_id} style={{ ...s.card, borderColor: isSel ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.06)' }} onClick={() => handleSelect(p)}>
+                <div style={s.cardTop}>
+                  <span style={s.cardName}>{p.name}</span>
+                  <span style={{ ...s.statusTag, background: st.bg, color: st.color }}>{st.label}</span>
                 </div>
-
-                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>
-                  员工: {project.employees.length} 人 | 技能包: {project.skill_packages.length} 个 | 创建: {formatDate(project.created_at)}
+                <div style={s.cardMeta}>
+                  员工 {p.employees.length} · 技能包 {p.skill_packages.length} · {fmt(p.created_at)}
                 </div>
-
-                {project.skill_packages.length > 0 && (
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
-                    {project.skill_packages.map((sp) => (
-                      <span
-                        key={sp.skill_id}
-                        style={{
-                          padding: '1px 6px',
-                          borderRadius: 3,
-                          fontSize: 11,
-                          background: '#f3f4f6',
-                          color: '#374151',
-                        }}
-                      >
-                        {sp.name}
-                      </span>
-                    ))}
+                {p.skill_packages.length > 0 && (
+                  <div style={s.tagList}>
+                    {p.skill_packages.map(sp => <span key={sp.skill_id} style={s.tag}>{sp.name}</span>)}
                   </div>
                 )}
-
-                <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleSelectProject(project)
-                    }}
-                    style={{
-                      padding: '2px 10px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: 4,
-                      background: '#fff',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                    }}
-                  >
-                    状态详情
-                  </button>
-                  {project.status !== 'archived' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleArchive(project.project_id)
-                      }}
-                      disabled={archiving === project.project_id}
-                      style={{
-                        padding: '2px 10px',
-                        border: '1px solid #f59e0b',
-                        borderRadius: 4,
-                        background: '#fffbeb',
-                        color: '#92400e',
-                        cursor: archiving === project.project_id ? 'wait' : 'pointer',
-                        fontSize: 12,
-                      }}
-                    >
-                      {archiving === project.project_id ? '归档中...' : '归档'}
+                {p.status !== 'archived' && (
+                  <div style={s.cardActions}>
+                    <button style={s.detailBtn} onClick={e => { e.stopPropagation(); handleSelect(p) }}>状态详情</button>
+                    <button style={s.archiveBtn} onClick={e => { e.stopPropagation(); handleArchive(p.project_id) }} disabled={archiving === p.project_id}>
+                      {archiving === p.project_id ? '归档中...' : '归档'}
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )
-          })}
-        </div>
-      )}
+          })
+        )}
+      </div>
 
       {selectedProject && projectStatus && (
-        <div style={{ marginTop: 16, padding: 12, border: '1px solid #e5e7eb', borderRadius: 8, background: '#fafafa' }}>
-          <h4 style={{ margin: '0 0 10px 0', fontSize: 14 }}>
-            {projectStatus.name} - 运行状态
-          </h4>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
-            <div style={{ padding: 8, background: '#fff', borderRadius: 6, border: '1px solid #e5e7eb' }}>
-              <div style={{ fontSize: 11, color: '#9ca3af' }}>员工数</div>
-              <div style={{ fontSize: 18, fontWeight: 600 }}>{projectStatus.employee_count}</div>
-            </div>
-            <div style={{ padding: 8, background: '#fff', borderRadius: 6, border: '1px solid #e5e7eb' }}>
-              <div style={{ fontSize: 11, color: '#9ca3af' }}>任务总数</div>
-              <div style={{ fontSize: 18, fontWeight: 600 }}>{projectStatus.task_stats.total}</div>
-            </div>
-            <div style={{ padding: 8, background: '#fff', borderRadius: 6, border: '1px solid #e5e7eb' }}>
-              <div style={{ fontSize: 11, color: '#9ca3af' }}>迭代轮次</div>
-              <div style={{ fontSize: 18, fontWeight: 600 }}>{projectStatus.iteration_stats.total_iterations}</div>
-            </div>
+        <div style={s.detailPanel}>
+          <div style={s.detailTitle}>{projectStatus.name} - 运行状态</div>
+          <div style={s.statGrid}>
+            <div style={s.statBox}><div style={s.statNum}>{projectStatus.employee_count}</div><div style={s.statLabel}>员工数</div></div>
+            <div style={s.statBox}><div style={s.statNum}>{projectStatus.task_stats.total}</div><div style={s.statLabel}>任务总数</div></div>
+            <div style={s.statBox}><div style={s.statNum}>{projectStatus.iteration_stats.total_iterations}</div><div style={s.statLabel}>迭代轮次</div></div>
           </div>
-
-          <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.8 }}>
+          <div style={s.detailInfo}>
             <div>任务完成: <span style={{ color: '#10b981', fontWeight: 600 }}>{projectStatus.task_stats.completed}</span> / 失败: <span style={{ color: '#ef4444', fontWeight: 600 }}>{projectStatus.task_stats.failed}</span></div>
-            <div>平均迭代次数: {projectStatus.iteration_stats.avg_iterations_per_task.toFixed(1)}</div>
-            <div>经验规则: 总计 {projectStatus.skill_increment_stats.total_rules} 条, 已批准 {projectStatus.skill_increment_stats.approved_rules} 条</div>
+            <div>平均迭代: {projectStatus.iteration_stats.avg_iterations_per_task.toFixed(1)}</div>
+            <div>经验规则: {projectStatus.skill_increment_stats.total_rules} 条 (已批准 {projectStatus.skill_increment_stats.approved_rules})</div>
           </div>
         </div>
       )}
     </div>
   )
+}
+
+const s: Record<string, React.CSSProperties> = {
+  container: { display: 'flex', flexDirection: 'column', height: '100%', background: 'rgba(0,0,0,0.2)', fontFamily: "'Noto Sans SC', sans-serif" },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: 10 },
+  headerIcon: { fontSize: 20, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(16,185,129,0.2)', borderRadius: 8 },
+  title: { fontSize: 14, fontWeight: 700, color: '#e2e8f0' },
+  subtitle: { fontSize: 11, color: '#6b7280' },
+  refreshBtn: { padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#9ca3af', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
+  error: { padding: '8px 16px', color: '#ef4444', fontSize: 12, background: 'rgba(239,68,68,0.1)' },
+  list: { flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 },
+  empty: { padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 13 },
+  card: { padding: '12px 14px', borderRadius: 10, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer', transition: 'border-color 0.15s' },
+  cardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  cardName: { fontSize: 14, fontWeight: 600, color: '#e2e8f0' },
+  statusTag: { padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600 },
+  cardMeta: { fontSize: 11, color: '#6b7280', marginBottom: 6 },
+  tagList: { display: 'flex', gap: 4, flexWrap: 'wrap' as const, marginBottom: 8 },
+  tag: { padding: '2px 8px', borderRadius: 4, fontSize: 10, background: 'rgba(59,130,246,0.1)', color: '#60a5fa' },
+  cardActions: { display: 'flex', gap: 8, marginTop: 8 },
+  detailBtn: { padding: '3px 10px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#9ca3af', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' },
+  archiveBtn: { padding: '3px 10px', borderRadius: 4, border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' },
+  detailPanel: { padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' },
+  detailTitle: { fontSize: 13, fontWeight: 600, color: '#e2e8f0', marginBottom: 10 },
+  statGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 },
+  statBox: { padding: 8, background: 'rgba(0,0,0,0.2)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.06)', textAlign: 'center' as const },
+  statNum: { fontSize: 18, fontWeight: 700, color: '#e2e8f0' },
+  statLabel: { fontSize: 10, color: '#6b7280', marginTop: 2 },
+  detailInfo: { fontSize: 12, color: '#9ca3af', lineHeight: 1.8 },
 }

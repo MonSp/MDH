@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import { AgentRole } from '../../modules/agentTypes'
 import RoleAvatar from '../RoleAvatar'
 import type { TeamAgent, ChatMessage } from './types'
@@ -14,12 +14,121 @@ interface MeetingChatPanelProps {
 
 export default function MeetingChatPanel({ agents, messages, onEndMeeting, agendaPhase }: MeetingChatPanelProps) {
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   const getAgentById = (id?: string) => agents.find(a => a.id === id)
+
+  // 切换文件展开状态
+  const toggleFileExpand = (fileKey: string) => {
+    setExpandedFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(fileKey)) next.delete(fileKey)
+      else next.add(fileKey)
+      return next
+    })
+  }
+
+  // 从消息内容中提取代码块
+  const extractCodeBlock = (content: string, filePath: string): string | null => {
+    // 尝试匹配 ```filename\ncontent\n``` 格式
+    const regex = new RegExp('```[^\\n]*' + filePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^\\n]*\\n([\\s\\S]*?)```', 'i')
+    const match = content.match(regex)
+    if (match) return match[1].trim()
+    
+    // 尝试匹配 ```path\ncontent\n``` 格式
+    const codeBlockRegex = /```([^\n`]+(?:\.[^\n`]+)?)\n([\s\S]*?)```/g
+    let m
+    while ((m = codeBlockRegex.exec(content)) !== null) {
+      const blockPath = m[1].trim()
+      if (blockPath === filePath || blockPath.endsWith(filePath.split('/').pop() || '')) {
+        return m[2].trim()
+      }
+    }
+    return null
+  }
+
+  // 解析写入文件消息，返回文件列表
+  const parseFileWriteMessage = (content: string): { files: string[]; charCount?: string } | null => {
+    const match = content.match(/\[写入文件\]\s*(.+?)\s*\((\d+)\s*字符\)/)
+    if (match) {
+      const files = match[1].split(',').map(f => f.trim()).filter(Boolean)
+      return { files, charCount: match[2] }
+    }
+    const match2 = content.match(/已写入\s*\d+\s*个文件[：:]\s*(.+)/)
+    if (match2) {
+      const files = match2[1].split(',').map(f => f.trim()).filter(Boolean)
+      return { files }
+    }
+    return null
+  }
+
+  // 获取文件图标
+  const getFileIcon = (path: string): string => {
+    const ext = path.split('.').pop()?.toLowerCase() || ''
+    if (['py'].includes(ext)) return '🐍'
+    if (['js', 'ts', 'tsx', 'jsx'].includes(ext)) return '📜'
+    if (['html', 'htm'].includes(ext)) return '🌐'
+    if (['css', 'scss', 'less'].includes(ext)) return '🎨'
+    if (['json', 'yaml', 'yml', 'toml', 'xml'].includes(ext)) return '📋'
+    if (['md', 'txt'].includes(ext)) return '📝'
+    if (['java'].includes(ext)) return '☕'
+    if (['go'].includes(ext)) return '🔷'
+    if (['rs'].includes(ext)) return '🦀'
+    if (['sql'].includes(ext)) return '🗄️'
+    return '📄'
+  }
+
+  // 渲染文件块
+  const renderFileBlocks = (files: string[], charCount?: string, msgContent?: string) => {
+    return (
+      <div style={styles.fileWriteBlock}>
+        <div style={styles.fileWriteHeader}>
+          <span style={styles.fileWriteIcon}>📁</span>
+          <span style={styles.fileWriteTitle}>写入文件</span>
+          <span style={styles.fileWriteCount}>{files.length} 个文件{charCount ? ` · ${charCount} 字符` : ''}</span>
+        </div>
+        <div style={styles.fileGrid}>
+          {files.map((f, i) => {
+            const fileName = f.split('/').pop() || f
+            const dir = f.split('/').slice(0, -1).join('/')
+            const fileKey = `${f}-${i}`
+            const isExpanded = expandedFiles.has(fileKey)
+            const codeContent = msgContent ? extractCodeBlock(msgContent, f) : null
+
+            return (
+              <div key={i} style={{ ...styles.fileCard, ...(isExpanded ? styles.fileCardExpanded : {}) }}>
+                <div style={styles.fileCardClickable} onClick={() => toggleFileExpand(fileKey)}>
+                  <span style={styles.fileCardIcon}>{getFileIcon(f)}</span>
+                  <div style={styles.fileCardInfo}>
+                    <div style={styles.fileCardName}>{fileName}</div>
+                    {dir && <div style={styles.fileCardDir}>{dir}</div>}
+                  </div>
+                  <span style={{ ...styles.fileCardExpandIcon, transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                </div>
+                <div style={{
+                  ...styles.filePreviewContainer,
+                  maxHeight: isExpanded ? '250px' : '0px',
+                  opacity: isExpanded ? 1 : 0,
+                }}>
+                  {codeContent ? (
+                    <pre style={styles.filePreview}>
+                      {codeContent.length > 1500 ? codeContent.slice(0, 1500) + '\n... (截断)' : codeContent}
+                    </pre>
+                  ) : (
+                    <div style={styles.filePreviewEmpty}>暂无内容预览</div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={styles.chatPanel}>
@@ -315,7 +424,13 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
                   </span>
                   <span style={styles.msgTime}>{formatTime(msg.timestamp)}</span>
                 </div>
-                <div style={styles.msgContent}>{msg.content}{(msg as any)._streaming && <span style={styles.streamingCursor}>▍</span>}</div>
+                {(() => {
+                  const fileWrite = parseFileWriteMessage(msg.content)
+                  if (fileWrite) {
+                    return renderFileBlocks(fileWrite.files, fileWrite.charCount, msg.content)
+                  }
+                  return <div style={styles.msgContent}>{msg.content}{(msg as any)._streaming && <span style={styles.streamingCursor}>▍</span>}</div>
+                })()}
                 {(msg as any)._stance && (
                   <div style={{
                     display: 'flex',
@@ -536,5 +651,114 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: '6px',
     fontSize: '10px',
     color: 'rgba(255, 255, 255, 0.3)',
+  },
+  fileWriteBlock: {
+    marginTop: '4px',
+    borderRadius: '8px',
+    border: '1px solid rgba(59, 130, 246, 0.3)',
+    background: 'rgba(59, 130, 246, 0.08)',
+    overflow: 'hidden',
+  },
+  fileWriteHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '6px 10px',
+    background: 'rgba(59, 130, 246, 0.12)',
+    borderBottom: '1px solid rgba(59, 130, 246, 0.2)',
+  },
+  fileWriteIcon: {
+    fontSize: '12px',
+  },
+  fileWriteTitle: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#60a5fa',
+  },
+  fileWriteCount: {
+    fontSize: '10px',
+    color: '#6b7280',
+    marginLeft: 'auto',
+  },
+  fileGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+    gap: '4px',
+    padding: '6px',
+  },
+  fileCard: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    borderRadius: '4px',
+    background: 'rgba(0, 0, 0, 0.2)',
+    border: '1px solid rgba(255, 255, 255, 0.06)',
+    overflow: 'hidden',
+    transition: 'all 0.15s',
+  },
+  fileCardExpanded: {
+    gridColumn: '1 / -1',
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+  },
+  fileCardClickable: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '5px 8px',
+    cursor: 'pointer',
+  },
+  fileCardIcon: {
+    fontSize: '12px',
+    flexShrink: 0,
+  },
+  fileCardInfo: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  fileCardName: {
+    fontSize: '10px',
+    fontWeight: 600,
+    color: '#e2e8f0',
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  fileCardDir: {
+    fontSize: '8px',
+    color: '#6b7280',
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  fileCardExpandIcon: {
+    fontSize: '8px',
+    color: '#6b7280',
+    marginLeft: 'auto',
+    flexShrink: 0,
+    transition: 'transform 0.25s ease',
+  },
+  filePreviewContainer: {
+    overflow: 'hidden',
+    transition: 'max-height 0.3s ease, opacity 0.25s ease',
+  },
+  filePreview: {
+    margin: 0,
+    padding: '8px 10px',
+    fontSize: '10px',
+    lineHeight: 1.5,
+    color: '#d1d5db',
+    background: 'rgba(0, 0, 0, 0.3)',
+    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+    maxHeight: '200px',
+    overflow: 'auto',
+    whiteSpace: 'pre-wrap' as const,
+    wordBreak: 'break-word' as const,
+    fontFamily: "'Cascadia Code', 'Fira Code', monospace",
+  },
+  filePreviewEmpty: {
+    padding: '8px 10px',
+    fontSize: '10px',
+    color: '#6b7280',
+    textAlign: 'center' as const,
+    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
   },
 }

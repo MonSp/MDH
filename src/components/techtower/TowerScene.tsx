@@ -175,7 +175,11 @@ function DynamicFogLayer({ y, baseOpacity, color, size, fogEnabled }: {
 
 /* ───────── 完整 3D 场景 ───────── */
 
-export default function TowerScene({ projects, customTeams, onSelectProject, onSelectDept, onSelectTeam, onCreateTeam, cameraNav, onFocusFloor, activeDeptColor, fogEnabled = true, showBuildings = true, showBillboards = true, showFlyingVehicles = true, showBridges = true, showParticles = true, showRain = true, showNeonLines = true, isDayMode = false }: {
+interface CategoryProjects {
+  [category: string]: Array<{ project_id: string; name: string; status: string; created_at: string }>
+}
+
+export default function TowerScene({ projects, customTeams, onSelectProject, onSelectDept, onSelectTeam, onCreateTeam, cameraNav, onFocusFloor, activeDeptColor, fogEnabled = true, showBuildings = true, showBillboards = true, showFlyingVehicles = true, showBridges = true, showParticles = true, showRain = true, showNeonLines = true, isDayMode = false, categories = {}, selectedFloor = null, onFloorClick, onEnterProject, onComputerClick }: {
   projects: Project[]
   customTeams: CustomTeam[]
   onSelectProject: (p: Project) => void
@@ -194,6 +198,11 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
   showRain?: boolean
   showNeonLines?: boolean
   isDayMode?: boolean
+  categories?: CategoryProjects
+  selectedFloor?: string | null
+  onFloorClick?: (category: string, cameraPos: [number, number, number], target: [number, number, number]) => void
+  onEnterProject?: (projectId: string, projectName: string) => void
+  onComputerClick?: (category: string) => void
 }) {
   const [hovering, setHovering] = useState(false)
   const onEnter = useCallback(() => setHovering(true), [])
@@ -215,13 +224,14 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
   useFrame(({ camera }) => {
     if (!navActive.current) return
 
-    camera.position.lerp(navPosRef.current, 0.08)
+    // 更快的相机动画（0.12 vs 0.08）
+    camera.position.lerp(navPosRef.current, 0.12)
     if (controlsRef.current) {
-      controlsRef.current.target.lerp(navTargetRef.current, 0.08)
+      controlsRef.current.target.lerp(navTargetRef.current, 0.12)
       controlsRef.current.update()
     }
 
-    if (camera.position.distanceTo(navPosRef.current) < 0.1) {
+    if (camera.position.distanceTo(navPosRef.current) < 0.05) {
       navActive.current = false
     }
   })
@@ -265,10 +275,16 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       <Environment files="/dikhololo_night_1k.hdr" background={false} />
 
       <Ground showNeonLines={showNeonLines} />
-      <BuildingBody />
+      
+      {/* 建筑主体（进入楼层时隐藏） */}
+      {!selectedFloor && (
+        <>
+          <BuildingBody />
+          <GlassCurtainWall />
+          <NeonEdges />
+        </>
+      )}
       <DataFlowParticles totalIterations={totalIterations} />
-      <GlassCurtainWall />
-      <NeonEdges />
 
       {/* 电影级赛博朋克城市 — 500+ 栋 InstancedMesh 建筑 */}
       {showBuildings && <CyberpunkCityInstanced count={500} />}
@@ -332,16 +348,30 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       <PenthouseFloor />
       <PenthouseWalls />
 
-      <Desk />
-      <ComputerScreen />
-      <Chair />
-      <Minibar />
-      <Plant />
-      <CEOPerson />
-      <HolographicAI activeDeptColor={activeDeptColor} />
-      <Antenna activeDeptColor={activeDeptColor} />
+      {/* 顶层设施（进入楼层时隐藏） */}
+      {!selectedFloor && (
+        <>
+          <Desk />
+          <ComputerScreen />
+          <Chair />
+          <Minibar />
+          <Plant />
+          <CEOPerson />
+          <HolographicAI activeDeptColor={activeDeptColor} />
+          <Antenna activeDeptColor={activeDeptColor} />
+        </>
+      )}
 
-      <FrontFaceProjects projects={projects} onSelect={onSelectProject} onFocusFloor={onFocusFloor} />
+      <FrontFaceProjects
+        projects={projects}
+        onSelect={onSelectProject}
+        onFocusFloor={onFocusFloor}
+        categories={categories}
+        selectedFloor={selectedFloor}
+        onFloorClick={onFloorClick}
+        onEnterProject={onEnterProject}
+        onComputerClick={onComputerClick}
+      />
       <RightFaceDepts depts={DEFAULT_DEPTS} customTeams={customTeams} onSelectDept={onSelectDept} onSelectTeam={onSelectTeam} onCreateTeam={onCreateTeam} onFocusFloor={onFocusFloor} />
 
       <FloorLabels />

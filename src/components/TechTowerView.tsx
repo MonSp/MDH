@@ -4,6 +4,30 @@ import type { Project, ProjectDept, CustomTeam, PanelState, CameraTarget } from 
 import { DEFAULT_DEPTS, DEFAULT_PROJECTS, ALL_AGENTS, TowerScene, SidePanel, ViewBookmarks, OverlayButtons } from './techtower'
 import CeoChatPanel from './office-team/CeoChatPanel'
 
+const CATEGORY_ICONS: Record<string, string> = {
+  '软件开发': '💻',
+  'AI影视': '🎬',
+  '数据分析': '📊',
+  '内容创作': '✍️',
+  'PPT设计': '📑',
+  '物流系统': '🚚',
+  '客服系统': '💬',
+  '其他': '📋',
+  '未分类': '📁',
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  '软件开发': '#3b82f6',
+  'AI影视': '#ef4444',
+  '数据分析': '#8b5cf6',
+  '内容创作': '#f59e0b',
+  'PPT设计': '#10b981',
+  '物流系统': '#06b6d4',
+  '客服系统': '#ec4899',
+  '其他': '#6b7280',
+  '未分类': '#4b5563',
+}
+
 /* ───────── 主组件 ───────── */
 
 interface TechTowerViewProps {
@@ -11,12 +35,27 @@ interface TechTowerViewProps {
   onStartMeeting: () => void
   onSendTask: (description: string) => void
   onBackToSingle: () => void
+  onEnterProject?: (projectId: string, projectName: string) => void
+  refreshKey?: number
 }
 
-export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBackToSingle }: TechTowerViewProps) {
+interface CategoryProjects {
+  [category: string]: Array<{ project_id: string; name: string; status: string; created_at: string }>
+}
+
+export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBackToSingle, onEnterProject, refreshKey }: TechTowerViewProps) {
   void onSendTask
 
-  const [projects] = useState<Project[]>(DEFAULT_PROJECTS)
+  const simplifyName = (name: string) => {
+    if (name.startsWith('任务-')) name = name.slice(3)
+    if (name.length > 12) name = name.slice(0, 12) + '…'
+    return name
+  }
+
+  const [projects, setProjects] = useState<Project[]>(DEFAULT_PROJECTS)
+  const [categories, setCategories] = useState<CategoryProjects>({})
+  const [selectedFloor, setSelectedFloor] = useState<string | null>(null)
+  const [showFloorPanel, setShowFloorPanel] = useState(false)
   const [customTeams, setCustomTeams] = useState<CustomTeam[]>([])
   const [panel, setPanel] = useState<PanelState>(null)
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches)
@@ -28,6 +67,49 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
+
+  // 从后端加载项目和分类
+  const fetchProjects = useCallback(() => {
+    // 先触发批量分类
+    fetch('/api/projects/classify-all', { method: 'POST' })
+      .then(() => {
+        // 分类完成后获取项目列表
+        return fetch('/api/projects')
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success || !Array.isArray(data.data)) return
+        const backendProjects: Project[] = data.data.map((p: { project_id: string; name: string; status: string; created_at: string; category?: string }) => ({
+          id: p.project_id,
+          name: simplifyName(p.name),
+          description: '后端项目',
+          selectedDeptIds: ['dept-software'],
+          status: (p.status === 'running' ? 'active' : p.status === 'archived' ? 'completed' : 'planning') as 'planning' | 'active' | 'completed',
+          createdAt: new Date(p.created_at).getTime() || Date.now(),
+          iterations: 0,
+        }))
+        setProjects(prev => {
+          const defaultIds = new Set(DEFAULT_PROJECTS.map(p => p.id))
+          const uniqueBackend = backendProjects.filter(bp => !defaultIds.has(bp.id))
+          return [...uniqueBackend, ...DEFAULT_PROJECTS]
+        })
+      })
+      .catch(() => {})
+
+    // 获取分类数据
+    fetch('/api/projects/categories')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.data) {
+          setCategories(data.data)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetchProjects()
+  }, [refreshKey, fetchProjects])
 
   const [cameraNav, setCameraNav] = useState<CameraTarget | null>(null)
   const [fogEnabled, setFogEnabled] = useState(true)
@@ -67,10 +149,69 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
     setPanel(null)
   }, [])
 
-  const handleCreateProject = useCallback((_deptId: string) => {
+  const handleCreateProject = useCallback((deptId: string) => {
     setPanel(null)
-    onSendTask('创建新项目')
-  }, [onSendTask])
+    const dept = DEFAULT_DEPTS.find(d => d.deptId === deptId)
+    const newProject: Project = {
+      id: `proj-${Date.now()}`,
+      name: `新项目 ${projects.length + 1}`,
+      description: '待定义项目描述',
+      selectedDeptIds: [deptId],
+      status: 'planning',
+      createdAt: Date.now(),
+      iterations: 0,
+    }
+    setProjects(prev => [...prev, newProject])
+    onSendTask(`创建新项目: ${newProject.name}, 部门: ${dept?.name ?? deptId}`)
+  }, [onSendTask, projects.length])
+
+  const handleCeoEnterProject = useCallback((projectId: string, meetingId: string) => {
+    setShowCeoChat(false)
+    onStartMeeting()
+  }, [onStartMeeting])
+
+  const handleCeoProjectCreated = useCallback((projectId: string) => {
+    setProjects(prev => {
+      if (prev.some(p => p.id === projectId)) return prev
+      const shortId = projectId.slice(0, 8)
+      return [...prev, {
+        id: projectId,
+        name: `CEO项目-${shortId}`,
+        description: '通过CEO对话创建',
+        selectedDeptIds: ['dept-software'],
+        status: 'active' as const,
+        createdAt: Date.now(),
+        iterations: 0,
+      }]
+    })
+  }, [])
+
+  // 处理楼层点击（进入分类视图）
+  const handleFloorClick = useCallback((category: string, cameraPos: [number, number, number], target: [number, number, number]) => {
+    setSelectedFloor(category)
+    setCameraNav({ pos: cameraPos, target })
+  }, [])
+
+  // 返回全局视图
+  const handleBackToFloors = useCallback(() => {
+    setSelectedFloor(null)
+    setShowFloorPanel(false)
+    setCameraNav({ pos: [30, 55, 45], target: [0, 14, 0] })
+  }, [])
+
+  // 点击电脑打开项目面板
+  const handleComputerClick = useCallback((category: string) => {
+    // 打开面板时刷新分类数据
+    fetch('/api/projects/categories')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.data) {
+          setCategories(data.data)
+        }
+      })
+      .catch(() => {})
+    setShowFloorPanel(true)
+  }, [])
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080818', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
@@ -99,8 +240,194 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
           showRain={showRain}
           showNeonLines={showNeonLines}
           isDayMode={isDayMode}
+          categories={categories}
+          selectedFloor={selectedFloor}
+          onFloorClick={handleFloorClick}
+          onEnterProject={onEnterProject}
+          onComputerClick={handleComputerClick}
         />
       </Canvas>
+
+      {/* 楼层项目管理面板（点击电脑后弹出） */}
+      {showFloorPanel && (
+        <div style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: 500,
+          background: 'rgba(10, 10, 30, 0.97)',
+          borderLeft: '1px solid rgba(139, 92, 246, 0.3)',
+          display: 'flex', flexDirection: 'column',
+          zIndex: 200,
+          animation: 'slideInRight 0.3s ease',
+        }}>
+          {/* 面板头部 */}
+          <div style={{
+            padding: '14px 16px',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            background: 'linear-gradient(135deg, rgba(139,92,246,0.15), rgba(59,130,246,0.1))',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#e2e8f0' }}>
+              📂 项目管理中心
+            </div>
+            <button
+              onClick={() => setShowFloorPanel(false)}
+              style={{
+                width: 28, height: 28, borderRadius: 6,
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.05)',
+                color: '#9ca3af', fontSize: 16, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >×</button>
+          </div>
+
+          {/* 内容区：左侧分类导航 + 右侧项目列表 */}
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+            {/* 左侧分类导航 */}
+            <div style={{
+              width: 160,
+              borderRight: '1px solid rgba(255,255,255,0.06)',
+              overflowY: 'auto',
+              padding: '8px',
+            }}>
+              {Object.keys(categories)
+                .sort((a, b) => (categories[b]?.length || 0) - (categories[a]?.length || 0))
+                .map(cat => {
+                  const color = CATEGORY_COLORS[cat] || '#6b7280'
+                  const icon = CATEGORY_ICONS[cat] || '📋'
+                  const isActive = selectedFloor === cat
+
+                  return (
+                    <div
+                      key={cat}
+                      onClick={() => setSelectedFloor(cat)}
+                      style={{
+                        padding: '10px 12px',
+                        marginBottom: 4,
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        background: isActive ? `${color}20` : 'transparent',
+                        border: `1px solid ${isActive ? `${color}40` : 'transparent'}`,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 16 }}>{icon}</span>
+                        <div>
+                          <div style={{
+                            fontSize: 12, fontWeight: isActive ? 700 : 500,
+                            color: isActive ? '#fff' : '#9ca3af',
+                          }}>{cat}</div>
+                          <div style={{ fontSize: 10, color: '#6b7280' }}>
+                            {categories[cat]?.length || 0} 个
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+
+            {/* 右侧项目列表 */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+              {selectedFloor && categories[selectedFloor] ? (
+                <>
+                  <div style={{
+                    fontSize: 13, fontWeight: 600, color: '#e2e8f0', marginBottom: 12,
+                    padding: '8px 12px',
+                    background: 'rgba(139,92,246,0.1)',
+                    borderRadius: 8,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <span>{CATEGORY_ICONS[selectedFloor] || '📋'}</span>
+                    <span>{selectedFloor}</span>
+                    <span style={{ fontSize: 11, color: '#6b7280', marginLeft: 'auto' }}>
+                      {categories[selectedFloor].length} 个项目
+                    </span>
+                  </div>
+
+                  {/* 按时间排序（最新在前） */}
+                  {[...categories[selectedFloor]]
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map((proj) => {
+                      const project = projects.find(p => p.id === proj.project_id)
+                      const statusMap: Record<string, { label: string; color: string; bg: string }> = {
+                        active: { label: '进行中', color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
+                        completed: { label: '已完成', color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
+                        planning: { label: '规划中', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
+                        created: { label: '已创建', color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
+                        running: { label: '运行中', color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
+                      }
+                      const st = statusMap[proj.status] ?? statusMap.planning
+                      const timeStr = new Date(proj.created_at).toLocaleString('zh-CN', {
+                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                      })
+
+                      return (
+                        <div
+                          key={proj.project_id}
+                          onClick={() => {
+                            setShowFloorPanel(false)
+                            setSelectedFloor(null)
+                            if (onEnterProject) {
+                              onEnterProject(proj.project_id, proj.name)
+                            } else if (project) {
+                              handleSelectProject(project)
+                            }
+                          }}
+                          style={{
+                            padding: '12px 14px',
+                            marginBottom: 8,
+                            borderRadius: 10,
+                            background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s',
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.background = 'rgba(139,92,246,0.1)'
+                            e.currentTarget.style.borderColor = 'rgba(139,92,246,0.3)'
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{proj.name}</div>
+                            <span style={{
+                              padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+                              background: st.bg, color: st.color,
+                            }}>{st.label}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ fontSize: 10, color: '#6b7280', fontFamily: 'monospace' }}>
+                              {proj.project_id.slice(0, 16)}...
+                            </div>
+                            <div style={{ fontSize: 10, color: '#4b5563' }}>{timeStr}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                </>
+              ) : (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  height: '100%', color: '#6b7280', fontSize: 13,
+                }}>
+                  ← 请选择分类
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `}</style>
 
       {/* 白天/晚上切换按钮 */}
       <div
@@ -120,6 +447,36 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
       >
         {isDayMode ? '☀️ 白天模式' : '🌙 夜晚模式'}
       </div>
+
+      {/* 返回楼层按钮（当进入某个分类时显示） */}
+      {selectedFloor && (
+        <div style={{
+          position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+        }}>
+          <button
+            onClick={handleBackToFloors}
+            style={{
+              padding: '10px 24px', borderRadius: 12, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8,
+              fontSize: 14, fontWeight: 600, border: '1px solid rgba(139,92,246,0.5)',
+              background: 'linear-gradient(135deg, rgba(139,92,246,0.3), rgba(59,130,246,0.3))',
+              color: '#fff', boxShadow: '0 4px 20px rgba(139,92,246,0.3)',
+              backdropFilter: 'blur(12px)', transition: 'all 0.2s',
+            }}
+          >
+            <span style={{ fontSize: 16 }}>🏢</span>
+            <span>返回大楼全景</span>
+          </button>
+          <div style={{
+            fontSize: 11, color: '#9ca3af',
+            background: 'rgba(0,0,0,0.5)', padding: '4px 12px', borderRadius: 6,
+            backdropFilter: 'blur(8px)',
+          }}>
+            当前在: {selectedFloor}
+          </div>
+        </div>
+      )}
 
       {/* 面板标题提示 */}
       {!panel && (
@@ -145,7 +502,7 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
       )}
 
       <ViewBookmarks onNavigate={handleNavigate} />
-      <SidePanel panel={panel} onClose={handleClose} onCreateTeam={handleDoCreateTeam} onCreateProject={handleCreateProject} isMobile={isMobile} depts={DEFAULT_DEPTS} />
+      <SidePanel panel={panel} onClose={handleClose} onCreateTeam={handleDoCreateTeam} onCreateProject={handleCreateProject} onEnterProject={onEnterProject} isMobile={isMobile} depts={DEFAULT_DEPTS} />
       <OverlayButtons onStartMeeting={onStartMeeting} onBackToSingle={onBackToSingle} />
 
       {/* CEO对话入口按钮 */}
@@ -218,10 +575,8 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
       {showCeoChat && (
         <CeoChatPanel
           wsRef={wsRef}
-          onEnterProject={() => {
-            setShowCeoChat(false)
-            onStartMeeting()
-          }}
+          onEnterProject={handleCeoEnterProject}
+          onProjectCreated={handleCeoProjectCreated}
           onClose={() => setShowCeoChat(false)}
         />
       )}

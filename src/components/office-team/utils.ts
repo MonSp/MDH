@@ -21,7 +21,7 @@ export const getAgentPosition = (
   agents: TeamAgent[],
   viewState: string
 ): { x: number; y: number } => {
-  if (viewState === 'meeting' || viewState === 'transitioning-to-meeting') {
+  if (viewState === 'meeting') {
     const index = agents.findIndex(a => a.id === agent.id)
     const angle = (index / agents.length) * Math.PI * 2
     const radius = 12
@@ -46,10 +46,7 @@ export const getAgentPosition = (
 }
 
 export const isOfficeView = (viewState: string): boolean =>
-  viewState === 'office' || viewState === 'transitioning-to-office'
+  viewState === 'office'
 
 export const isMeetingView = (viewState: string): boolean =>
-  viewState === 'meeting' || viewState === 'transitioning-to-meeting'
-
-export const isTransitioning = (viewState: string): boolean =>
-  viewState === 'transitioning-to-meeting' || viewState === 'transitioning-to-office'
+  viewState === 'meeting'

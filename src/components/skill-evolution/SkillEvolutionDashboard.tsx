@@ -51,13 +51,14 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
-    background: '#fff',
+    background: 'rgba(0,0,0,0.2)',
     fontFamily: "'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif",
+    color: '#e2e8f0',
   },
   tabBar: {
     display: 'flex',
-    borderBottom: '1px solid #e5e7eb',
-    background: '#f9fafb',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    background: 'rgba(0,0,0,0.15)',
     padding: '0 8px',
   },
   tab: {
@@ -77,9 +78,9 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap',
   },
   tabActive: {
-    color: '#1d4ed8',
-    borderBottomColor: '#3b82f6',
-    background: '#fff',
+    color: '#a78bfa',
+    borderBottomColor: '#8b5cf6',
+    background: 'rgba(139,92,246,0.08)',
   },
   content: {
     flex: 1,

@@ -6,16 +6,15 @@ interface Props {
   mode?: 'all' | 'pending'
 }
 
-const ruleTypeLabels: Record<string, { label: string; color: string }> = {
+const typeCfg: Record<string, { label: string; color: string }> = {
   success_pattern: { label: '成功模式', color: '#10b981' },
   failure_avoidance: { label: '避坑指南', color: '#f59e0b' },
   correction_tip: { label: '纠正提示', color: '#8b5cf6' },
 }
-
-const statusLabels: Record<string, { label: string; bg: string; text: string }> = {
-  pending_review: { label: '待审核', bg: '#fef3c7', text: '#92400e' },
-  approved: { label: '已批准', bg: '#d1fae5', text: '#065f46' },
-  rejected: { label: '已拒绝', bg: '#fee2e2', text: '#dc2626' },
+const statusCfg: Record<string, { label: string; bg: string; color: string }> = {
+  pending_review: { label: '待审核', bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
+  approved: { label: '已批准', bg: 'rgba(16,185,129,0.15)', color: '#10b981' },
+  rejected: { label: '已拒绝', bg: 'rgba(239,68,68,0.15)', color: '#ef4444' },
 }
 
 export function ExperienceRulePanel({ mode = 'all' }: Props) {
@@ -27,246 +26,134 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
   const [actingId, setActingId] = useState<string | null>(null)
 
   const loadRules = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = mode === 'pending' ? await getPendingRules() : await getAllRules()
-      setRules(data)
-    } catch (e: any) {
-      setError(e.message || '加载规则失败')
-    } finally {
-      setLoading(false)
-    }
+    setLoading(true); setError(null)
+    try { setRules(mode === 'pending' ? await getPendingRules() : await getAllRules()) }
+    catch (e: any) { setError(e.message || '加载失败') }
+    finally { setLoading(false) }
   }
 
-  useEffect(() => {
-    loadRules()
-  }, [mode])
+  useEffect(() => { loadRules() }, [mode])
 
-  const handleApprove = async (ruleId: string) => {
-    setActingId(ruleId)
-    try {
-      await approveRule(ruleId)
-      setRules((prev) =>
-        prev.map((r) => r.rule_id === ruleId ? { ...r, status: 'approved' } : r)
-      )
-    } catch (e: any) {
-      setError(e.message || '批准失败')
-    } finally {
-      setActingId(null)
-    }
+  const handleApprove = async (id: string) => {
+    setActingId(id)
+    try { await approveRule(id); setRules(prev => prev.map(r => r.rule_id === id ? { ...r, status: 'approved' } : r)) }
+    catch (e: any) { setError(e.message || '批准失败') }
+    finally { setActingId(null) }
   }
 
-  const handleReject = async (ruleId: string) => {
-    setActingId(ruleId)
-    try {
-      await rejectRule(ruleId, '不符合标准')
-      setRules((prev) =>
-        prev.map((r) => r.rule_id === ruleId ? { ...r, status: 'rejected' } : r)
-      )
-    } catch (e: any) {
-      setError(e.message || '拒绝失败')
-    } finally {
-      setActingId(null)
-    }
+  const handleReject = async (id: string) => {
+    setActingId(id)
+    try { await rejectRule(id, '不符合标准'); setRules(prev => prev.map(r => r.rule_id === id ? { ...r, status: 'rejected' } : r)) }
+    catch (e: any) { setError(e.message || '拒绝失败') }
+    finally { setActingId(null) }
   }
 
-  const filteredRules = filter === 'all' ? rules : rules.filter((r) => r.status === filter)
-
-  const formatDate = (iso: string) => {
-    try {
-      return new Date(iso).toLocaleString('zh-CN')
-    } catch {
-      return iso
-    }
-  }
+  const filtered = filter === 'all' ? rules : rules.filter(r => r.status === filter)
+  const fmt = (iso: string) => { try { return new Date(iso).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return iso } }
 
   return (
-    <div style={{ padding: 16, fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>📋 经验规则管理</h3>
-        <button
-          onClick={loadRules}
-          disabled={loading}
-          style={{
-            padding: '4px 12px',
-            border: '1px solid #d1d5db',
-            borderRadius: 4,
-            background: '#fff',
-            cursor: 'pointer',
-          }}
-        >
-          刷新
-        </button>
+    <div style={s.container}>
+      <div style={s.header}>
+        <div style={s.headerLeft}>
+          <span style={s.headerIcon}>📋</span>
+          <div>
+            <div style={s.title}>经验规则管理</div>
+            <div style={s.subtitle}>查看和管理从项目中提取的经验规则</div>
+          </div>
+        </div>
+        <button style={s.refreshBtn} onClick={loadRules} disabled={loading}>{loading ? '加载中...' : '刷新'}</button>
       </div>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-        {([
-          { value: 'all', label: '全部' },
-          { value: 'pending_review', label: '待审核' },
-          { value: 'approved', label: '已批准' },
-          { value: 'rejected', label: '已拒绝' },
-        ] as const).map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => setFilter(opt.value)}
-            style={{
-              padding: '4px 12px',
-              border: `1px solid ${filter === opt.value ? '#3b82f6' : '#d1d5db'}`,
-              borderRadius: 14,
-              background: filter === opt.value ? '#eff6ff' : '#fff',
-              color: filter === opt.value ? '#1d4ed8' : '#374151',
-              cursor: 'pointer',
-              fontSize: 12,
-            }}
-          >
-            {opt.label}
-          </button>
+      <div style={s.filterRow}>
+        {([['all', '全部'], ['pending_review', '待审核'], ['approved', '已批准'], ['rejected', '已拒绝']] as const).map(([k, l]) => (
+          <button key={k} onClick={() => setFilter(k as any)} style={{ ...s.filterBtn, ...(filter === k ? s.filterActive : {}) }}>{l}</button>
         ))}
       </div>
 
-      {error && <div style={{ color: '#ef4444', marginBottom: 8, fontSize: 13 }}>{error}</div>}
+      {error && <div style={s.error}>{error}</div>}
 
-      {loading ? (
-        <div style={{ color: '#6b7280', padding: 20, textAlign: 'center' }}>加载中...</div>
-      ) : filteredRules.length === 0 ? (
-        <div style={{ color: '#9ca3af', padding: 20, textAlign: 'center' }}>暂无规则</div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filteredRules.map((rule) => {
-            const isExpanded = expandedId === rule.rule_id
-            const typeInfo = ruleTypeLabels[rule.rule_type] || { label: rule.rule_type, color: '#6b7280' }
-            const statusInfo = statusLabels[rule.status] || { label: rule.status, bg: '#f3f4f6', text: '#374151' }
+      <div style={s.list}>
+        {loading ? <div style={s.empty}>加载中...</div> :
+         filtered.length === 0 ? <div style={s.empty}>暂无规则</div> :
+         filtered.map(rule => {
+           const tc = typeCfg[rule.rule_type] || { label: rule.rule_type, color: '#6b7280' }
+           const sc = statusCfg[rule.status] || { label: rule.status, bg: 'rgba(255,255,255,0.06)', color: '#9ca3af' }
+           const isExp = expandedId === rule.rule_id
+           const isAct = actingId === rule.rule_id
+           return (
+             <div key={rule.rule_id} style={{ ...s.card, borderLeftColor: tc.color }}>
+               <div style={s.cardClickable} onClick={() => setExpandedId(isExp ? null : rule.rule_id)}>
+                 <div style={s.cardTop}>
+                   <div style={s.tagRow}>
+                     <span style={{ ...s.typeTag, color: tc.color, borderColor: tc.color + '40', background: tc.color + '15' }}>{tc.label}</span>
+                     <span style={{ ...s.statusTag, background: sc.bg, color: sc.color }}>{sc.label}</span>
+                   </div>
+                   <span style={s.date}>{fmt(rule.created_at)}</span>
+                 </div>
+                 <div style={s.action}>{rule.action}</div>
+                 <div style={s.source}>{rule.source_task_type} · {rule.source_task_id.slice(0, 8)}...</div>
+               </div>
 
-            return (
-              <div
-                key={rule.rule_id}
-                style={{
-                  padding: 10,
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 8,
-                  background: '#fff',
-                  borderLeft: `4px solid ${typeInfo.color}`,
-                }}
-              >
-                <div
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setExpandedId(isExpanded ? null : rule.rule_id)}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <span style={{
-                        padding: '1px 6px',
-                        borderRadius: 3,
-                        fontSize: 11,
-                        background: `${typeInfo.color}15`,
-                        color: typeInfo.color,
-                        border: `1px solid ${typeInfo.color}30`,
-                      }}>
-                        {typeInfo.label}
-                      </span>
-                      <span style={{
-                        padding: '1px 6px',
-                        borderRadius: 3,
-                        fontSize: 11,
-                        background: statusInfo.bg,
-                        color: statusInfo.text,
-                      }}>
-                        {statusInfo.label}
-                      </span>
-                    </div>
-                    <span style={{ fontSize: 11, color: '#9ca3af' }}>
-                      {formatDate(rule.created_at)}
-                    </span>
-                  </div>
-
-                  <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>
-                    {rule.trigger_condition}
-                  </div>
-
-                  <div style={{ fontSize: 12, color: '#6b7280' }}>
-                    → {rule.action}
-                  </div>
-                </div>
-
-                {isExpanded && (
-                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #f3f4f6' }}>
-                    {rule.note && (
-                      <div style={{ fontSize: 12, color: '#374151', marginBottom: 6 }}>
-                        <strong>备注:</strong> {rule.note}
-                      </div>
-                    )}
-
-                    <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>
-                      来源: {rule.source_task_type} / {rule.source_task_id.slice(0, 8)}...
-                    </div>
-
-                    {rule.keywords.length > 0 && (
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
-                        {rule.keywords.map((kw) => (
-                          <span
-                            key={kw}
-                            style={{
-                              padding: '1px 6px',
-                              borderRadius: 3,
-                              fontSize: 11,
-                              background: '#f3f4f6',
-                              color: '#374151',
-                            }}
-                          >
-                            {kw}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {rule.status === 'pending_review' && (
-                      <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleApprove(rule.rule_id)
-                          }}
-                          disabled={actingId === rule.rule_id}
-                          style={{
-                            padding: '3px 14px',
-                            border: '1px solid #10b981',
-                            borderRadius: 4,
-                            background: '#ecfdf5',
-                            color: '#065f46',
-                            cursor: actingId === rule.rule_id ? 'wait' : 'pointer',
-                            fontSize: 12,
-                          }}
-                        >
-                          批准
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleReject(rule.rule_id)
-                          }}
-                          disabled={actingId === rule.rule_id}
-                          style={{
-                            padding: '3px 14px',
-                            border: '1px solid #ef4444',
-                            borderRadius: 4,
-                            background: '#fef2f2',
-                            color: '#dc2626',
-                            cursor: actingId === rule.rule_id ? 'wait' : 'pointer',
-                            fontSize: 12,
-                          }}
-                        >
-                          拒绝
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
+               {isExp && (
+                 <div style={s.expanded}>
+                   <div style={s.detailSection}>
+                     <div style={s.detailLabel}>触发条件</div>
+                     <div style={s.detailValue}>{rule.trigger_condition}</div>
+                   </div>
+                   {rule.note && <div style={s.detailSection}><div style={s.detailLabel}>备注</div><div style={s.detailValue}>{rule.note}</div></div>}
+                   {rule.keywords.length > 0 && (
+                     <div style={s.detailSection}>
+                       <div style={s.detailLabel}>关键词</div>
+                       <div style={s.kwList}>{rule.keywords.map(k => <span key={k} style={s.kwTag}>{k}</span>)}</div>
+                     </div>
+                   )}
+                   {rule.status === 'pending_review' && (
+                     <div style={s.actionRow}>
+                       <button style={{ ...s.actionBtn, ...s.approveBtn }} onClick={e => { e.stopPropagation(); handleApprove(rule.rule_id) }} disabled={isAct}>✓ 批准</button>
+                       <button style={{ ...s.actionBtn, ...s.rejectBtn }} onClick={e => { e.stopPropagation(); handleReject(rule.rule_id) }} disabled={isAct}>✕ 拒绝</button>
+                     </div>
+                   )}
+                 </div>
+               )}
+             </div>
+           )
+         })}
+      </div>
     </div>
   )
+}
+
+const s: Record<string, React.CSSProperties> = {
+  container: { display: 'flex', flexDirection: 'column', height: '100%', background: 'rgba(0,0,0,0.2)', fontFamily: "'Noto Sans SC', sans-serif" },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: 10 },
+  headerIcon: { fontSize: 20, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(245,158,11,0.2)', borderRadius: 8 },
+  title: { fontSize: 14, fontWeight: 700, color: '#e2e8f0' },
+  subtitle: { fontSize: 11, color: '#6b7280' },
+  refreshBtn: { padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#9ca3af', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
+  filterRow: { display: 'flex', gap: 4, padding: '8px 16px', flexShrink: 0, flexWrap: 'wrap' as const, borderBottom: '1px solid rgba(255,255,255,0.06)' },
+  filterBtn: { padding: '5px 14px', borderRadius: 14, borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#9ca3af', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', whiteSpace: 'nowrap' as const, flexShrink: 0 },
+  filterActive: { background: 'rgba(139,92,246,0.2)', borderColor: 'rgba(139,92,246,0.5)', color: '#c4b5fd' },
+  error: { padding: '8px 16px', color: '#ef4444', fontSize: 12, background: 'rgba(239,68,68,0.1)' },
+  list: { flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 },
+  empty: { padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 13 },
+  card: { borderRadius: 10, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)', borderLeft: '4px solid', overflow: 'hidden' },
+  cardClickable: { padding: '12px 14px', cursor: 'pointer' },
+  cardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  tagRow: { display: 'flex', gap: 6 },
+  typeTag: { padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, border: '1px solid' },
+  statusTag: { padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 500 },
+  date: { fontSize: 10, color: '#4b5563' },
+  action: { fontSize: 12, color: '#d1d5db', lineHeight: 1.5, marginBottom: 4 },
+  source: { fontSize: 11, color: '#4b5563' },
+  expanded: { padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.1)' },
+  detailSection: { marginBottom: 8 },
+  detailLabel: { fontSize: 10, fontWeight: 600, color: '#8b5cf6', textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 3 },
+  detailValue: { fontSize: 12, color: '#d1d5db', lineHeight: 1.5 },
+  kwList: { display: 'flex', flexWrap: 'wrap' as const, gap: 4 },
+  kwTag: { padding: '2px 8px', borderRadius: 4, fontSize: 10, background: 'rgba(139,92,246,0.1)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.2)' },
+  actionRow: { display: 'flex', gap: 8, marginTop: 8 },
+  actionBtn: { padding: '4px 14px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  approveBtn: { background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff' },
+  rejectBtn: { background: 'rgba(255,255,255,0.06)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.1)' },
 }

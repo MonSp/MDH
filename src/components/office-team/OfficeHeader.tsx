@@ -16,6 +16,7 @@ interface OfficeHeaderProps {
   onStartMeeting: () => void
   meetingPhase?: MeetingPhase
   meetingStartTime?: number | null
+  projectName?: string
 }
 
 export default function OfficeHeader({
@@ -27,6 +28,7 @@ export default function OfficeHeader({
   onStartMeeting,
   meetingPhase = 'idle',
   meetingStartTime,
+  projectName,
 }: OfficeHeaderProps) {
   const completedTasks = tasks.filter(t => t.status === 'completed').length
   const executingTasks = tasks.filter(t => t.status === 'executing').length
@@ -54,7 +56,7 @@ export default function OfficeHeader({
         {viewState === 'meeting' ? '← 返回对话' : '← 返回'}
       </button>
       <div style={styles.headerCenter}>
-        <h2 style={styles.title}>🏢 多智能体团队协作</h2>
+        <h2 style={styles.title}>🏢 {projectName || '多智能体团队协作'}</h2>
         {isActive && (
           <div style={styles.phaseInfo}>
             <span style={styles.phaseLabel}>{PHASE_LABELS[meetingPhase]}</span>

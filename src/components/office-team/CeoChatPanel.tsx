@@ -62,6 +62,7 @@ interface RoleInfo {
 interface CeoChatPanelProps {
   wsRef: React.MutableRefObject<WebSocket | null>
   onEnterProject: (projectId: string, meetingId: string) => void
+  onProjectCreated?: (projectId: string) => void
   onClose: () => void
 }
 
@@ -108,7 +109,7 @@ const DEPT_NAMES: Record<string, string> = {
   'dept-ppt': '🎯 演示设计部',
 }
 
-export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChatPanelProps) {
+export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, onClose }: CeoChatPanelProps) {
   const [messages, setMessages] = useState<CeoMessage[]>([{
     role: 'ceo',
     content: '你好，我是公司CEO。请告诉我你需要完成什么任务，我会分析需求并组建合适的团队。',
@@ -215,11 +216,12 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
             // 检测阶段变化
             const phase = detectPhase(text)
             if (phase) setMeetingPhase(phase)
-            // 显示会议中的关键消息
+            // 实时显示所有代理消息
             const isKeyMessage =
               agentId === 'agent-coordinator' ||
               agentId === 'agent-ceo' ||
-              text.includes('项目经理') ||
+              agentId.startsWith('agent-') ||
+              text.includes('分析') ||
               text.includes('讨论') ||
               text.includes('审查') ||
               text.includes('执行任务') ||
@@ -229,7 +231,10 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
               text.includes('已写入') ||
               text.includes('总结') ||
               text.includes('轮开发') ||
-              text.includes('轮审查')
+              text.includes('轮审查') ||
+              text.includes('需求') ||
+              text.includes('计划') ||
+              text.includes('分配')
             if (isKeyMessage) {
               addMsg('system', `[${agentId}] ${text}`)
             }
@@ -272,6 +277,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
           setMeetingStartTime(Date.now())
           setMeetingPhase('analyzing')
           addMsg('ceo', `meeting_ready:${agentCount}`)
+          if (currentProjectId) onProjectCreated?.(currentProjectId)
         } else if (t === 'meeting_error') {
           setIsProcessing(false)
           addMsg('system', `❌ ${msg.message}`)
@@ -296,7 +302,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onClose }: CeoChat
       api_key: localStorage.getItem('deepseek_api_key') || undefined,
       base_url: localStorage.getItem('deepseek_base_url') || undefined,
     }))
-  }, [wsRef, addMsg, selectedRoles])
+  }, [wsRef, addMsg, selectedRoles, onProjectCreated])
 
   const handleSend = useCallback(() => {
     if (!input.trim() || isProcessing) return

@@ -29,11 +29,12 @@ const cardStyle: React.CSSProperties = {
 
 /* ───────── 主组件 ───────── */
 
-function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, depts }: {
+function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProject, isMobile, depts }: {
   panel: PanelState
   onClose: () => void
   onCreateTeam: (name: string, memberIds: string[]) => void
   onCreateProject: (deptId: string) => void
+  onEnterProject?: (projectId: string, projectName: string) => void
   isMobile?: boolean
   depts?: ProjectDept[]
 }) {
@@ -275,7 +276,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, isMobile, de
             ))}
           </div>
         )}
-        <button style={btn('#64d2ff')} onClick={onClose}>进入工作间</button>
+        <button style={btn('#64d2ff')} onClick={() => { onEnterProject?.(proj.id, proj.name); onClose() }}>进入工作间</button>
       </>
     )
   }

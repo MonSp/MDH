@@ -1,241 +1,310 @@
-import React, { useMemo } from 'react'
-import { DEFAULT_ROLE_PROFILES } from '../../modules/agentTypes'
+import React, { useMemo, useState } from 'react'
+import { DEFAULT_ROLE_PROFILES, AgentRole } from '../../modules/agentTypes'
 import RoleAvatar from '../RoleAvatar'
 import type { TeamAgent } from './types'
 import { WORKSTATIONS, MEETING_TABLE } from './constants'
-import { getAgentPosition, isMeetingView, isTransitioning } from './utils'
+import { getAgentPosition, isMeetingView } from './utils'
+
+interface ProjectDetail {
+  project_id: string
+  name: string
+  status: string
+  brief: Record<string, unknown>
+  created_at: string
+  employees: Array<{ id: string; name: string; role: string; status: string }>
+  skill_packages: Array<{ skill_id: string; name: string }>
+  execution_logs: Array<Record<string, unknown>>
+}
 
 interface OfficeSceneProps {
   agents: TeamAgent[]
   viewState: string
   onStartMeeting: () => void
+  projectName?: string
+  projectId?: string
+  projectDetail?: ProjectDetail | null
 }
 
-/* 浮动代码粒子 */
-const CODE_PARTICLES = [
-  '{ }', '</>', 'fn()', '&&', '=>', '[]', '/**/', '#!', '0x', '::',
-  'if', '==', '!=', '++', '||', '<<', '>>', '===', '!==', '...',
-]
-
-function FloatingParticles() {
-  const particles = useMemo(() =>
-    Array.from({ length: 18 }, (_, i) => ({
-      id: i,
-      text: CODE_PARTICLES[i % CODE_PARTICLES.length],
-      left: `${5 + (i * 5.3) % 90}%`,
-      top: `${8 + (i * 7.1) % 80}%`,
-      delay: `${(i * 0.7) % 6}s`,
-      dur: `${6 + (i % 4) * 2}s`,
-      opacity: 0.06 + (i % 3) * 0.03,
-      size: 8 + (i % 3) * 2,
-    }))
-  , [])
-
-  return (
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
-      {particles.map(p => (
-        <span
-          key={p.id}
-          style={{
-            position: 'absolute',
-            left: p.left,
-            top: p.top,
-            fontSize: p.size,
-            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-            color: '#8b5cf6',
-            opacity: p.opacity,
-            animation: `float-particle ${p.dur} ease-in-out ${p.delay} infinite`,
-            userSelect: 'none',
-          }}
-        >
-          {p.text}
-        </span>
-      ))}
-      <style>{`
-        @keyframes float-particle {
-          0%, 100% { transform: translateY(0px) rotate(0deg); opacity: var(--p-opacity, 0.08); }
-          25% { transform: translateY(-12px) rotate(3deg); opacity: calc(var(--p-opacity, 0.08) * 1.5); }
-          50% { transform: translateY(-6px) rotate(-2deg); opacity: var(--p-opacity, 0.08); }
-          75% { transform: translateY(-18px) rotate(1deg); opacity: calc(var(--p-opacity, 0.08) * 0.7); }
-        }
-      `}</style>
-    </div>
-  )
-}
-
-/* 工作站 SVG 背景 */
-function WorkstationBg({ color }: { color: string }) {
-  return (
-    <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0, opacity: 0.15 }}>
-      <rect x="4" y="4" width="calc(100% - 8)" height="calc(100% - 8)" rx="8" fill="none" stroke={color} strokeWidth="1" strokeDasharray="4 2" />
-      <rect x="8" y="8" width="6" height="6" rx="1" fill={color} opacity="0.4" />
-    </svg>
-  )
-}
-
-export default function OfficeScene({ agents, viewState, onStartMeeting }: OfficeSceneProps) {
+export default function OfficeScene({ agents, viewState, onStartMeeting, projectName, projectId, projectDetail }: OfficeSceneProps) {
   const isMeeting = isMeetingView(viewState)
-  const transitioning = isTransitioning(viewState)
+  const [activeTab, setActiveTab] = useState<'team' | 'files' | 'skills'>('team')
+  const [selectedAgent, setSelectedAgent] = useState<TeamAgent | null>(null)
+
+  // 合并实时agents和项目历史员工数据
+  const teamMembers = agents.length > 0 ? agents : (projectDetail?.employees || []).map((emp, idx) => ({
+    id: emp.id,
+    name: emp.name,
+    role: emp.role as AgentRole,
+    status: emp.status as 'idle' | 'working' | 'meeting' | 'wandering',
+    currentTask: null,
+    workstationId: WORKSTATIONS[idx % WORKSTATIONS.length]?.id || '',
+  }))
 
   return (
-    <div style={styles.officeScene}>
-      {/* 背景网格 */}
-      <div style={styles.gridFloor} />
+    <div style={styles.container}>
+      {/* 左侧：工位布局 */}
+      <div style={styles.leftPanel}>
+        <div style={styles.officeScene}>
+          {/* 背景网格 */}
+          <div style={styles.gridFloor} />
+          <div style={styles.neonGlow} />
 
-      {/* 网格上的霓虹线 */}
-      <div style={styles.neonGlow} />
-
-      {/* 浮动代码粒子 */}
-      <FloatingParticles />
-
-      {/* 标题 */}
-      <div style={styles.officeTitle}>
-        <span style={styles.officeTitleText}>
-          <span style={styles.titleIcon}>⚡</span>
-          Tech Lab
-        </span>
-        {viewState === 'office' && (
-          <span style={styles.officeTitleHint}>点击下方按钮召集团队</span>
-        )}
-      </div>
-
-      {/* 工作站 */}
-      {WORKSTATIONS.map(ws => {
-        const agent = agents.find(a => a.workstationId === ws.id)
-        const profile = agent ? DEFAULT_ROLE_PROFILES[agent.role] : null
-        return (
-          <div
-            key={ws.id}
-            style={{
-              ...styles.workstation,
-              left: `${ws.x}%`,
-              top: `${ws.y}%`,
-              borderColor: profile ? profile.themeColor + '50' : 'rgba(255,255,255,0.08)',
-              boxShadow: profile
-                ? `0 0 20px ${profile.themeColor}15, inset 0 0 15px ${profile.themeColor}08`
-                : 'none',
-            }}
-          >
-            {/* 屏幕发光效果 */}
-            <div style={{
-              ...styles.screenGlow,
-              background: profile
-                ? `radial-gradient(ellipse at center, ${profile.themeColor}20 0%, transparent 70%)`
-                : 'none',
-            }} />
-            <div style={styles.wsIcon}>
-              {profile ? profile.emoji : '💻'}
-            </div>
-            <div style={{
-              ...styles.wsLabel,
-              color: profile ? profile.themeColor : '#4a5575',
-            }}>{ws.id.replace('ws-', '#')}</div>
-            {agent && agent.status !== 'meeting' && (
-              <div style={styles.wsAgentName}>{agent.name.split('-')[0]}</div>
-            )}
-            {/* 呼吸灯 */}
-            {agent && agent.status === 'idle' && (
-              <div style={{
-                position: 'absolute', bottom: 4, right: 4,
-                width: 4, height: 4, borderRadius: '50%',
-                background: '#30d158',
-                animation: 'breathe 3s ease-in-out infinite',
-              }} />
+          {/* 标题 */}
+          <div style={styles.officeTitle}>
+            <span style={styles.officeTitleText}>
+              <span style={styles.titleIcon}>⚡</span>
+              {projectName || 'Tech Lab'}
+            </span>
+            {!isMeeting && (
+              <span style={styles.officeTitleHint}>团队工位分布</span>
             )}
           </div>
-        )
-      })}
 
-      {/* 会议桌 - 全息投影风格 */}
-      <div
-        style={{
-          ...styles.meetingTable,
-          ...(isMeeting ? styles.meetingTableActive : {}),
-        }}
-      >
-        <div style={styles.tableHoloRing}>
-          <svg width="100%" height="100%" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="45" fill="none" stroke="url(#holoGrad)" strokeWidth="1.5" strokeDasharray="6 4" opacity="0.6">
-              <animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="10s" repeatCount="indefinite" />
-            </circle>
-            <circle cx="50" cy="50" r="35" fill="none" stroke="url(#holoGrad)" strokeWidth="1" strokeDasharray="3 6" opacity="0.3">
-              <animateTransform attributeName="transform" type="rotate" from="360 50 50" to="0 50 50" dur="15s" repeatCount="indefinite" />
-            </circle>
-            <defs>
-              <linearGradient id="holoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#bf5af2" />
-                <stop offset="50%" stopColor="#0a84ff" />
-                <stop offset="100%" stopColor="#30d158" />
-              </linearGradient>
-            </defs>
-          </svg>
-        </div>
-        <div style={styles.tableInner}>
-          <span style={styles.tableIcon}>🤝</span>
-          <span style={styles.tableLabel}>会议桌</span>
+          {/* 工作站 */}
+          {WORKSTATIONS.map(ws => {
+            const agent = teamMembers.find(a => a.workstationId === ws.id)
+            const profile = agent ? (DEFAULT_ROLE_PROFILES[agent.role] || { emoji: '👤', themeColor: '#6b7280' }) : null
+            return (
+              <div
+                key={ws.id}
+                style={{
+                  ...styles.workstation,
+                  left: `${ws.x}%`,
+                  top: `${ws.y}%`,
+                  borderColor: profile ? profile.themeColor + '50' : 'rgba(255,255,255,0.08)',
+                  boxShadow: profile
+                    ? `0 0 20px ${profile.themeColor}15, inset 0 0 15px ${profile.themeColor}08`
+                    : 'none',
+                }}
+              >
+                <div style={{
+                  ...styles.screenGlow,
+                  background: profile
+                    ? `radial-gradient(ellipse at center, ${profile.themeColor}20 0%, transparent 70%)`
+                    : 'none',
+                }} />
+                <div style={styles.wsIcon}>{profile ? profile.emoji : '💻'}</div>
+                <div style={{ ...styles.wsLabel, color: profile ? profile.themeColor : '#4a5575' }}>
+                  {ws.id.replace('ws-', '#')}
+                </div>
+                {agent && agent.status !== 'meeting' && (
+                  <div style={styles.wsAgentName}>{agent.name.split('-')[0]}</div>
+                )}
+                {agent && agent.status === 'idle' && (
+                  <div style={{
+                    position: 'absolute', bottom: 4, right: 4,
+                    width: 4, height: 4, borderRadius: '50%',
+                    background: '#30d158',
+                    animation: 'breathe 3s ease-in-out infinite',
+                  }} />
+                )}
+              </div>
+            )
+          })}
+
+          {/* 会议桌 */}
+          <div style={{ ...styles.meetingTable, ...(isMeeting ? styles.meetingTableActive : {}) }}>
+            <div style={styles.tableInner}>
+              <span style={styles.tableIcon}>🤝</span>
+              <span style={styles.tableLabel}>会议桌</span>
+            </div>
+          </div>
+
+          {/* 智能体 */}
+          {teamMembers.map(agent => {
+            const pos = getAgentPosition(agent, teamMembers, viewState)
+            const profile = DEFAULT_ROLE_PROFILES[agent.role] || { emoji: '👤', themeColor: '#6b7280', personality: '' }
+            return (
+              <div
+                key={agent.id}
+                style={{
+                  ...styles.agentEntity,
+                  left: `${pos.x}%`,
+                  top: `${pos.y}%`,
+                  transition: 'left 2s ease, top 2s ease',
+                }}
+              >
+                <div style={{
+                  position: 'absolute', inset: -8, borderRadius: '50%',
+                  background: `radial-gradient(circle, ${profile.themeColor}10 0%, transparent 70%)`,
+                  animation: agent.status === 'working' ? 'agent-glow-pulse 2s ease-in-out infinite' : 'none',
+                }} />
+                <div style={{
+                  ...styles.agentAvatar,
+                  borderColor: profile.themeColor,
+                  boxShadow: agent.status === 'working'
+                    ? `0 0 16px ${profile.themeColor}80, 0 0 32px ${profile.themeColor}30`
+                    : `0 0 6px ${profile.themeColor}20`,
+                }}>
+                  <RoleAvatar
+                    role={agent.role}
+                    size={48}
+                    status={agent.status === 'working' ? 'busy' : agent.status === 'meeting' ? 'waiting' : 'idle'}
+                  />
+                </div>
+                {!isMeeting && (
+                  <div style={{ ...styles.agentLabel, borderColor: profile.themeColor + '40', background: `${profile.themeColor}15` }}>
+                    <span style={{ color: profile.themeColor, fontWeight: 700 }}>{agent.name.split('-')[0]}</span>
+                  </div>
+                )}
+                {agent.status === 'working' && <div style={styles.workingIndicator}>⚡</div>}
+              </div>
+            )
+          })}
+
+          {/* 召集会议按钮 */}
+          {!isMeeting && viewState === 'office' && (
+            <div style={styles.officeControls}>
+              <button style={styles.startMeetingBtn} onClick={onStartMeeting}>
+                <span style={styles.btnIcon}>🚀</span>
+                <span>召集团队会议</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 智能体 */}
-      {agents.map(agent => {
-        const pos = getAgentPosition(agent, agents, viewState)
-        const profile = DEFAULT_ROLE_PROFILES[agent.role]
-        return (
-          <div
-            key={agent.id}
-            style={{
-              ...styles.agentEntity,
-              left: `${pos.x}%`,
-              top: `${pos.y}%`,
-              transition: transitioning ? 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)' : 'left 2s ease, top 2s ease',
-            }}
-          >
-            {/* 角色光环 */}
-            <div style={{
-              position: 'absolute', inset: -8, borderRadius: '50%',
-              background: `radial-gradient(circle, ${profile.themeColor}10 0%, transparent 70%)`,
-              animation: agent.status === 'working' ? 'agent-glow-pulse 2s ease-in-out infinite' : 'none',
-            }} />
-            <div
-              style={{
-                ...styles.agentAvatar,
-                borderColor: profile.themeColor,
-                boxShadow: agent.status === 'working'
-                  ? `0 0 16px ${profile.themeColor}80, 0 0 32px ${profile.themeColor}30`
-                  : agent.status === 'meeting'
-                  ? `0 0 12px ${profile.themeColor}60`
-                  : `0 0 6px ${profile.themeColor}20`,
-              }}
-            >
-              <RoleAvatar
-                role={agent.role}
-                size={isMeeting ? 36 : 48}
-                status={agent.status === 'working' ? 'busy' : agent.status === 'meeting' ? 'waiting' : 'idle'}
-              />
-            </div>
-            {!isMeeting && (
-              <div style={{
-                ...styles.agentLabel,
-                borderColor: profile.themeColor + '40',
-                background: `${profile.themeColor}15`,
-              }}>
-                <span style={{ color: profile.themeColor, fontWeight: 700 }}>{agent.name.split('-')[0]}</span>
+      {/* 右侧：项目信息面板 */}
+      {!isMeeting && (
+        <div style={styles.rightPanel}>
+          <div style={styles.panelHeader}>
+            <div style={styles.panelTitle}>📊 项目信息</div>
+          </div>
+
+          {/* 标签页 */}
+          <div style={styles.tabBar}>
+            {([['team', '👥 团队'], ['files', '📄 文件'], ['skills', '🧬 技能']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                style={{ ...styles.tabBtn, ...(activeTab === key ? styles.tabBtnActive : {}) }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={styles.tabContent}>
+            {activeTab === 'team' && (
+              <div>
+                <div style={styles.sectionTitle}>团队成员 ({teamMembers.length})</div>
+                {teamMembers.length === 0 ? (
+                  <div style={styles.emptyState}>暂无团队成员数据</div>
+                ) : (
+                  teamMembers.map(agent => {
+                    const profile = DEFAULT_ROLE_PROFILES[agent.role] || { emoji: '👤', personality: '未知角色', themeColor: '#6b7280' }
+                    const isSelected = selectedAgent?.id === agent.id
+                    return (
+                      <div key={agent.id}>
+                        <div
+                          style={{ ...styles.teamMember, ...(isSelected ? styles.teamMemberSelected : {}) }}
+                          onClick={() => setSelectedAgent(isSelected ? null : agent)}
+                        >
+                          <span style={styles.memberEmoji}>{profile.emoji}</span>
+                          <div style={styles.memberInfo}>
+                            <div style={styles.memberName}>{agent.name.split('-')[0]}</div>
+                            <div style={{ ...styles.memberStatus, color: agent.status === 'working' ? '#10b981' : agent.status === 'meeting' ? '#3b82f6' : '#6b7280' }}>
+                              {agent.status === 'working' ? '工作中' : agent.status === 'meeting' ? '会议中' : '空闲'}
+                            </div>
+                          </div>
+                          <span style={styles.expandIcon}>{isSelected ? '▼' : '▶'}</span>
+                        </div>
+                        {isSelected && (
+                          <div style={styles.agentDetail}>
+                            <div style={styles.detailRow}>
+                              <span style={styles.detailLabel}>角色</span>
+                              <span style={styles.detailValue}>{profile.emoji} {agent.role}</span>
+                            </div>
+                            <div style={styles.detailRow}>
+                              <span style={styles.detailLabel}>描述</span>
+                              <span style={styles.detailValue}>{profile.personality}</span>
+                            </div>
+                            <div style={styles.detailRow}>
+                              <span style={styles.detailLabel}>状态</span>
+                              <span style={{ ...styles.detailValue, color: agent.status === 'working' ? '#10b981' : agent.status === 'meeting' ? '#3b82f6' : '#6b7280' }}>
+                                {agent.status === 'working' ? '⚡ 执行任务中' : agent.status === 'meeting' ? '🤝 会议中' : '💤 空闲'}
+                              </span>
+                            </div>
+                            {agent.currentTask && (
+                              <div style={styles.detailRow}>
+                                <span style={styles.detailLabel}>当前任务</span>
+                                <span style={styles.detailValue}>{agent.currentTask}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
+
+                <div style={{ ...styles.sectionTitle, marginTop: 16 }}>项目状态</div>
+                <div style={styles.statusItem}>
+                  <span style={styles.statusLabel}>项目ID</span>
+                  <span style={styles.statusValue}>{projectId?.slice(0, 8) || '-'}...</span>
+                </div>
+                <div style={styles.statusItem}>
+                  <span style={styles.statusLabel}>状态</span>
+                  <span style={{ ...styles.statusValue, color: projectDetail?.status === 'running' ? '#10b981' : projectDetail?.status === 'archived' ? '#8b5cf6' : '#f59e0b' }}>
+                    {projectDetail?.status === 'running' ? '运行中' : projectDetail?.status === 'archived' ? '已归档' : projectDetail?.status || '未知'}
+                  </span>
+                </div>
+                <div style={styles.statusItem}>
+                  <span style={styles.statusLabel}>团队人数</span>
+                  <span style={styles.statusValue}>{teamMembers.length} 人</span>
+                </div>
+                <div style={styles.statusItem}>
+                  <span style={styles.statusLabel}>技能包</span>
+                  <span style={styles.statusValue}>{projectDetail?.skill_packages?.length || 0} 个</span>
+                </div>
+                <div style={styles.statusItem}>
+                  <span style={styles.statusLabel}>执行日志</span>
+                  <span style={styles.statusValue}>{projectDetail?.execution_logs?.length || 0} 条</span>
+                </div>
               </div>
             )}
-            {agent.status === 'working' && (
-              <div style={styles.workingIndicator}>⚡</div>
+
+            {activeTab === 'files' && (
+              <div>
+                <div style={styles.sectionTitle}>项目文件</div>
+                {projectDetail?.execution_logs && projectDetail.execution_logs.length > 0 ? (
+                  projectDetail.execution_logs
+                    .filter(log => log.type === 'file_write' || log.type === 'iteration')
+                    .slice(0, 10)
+                    .map((log, i) => (
+                      <div key={i} style={styles.fileItem}>
+                        <span style={styles.fileIcon}>📄</span>
+                        <div style={styles.fileInfo}>
+                          <div style={styles.fileName}>{String(log.file || log.task_id || '未知文件')}</div>
+                          <div style={styles.fileMeta}>{String(log.type)}</div>
+                        </div>
+                      </div>
+                    ))
+                ) : (
+                  <div style={styles.emptyState}>暂无文件记录</div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'skills' && (
+              <div>
+                <div style={styles.sectionTitle}>技能包</div>
+                {projectDetail?.skill_packages && projectDetail.skill_packages.length > 0 ? (
+                  projectDetail.skill_packages.map((sp, i) => (
+                    <div key={i} style={styles.skillItem}>
+                      <span style={styles.skillIcon}>📦</span>
+                      <div style={styles.skillInfo}>
+                        <div style={styles.skillName}>{sp.name}</div>
+                        <div style={styles.skillMeta}>{sp.skill_id}</div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={styles.emptyState}>暂无技能包</div>
+                )}
+              </div>
             )}
           </div>
-        )
-      })}
-
-      {/* 召集会议按钮 */}
-      {viewState === 'office' && (
-        <div style={styles.officeControls}>
-          <button style={styles.startMeetingBtn} onClick={onStartMeeting}>
-            <span style={styles.btnIcon}>🚀</span>
-            <span>召集团队</span>
-          </button>
         </div>
       )}
 
@@ -248,205 +317,377 @@ export default function OfficeScene({ agents, viewState, onStartMeeting }: Offic
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  officeScene: {
-    position: 'absolute',
-    inset: 0,
-    background: 'linear-gradient(135deg, #08080f 0%, #0d0d1a 50%, #0a0a14 100%)',
+  container: {
+    display: 'flex',
+    height: '100%',
     overflow: 'hidden',
+  },
+  leftPanel: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  rightPanel: {
+    width: '280px',
+    borderLeft: '1px solid rgba(255,255,255,0.08)',
+    background: 'rgba(0,0,0,0.3)',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
+  panelHeader: {
+    padding: '12px 16px',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+  },
+  panelTitle: {
+    fontSize: '14px',
+    fontWeight: 700,
+    color: '#e2e8f0',
+  },
+  tabBar: {
+    display: 'flex',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+  },
+  tabBtn: {
+    flex: 1,
+    padding: '8px 4px',
+    background: 'transparent',
+    border: 'none',
+    borderBottomWidth: '2px',
+    borderBottomStyle: 'solid',
+    borderBottomColor: 'transparent',
+    color: '#6b7280',
+    fontSize: '11px',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    transition: 'all 0.15s',
+  },
+  tabBtnActive: {
+    color: '#a78bfa',
+    borderBottomColor: '#8b5cf6',
+    background: 'rgba(139,92,246,0.05)',
+  },
+  tabContent: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '12px',
+  },
+  sectionTitle: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#8b5cf6',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+    marginBottom: '8px',
+  },
+  teamMember: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px',
+    borderRadius: '6px',
+    marginBottom: '4px',
+    background: 'rgba(255,255,255,0.03)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'rgba(255,255,255,0.06)',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  },
+  teamMemberSelected: {
+    background: 'rgba(139,92,246,0.1)',
+    borderColor: 'rgba(139,92,246,0.3)',
+  },
+  memberEmoji: {
+    fontSize: '20px',
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#e2e8f0',
+  },
+  memberStatus: {
+    fontSize: '11px',
+    marginTop: '2px',
+  },
+  expandIcon: {
+    fontSize: '10px',
+    color: '#6b7280',
+    marginLeft: 'auto',
+  },
+  agentDetail: {
+    margin: '0 0 8px 8px',
+    padding: '8px 12px',
+    background: 'rgba(0,0,0,0.2)',
+    borderRadius: '6px',
+    border: '1px solid rgba(139,92,246,0.15)',
+  },
+  detailRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '4px 0',
+    borderBottom: '1px solid rgba(255,255,255,0.04)',
+  },
+  detailLabel: {
+    fontSize: '11px',
+    color: '#6b7280',
+  },
+  detailValue: {
+    fontSize: '11px',
+    color: '#e2e8f0',
+    textAlign: 'right' as const,
+    maxWidth: '60%',
+  },
+  emptyState: {
+    padding: '24px',
+    textAlign: 'center' as const,
+    color: '#6b7280',
+    fontSize: '13px',
+  },
+  fileItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px',
+    borderRadius: '6px',
+    marginBottom: '4px',
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid rgba(255,255,255,0.06)',
+  },
+  fileIcon: {
+    fontSize: '16px',
+  },
+  fileInfo: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  fileName: {
+    fontSize: '12px',
+    color: '#e2e8f0',
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  fileMeta: {
+    fontSize: '10px',
+    color: '#6b7280',
+  },
+  skillItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '8px',
+    borderRadius: '6px',
+    marginBottom: '4px',
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid rgba(255,255,255,0.06)',
+  },
+  skillIcon: {
+    fontSize: '16px',
+  },
+  skillInfo: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  skillName: {
+    fontSize: '12px',
+    color: '#e2e8f0',
+    fontWeight: 600,
+  },
+  skillMeta: {
+    fontSize: '10px',
+    color: '#6b7280',
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  officeScene: {
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+    background: 'linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 50%, #0a0a2a 100%)',
   },
   gridFloor: {
     position: 'absolute',
     inset: 0,
-    opacity: 0.04,
-    backgroundImage: `
-      linear-gradient(rgba(139, 92, 246, 0.6) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(139, 92, 246, 0.6) 1px, transparent 1px)
-    `,
+    background: 'linear-gradient(rgba(139,92,246,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(139,92,246,0.03) 1px, transparent 1px)',
     backgroundSize: '40px 40px',
   },
   neonGlow: {
     position: 'absolute',
     inset: 0,
-    background: `
-      radial-gradient(ellipse 60% 40% at 50% 50%, rgba(139, 92, 246, 0.04) 0%, transparent 100%),
-      radial-gradient(ellipse 40% 30% at 30% 70%, rgba(10, 132, 255, 0.03) 0%, transparent 100%),
-      radial-gradient(ellipse 30% 40% at 70% 30%, rgba(48, 209, 88, 0.02) 0%, transparent 100%)
-    `,
-    pointerEvents: 'none',
+    background: 'radial-gradient(ellipse at 50% 50%, rgba(139,92,246,0.08) 0%, transparent 60%)',
   },
   officeTitle: {
     position: 'absolute',
-    top: '14px',
+    top: '16px',
     left: '50%',
     transform: 'translateX(-50%)',
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'column' as const,
     alignItems: 'center',
     gap: '4px',
-    zIndex: 2,
+    zIndex: 10,
   },
   officeTitleText: {
-    fontSize: '15px',
-    fontWeight: 700,
-    color: '#e2e8f0',
-    letterSpacing: '2px',
-    textTransform: 'uppercase',
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
+    gap: '8px',
+    fontSize: '16px',
+    fontWeight: 700,
+    color: '#e2e8f0',
+    textShadow: '0 0 20px rgba(139,92,246,0.5)',
   },
   titleIcon: {
-    fontSize: '16px',
-    animation: 'breathe 3s ease-in-out infinite',
+    fontSize: '20px',
   },
   officeTitleHint: {
     fontSize: '11px',
-    color: '#4a5575',
-    letterSpacing: '1px',
+    color: '#6b7280',
   },
   workstation: {
     position: 'absolute',
-    transform: 'translate(-50%, -50%)',
     width: '64px',
     height: '56px',
-    background: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: '12px',
-    border: '1.5px solid',
+    borderRadius: '10px',
+    border: '1px solid rgba(255,255,255,0.08)',
+    background: 'rgba(0,0,0,0.4)',
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'column' as const,
     alignItems: 'center',
     justifyContent: 'center',
     gap: '2px',
-    zIndex: 1,
-    backdropFilter: 'blur(4px)',
+    transform: 'translate(-50%, -50%)',
+    backdropFilter: 'blur(8px)',
     transition: 'all 0.3s ease',
+    cursor: 'default',
     overflow: 'hidden',
   },
   screenGlow: {
     position: 'absolute',
-    inset: 0,
-    borderRadius: '12px',
+    inset: -10,
+    borderRadius: '16px',
     pointerEvents: 'none',
   },
   wsIcon: {
     fontSize: '18px',
+    position: 'relative',
     zIndex: 1,
   },
   wsLabel: {
     fontSize: '9px',
-    fontWeight: 700,
-    letterSpacing: '1px',
+    fontWeight: 600,
+    fontFamily: 'monospace',
+    position: 'relative',
     zIndex: 1,
   },
   wsAgentName: {
     fontSize: '8px',
-    color: '#6b7280',
-    whiteSpace: 'nowrap',
-    zIndex: 1,
+    color: '#9ca3af',
+    position: 'absolute',
+    bottom: '4px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    whiteSpace: 'nowrap' as const,
   },
   meetingTable: {
     position: 'absolute',
-    left: `${MEETING_TABLE.x}%`,
-    top: `${MEETING_TABLE.y}%`,
+    left: '50%',
+    top: '50%',
     transform: 'translate(-50%, -50%)',
-    width: '88px',
-    height: '88px',
+    width: '80px',
+    height: '80px',
     borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, rgba(10, 132, 255, 0.04) 100%)',
-    border: '1.5px solid rgba(139, 92, 246, 0.2)',
+    border: '2px solid rgba(139,92,246,0.3)',
+    background: 'rgba(139,92,246,0.05)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 2,
     transition: 'all 0.5s ease',
   },
   meetingTableActive: {
-    width: '110px',
-    height: '110px',
-    boxShadow: '0 0 40px rgba(139, 92, 246, 0.2), 0 0 80px rgba(10, 132, 255, 0.1)',
-    borderColor: 'rgba(139, 92, 246, 0.4)',
-  },
-  tableHoloRing: {
-    position: 'absolute',
-    inset: '-10%',
-    pointerEvents: 'none',
+    borderColor: 'rgba(139,92,246,0.6)',
+    background: 'rgba(139,92,246,0.15)',
+    boxShadow: '0 0 40px rgba(139,92,246,0.2)',
   },
   tableInner: {
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'column' as const,
     alignItems: 'center',
-    gap: '2px',
-    zIndex: 1,
+    gap: '4px',
   },
   tableIcon: {
-    fontSize: '22px',
+    fontSize: '20px',
   },
   tableLabel: {
     fontSize: '10px',
-    color: '#a78bfa',
+    color: '#8b5cf6',
     fontWeight: 600,
-    letterSpacing: '1px',
   },
   agentEntity: {
     position: 'absolute',
     transform: 'translate(-50%, -50%)',
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'column' as const,
     alignItems: 'center',
     gap: '4px',
-    zIndex: 3,
+    zIndex: 20,
   },
   agentAvatar: {
-    width: '52px',
-    height: '52px',
+    width: '56px',
+    height: '56px',
     borderRadius: '50%',
-    border: '2.5px solid',
+    border: '2px solid',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: 'rgba(10, 10, 20, 0.8)',
-    transition: 'all 0.3s ease',
+    background: 'rgba(0,0,0,0.6)',
     backdropFilter: 'blur(8px)',
+    transition: 'all 0.3s ease',
   },
   agentLabel: {
-    fontSize: '10px',
-    fontWeight: 600,
-    whiteSpace: 'nowrap',
     padding: '2px 8px',
-    borderRadius: '6px',
+    borderRadius: '8px',
     border: '1px solid',
-    backdropFilter: 'blur(4px)',
+    fontSize: '10px',
+    fontWeight: 500,
+    whiteSpace: 'nowrap' as const,
+    backdropFilter: 'blur(8px)',
   },
   workingIndicator: {
     position: 'absolute',
-    top: '-6px',
-    right: '-6px',
+    top: '-4px',
+    right: '-4px',
     fontSize: '14px',
-    animation: 'breathe 1.5s ease-in-out infinite',
+    animation: 'agent-glow-pulse 1.5s ease-in-out infinite',
   },
   officeControls: {
     position: 'absolute',
-    bottom: '24px',
+    bottom: '20px',
     left: '50%',
     transform: 'translateX(-50%)',
-    zIndex: 4,
+    zIndex: 30,
   },
   startMeetingBtn: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    padding: '12px 28px',
-    background: 'linear-gradient(135deg, #8b5cf6 0%, #0a84ff 100%)',
-    color: 'white',
-    border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: '14px',
+    padding: '10px 24px',
+    borderRadius: '12px',
+    border: '1px solid rgba(139,92,246,0.5)',
+    background: 'linear-gradient(135deg, rgba(139,92,246,0.3), rgba(59,130,246,0.3))',
+    color: '#fff',
     fontSize: '14px',
     fontWeight: 700,
     cursor: 'pointer',
-    boxShadow: '0 4px 24px rgba(139, 92, 246, 0.4), 0 0 0 1px rgba(139, 92, 246, 0.2)',
-    transition: 'all 0.2s ease',
     fontFamily: 'inherit',
-    letterSpacing: '1px',
+    backdropFilter: 'blur(12px)',
+    boxShadow: '0 0 20px rgba(139,92,246,0.3)',
+    transition: 'all 0.2s ease',
   },
   btnIcon: {
     fontSize: '16px',

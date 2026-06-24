@@ -27,7 +27,7 @@ interface ChatMessage {
 interface WorkspacePanelProps {
   workspace: Workspace | null
   toolCallLogs: ToolCallLog[]
-  onToolCall: (toolName: string, arguments: Record<string, unknown>) => void
+  onToolCall: (toolName: string, args: Record<string, unknown>) => void
   onDestroy: () => void
   messages?: ChatMessage[]
 }
@@ -105,77 +105,121 @@ export default function WorkspacePanel({
     )
   }
 
-  const renderFiles = () => (
-    <div style={{ flex: 1, overflow: 'auto' }}>
-      {writtenFiles.length === 0 ? (
-        <div style={{ padding: 24, color: '#6b7280', textAlign: 'center', fontSize: 13 }}>
-          暂无写入的文件
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {writtenFiles.map((f, i) => {
-            const isSelected = selectedFile === f.path
-            const hasPreview = !!fileContents[f.path]
-            return (
-              <div key={i}>
-                <div
-                  onClick={() => setSelectedFile(isSelected ? null : f.path)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '6px 12px',
-                    cursor: 'pointer',
-                    background: isSelected ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
-                    borderLeft: isSelected ? '2px solid #8b5cf6' : '2px solid transparent',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <span style={{ fontSize: 13 }}>
-                    {f.path.endsWith('.py') ? '🐍' :
-                     f.path.endsWith('.js') || f.path.endsWith('.ts') ? '📜' :
-                     f.path.endsWith('.html') ? '🌐' :
-                     f.path.endsWith('.css') ? '🎨' :
-                     f.path.endsWith('.json') ? '📋' :
-                     f.path.endsWith('.md') ? '📝' :
-                     f.path.endsWith('.txt') ? '📄' : '📁'}
-                  </span>
-                  <span style={{ flex: 1, fontSize: 12, color: '#e2e8f0', fontFamily: 'monospace' }}>
-                    {f.path}
-                  </span>
-                  {f.size > 0 && (
-                    <span style={{ fontSize: 10, color: '#6b7280' }}>{f.size}字</span>
-                  )}
-                  {hasPreview && (
-                    <span style={{ fontSize: 10, color: '#8b5cf6' }}>预览</span>
-                  )}
+  const renderFiles = () => {
+    // 按文件类型分组
+    const groupedFiles = writtenFiles.reduce((acc, f) => {
+      const ext = f.path.split('.').pop()?.toLowerCase() || 'other'
+      const type = 
+        ['py'].includes(ext) ? '🐍 Python' :
+        ['js', 'ts', 'tsx', 'jsx'].includes(ext) ? '📜 JavaScript/TypeScript' :
+        ['html', 'htm'].includes(ext) ? '🌐 HTML' :
+        ['css', 'scss', 'less'].includes(ext) ? '🎨 CSS' :
+        ['json', 'yaml', 'yml', 'toml'].includes(ext) ? '📋 配置文件' :
+        ['md', 'txt'].includes(ext) ? '📝 文档' : '📁 其他'
+      if (!acc[type]) acc[type] = []
+      acc[type].push(f)
+      return acc
+    }, {} as Record<string, typeof writtenFiles>)
+
+    const totalSize = writtenFiles.reduce((sum, f) => sum + f.size, 0)
+
+    return (
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {writtenFiles.length === 0 ? (
+          <div style={{ padding: 24, color: '#6b7280', textAlign: 'center', fontSize: 13 }}>
+            暂无写入的文件
+          </div>
+        ) : (
+          <div>
+            {/* 文件统计 */}
+            <div style={{
+              padding: '10px 12px',
+              background: 'rgba(139, 92, 246, 0.08)',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: 11,
+              color: '#9ca3af',
+            }}>
+              <span>📄 {writtenFiles.length} 个文件</span>
+              <span>💾 {totalSize > 1024 ? `${(totalSize / 1024).toFixed(1)} KB` : `${totalSize} 字符`}</span>
+            </div>
+
+            {/* 按类型分组显示 */}
+            {Object.entries(groupedFiles).map(([type, files]) => (
+              <div key={type}>
+                <div style={{
+                  padding: '6px 12px',
+                  background: 'rgba(0,0,0,0.15)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#8b5cf6',
+                  borderBottom: '1px solid rgba(255,255,255,0.04)',
+                }}>
+                  {type} ({files.length})
                 </div>
-                {isSelected && fileContents[f.path] && (
-                  <pre style={{
-                    margin: 0,
-                    padding: '8px 12px 8px 32px',
-                    fontSize: 11,
-                    lineHeight: 1.5,
-                    color: '#d1d5db',
-                    background: 'rgba(0,0,0,0.2)',
-                    maxHeight: 300,
-                    overflow: 'auto',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    fontFamily: "'Cascadia Code', 'Fira Code', monospace",
-                  }}>
-                    {fileContents[f.path].length > 2000
-                      ? fileContents[f.path].slice(0, 2000) + '\n... (截断)'
-                      : fileContents[f.path]}
-                  </pre>
-                )}
+                {files.map((f, i) => {
+                  const isSelected = selectedFile === f.path
+                  const hasPreview = !!fileContents[f.path]
+                  return (
+                    <div key={i}>
+                      <div
+                        onClick={() => setSelectedFile(isSelected ? null : f.path)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '8px 12px 8px 24px',
+                          cursor: 'pointer',
+                          background: isSelected ? 'rgba(139, 92, 246, 0.12)' : 'transparent',
+                          borderLeft: isSelected ? '2px solid #8b5cf6' : '2px solid transparent',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <span style={{ flex: 1, fontSize: 12, color: '#e2e8f0', fontFamily: 'monospace' }}>
+                          {f.path.split('/').pop() || f.path}
+                        </span>
+                        {f.size > 0 && (
+                          <span style={{ fontSize: 10, color: '#6b7280', padding: '2px 6px', background: 'rgba(255,255,255,0.05)', borderRadius: 4 }}>
+                            {f.size > 1024 ? `${(f.size / 1024).toFixed(1)}K` : `${f.size}字`}
+                          </span>
+                        )}
+                        {hasPreview && (
+                          <span style={{ fontSize: 10, color: '#8b5cf6', padding: '2px 6px', background: 'rgba(139,92,246,0.15)', borderRadius: 4 }}>
+                            预览
+                          </span>
+                        )}
+                      </div>
+                      {isSelected && fileContents[f.path] && (
+                        <pre style={{
+                          margin: 0,
+                          padding: '8px 12px 8px 36px',
+                          fontSize: 11,
+                          lineHeight: 1.5,
+                          color: '#d1d5db',
+                          background: 'rgba(0,0,0,0.25)',
+                          maxHeight: 300,
+                          overflow: 'auto',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          fontFamily: "'Cascadia Code', 'Fira Code', monospace",
+                          borderLeft: '2px solid rgba(139,92,246,0.3)',
+                        }}>
+                          {fileContents[f.path].length > 2000
+                            ? fileContents[f.path].slice(0, 2000) + '\n... (截断)'
+                            : fileContents[f.path]}
+                        </pre>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   const renderInfo = () => (
     <div style={{ padding: 16, fontSize: 13 }}>

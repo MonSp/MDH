@@ -133,36 +133,35 @@ export default function RoleConfigPanel() {
   const selected = selectedRole ? allRoles[selectedRole] : null
 
   return (
-    <div style={{ padding: 16, fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h3 style={{ margin: 0 }}>👥 角色配置管理</h3>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'rgba(0,0,0,0.2)', fontFamily: "'Noto Sans SC', sans-serif", color: '#e2e8f0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 20, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(139,92,246,0.2)', borderRadius: 8 }}>👥</span>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>角色配置管理</div>
+            <div style={{ fontSize: 11, color: '#6b7280' }}>管理基础角色和自定义角色</div>
+          </div>
+        </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={loadConfig}
-            disabled={loading}
-            style={{ padding: '4px 12px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 12 }}
-          >
+          <button onClick={loadConfig} disabled={loading} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#9ca3af', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
             {loading ? '加载中...' : '刷新'}
           </button>
-          <button
-            onClick={() => setShowNewRole(true)}
-            style={{ padding: '4px 12px', border: '1px solid #3b82f6', borderRadius: 4, background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: 12 }}
-          >
+          <button onClick={() => setShowNewRole(true)} style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid rgba(139,92,246,0.4)', background: 'rgba(139,92,246,0.15)', color: '#a78bfa', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
             + 新建角色
           </button>
         </div>
       </div>
 
       {error && (
-        <div style={{ padding: '8px 12px', marginBottom: 12, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 4, color: '#dc2626', fontSize: 13 }}>
+        <div style={{ padding: '8px 16px', color: '#ef4444', fontSize: 12, background: 'rgba(239,68,68,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           {error}
-          <button onClick={() => setError(null)} style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626' }}>×</button>
+          <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 14 }}>×</button>
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 16 }}>
+      <div style={{ display: 'flex', gap: 0, flex: 1, overflow: 'hidden' }}>
         {/* 角色列表 */}
-        <div style={{ width: 260, flexShrink: 0 }}>
+        <div style={{ width: 280, flexShrink: 0, overflowY: 'auto', padding: 12, borderRight: '1px solid rgba(255,255,255,0.06)' }}>
           {/* 按部门分组显示基础角色 */}
           {Object.entries(DEPT_MAP).map(([deptId, dept]) => {
             const deptRoles = Object.entries(roles).filter(([, r]) => r.department === deptId)
@@ -312,19 +311,19 @@ export default function RoleConfigPanel() {
         </div>
 
         {/* 角色详情 */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: 16 }}>
           {selectedRole && selected ? (
-            <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
+            <div style={{ borderRadius: 10, padding: 16, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)' }}>
               {editingRole === selectedRole ? (
                 /* 编辑模式 */
                 <div>
-                  <h4 style={{ margin: '0 0 12px' }}>编辑角色: {selectedRole}</h4>
+                  <h4 style={{ margin: '0 0 12px', color: '#e2e8f0' }}>编辑角色: {selectedRole}</h4>
                   <div style={{ marginBottom: 12 }}>
                     <label style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 4 }}>名称</label>
                     <input
                       value={editForm.name || ''}
                       onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-                      style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 13 }}
+                      style={{ width: '100%', padding: '6px 10px', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, fontSize: 13, background: 'rgba(0,0,0,0.2)', color: '#e2e8f0', outline: 'none', fontFamily: 'inherit' }}
                     />
                   </div>
                   <div style={{ marginBottom: 12 }}>
@@ -332,26 +331,20 @@ export default function RoleConfigPanel() {
                     <input
                       value={editForm.description || ''}
                       onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-                      style={{ width: '100%', padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 13 }}
+                      style={{ width: '100%', padding: '6px 10px', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, fontSize: 13, background: 'rgba(0,0,0,0.2)', color: '#e2e8f0', outline: 'none', fontFamily: 'inherit' }}
                     />
                   </div>
                   <div style={{ marginBottom: 12 }}>
                     <label style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 4 }}>工具权限</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {Object.entries(tools).map(([id, tool]) => (
-                        <label key={id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '4px 8px', border: '1px solid #e5e7eb', borderRadius: 4, cursor: 'pointer', background: editForm.permissions?.tools?.includes(id) ? '#eff6ff' : '#fff' }}>
+                        <label key={id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '4px 8px', border: `1px solid ${editForm.permissions?.tools?.includes(id) ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 4, cursor: 'pointer', background: editForm.permissions?.tools?.includes(id) ? 'rgba(139,92,246,0.15)' : 'rgba(0,0,0,0.1)', color: editForm.permissions?.tools?.includes(id) ? '#a78bfa' : '#9ca3af' }}>
                           <input
                             type="checkbox"
                             checked={editForm.permissions?.tools?.includes(id) || false}
                             onChange={e => {
-                              const tools = editForm.permissions?.tools || []
-                              setEditForm({
-                                ...editForm,
-                                permissions: {
-                                  ...editForm.permissions,
-                                  tools: e.target.checked ? [...tools, id] : tools.filter((t: string) => t !== id)
-                                }
-                              })
+                              const t = editForm.permissions?.tools || []
+                              setEditForm({ ...editForm, permissions: { ...editForm.permissions, tools: e.target.checked ? [...t, id] : t.filter((x: string) => x !== id) } })
                             }}
                             style={{ display: 'none' }}
                           />
@@ -365,16 +358,13 @@ export default function RoleConfigPanel() {
                     <label style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 4 }}>技能包</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {Object.entries(skills).map(([id, skill]) => (
-                        <label key={id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '4px 8px', border: '1px solid #e5e7eb', borderRadius: 4, cursor: 'pointer', background: editForm.skills?.includes(id) ? '#eff6ff' : '#fff' }}>
+                        <label key={id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '4px 8px', border: `1px solid ${editForm.skills?.includes(id) ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 4, cursor: 'pointer', background: editForm.skills?.includes(id) ? 'rgba(59,130,246,0.15)' : 'rgba(0,0,0,0.1)', color: editForm.skills?.includes(id) ? '#60a5fa' : '#9ca3af' }}>
                           <input
                             type="checkbox"
                             checked={editForm.skills?.includes(id) || false}
                             onChange={e => {
-                              const skills = editForm.skills || []
-                              setEditForm({
-                                ...editForm,
-                                skills: e.target.checked ? [...skills, id] : skills.filter((s: string) => s !== id)
-                              })
+                              const sk = editForm.skills || []
+                              setEditForm({ ...editForm, skills: e.target.checked ? [...sk, id] : sk.filter((s: string) => s !== id) })
                             }}
                             style={{ display: 'none' }}
                           />
@@ -384,44 +374,26 @@ export default function RoleConfigPanel() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                    <button
-                      onClick={() => handleSaveRole(selectedRole)}
-                      style={{ padding: '6px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}
-                    >
-                      保存
-                    </button>
-                    <button
-                      onClick={() => setEditingRole(null)}
-                      style={{ padding: '6px 16px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}
-                    >
-                      取消
-                    </button>
+                    <button onClick={() => handleSaveRole(selectedRole)} style={{ padding: '6px 16px', background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>保存</button>
+                    <button onClick={() => setEditingRole(null)} style={{ padding: '6px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, cursor: 'pointer', fontSize: 13, color: '#9ca3af', fontFamily: 'inherit' }}>取消</button>
                   </div>
                 </div>
               ) : (
                 /* 查看模式 */
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <h4 style={{ margin: 0 }}>{selected.name}</h4>
-                    <button
-                      onClick={() => {
-                        setEditingRole(selectedRole)
-                        setEditForm({ ...selected })
-                      }}
-                      style={{ padding: '4px 12px', border: '1px solid #d1d5db', borderRadius: 4, background: '#fff', cursor: 'pointer', fontSize: 12 }}
-                    >
-                      编辑
-                    </button>
+                    <h4 style={{ margin: 0, color: '#e2e8f0' }}>{selected.name}</h4>
+                    <button onClick={() => { setEditingRole(selectedRole); setEditForm({ ...selected }) }} style={{ padding: '4px 12px', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, background: 'rgba(255,255,255,0.05)', color: '#9ca3af', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>编辑</button>
                   </div>
-                  <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 16 }}>{selected.description}</p>
+                  <p style={{ color: '#9ca3af', fontSize: 13, marginBottom: 16 }}>{selected.description}</p>
 
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>工具权限</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>工具权限</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {selected.permissions.tools.map(toolId => {
                         const tool = tools[toolId]
                         return (
-                          <span key={toolId} style={{ padding: '4px 10px', background: '#f3f4f6', borderRadius: 12, fontSize: 12, color: '#374151' }}>
+                          <span key={toolId} style={{ padding: '4px 10px', background: 'rgba(139,92,246,0.1)', borderRadius: 12, fontSize: 12, color: '#a78bfa', border: '1px solid rgba(139,92,246,0.2)' }}>
                             {tool?.name || toolId}
                             {tool?.dangerous && <span style={{ color: '#f59e0b', marginLeft: 4 }}>⚠️</span>}
                           </span>
@@ -431,12 +403,12 @@ export default function RoleConfigPanel() {
                   </div>
 
                   <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>技能包</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>技能包</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {selected.skills.map(skillId => {
                         const skill = skills[skillId]
                         return (
-                          <span key={skillId} style={{ padding: '4px 10px', background: '#eff6ff', borderRadius: 12, fontSize: 12, color: '#1d4ed8' }}>
+                          <span key={skillId} style={{ padding: '4px 10px', background: 'rgba(59,130,246,0.1)', borderRadius: 12, fontSize: 12, color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}>
                             {skill?.name || skillId}
                           </span>
                         )
@@ -447,7 +419,7 @@ export default function RoleConfigPanel() {
               )}
             </div>
           ) : (
-            <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af' }}>
+            <div style={{ textAlign: 'center', padding: 40, color: '#4b5563' }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>👥</div>
               <div>选择左侧角色查看详情</div>
             </div>
@@ -457,16 +429,16 @@ export default function RoleConfigPanel() {
 
       {/* 新建角色对话框 */}
       {showNewRole && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: 500, maxHeight: '80vh', overflow: 'auto' }}>
-            <h3 style={{ margin: '0 0 16px' }}>新建自定义角色</h3>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#1a1a2e', borderRadius: 12, padding: 24, width: 500, maxHeight: '80vh', overflow: 'auto', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <h3 style={{ margin: '0 0 16px', color: '#e2e8f0' }}>新建自定义角色</h3>
             <div style={{ marginBottom: 12 }}>
               <label style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 4 }}>角色名称</label>
               <input
                 value={newRoleForm.name}
                 onChange={e => setNewRoleForm({ ...newRoleForm, name: e.target.value })}
                 placeholder="例如：安全开发工程师"
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 13 }}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, fontSize: 13, background: 'rgba(0,0,0,0.2)', color: '#e2e8f0', outline: 'none', fontFamily: 'inherit' }}
               />
             </div>
             <div style={{ marginBottom: 12 }}>
@@ -475,7 +447,7 @@ export default function RoleConfigPanel() {
                 value={newRoleForm.description}
                 onChange={e => setNewRoleForm({ ...newRoleForm, description: e.target.value })}
                 placeholder="角色的职责描述"
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 13 }}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, fontSize: 13, background: 'rgba(0,0,0,0.2)', color: '#e2e8f0', outline: 'none', fontFamily: 'inherit' }}
               />
             </div>
             <div style={{ marginBottom: 12 }}>
@@ -483,7 +455,7 @@ export default function RoleConfigPanel() {
               <select
                 value={newRoleForm.base_role}
                 onChange={e => setNewRoleForm({ ...newRoleForm, base_role: e.target.value })}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 13 }}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, fontSize: 13, background: 'rgba(0,0,0,0.2)', color: '#e2e8f0', outline: 'none', fontFamily: 'inherit' }}
               >
                 {Object.entries(roles).map(([id, role]) => (
                   <option key={id} value={id}>{role.name}</option>
@@ -494,16 +466,11 @@ export default function RoleConfigPanel() {
               <label style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 4 }}>额外工具</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {Object.entries(tools).map(([id, tool]) => (
-                  <label key={id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '4px 8px', border: '1px solid #e5e7eb', borderRadius: 4, cursor: 'pointer', background: newRoleForm.extra_tools.includes(id) ? '#eff6ff' : '#fff' }}>
+                  <label key={id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '4px 8px', border: `1px solid ${newRoleForm.extra_tools.includes(id) ? 'rgba(139,92,246,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 4, cursor: 'pointer', background: newRoleForm.extra_tools.includes(id) ? 'rgba(139,92,246,0.15)' : 'rgba(0,0,0,0.1)', color: newRoleForm.extra_tools.includes(id) ? '#a78bfa' : '#9ca3af' }}>
                     <input
                       type="checkbox"
                       checked={newRoleForm.extra_tools.includes(id)}
-                      onChange={e => {
-                        setNewRoleForm({
-                          ...newRoleForm,
-                          extra_tools: e.target.checked ? [...newRoleForm.extra_tools, id] : newRoleForm.extra_tools.filter(t => t !== id)
-                        })
-                      }}
+                      onChange={e => setNewRoleForm({ ...newRoleForm, extra_tools: e.target.checked ? [...newRoleForm.extra_tools, id] : newRoleForm.extra_tools.filter(t => t !== id) })}
                       style={{ display: 'none' }}
                     />
                     {tool.name}
@@ -515,16 +482,11 @@ export default function RoleConfigPanel() {
               <label style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 4 }}>额外技能</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {Object.entries(skills).map(([id, skill]) => (
-                  <label key={id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '4px 8px', border: '1px solid #e5e7eb', borderRadius: 4, cursor: 'pointer', background: newRoleForm.extra_skills.includes(id) ? '#eff6ff' : '#fff' }}>
+                  <label key={id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '4px 8px', border: `1px solid ${newRoleForm.extra_skills.includes(id) ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 4, cursor: 'pointer', background: newRoleForm.extra_skills.includes(id) ? 'rgba(59,130,246,0.15)' : 'rgba(0,0,0,0.1)', color: newRoleForm.extra_skills.includes(id) ? '#60a5fa' : '#9ca3af' }}>
                     <input
                       type="checkbox"
                       checked={newRoleForm.extra_skills.includes(id)}
-                      onChange={e => {
-                        setNewRoleForm({
-                          ...newRoleForm,
-                          extra_skills: e.target.checked ? [...newRoleForm.extra_skills, id] : newRoleForm.extra_skills.filter(s => s !== id)
-                        })
-                      }}
+                      onChange={e => setNewRoleForm({ ...newRoleForm, extra_skills: e.target.checked ? [...newRoleForm.extra_skills, id] : newRoleForm.extra_skills.filter(s => s !== id) })}
                       style={{ display: 'none' }}
                     />
                     {skill.name}
@@ -533,19 +495,8 @@ export default function RoleConfigPanel() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowNewRole(false)}
-                style={{ padding: '8px 16px', background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer' }}
-              >
-                取消
-              </button>
-              <button
-                onClick={handleCreateRole}
-                disabled={!newRoleForm.name}
-                style={{ padding: '8px 16px', background: newRoleForm.name ? '#3b82f6' : '#9ca3af', color: '#fff', border: 'none', borderRadius: 6, cursor: newRoleForm.name ? 'pointer' : 'not-allowed' }}
-              >
-                创建
-              </button>
+              <button onClick={() => setShowNewRole(false)} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, cursor: 'pointer', color: '#9ca3af', fontFamily: 'inherit' }}>取消</button>
+              <button onClick={handleCreateRole} disabled={!newRoleForm.name} style={{ padding: '8px 16px', background: newRoleForm.name ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(255,255,255,0.06)', color: '#fff', border: 'none', borderRadius: 6, cursor: newRoleForm.name ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>创建</button>
             </div>
           </div>
         </div>

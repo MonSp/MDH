@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import type { ViewState } from './office-team/types'
-import { isOfficeView, isMeetingView } from './office-team/utils'
 import OfficeHeader from './office-team/OfficeHeader'
 import OfficeScene from './office-team/OfficeScene'
 import MeetingChatPanel from './office-team/MeetingChatPanel'
 import TaskAssignPanel from './office-team/TaskAssignPanel'
-import MeetingLogPanel from './office-team/MeetingLogPanel'
 import AgendaPanel from './office-team/AgendaPanel'
 import TechTowerView from './TechTowerView'
 import WorkflowPanel from './WorkflowPanel'
@@ -20,10 +18,24 @@ interface OfficeTeamModeProps {
   onOpenApproval?: () => void
 }
 
+interface ProjectDetail {
+  project_id: string
+  name: string
+  status: string
+  brief: Record<string, unknown>
+  created_at: string
+  employees: Array<{ id: string; name: string; role: string; status: string }>
+  skill_packages: Array<{ skill_id: string; name: string }>
+  execution_logs: Array<Record<string, unknown>>
+}
+
 export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalCount = 0, onOpenApproval }: OfficeTeamModeProps) {
-  const [taskInput, setTaskInput] = useState('')
   const [viewState, setViewState] = useState<ViewState>('tower')
+  const [selectedProject, setSelectedProject] = useState<{ id: string; name: string } | null>(null)
+  const [projectDetail, setProjectDetail] = useState<ProjectDetail | null>(null)
+  const [taskInput, setTaskInput] = useState('')
   const [meetingTab, setMeetingTab] = useState<'chat' | 'files' | 'skills'>('chat')
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const {
     agents,
@@ -37,7 +49,6 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     clearWorkflow,
     startMeeting,
     sendMeetingMessage,
-    assignTask,
     endMeeting,
     sendAgendaAction,
     sendToolCall,
@@ -50,90 +61,89 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
 
   useEffect(() => {
     if (viewState === 'office' && agents.length > 0) {
-      wanderIntervalRef.current = window.setInterval(() => {
-      }, 100)
+      wanderIntervalRef.current = window.setInterval(() => {}, 100)
     } else {
-      if (wanderIntervalRef.current) {
-        clearInterval(wanderIntervalRef.current)
-      }
+      if (wanderIntervalRef.current) clearInterval(wanderIntervalRef.current)
     }
-    return () => {
-      if (wanderIntervalRef.current) {
-        clearInterval(wanderIntervalRef.current)
-      }
-    }
+    return () => { if (wanderIntervalRef.current) clearInterval(wanderIntervalRef.current) }
   }, [viewState, agents.length])
 
+  // 从科技大厦进入办公室
+  const handleEnterOffice = useCallback((projectId: string, projectName: string) => {
+    setSelectedProject({ id: projectId, name: projectName })
+    setViewState('office')
+    // 获取项目详情
+    fetch(`/api/projects/${projectId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.data) {
+          setProjectDetail(data.data)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // 启动会议（留在办公室，弹出面板）
   const handleStartMeeting = useCallback(() => {
-    setViewState('transitioning-to-meeting')
     startMeeting()
-    setTimeout(() => {
-      setViewState('meeting')
-    }, 1200)
+    setViewState('meeting')
+    setMeetingTab('chat')
   }, [startMeeting])
 
+  // 结束会议（收回面板，回到办公室）
+  const handleEndMeeting = useCallback(() => {
+    endMeeting()
+    setViewState('office')
+  }, [endMeeting])
+
+  // 返回科技大厦
+  const handleBackToTower = useCallback(() => {
+    setViewState('tower')
+    setSelectedProject(null)
+    setProjectDetail(null)
+    setRefreshKey(k => k + 1) // 触发项目列表刷新
+  }, [])
+
+  // 发送会议消息
   const handleSendMessage = useCallback(() => {
     if (!taskInput.trim()) return
     sendMeetingMessage(taskInput.trim())
     setTaskInput('')
   }, [taskInput, sendMeetingMessage])
 
-  const handleReset = useCallback(() => {
-    setViewState('tower')
-    setTaskInput('')
-  }, [])
-
-  /* 从大楼屋顶办公室发送任务 → 直接进入会议并提交 */
+  // 从大厦直接发送任务
   const handleTowerSendTask = useCallback((description: string) => {
-    setViewState('transitioning-to-meeting')
     startMeeting()
-    setTimeout(() => {
-      setViewState('meeting')
-      sendMeetingMessage(description)
-    }, 1200)
+    setViewState('meeting')
+    setTimeout(() => sendMeetingMessage(description), 500)
   }, [startMeeting, sendMeetingMessage])
 
-  /* 从大楼楼层进入会议 */
-  const handleTowerEnterMeeting = useCallback(() => {
-    setViewState('transitioning-to-meeting')
-    startMeeting()
-    setTimeout(() => {
-      setViewState('meeting')
-    }, 1200)
-  }, [startMeeting])
-
-  /* 结束会议后回到大楼 */
-  const handleEndMeeting = useCallback(() => {
-    setViewState('transitioning-to-office')
-    endMeeting()
-    setTimeout(() => {
-      setViewState('tower')
-    }, 1000)
-  }, [endMeeting])
-
-  /* 从会议返回大楼（保留CEO对话） */
-  const handleBackToTower = useCallback(() => {
-    setViewState('tower')
-  }, [])
-
   const isTower = viewState === 'tower'
-  const isOffice = isOfficeView(viewState)
-  const isMeeting = isMeetingView(viewState)
+  const isMeeting = viewState === 'meeting'
 
-  /* ─── 大楼视图 ─── */
+  // 第一层：公司大楼
   if (isTower) {
     return (
       <TechTowerView
         wsRef={wsRef}
-        onStartMeeting={handleTowerEnterMeeting}
+        onStartMeeting={() => handleTowerSendTask('开始新会议')}
         onSendTask={handleTowerSendTask}
         onBackToSingle={onBackToSingle}
+        onEnterProject={handleEnterOffice}
+        refreshKey={refreshKey}
       />
     )
   }
 
+  // 第二层：办公室 + 第三层：会议面板（叠加）
   return (
     <div style={styles.container}>
+      <style>{`
+        @keyframes slideInRight {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `}</style>
       <OfficeHeader
         viewState={viewState}
         tasks={tasks}
@@ -143,118 +153,97 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
         onStartMeeting={handleStartMeeting}
         meetingPhase={meetingPhase}
         meetingStartTime={meetingStartTime}
+        projectName={selectedProject?.name}
       />
 
       {pendingApprovalCount > 0 && (
         <div style={styles.approvalBar}>
           <button style={styles.approvalButton} onClick={onOpenApproval}>
             <span style={styles.approvalIcon}>🔔</span>
-            <span style={styles.approvalText}>
-              {pendingApprovalCount} 个审批请求待处理
-            </span>
+            <span style={styles.approvalText}>{pendingApprovalCount} 个审批请求待处理</span>
             <span style={styles.approvalBadge}>{pendingApprovalCount}</span>
           </button>
         </div>
       )}
 
       <div style={styles.mainContent}>
-        {!isMeeting && (
-          <div
-            style={{
-              ...styles.officePanel,
-              ...(viewState === 'transitioning-to-meeting' ? styles.officePanelAnimating : {}),
-              ...(viewState === 'transitioning-to-office' ? styles.officePanelExpanding : {}),
-            }}
-          >
-            <OfficeScene
-              agents={agents}
-              viewState={viewState}
-              onStartMeeting={handleStartMeeting}
-            />
-          </div>
-        )}
-
-        {isMeeting && (
-          <div style={{
-            ...styles.meetingPanel,
-            ...(viewState === 'transitioning-to-meeting' ? styles.meetingPanelEntering : {}),
-            ...(viewState === 'meeting' ? styles.meetingPanelActive : {}),
-          }}>
-            {/* 会议选项卡栏 */}
-            <div style={styles.meetingTabBar}>
-              <button
-                style={{
-                  ...styles.meetingTabBtn,
-                  ...(meetingTab === 'chat' ? styles.meetingTabBtnActive : {}),
-                }}
-                onClick={() => setMeetingTab('chat')}
-              >
-                💬 对话
-              </button>
-              <button
-                style={{
-                  ...styles.meetingTabBtn,
-                  ...(meetingTab === 'files' ? styles.meetingTabBtnActive : {}),
-                }}
-                onClick={() => setMeetingTab('files')}
-              >
-                📄 文件
-              </button>
-              <button
-                style={{
-                  ...styles.meetingTabBtn,
-                  ...(meetingTab === 'skills' ? styles.meetingTabBtnActive : {}),
-                }}
-                onClick={() => setMeetingTab('skills')}
-              >
-                🧬 技能进化
-              </button>
-            </div>
-
-            {meetingTab === 'chat' ? (
-              <>
-                <MeetingChatPanel
-                  agents={agents}
-                  messages={chatMessages}
-                  onEndMeeting={handleEndMeeting}
-                  agendaPhase={agendaState?.phase || 'idle'}
-                />
-                <AgendaPanel
-                  agendaState={agendaState}
-                  onAction={sendAgendaAction}
-                />
-                <TaskAssignPanel
-                  agents={agents}
-                  taskInput={taskInput}
-                  onTaskInputChange={setTaskInput}
-                  onSendMessage={handleSendMessage}
-                />
-              </>
-            ) : meetingTab === 'files' ? (
-              <WorkspacePanel
-                workspace={workspace}
-                toolCallLogs={toolCallLogs}
-                onToolCall={(name, args) => sendToolCall(name, args)}
-                onDestroy={() => sendWorkspaceAction('destroy', workspace?.workspace_id)}
-                messages={chatMessages}
-              />
-            ) : (
-              <SkillEvolutionPanel />
-            )}
-          </div>
-        )}
-
-        {isOffice && chatMessages.length > 0 && (
-          <MeetingLogPanel
+        {/* 办公室主体（始终保持显示） */}
+        <div style={styles.officeArea}>
+          <OfficeScene
             agents={agents}
-            messages={chatMessages}
-            tasks={tasks}
             viewState={viewState}
+            onStartMeeting={handleStartMeeting}
+            projectName={selectedProject?.name}
+            projectId={selectedProject?.id}
+            projectDetail={projectDetail}
           />
+        </div>
+
+        {/* 会议面板（从右侧滑出，覆盖办公室右侧） */}
+        {isMeeting && (
+          <div style={styles.meetingOverlay}>
+            <div style={styles.meetingPanel}>
+              <div style={styles.meetingHeader}>
+                <div style={styles.meetingTitle}>
+                  <span>📋 会议进行中</span>
+                  <span style={styles.meetingPhase}>{meetingPhase !== 'idle' ? meetingPhase : ''}</span>
+                </div>
+                <button style={styles.closeMeetingBtn} onClick={handleEndMeeting}>×</button>
+              </div>
+
+              <div style={styles.meetingTabBar}>
+                {([['chat', '💬 对话'], ['files', '📄 文件'], ['skills', '🧬 技能进化']] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setMeetingTab(key)}
+                    style={{
+                      ...styles.meetingTabBtn,
+                      ...(meetingTab === key ? styles.meetingTabBtnActive : {}),
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div style={styles.meetingContent}>
+                {meetingTab === 'chat' ? (
+                  <>
+                    <MeetingChatPanel
+                      agents={agents}
+                      messages={chatMessages}
+                      onEndMeeting={handleEndMeeting}
+                      agendaPhase={agendaState?.phase || 'idle'}
+                    />
+                    <AgendaPanel
+                      agendaState={agendaState}
+                      onAction={sendAgendaAction}
+                    />
+                  </>
+                ) : meetingTab === 'files' ? (
+                  <WorkspacePanel
+                    workspace={workspace}
+                    toolCallLogs={toolCallLogs}
+                    onToolCall={(name, args) => sendToolCall(name, args)}
+                    onDestroy={() => sendWorkspaceAction('destroy', workspace?.workspace_id)}
+                    messages={chatMessages}
+                  />
+                ) : (
+                  <SkillEvolutionPanel />
+                )}
+              </div>
+
+              <TaskAssignPanel
+                agents={agents}
+                taskInput={taskInput}
+                onTaskInputChange={setTaskInput}
+                onSendMessage={handleSendMessage}
+              />
+            </div>
+          </div>
         )}
       </div>
 
-      {/* 工作流弹窗 - 对话触发后弹出 */}
       <WorkflowPanel
         workflow={lastWorkflow}
         onClose={clearWorkflow}
@@ -279,54 +268,98 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     position: 'relative',
   },
-  officePanel: {
+  officeArea: {
     flex: 1,
     position: 'relative',
-    transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
-    overflow: 'hidden',
+    transition: 'all 0.3s ease',
   },
-  officePanelMinimized: {
+  meetingOverlay: {
     position: 'absolute',
-    top: '12px',
-    left: '12px',
-    width: '280px',
-    height: '200px',
-    borderRadius: '16px',
-    border: '2px solid rgba(139, 92, 246, 0.4)',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-    zIndex: 5,
-    flex: 'none',
-  },
-  officePanelAnimating: {
-    position: 'absolute',
-    top: '12px',
-    left: '12px',
-    width: '280px',
-    height: '200px',
-    borderRadius: '16px',
-    border: '2px solid rgba(139, 92, 246, 0.4)',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-    zIndex: 5,
-    flex: 'none',
-  },
-  officePanelExpanding: {
-    flex: 1,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: '450px',
+    display: 'flex',
+    flexDirection: 'column',
+    background: 'rgba(10, 10, 30, 0.95)',
+    borderLeft: '1px solid rgba(139, 92, 246, 0.3)',
+    boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.5)',
+    zIndex: 100,
+    animation: 'slideInRight 0.3s ease',
   },
   meetingPanel: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
-    opacity: 0,
-    transform: 'translateX(20px)',
+    overflow: 'hidden',
   },
-  meetingPanelEntering: {
-    opacity: 0,
-    transform: 'translateX(20px)',
+  meetingHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '10px 16px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+    background: 'rgba(139, 92, 246, 0.1)',
   },
-  meetingPanelActive: {
-    opacity: 1,
-    transform: 'translateX(0)',
+  meetingTitle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#e2e8f0',
+  },
+  meetingPhase: {
+    fontSize: '11px',
+    color: '#a78bfa',
+    padding: '2px 8px',
+    background: 'rgba(139, 92, 246, 0.15)',
+    borderRadius: '10px',
+  },
+  closeMeetingBtn: {
+    width: '28px',
+    height: '28px',
+    borderRadius: '6px',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    background: 'rgba(255, 255, 255, 0.05)',
+    color: '#9ca3af',
+    fontSize: '16px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  meetingTabBar: {
+    display: 'flex',
+    gap: '2px',
+    padding: '4px 12px',
+    background: 'rgba(0, 0, 0, 0.2)',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+  },
+  meetingTabBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '6px 12px',
+    background: 'transparent',
+    border: 'none',
+    borderRadius: '6px',
+    color: '#6b7280',
+    fontSize: '12px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    transition: 'all 0.15s ease',
+  },
+  meetingTabBtnActive: {
+    background: 'rgba(139, 92, 246, 0.15)',
+    color: '#a78bfa',
+  },
+  meetingContent: {
+    flex: 1,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
   },
   approvalBar: {
     display: 'flex',
@@ -351,12 +384,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'inherit',
     transition: 'all 0.2s ease',
   },
-  approvalIcon: {
-    fontSize: '14px',
-  },
-  approvalText: {
-    color: '#fca5a5',
-  },
+  approvalIcon: { fontSize: '14px' },
+  approvalText: { color: '#fca5a5' },
   approvalBadge: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -370,31 +399,5 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '11px',
     fontWeight: 700,
     lineHeight: 1,
-  },
-  meetingTabBar: {
-    display: 'flex',
-    gap: '2px',
-    padding: '4px 16px',
-    background: 'rgba(0, 0, 0, 0.25)',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-  },
-  meetingTabBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    padding: '6px 14px',
-    background: 'transparent',
-    border: 'none',
-    borderRadius: '6px',
-    color: '#6b7280',
-    fontSize: '12px',
-    fontWeight: 500,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    transition: 'all 0.15s ease',
-  },
-  meetingTabBtnActive: {
-    background: 'rgba(139, 92, 246, 0.15)',
-    color: '#a78bfa',
   },
 }
