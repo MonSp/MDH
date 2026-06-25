@@ -56,6 +56,9 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
   const [categories, setCategories] = useState<CategoryProjects>({})
   const [selectedFloor, setSelectedFloor] = useState<string | null>(null)
   const [showFloorPanel, setShowFloorPanel] = useState(false)
+  const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
   const [customTeams, setCustomTeams] = useState<CustomTeam[]>([])
   const [panel, setPanel] = useState<PanelState>(null)
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 768px)').matches)
@@ -94,7 +97,7 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
           return [...uniqueBackend, ...DEFAULT_PROJECTS]
         })
       })
-      .catch(() => {})
+      .catch(err => console.error('加载项目列表失败:', err))
 
     // 获取分类数据
     fetch('/api/projects/categories')
@@ -104,7 +107,7 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
           setCategories(data.data)
         }
       })
-      .catch(() => {})
+      .catch(err => console.error('加载分类数据失败:', err))
   }, [])
 
   useEffect(() => {
@@ -199,9 +202,8 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
     setCameraNav({ pos: [30, 55, 45], target: [0, 14, 0] })
   }, [])
 
-  // 点击电脑打开项目面板
-  const handleComputerClick = useCallback((category: string) => {
-    // 打开面板时刷新分类数据
+  // 刷新分类数据
+  const refreshCategories = useCallback(() => {
     fetch('/api/projects/categories')
       .then(r => r.json())
       .then(data => {
@@ -209,9 +211,65 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
           setCategories(data.data)
         }
       })
-      .catch(() => {})
-    setShowFloorPanel(true)
+      .catch(err => console.error('刷新分类数据失败:', err))
   }, [])
+
+  // 刷新项目列表（用于3D渲染）
+  const refreshProjects = useCallback(() => {
+    fetch('/api/projects')
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success || !Array.isArray(data.data)) return
+        const backendProjects: Project[] = data.data.map((p: { project_id: string; name: string; status: string; created_at: string; category?: string }) => ({
+          id: p.project_id,
+          name: simplifyName(p.name),
+          description: '后端项目',
+          selectedDeptIds: ['dept-software'],
+          status: (p.status === 'running' ? 'active' : p.status === 'archived' ? 'completed' : 'planning') as 'planning' | 'active' | 'completed',
+          createdAt: new Date(p.created_at).getTime() || Date.now(),
+          iterations: 0,
+        }))
+        setProjects(prev => {
+          const defaultIds = new Set(DEFAULT_PROJECTS.map(p => p.id))
+          const uniqueBackend = backendProjects.filter(bp => !defaultIds.has(bp.id))
+          return [...uniqueBackend, ...DEFAULT_PROJECTS]
+        })
+      })
+      .catch(err => console.error('刷新项目列表失败:', err))
+  }, [])
+
+  // 刷新所有数据
+  const refreshAll = useCallback(() => {
+    refreshProjects()
+    refreshCategories()
+  }, [refreshProjects, refreshCategories])
+
+  // 点击电脑打开项目面板
+  const handleComputerClick = useCallback((category: string) => {
+    refreshAll()
+    setShowFloorPanel(true)
+  }, [refreshAll])
+
+  // 重命名项目
+  const handleRename = useCallback((projectId: string) => {
+    if (!renameValue.trim()) return
+    fetch(`/api/projects/${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: renameValue.trim() }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          setRenamingProjectId(null)
+          setRenameValue('')
+          refreshAll()
+        } else {
+          alert('重命名失败: ' + (data.error || '未知错误'))
+        }
+      })
+      .catch(() => alert('重命名失败'))
+  }, [renameValue, refreshAll])
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080818', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
@@ -366,6 +424,7 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
                         <div
                           key={proj.project_id}
                           onClick={() => {
+                            if (renamingProjectId === proj.project_id) return
                             setShowFloorPanel(false)
                             setSelectedFloor(null)
                             if (onEnterProject) {
@@ -378,33 +437,158 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
                             padding: '12px 14px',
                             marginBottom: 8,
                             borderRadius: 10,
-                            background: 'rgba(255,255,255,0.03)',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                            cursor: 'pointer',
+                            background: renamingProjectId === proj.project_id ? 'rgba(139,92,246,0.1)' : 'rgba(255,255,255,0.03)',
+                            border: `1px solid ${renamingProjectId === proj.project_id ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                            cursor: renamingProjectId === proj.project_id ? 'default' : 'pointer',
                             transition: 'all 0.15s',
                           }}
                           onMouseOver={(e) => {
-                            e.currentTarget.style.background = 'rgba(139,92,246,0.1)'
-                            e.currentTarget.style.borderColor = 'rgba(139,92,246,0.3)'
+                            if (renamingProjectId !== proj.project_id) {
+                              e.currentTarget.style.background = 'rgba(139,92,246,0.1)'
+                              e.currentTarget.style.borderColor = 'rgba(139,92,246,0.3)'
+                            }
                           }}
                           onMouseOut={(e) => {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+                            if (renamingProjectId !== proj.project_id) {
+                              e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+                              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
+                            }
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{proj.name}</div>
-                            <span style={{
-                              padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
-                              background: st.bg, color: st.color,
-                            }}>{st.label}</span>
+                            {renamingProjectId === proj.project_id ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                                <input
+                                  type="text"
+                                  value={renameValue}
+                                  onChange={(e) => setRenameValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleRename(proj.project_id)
+                                    if (e.key === 'Escape') { setRenamingProjectId(null); setRenameValue('') }
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  autoFocus
+                                  style={{
+                                    flex: 1, padding: '4px 8px', borderRadius: 4,
+                                    border: '1px solid rgba(139,92,246,0.4)',
+                                    background: 'rgba(0,0,0,0.3)',
+                                    color: '#e2e8f0', fontSize: 12, outline: 'none',
+                                  }}
+                                />
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleRename(proj.project_id) }}
+                                  style={{
+                                    padding: '4px 8px', borderRadius: 4,
+                                    border: '1px solid rgba(16,185,129,0.4)',
+                                    background: 'rgba(16,185,129,0.15)',
+                                    color: '#10b981', fontSize: 11, cursor: 'pointer',
+                                  }}
+                                >✓</button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setRenamingProjectId(null); setRenameValue('') }}
+                                  style={{
+                                    padding: '4px 8px', borderRadius: 4,
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    background: 'rgba(255,255,255,0.05)',
+                                    color: '#9ca3af', fontSize: 11, cursor: 'pointer',
+                                  }}
+                                >✕</button>
+                              </div>
+                            ) : (
+                              <>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proj.name}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <span style={{
+                                    padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+                                    background: st.bg, color: st.color,
+                                  }}>{st.label}</span>
+                                  {deletingProjectId === proj.project_id ? (
+                                    <>
+                                      <span style={{ fontSize: 10, color: '#f59e0b', whiteSpace: 'nowrap' }}>确认删除?</span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          fetch(`/api/projects/${proj.project_id}`, { method: 'DELETE' })
+                                            .then(r => r.json())
+                                            .then(data => {
+                                              if (data.success) {
+                                                setDeletingProjectId(null)
+                                                refreshAll()
+                                              } else {
+                                                alert('删除失败: ' + (data.error || '未知错误'))
+                                              }
+                                            })
+                                            .catch(() => alert('删除失败'))
+                                        }}
+                                        style={{
+                                          padding: '3px 8px', borderRadius: 4,
+                                          border: '1px solid rgba(239,68,68,0.5)',
+                                          background: 'rgba(239,68,68,0.2)',
+                                          color: '#ef4444', fontSize: 10, cursor: 'pointer',
+                                          fontWeight: 600,
+                                        }}
+                                      >删除</button>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setDeletingProjectId(null) }}
+                                        style={{
+                                          padding: '3px 8px', borderRadius: 4,
+                                          border: '1px solid rgba(255,255,255,0.1)',
+                                          background: 'rgba(255,255,255,0.05)',
+                                          color: '#9ca3af', fontSize: 10, cursor: 'pointer',
+                                        }}
+                                      >取消</button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setRenamingProjectId(proj.project_id)
+                                          setRenameValue(proj.name)
+                                        }}
+                                        style={{
+                                          width: 22, height: 22, borderRadius: 4,
+                                          border: '1px solid rgba(59,130,246,0.3)',
+                                          background: 'rgba(59,130,246,0.1)',
+                                          color: '#3b82f6', fontSize: 11, cursor: 'pointer',
+                                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                          transition: 'all 0.15s',
+                                        }}
+                                        onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(59,130,246,0.3)' }}
+                                        onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(59,130,246,0.1)' }}
+                                        title="重命名"
+                                      >✎</button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setDeletingProjectId(proj.project_id)
+                                        }}
+                                        style={{
+                                          width: 22, height: 22, borderRadius: 4,
+                                          border: '1px solid rgba(239,68,68,0.3)',
+                                          background: 'rgba(239,68,68,0.1)',
+                                          color: '#ef4444', fontSize: 12, cursor: 'pointer',
+                                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                          transition: 'all 0.15s',
+                                        }}
+                                        onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.3)' }}
+                                        onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)' }}
+                                        title="删除项目"
+                                      >×</button>
+                                    </>
+                                  )}
+                                </div>
+                              </>
+                            )}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div style={{ fontSize: 10, color: '#6b7280', fontFamily: 'monospace' }}>
-                              {proj.project_id.slice(0, 16)}...
+                          {renamingProjectId !== proj.project_id && deletingProjectId !== proj.project_id && (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ fontSize: 10, color: '#6b7280', fontFamily: 'monospace' }}>
+                                {proj.project_id.slice(0, 16)}...
+                              </div>
+                              <div style={{ fontSize: 10, color: '#4b5563' }}>{timeStr}</div>
                             </div>
-                            <div style={{ fontSize: 10, color: '#4b5563' }}>{timeStr}</div>
-                          </div>
+                          )}
                         </div>
                       )
                     })}

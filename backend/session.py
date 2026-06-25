@@ -26,6 +26,8 @@ class Session:
         self.agent = None
         self.meeting_session = None
         self.meeting_mode = False
+        self.project_id: str = ""  # 当前会议关联的项目ID
+        self.task_id: str = ""     # 当前会议关联的任务ID
 
     def clear_meeting(self):
         self.meeting_session = None

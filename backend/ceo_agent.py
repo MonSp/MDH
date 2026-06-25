@@ -221,6 +221,14 @@ class CeoAgent:
         )
         await self._emit(send_message, f"CEO：项目已创建（{project.project_id}），组建团队中。")
 
+        # 创建任务（用户通过CEO对话发起的需求）
+        task_id = str(uuid.uuid4())[:8]
+        task = self._project_manager.add_task(
+            project.project_id, task_id, content[:200]
+        )
+        self._session.task_id = task_id  # 存储任务ID到会话
+        await self._emit(send_message, f"CEO：任务已创建（{task_id}），准备启动会议。")
+
         # ② 创建工作区（先询问用户确认）
         from workspace_manager import WorkspaceManager, WorkspaceType
         workspaces_base = os.environ.get(
@@ -407,6 +415,7 @@ class CeoAgent:
 
         # 通知前端会议已启动
         self._session._sequence_no += 1
+        self._session.project_id = project.project_id  # 存储项目ID到会话
         await send_message({
             "type": "meeting_started",
             "meeting_id": meeting_id,

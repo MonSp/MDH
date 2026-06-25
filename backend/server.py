@@ -187,6 +187,27 @@ async def get_project(project_id: str):
         return _fail(str(e))
 
 
+@app.delete("/api/projects/{project_id}")
+async def delete_project(project_id: str):
+    try:
+        project_manager.delete_project(project_id)
+        return _ok({"project_id": project_id, "message": "项目已删除"})
+    except KeyError as e:
+        return _fail(str(e))
+
+
+@app.patch("/api/projects/{project_id}")
+async def rename_project(project_id: str, body: dict = Body(...)):
+    try:
+        new_name = body.get("name", "")
+        project_manager.rename_project(project_id, new_name)
+        return _ok({"project_id": project_id, "name": new_name.strip()})
+    except KeyError as e:
+        return _fail(str(e))
+    except ValueError as e:
+        return _fail(str(e))
+
+
 @app.get("/api/projects/{project_id}/status")
 async def get_project_status(project_id: str):
     try:
@@ -225,6 +246,66 @@ async def classify_project(project_id: str):
     try:
         category = project_manager.auto_classify_project(project_id)
         return _ok({"project_id": project_id, "category": category})
+    except KeyError as e:
+        return _fail(str(e))
+
+
+@app.get("/api/projects/{project_id}/tasks")
+async def get_project_tasks(project_id: str):
+    """获取项目的所有任务（含子任务）。"""
+    try:
+        tasks = project_manager.get_project_tasks(project_id)
+        return _ok(tasks)
+    except KeyError as e:
+        return _fail(str(e))
+
+
+@app.post("/api/projects/{project_id}/tasks")
+async def add_project_task(project_id: str, body: dict = Body(...)):
+    """向项目添加任务（用户通过CEO对话发起）。"""
+    try:
+        task_id = body.get("task_id", str(uuid.uuid4())[:8])
+        description = body.get("description", "")
+        meeting_id = body.get("meeting_id", "")
+        task = project_manager.add_task(project_id, task_id, description, meeting_id)
+        return _ok(asdict(task))
+    except KeyError as e:
+        return _fail(str(e))
+
+
+@app.post("/api/projects/{project_id}/tasks/{task_id}/subtasks")
+async def add_subtask(project_id: str, task_id: str, body: dict = Body(...)):
+    """向任务添加子任务（会议中AI自动生成）。"""
+    try:
+        subtask_id = body.get("subtask_id", str(uuid.uuid4())[:8])
+        description = body.get("description", "")
+        agent_id = body.get("agent_id", "")
+        subtask = project_manager.add_subtask(project_id, task_id, subtask_id, description, agent_id)
+        return _ok(asdict(subtask))
+    except KeyError as e:
+        return _fail(str(e))
+
+
+@app.patch("/api/projects/{project_id}/tasks/{task_id}/subtasks/{subtask_id}")
+async def update_subtask_status(project_id: str, task_id: str, subtask_id: str, body: dict = Body(...)):
+    """更新子任务状态。"""
+    try:
+        status = body.get("status", "")
+        project_manager.update_subtask_status(project_id, task_id, subtask_id, status)
+        return _ok({"project_id": project_id, "task_id": task_id, "subtask_id": subtask_id, "status": status})
+    except KeyError as e:
+        return _fail(str(e))
+
+
+@app.delete("/api/projects/{project_id}/tasks/{task_id}")
+async def delete_project_task(project_id: str, task_id: str):
+    """删除项目中的任务。"""
+    try:
+        success = project_manager.delete_task(project_id, task_id)
+        if success:
+            return _ok({"project_id": project_id, "task_id": task_id, "message": "任务已删除"})
+        else:
+            return _fail("任务不存在")
     except KeyError as e:
         return _fail(str(e))
 
@@ -1160,6 +1241,15 @@ async def ws_handler(ws: WebSocket):
                 session.meeting_session.update_agent_status(agent_id, MeetingAgentStatus.WORKING)
                 session.meeting_session.add_message("boss", f"任务已派发给 {agent_id}: {description}")
 
+                # 将子任务持久化到项目的当前任务下
+                if session.project_id and session.task_id:
+                    try:
+                        project_manager.add_subtask(
+                            session.project_id, session.task_id, task.id, description, agent_id
+                        )
+                    except Exception as e:
+                        logger.warning("子任务持久化到项目失败: %s", e)
+
                 logger.info("任务已派发: task_id=%s agent_id=%s meeting=%s", task.id, agent_id, session.meeting_session.meeting_id)
                 session._sequence_no += 1
                 msg_task_assigned = {
@@ -1186,6 +1276,31 @@ async def ws_handler(ws: WebSocket):
                     session._message_buffer.pop(0)
                 session._message_buffer.append(msg_agent_status)
                 await ws.send_json(msg_agent_status)
+
+            elif msg_type == "task_delete":
+                if not session.meeting_session or not session.meeting_session.is_running():
+                    await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
+                    continue
+
+                task_id = msg.get("taskId", "")
+                if not task_id:
+                    continue
+
+                success = session.meeting_session.delete_task(task_id)
+                if success:
+                    logger.info("任务已删除: task_id=%s meeting=%s", task_id, session.meeting_session.meeting_id)
+                    session._sequence_no += 1
+                    msg_task_deleted = {
+                        "type": "task_deleted",
+                        "taskId": task_id,
+                        "sequence_no": session._sequence_no,
+                    }
+                    if len(session._message_buffer) >= 100:
+                        session._message_buffer.pop(0)
+                    session._message_buffer.append(msg_task_deleted)
+                    await ws.send_json(msg_task_deleted)
+                else:
+                    await ws.send_json({"type": "meeting_error", "message": f"任务不存在: {task_id}"})
 
             elif msg_type == "end_meeting":
                 if not session.meeting_session:

@@ -208,6 +208,14 @@ class MeetingSession:
                 task.status = status
                 break
 
+    def delete_task(self, task_id: str) -> bool:
+        """删除任务。"""
+        for i, task in enumerate(self.tasks):
+            if task.id == task_id:
+                self.tasks.pop(i)
+                return True
+        return False
+
     def add_message(self, role: str, content: str, agent_id: str = None) -> dict:
         message = {
             "id": str(uuid.uuid4())[:8],

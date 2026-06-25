@@ -1,9 +1,28 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { DEFAULT_ROLE_PROFILES, AgentRole } from '../../modules/agentTypes'
 import RoleAvatar from '../RoleAvatar'
 import type { TeamAgent } from './types'
 import { WORKSTATIONS, MEETING_TABLE } from './constants'
 import { getAgentPosition, isMeetingView } from './utils'
+
+interface SubTask {
+  subtask_id: string
+  description: string
+  status: string
+  agent_id: string
+  created_at: number
+  completed_at: number
+}
+
+interface ProjectTask {
+  task_id: string
+  description: string
+  status: string
+  created_at: number
+  completed_at: number
+  meeting_id: string
+  subtasks: SubTask[]
+}
 
 interface ProjectDetail {
   project_id: string
@@ -11,7 +30,9 @@ interface ProjectDetail {
   status: string
   brief: Record<string, unknown>
   created_at: string
-  employees: Array<{ id: string; name: string; role: string; status: string }>
+  category: string
+  tasks: ProjectTask[]
+  employees: Array<{ employee_id: string; agent_id: string; skill_id: string; status: string }>
   skill_packages: Array<{ skill_id: string; name: string }>
   execution_logs: Array<Record<string, unknown>>
 }
@@ -27,18 +48,72 @@ interface OfficeSceneProps {
 
 export default function OfficeScene({ agents, viewState, onStartMeeting, projectName, projectId, projectDetail }: OfficeSceneProps) {
   const isMeeting = isMeetingView(viewState)
-  const [activeTab, setActiveTab] = useState<'team' | 'files' | 'skills'>('team')
+  const [activeTab, setActiveTab] = useState<'team' | 'tasks' | 'files' | 'skills'>('team')
   const [selectedAgent, setSelectedAgent] = useState<TeamAgent | null>(null)
+  const [experienceRules, setExperienceRules] = useState<Array<{ rule_id: string; trigger_condition: string; action: string; status: string; keywords: string[] }>>([])
+
+  // 获取经验规则
+  useEffect(() => {
+    fetch('/api/experience/rules')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && Array.isArray(data.data)) {
+          setExperienceRules(data.data)
+        }
+      })
+      .catch(err => console.error('加载经验规则失败:', err))
+  }, [])
+
+  // 默认团队配置（按项目分类）
+  const defaultTeams: Record<string, Array<{ name: string; role: AgentRole }>> = {
+    '软件开发': [
+      { name: '产品经理', role: 'coordinator' as AgentRole },
+      { name: '架构师', role: 'planner' as AgentRole },
+      { name: '全栈开发', role: 'executor' as AgentRole },
+      { name: 'QA工程师', role: 'reviewer' as AgentRole },
+    ],
+    '物流系统': [
+      { name: '产品经理', role: 'coordinator' as AgentRole },
+      { name: '架构师', role: 'planner' as AgentRole },
+      { name: '后端开发', role: 'executor' as AgentRole },
+      { name: '前端开发', role: 'executor' as AgentRole },
+    ],
+    '数据分析': [
+      { name: '数据负责人', role: 'coordinator' as AgentRole },
+      { name: '数据工程师', role: 'executor' as AgentRole },
+      { name: '数据分析师', role: 'planner' as AgentRole },
+    ],
+    '内容创作': [
+      { name: '内容总监', role: 'coordinator' as AgentRole },
+      { name: '撰稿人', role: 'executor' as AgentRole },
+    ],
+    'default': [
+      { name: '项目经理', role: 'coordinator' as AgentRole },
+      { name: '开发工程师', role: 'executor' as AgentRole },
+    ],
+  }
 
   // 合并实时agents和项目历史员工数据
-  const teamMembers = agents.length > 0 ? agents : (projectDetail?.employees || []).map((emp, idx) => ({
-    id: emp.id,
-    name: emp.name,
-    role: emp.role as AgentRole,
-    status: emp.status as 'idle' | 'working' | 'meeting' | 'wandering',
-    currentTask: null,
-    workstationId: WORKSTATIONS[idx % WORKSTATIONS.length]?.id || '',
-  }))
+  const teamMembers = agents.length > 0 ? agents : (projectDetail?.employees || []).length > 0
+    ? (projectDetail?.employees || []).map((emp, idx) => ({
+        id: emp.employee_id || emp.agent_id,
+        name: emp.agent_id?.replace('agent-', '') || `员工${idx + 1}`,
+        role: (emp.agent_id?.includes('planner') ? 'planner' :
+               emp.agent_id?.includes('executor') ? 'executor' :
+               emp.agent_id?.includes('reviewer') ? 'reviewer' :
+               emp.agent_id?.includes('monitor') ? 'monitor' : 'executor') as AgentRole,
+        status: emp.status as 'idle' | 'working' | 'meeting' | 'wandering',
+        currentTask: null,
+        workstationId: WORKSTATIONS[idx % WORKSTATIONS.length]?.id || '',
+      }))
+    : (defaultTeams[projectDetail?.category || ''] || defaultTeams['default']).map((member, idx) => ({
+        id: `default-${idx}`,
+        name: member.name,
+        role: member.role,
+        status: 'idle' as const,
+        currentTask: null,
+        workstationId: WORKSTATIONS[idx % WORKSTATIONS.length]?.id || '',
+      }))
 
   return (
     <div style={styles.container}>
@@ -173,7 +248,7 @@ export default function OfficeScene({ agents, viewState, onStartMeeting, project
 
           {/* 标签页 */}
           <div style={styles.tabBar}>
-            {([['team', '👥 团队'], ['files', '📄 文件'], ['skills', '🧬 技能']] as const).map(([key, label]) => (
+            {([['team', '👥 团队'], ['tasks', '📋 任务'], ['files', '📄 文件'], ['skills', '🧬 技能']] as const).map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
@@ -264,6 +339,75 @@ export default function OfficeScene({ agents, viewState, onStartMeeting, project
               </div>
             )}
 
+            {activeTab === 'tasks' && (
+              <div>
+                <div style={styles.sectionTitle}>任务列表 ({projectDetail?.tasks?.length || 0})</div>
+                {projectDetail?.tasks && projectDetail.tasks.length > 0 ? (
+                  projectDetail.tasks
+                    .sort((a, b) => b.created_at - a.created_at)
+                    .map((task) => {
+                      const statusMap: Record<string, { icon: string; color: string; label: string }> = {
+                        completed: { icon: '✅', color: '#10b981', label: '已完成' },
+                        executing: { icon: '⚡', color: '#f59e0b', label: '执行中' },
+                        pending: { icon: '⏳', color: '#6b7280', label: '待处理' },
+                        failed: { icon: '❌', color: '#ef4444', label: '失败' },
+                      }
+                      const st = statusMap[task.status] || statusMap.pending
+                      const timeStr = task.created_at > 0
+                        ? new Date(task.created_at * 1000).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : ''
+                      const completedSubtasks = task.subtasks?.filter(s => s.status === 'completed').length || 0
+                      const totalSubtasks = task.subtasks?.length || 0
+
+                      return (
+                        <div key={task.task_id} style={styles.taskItem}>
+                          <div style={styles.taskMain}>
+                            <span style={{ fontSize: 14 }}>{st.icon}</span>
+                            <div style={styles.taskInfo}>
+                              <div style={styles.taskDesc}>{task.description}</div>
+                              <div style={styles.taskMeta}>
+                                {timeStr && <span>{timeStr}</span>}
+                                {totalSubtasks > 0 && <span> · 子任务 {completedSubtasks}/{totalSubtasks}</span>}
+                              </div>
+                            </div>
+                            <span style={{ ...styles.taskStatus, color: st.color }}>{st.label}</span>
+                          </div>
+                          {/* 子任务列表 */}
+                          {task.subtasks && task.subtasks.length > 0 && (
+                            <div style={styles.subtaskList}>
+                              {task.subtasks.map((subtask) => {
+                                const subst = statusMap[subtask.status] || statusMap.pending
+                                return (
+                                  <div key={subtask.subtask_id} style={styles.subtaskItem}>
+                                    <span style={{ fontSize: 12, width: 16, textAlign: 'center' as const }}>{subst.icon}</span>
+                                    <div style={styles.subtaskDesc}>{subtask.description}</div>
+                                    <span style={{
+                                      fontSize: 9,
+                                      fontWeight: 600,
+                                      color: subst.color,
+                                      padding: '2px 6px',
+                                      borderRadius: '8px',
+                                      background: `${subst.color}15`,
+                                      flexShrink: 0,
+                                    }}>{subst.label}</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })
+                ) : (
+                  <div style={styles.emptyState}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
+                    <div style={{ marginBottom: 4 }}>暂无任务记录</div>
+                    <div style={{ fontSize: 11, color: '#4b5563' }}>通过CEO对话发起任务后，将在这里显示</div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === 'files' && (
               <div>
                 <div style={styles.sectionTitle}>项目文件</div>
@@ -300,7 +444,40 @@ export default function OfficeScene({ agents, viewState, onStartMeeting, project
                     </div>
                   ))
                 ) : (
-                  <div style={styles.emptyState}>暂无技能包</div>
+                  <div style={styles.emptyState}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>📦</div>
+                    <div style={{ marginBottom: 4 }}>暂无技能包</div>
+                    <div style={{ fontSize: 11, color: '#4b5563' }}>项目完成后，经验规则将自动提取为技能包</div>
+                  </div>
+                )}
+
+                <div style={{ ...styles.sectionTitle, marginTop: 16 }}>经验规则 ({experienceRules.length})</div>
+                {experienceRules.length > 0 ? (
+                  experienceRules.slice(0, 10).map((rule, i) => (
+                    <div key={rule.rule_id || i} style={styles.ruleItem}>
+                      <div style={styles.ruleHeader}>
+                        <span style={{
+                          ...styles.ruleTypeTag,
+                          background: rule.status === 'approved' ? 'rgba(16,185,129,0.15)' :
+                                     rule.status === 'pending_review' ? 'rgba(245,158,11,0.15)' : 'rgba(107,114,128,0.15)',
+                          color: rule.status === 'approved' ? '#10b981' :
+                                 rule.status === 'pending_review' ? '#f59e0b' : '#6b7280',
+                        }}>
+                          {rule.status === 'approved' ? '已采纳' : rule.status === 'pending_review' ? '待审核' : rule.status}
+                        </span>
+                      </div>
+                      <div style={styles.ruleAction}>{rule.action}</div>
+                      {rule.keywords && rule.keywords.length > 0 && (
+                        <div style={styles.ruleKeywords}>
+                          {rule.keywords.slice(0, 3).map((kw, j) => (
+                            <span key={j} style={styles.keywordTag}>{kw}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div style={styles.emptyState}>暂无经验规则</div>
                 )}
               </div>
             )}
@@ -503,6 +680,110 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap' as const,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
+  },
+  taskItem: {
+    padding: '10px 12px',
+    marginBottom: '6px',
+    borderRadius: '8px',
+    background: 'rgba(255,255,255,0.03)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  taskMain: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  taskInfo: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  taskDesc: {
+    fontSize: '12px',
+    color: '#e2e8f0',
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    marginBottom: '2px',
+  },
+  taskMeta: {
+    fontSize: '10px',
+    color: '#6b7280',
+  },
+  taskStatus: {
+    fontSize: '10px',
+    fontWeight: 600,
+    padding: '2px 8px',
+    borderRadius: '10px',
+    background: 'rgba(255,255,255,0.05)',
+    flexShrink: 0,
+  },
+  subtaskList: {
+    marginTop: '8px',
+    paddingTop: '8px',
+    borderTopWidth: '1px',
+    borderTopStyle: 'solid',
+    borderTopColor: 'rgba(255,255,255,0.04)',
+    marginLeft: '22px',
+  },
+  subtaskItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '6px 10px',
+    marginBottom: '4px',
+    borderRadius: '6px',
+    background: 'rgba(0,0,0,0.2)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'rgba(255,255,255,0.04)',
+  },
+  subtaskDesc: {
+    flex: 1,
+    fontSize: '11px',
+    color: '#d1d5db',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  ruleItem: {
+    padding: '10px 12px',
+    marginBottom: '6px',
+    borderRadius: '8px',
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid rgba(255,255,255,0.06)',
+  },
+  ruleHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    marginBottom: '6px',
+  },
+  ruleTypeTag: {
+    padding: '2px 8px',
+    borderRadius: '10px',
+    fontSize: '10px',
+    fontWeight: 600,
+  },
+  ruleAction: {
+    fontSize: '12px',
+    color: '#e2e8f0',
+    lineHeight: 1.5,
+    marginBottom: '6px',
+  },
+  ruleKeywords: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: '4px',
+  },
+  keywordTag: {
+    padding: '2px 6px',
+    borderRadius: '4px',
+    fontSize: '10px',
+    background: 'rgba(139,92,246,0.1)',
+    color: '#a78bfa',
+    border: '1px solid rgba(139,92,246,0.2)',
   },
   officeScene: {
     position: 'relative',

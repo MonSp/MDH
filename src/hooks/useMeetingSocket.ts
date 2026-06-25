@@ -190,14 +190,15 @@ export default function useMeetingSocket({
         return
       }
 
-      if (msg.sequenceNo !== undefined) {
-        if (msg.sequenceNo > lastSequenceNo.current + 1) {
+      const seqNo = msg.sequence_no ?? msg.sequenceNo
+      if (seqNo !== undefined) {
+        if (seqNo > lastSequenceNo.current + 1) {
           send({
             type: 'request_retransmit',
-            fromSequenceNo: lastSequenceNo.current + 1,
+            from_sequence_no: lastSequenceNo.current + 1,
           })
         }
-        lastSequenceNo.current = msg.sequenceNo
+        lastSequenceNo.current = seqNo
       }
 
       switch (msg.type) {
@@ -284,6 +285,10 @@ export default function useMeetingSocket({
           setAgents(prev => prev.map(a =>
             a.id === msg.agentId ? { ...a, currentTask: msg.taskId } : a
           ))
+          break
+        }
+        case 'task_deleted': {
+          setTasks(prev => prev.filter(t => t.id !== msg.taskId))
           break
         }
         case 'agent_status_update': {
@@ -572,6 +577,13 @@ export default function useMeetingSocket({
     })
   }, [send])
 
+  const deleteTask = useCallback((taskId: string) => {
+    send({
+      type: 'task_delete',
+      taskId: taskId,
+    })
+  }, [send])
+
   return {
     meetingId,
     agents,
@@ -593,5 +605,6 @@ export default function useMeetingSocket({
     sendToolCall,
     meetingPhase,
     meetingStartTime,
+    deleteTask,
   }
 }

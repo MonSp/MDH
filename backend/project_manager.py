@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import shutil
+import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -48,6 +49,29 @@ class EmployeeInstance:
 
 
 @dataclass
+class SubTask:
+    """子任务数据类 - 会议中AI自动生成的任务。"""
+    subtask_id: str
+    description: str
+    status: str              # pending / assigned / executing / completed / failed / revision_required
+    agent_id: str = ""       # 分配的智能体ID
+    created_at: float = 0.0
+    completed_at: float = 0.0
+
+
+@dataclass
+class ProjectTask:
+    """项目任务数据类 - 用户通过CEO对话发起的一次需求。"""
+    task_id: str
+    description: str
+    status: str              # pending / executing / completed / failed
+    created_at: float = 0.0
+    completed_at: float = 0.0
+    meeting_id: str = ""     # 关联的会议ID
+    subtasks: list = field(default_factory=list)  # SubTask 列表
+
+
+@dataclass
 class Project:
     """项目数据类，描述一个完整的项目实例。"""
 
@@ -57,10 +81,11 @@ class Project:
     brief: dict                 # 项目简报（用户偏好、约束条件）
     created_at: str
     category: str = ""          # 项目分类（如 "软件开发", "AI影视", "数据分析" 等）
-    skill_packages: list = field(default_factory=list)   # 关联的技能包信息
-    employees: list = field(default_factory=list)        # EmployeeInstance 列表
-    execution_logs: list = field(default_factory=list)   # 执行日志
-    dag: dict = field(default_factory=dict)              # 任务依赖图
+    tasks: list = field(default_factory=list)             # ProjectTask 列表
+    skill_packages: list = field(default_factory=list)    # 关联的技能包信息
+    employees: list = field(default_factory=list)         # EmployeeInstance 列表
+    execution_logs: list = field(default_factory=list)    # 执行日志
+    dag: dict = field(default_factory=dict)               # 任务依赖图
 
 
 class ProjectManager:
@@ -115,6 +140,14 @@ class ProjectManager:
         for emp_data in metadata.get("employees", []):
             employees.append(EmployeeInstance(**emp_data))
 
+        tasks = []
+        for task_data in metadata.get("tasks", []):
+            subtasks = []
+            for st_data in task_data.get("subtasks", []):
+                subtasks.append(SubTask(**st_data))
+            task_data_copy = {k: v for k, v in task_data.items() if k != "subtasks"}
+            tasks.append(ProjectTask(**task_data_copy, subtasks=subtasks))
+
         return Project(
             project_id=metadata["project_id"],
             name=metadata["name"],
@@ -122,6 +155,7 @@ class ProjectManager:
             brief=metadata.get("brief", {}),
             created_at=metadata.get("created_at", ""),
             category=metadata.get("category", ""),
+            tasks=tasks,
             skill_packages=metadata.get("skill_packages", []),
             employees=employees,
             execution_logs=metadata.get("execution_logs", []),
@@ -140,6 +174,10 @@ class ProjectManager:
 
     def _project_to_metadata(self, project: Project) -> dict:
         """将 Project 对象转为可序列化的字典。"""
+        tasks_data = []
+        for t in project.tasks:
+            task_dict = asdict(t)
+            tasks_data.append(task_dict)
         return {
             "project_id": project.project_id,
             "name": project.name,
@@ -147,6 +185,7 @@ class ProjectManager:
             "brief": project.brief,
             "created_at": project.created_at,
             "category": project.category,
+            "tasks": tasks_data,
             "skill_packages": project.skill_packages,
             "employees": [asdict(e) for e in project.employees],
             "execution_logs": project.execution_logs,
@@ -631,6 +670,172 @@ class ProjectManager:
             KeyError: 项目不存在。
         """
         return self._get_or_raise(project_id)
+
+    def delete_project(self, project_id: str) -> None:
+        """删除项目。
+
+        Args:
+            project_id: 项目 ID。
+
+        Raises:
+            KeyError: 项目不存在。
+        """
+        project = self._get_or_raise(project_id)
+        project_dir = self._get_project_dir(project_id)
+
+        # 从内存索引中移除
+        del self._projects[project_id]
+
+        # 删除项目目录
+        if project_dir.exists():
+            import shutil
+            shutil.rmtree(project_dir)
+            logger.info("项目目录已删除: %s", project_dir)
+
+        logger.info("项目已删除: %s (%s)", project.name, project_id)
+
+    def rename_project(self, project_id: str, new_name: str) -> None:
+        """重命名项目。
+
+        Args:
+            project_id: 项目 ID。
+            new_name: 新的项目名称。
+
+        Raises:
+            KeyError: 项目不存在。
+            ValueError: 名称为空。
+        """
+        if not new_name or not new_name.strip():
+            raise ValueError("项目名称不能为空")
+
+        project = self._get_or_raise(project_id)
+        old_name = project.name
+        project.name = new_name.strip()
+        self._save_project(project)
+        logger.info("项目已重命名: %s -> %s (ID: %s)", old_name, project.name, project_id)
+
+    def add_task(self, project_id: str, task_id: str, description: str, meeting_id: str = "") -> ProjectTask:
+        """向项目添加任务（用户通过CEO对话发起）。
+
+        Args:
+            project_id: 项目 ID。
+            task_id: 任务 ID。
+            description: 任务描述（用户的需求）。
+            meeting_id: 关联的会议 ID。
+
+        Returns:
+            创建的 ProjectTask 对象。
+
+        Raises:
+            KeyError: 项目不存在。
+        """
+        project = self._get_or_raise(project_id)
+        task = ProjectTask(
+            task_id=task_id,
+            description=description,
+            status="pending",
+            meeting_id=meeting_id,
+            created_at=time.time(),
+        )
+        project.tasks.append(task)
+        self._save_project(project)
+        logger.info("任务已添加到项目: task_id=%s project_id=%s", task_id, project_id)
+        return task
+
+    def add_subtask(self, project_id: str, task_id: str, subtask_id: str, description: str, agent_id: str = "") -> SubTask:
+        """向任务添加子任务（会议中AI自动生成）。
+
+        Args:
+            project_id: 项目 ID。
+            task_id: 父任务 ID。
+            subtask_id: 子任务 ID。
+            description: 子任务描述。
+            agent_id: 分配的智能体 ID。
+
+        Returns:
+            创建的 SubTask 对象。
+
+        Raises:
+            KeyError: 项目不存在。
+        """
+        project = self._get_or_raise(project_id)
+        for task in project.tasks:
+            if task.task_id == task_id:
+                subtask = SubTask(
+                    subtask_id=subtask_id,
+                    description=description,
+                    status="pending",
+                    agent_id=agent_id,
+                    created_at=time.time(),
+                )
+                task.subtasks.append(subtask)
+                self._save_project(project)
+                logger.info("子任务已添加: subtask_id=%s task_id=%s project_id=%s", subtask_id, task_id, project_id)
+                return subtask
+        raise KeyError(f"任务不存在: {task_id}")
+
+    def update_subtask_status(self, project_id: str, task_id: str, subtask_id: str, status: str) -> None:
+        """更新子任务状态。
+
+        Args:
+            project_id: 项目 ID。
+            task_id: 父任务 ID。
+            subtask_id: 子任务 ID。
+            status: 新状态。
+
+        Raises:
+            KeyError: 项目、任务或子任务不存在。
+        """
+        project = self._get_or_raise(project_id)
+        for task in project.tasks:
+            if task.task_id == task_id:
+                for subtask in task.subtasks:
+                    if subtask.subtask_id == subtask_id:
+                        subtask.status = status
+                        if status == "completed":
+                            subtask.completed_at = time.time()
+                        self._save_project(project)
+                        logger.info("子任务状态已更新: subtask_id=%s status=%s", subtask_id, status)
+                        return
+                raise KeyError(f"子任务不存在: {subtask_id}")
+        raise KeyError(f"任务不存在: {task_id}")
+
+    def delete_task(self, project_id: str, task_id: str) -> bool:
+        """删除项目中的任务。
+
+        Args:
+            project_id: 项目 ID。
+            task_id: 任务 ID。
+
+        Returns:
+            是否删除成功。
+
+        Raises:
+            KeyError: 项目不存在。
+        """
+        project = self._get_or_raise(project_id)
+        for i, task in enumerate(project.tasks):
+            if task.task_id == task_id:
+                project.tasks.pop(i)
+                self._save_project(project)
+                logger.info("任务已从项目删除: task_id=%s project_id=%s", task_id, project_id)
+                return True
+        return False
+
+    def get_project_tasks(self, project_id: str) -> list:
+        """获取项目的所有任务。
+
+        Args:
+            project_id: 项目 ID。
+
+        Returns:
+            任务列表（包含子任务）。
+
+        Raises:
+            KeyError: 项目不存在。
+        """
+        project = self._get_or_raise(project_id)
+        return [asdict(t) for t in project.tasks]
 
     def update_employee_status(
         self, project_id: str, employee_id: str, status: str

@@ -2164,10 +2164,6 @@ skills:
       2: 前后端同时开发，用mock数据串联
       3: 联调时关注边界条件和错误路径
       4: 端到端测试覆盖核心路径
-  generate:
-    description: 我需要一个帮我做html周报的技能
-    name: generate
-    required_tools: []
   graphic_design:
     category: design
     description: 配图设计，封面设计，排版布局，视觉传达

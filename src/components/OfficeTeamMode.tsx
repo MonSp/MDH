@@ -18,13 +18,34 @@ interface OfficeTeamModeProps {
   onOpenApproval?: () => void
 }
 
+interface SubTask {
+  subtask_id: string
+  description: string
+  status: string
+  agent_id: string
+  created_at: number
+  completed_at: number
+}
+
+interface ProjectTask {
+  task_id: string
+  description: string
+  status: string
+  created_at: number
+  completed_at: number
+  meeting_id: string
+  subtasks: SubTask[]
+}
+
 interface ProjectDetail {
   project_id: string
   name: string
   status: string
   brief: Record<string, unknown>
   created_at: string
-  employees: Array<{ id: string; name: string; role: string; status: string }>
+  category: string
+  tasks: ProjectTask[]
+  employees: Array<{ employee_id: string; agent_id: string; skill_id: string; status: string }>
   skill_packages: Array<{ skill_id: string; name: string }>
   execution_logs: Array<Record<string, unknown>>
 }
@@ -55,6 +76,7 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     sendWorkspaceAction,
     meetingPhase,
     meetingStartTime,
+    deleteTask,
   } = useMeetingSocket({ wsRef })
 
   const wanderIntervalRef = useRef<number | null>(null)
@@ -72,7 +94,11 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
   const handleEnterOffice = useCallback((projectId: string, projectName: string) => {
     setSelectedProject({ id: projectId, name: projectName })
     setViewState('office')
-    // 获取项目详情
+    refreshProjectDetail(projectId)
+  }, [])
+
+  // 刷新项目详情
+  const refreshProjectDetail = useCallback((projectId: string) => {
     fetch(`/api/projects/${projectId}`)
       .then(r => r.json())
       .then(data => {
@@ -80,7 +106,7 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
           setProjectDetail(data.data)
         }
       })
-      .catch(() => {})
+      .catch(err => console.error('加载项目详情失败:', err))
   }, [])
 
   // 启动会议（留在办公室，弹出面板）
@@ -94,7 +120,11 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
   const handleEndMeeting = useCallback(() => {
     endMeeting()
     setViewState('office')
-  }, [endMeeting])
+    // 会议结束后刷新项目详情（可能有新任务/子任务）
+    if (selectedProject) {
+      refreshProjectDetail(selectedProject.id)
+    }
+  }, [endMeeting, selectedProject, refreshProjectDetail])
 
   // 返回科技大厦
   const handleBackToTower = useCallback(() => {
@@ -209,6 +239,44 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
               <div style={styles.meetingContent}>
                 {meetingTab === 'chat' ? (
                   <>
+                    {/* 任务列表 */}
+                    {tasks.length > 0 && (
+                      <div style={styles.taskListSection}>
+                        <div style={styles.taskListHeader}>
+                          <span>📋 任务列表 ({tasks.length})</span>
+                        </div>
+                        <div style={styles.taskList}>
+                          {tasks.map(task => {
+                            const agent = agents.find(a => a.id === task.agentId)
+                            const statusMap: Record<string, { icon: string; color: string }> = {
+                              completed: { icon: '✅', color: '#10b981' },
+                              executing: { icon: '⚡', color: '#f59e0b' },
+                              assigned: { icon: '📌', color: '#3b82f6' },
+                              pending: { icon: '⏳', color: '#6b7280' },
+                              failed: { icon: '❌', color: '#ef4444' },
+                              revision_required: { icon: '⚠️', color: '#f59e0b' },
+                            }
+                            const st = statusMap[task.status] || statusMap.pending
+                            return (
+                              <div key={task.id} style={styles.taskItem}>
+                                <span style={{ fontSize: 12 }}>{st.icon}</span>
+                                <div style={styles.taskInfo}>
+                                  <div style={styles.taskDesc}>{task.description}</div>
+                                  <div style={{ fontSize: 10, color: '#6b7280' }}>
+                                    {agent?.name?.split('-')[0] || '未分配'}
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => deleteTask(task.id)}
+                                  style={styles.deleteTaskBtn}
+                                  title="删除任务"
+                                >×</button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                     <MeetingChatPanel
                       agents={agents}
                       messages={chatMessages}
@@ -399,5 +467,57 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '11px',
     fontWeight: 700,
     lineHeight: 1,
+  },
+  taskListSection: {
+    borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+    background: 'rgba(0, 0, 0, 0.15)',
+  },
+  taskListHeader: {
+    padding: '8px 14px',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#9ca3af',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+  },
+  taskList: {
+    maxHeight: '120px',
+    overflowY: 'auto' as const,
+    padding: '6px 10px',
+  },
+  taskItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '6px 8px',
+    marginBottom: '4px',
+    borderRadius: '6px',
+    background: 'rgba(255, 255, 255, 0.03)',
+    border: '1px solid rgba(255, 255, 255, 0.06)',
+  },
+  taskInfo: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  taskDesc: {
+    fontSize: '11px',
+    color: '#e2e8f0',
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  deleteTaskBtn: {
+    width: '20px',
+    height: '20px',
+    borderRadius: '4px',
+    border: '1px solid rgba(239, 68, 68, 0.3)',
+    background: 'rgba(239, 68, 68, 0.1)',
+    color: '#ef4444',
+    fontSize: '12px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.15s',
+    flexShrink: 0,
   },
 }
