@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "kitType": "dashboard",
+  "corePreviewComponents": ["button", "card", "input", "status-badge", "agent-card", "progress-bar"],
+  "supportEvidenceComponents": [],
+  "allowedComponents": ["button", "card", "input", "status-badge", "agent-card", "progress-bar"],
+  "selectionPolicy": "fixed-slots-first",
+  "layout": {
+    "sidebarColumnWidth": 220
+  },
+  "screenBlueprints": [
+    {
+      "screenRole": "Agent Dashboard",
+      "primaryWorkflow": "Monitor multi-agent collaboration status",
+      "componentPlacement": {
+        "sidebar": ["button"],
+        "main": ["agent-card", "status-badge", "progress-bar"],
+        "header": ["input"]
+      }
+    },
+    {
+      "screenRole": "Task Management",
+      "primaryWorkflow": "Track task decomposition and progress",
+      "componentPlacement": {
+        "sidebar": ["button"],
+        "main": ["card", "progress-bar", "status-badge"]
+      }
+    },
+    {
+      "screenRole": "Settings",
+      "primaryWorkflow": "Configure agent parameters and preferences",
+      "componentPlacement": {
+        "sidebar": ["button"],
+        "main": ["card", "input", "button"]
+      }
+    }
+  ]
+}

@@ -11,11 +11,9 @@ import './assets/collaboration.css';
 
 const SSO_TOKEN_KEY = 'sso_auth_token';
 const SSO_USERNAME_KEY = 'sso_auth_username';
-const SSO_PORT = '8766';
 
 function getSSOUrl() {
-  const hostname = window.location.hostname;
-  return `http://${hostname}:${SSO_PORT}/login`;
+  return `${window.location.origin}/sso/login`;
 }
 
 function checkSSOAuth(): boolean {

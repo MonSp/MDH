@@ -1,6 +1,6 @@
-# 智能体公司 - AI Agent Company
+# 大荒界 - Matrix DaHuang (MDH)
 
-基于 React + Python FastAPI + AgentScope 的虚拟智能体公司系统，支持多角色AI Agent协作完成复杂任务。
+基于 React + Python FastAPI + AgentScope 的全领域智能体协作系统，支持多角色AI Agent在虚拟办公室中协作完成复杂任务。
 
 ## 功能特性
 

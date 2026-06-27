@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 2,
+  "slug": "status-badge",
+  "sourceKind": "structured-spec",
+  "confidence": "medium",
+  "semanticTypeCandidates": ["Badge"],
+  "variantDimensions": ["status"],
+  "representativeVariants": [
+    { "status": "active" },
+    { "status": "completed" },
+    { "status": "planning" },
+    { "status": "error" }
+  ],
+  "anatomy": [
+    { "part": "container", "selector": ".status-badge" },
+    { "part": "label", "selector": ".status-label" }
+  ],
+  "structurePatterns": {
+    "container": "display: inline-flex, alignItems: center, gap: 6px, padding: 2px 8px, borderRadius: 12px, fontSize: 0.7rem, fontWeight: 500, color: white",
+    "dot": "width: 8px, height: 8px, borderRadius: 50%"
+  },
+  "usageHints": [
+    "Agent status indicators",
+    "Task status labels",
+    "Project status markers"
+  ],
+  "doNotInvent": ["icon variant", "removable variant"],
+  "unknowns": ["exact background colors per status from source"]
+}

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import type { ViewState } from './office-team/types'
+import React, { useState, useEffect, useCallback } from 'react'
+import type { ViewState, ProjectDetail } from './office-team/types'
 import OfficeHeader from './office-team/OfficeHeader'
 import OfficeScene from './office-team/OfficeScene'
 import MeetingChatPanel from './office-team/MeetingChatPanel'
@@ -16,38 +16,6 @@ interface OfficeTeamModeProps {
   onBackToSingle: () => void
   pendingApprovalCount?: number
   onOpenApproval?: () => void
-}
-
-interface SubTask {
-  subtask_id: string
-  description: string
-  status: string
-  agent_id: string
-  created_at: number
-  completed_at: number
-}
-
-interface ProjectTask {
-  task_id: string
-  description: string
-  status: string
-  created_at: number
-  completed_at: number
-  meeting_id: string
-  subtasks: SubTask[]
-}
-
-interface ProjectDetail {
-  project_id: string
-  name: string
-  status: string
-  brief: Record<string, unknown>
-  created_at: string
-  category: string
-  tasks: ProjectTask[]
-  employees: Array<{ employee_id: string; agent_id: string; skill_id: string; status: string }>
-  skill_packages: Array<{ skill_id: string; name: string }>
-  execution_logs: Array<Record<string, unknown>>
 }
 
 export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalCount = 0, onOpenApproval }: OfficeTeamModeProps) {
@@ -78,17 +46,6 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     meetingStartTime,
     deleteTask,
   } = useMeetingSocket({ wsRef })
-
-  const wanderIntervalRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    if (viewState === 'office' && agents.length > 0) {
-      wanderIntervalRef.current = window.setInterval(() => {}, 100)
-    } else {
-      if (wanderIntervalRef.current) clearInterval(wanderIntervalRef.current)
-    }
-    return () => { if (wanderIntervalRef.current) clearInterval(wanderIntervalRef.current) }
-  }, [viewState, agents.length])
 
   // 从科技大厦进入办公室
   const handleEnterOffice = useCallback((projectId: string, projectName: string) => {
@@ -128,11 +85,16 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
 
   // 返回科技大厦
   const handleBackToTower = useCallback(() => {
+    // 如果会议正在进行，先结束会议
+    if (isMeetingActive) {
+      endMeeting()
+    }
     setViewState('tower')
     setSelectedProject(null)
     setProjectDetail(null)
+    setPendingTaskDescription(null)
     setRefreshKey(k => k + 1) // 触发项目列表刷新
-  }, [])
+  }, [isMeetingActive, endMeeting])
 
   // 发送会议消息
   const handleSendMessage = useCallback(() => {
@@ -141,12 +103,23 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     setTaskInput('')
   }, [taskInput, sendMeetingMessage])
 
+  // 待发送的任务描述（从大厦直接发送任务时暂存）
+  const [pendingTaskDescription, setPendingTaskDescription] = useState<string | null>(null)
+
   // 从大厦直接发送任务
   const handleTowerSendTask = useCallback((description: string) => {
     startMeeting()
     setViewState('meeting')
-    setTimeout(() => sendMeetingMessage(description), 500)
-  }, [startMeeting, sendMeetingMessage])
+    setPendingTaskDescription(description)
+  }, [startMeeting])
+
+  // 会议启动后自动发送待处理任务
+  useEffect(() => {
+    if (isMeetingActive && pendingTaskDescription) {
+      sendMeetingMessage(pendingTaskDescription)
+      setPendingTaskDescription(null)
+    }
+  }, [isMeetingActive, pendingTaskDescription, sendMeetingMessage])
 
   const isTower = viewState === 'tower'
   const isMeeting = viewState === 'meeting'
@@ -173,6 +146,10 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
           from { transform: translateX(100%); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
         }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.98); }
+          to { opacity: 1; transform: scale(1); }
+        }
       `}</style>
       <OfficeHeader
         viewState={viewState}
@@ -198,7 +175,7 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
 
       <div style={styles.mainContent}>
         {/* 办公室主体（始终保持显示） */}
-        <div style={styles.officeArea}>
+        <div style={{ ...styles.officeArea, animation: 'fadeIn 0.4s ease' }}>
           <OfficeScene
             agents={agents}
             viewState={viewState}

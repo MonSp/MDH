@@ -1,41 +1,10 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { DEFAULT_ROLE_PROFILES, AgentRole } from '../../modules/agentTypes'
 import RoleAvatar from '../RoleAvatar'
-import type { TeamAgent } from './types'
+import type { TeamAgent, ProjectDetail, ProjectTask, SubTask } from './types'
+import { TASK_STATUS_MAP } from './types'
 import { WORKSTATIONS, MEETING_TABLE } from './constants'
 import { getAgentPosition, isMeetingView } from './utils'
-
-interface SubTask {
-  subtask_id: string
-  description: string
-  status: string
-  agent_id: string
-  created_at: number
-  completed_at: number
-}
-
-interface ProjectTask {
-  task_id: string
-  description: string
-  status: string
-  created_at: number
-  completed_at: number
-  meeting_id: string
-  subtasks: SubTask[]
-}
-
-interface ProjectDetail {
-  project_id: string
-  name: string
-  status: string
-  brief: Record<string, unknown>
-  created_at: string
-  category: string
-  tasks: ProjectTask[]
-  employees: Array<{ employee_id: string; agent_id: string; skill_id: string; status: string }>
-  skill_packages: Array<{ skill_id: string; name: string }>
-  execution_logs: Array<Record<string, unknown>>
-}
 
 interface OfficeSceneProps {
   agents: TeamAgent[]
@@ -346,13 +315,7 @@ export default function OfficeScene({ agents, viewState, onStartMeeting, project
                   projectDetail.tasks
                     .sort((a, b) => b.created_at - a.created_at)
                     .map((task) => {
-                      const statusMap: Record<string, { icon: string; color: string; label: string }> = {
-                        completed: { icon: '✅', color: '#10b981', label: '已完成' },
-                        executing: { icon: '⚡', color: '#f59e0b', label: '执行中' },
-                        pending: { icon: '⏳', color: '#6b7280', label: '待处理' },
-                        failed: { icon: '❌', color: '#ef4444', label: '失败' },
-                      }
-                      const st = statusMap[task.status] || statusMap.pending
+                      const st = TASK_STATUS_MAP[task.status] || TASK_STATUS_MAP.pending
                       const timeStr = task.created_at > 0
                         ? new Date(task.created_at * 1000).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
                         : ''
@@ -376,7 +339,7 @@ export default function OfficeScene({ agents, viewState, onStartMeeting, project
                           {task.subtasks && task.subtasks.length > 0 && (
                             <div style={styles.subtaskList}>
                               {task.subtasks.map((subtask) => {
-                                const subst = statusMap[subtask.status] || statusMap.pending
+                                const subst = TASK_STATUS_MAP[subtask.status] || TASK_STATUS_MAP.pending
                                 return (
                                   <div key={subtask.subtask_id} style={styles.subtaskItem}>
                                     <span style={{ fontSize: 12, width: 16, textAlign: 'center' as const }}>{subst.icon}</span>

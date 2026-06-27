@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "libraryName": "mdh-design-system",
+  "components": [
+    { "slug": "button", "name": "Button" },
+    { "slug": "card", "name": "Card" },
+    { "slug": "input", "name": "Input" },
+    { "slug": "status-badge", "name": "Status Badge" },
+    { "slug": "agent-card", "name": "Agent Card" },
+    { "slug": "progress-bar", "name": "Progress Bar" }
+  ]
+}

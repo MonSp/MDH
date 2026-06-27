@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Status Badge — Component Preview</title>
+  <link rel="stylesheet" href="../colors_and_type.css">
+  <style>
+    /* ── Page Reset & Layout ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-deep);
+      color: var(--color-text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 24px;
+    }
+
+    /* ── Component Title ── */
+    .page-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+    .page-subtitle {
+      font-size: 0.85rem;
+      color: var(--color-text-secondary);
+      margin-bottom: 48px;
+    }
+
+    /* ── Section ── */
+    .section {
+      width: 100%;
+      max-width: 720px;
+      margin-bottom: 48px;
+    }
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-text-muted);
+      margin-bottom: 16px;
+    }
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* ── Status Badge ── */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: #fff;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .status-badge--lg {
+      padding: 4px 12px;
+      font-size: 0.8rem;
+      gap: 8px;
+    }
+
+    /* ── Badge Dot ── */
+    .status-badge__dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    /* ── Pulse Animation (Active) ── */
+    @keyframes pulse-ring {
+      0%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5); }
+      70%  { box-shadow: 0 0 0 5px rgba(255, 255, 255, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+    }
+    .status-badge__dot--pulse {
+      animation: pulse-ring 1.6s ease-out infinite;
+    }
+
+    /* ── Variant Backgrounds ── */
+    .status-badge--active    { background: var(--color-status-active); }
+    .status-badge--completed { background: var(--color-status-completed); }
+    .status-badge--planning  { background: var(--color-status-planning); }
+    .status-badge--error     { background: var(--color-accent-red); }
+    .status-badge--idle      { background: var(--color-text-muted); }
+    .status-badge--busy      { background: var(--color-accent-amber); }
+
+    /* ── Tool-Tree Status Dots ── */
+    .tool-tree-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 24px;
+    }
+    .tool-tree-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .tool-tree-item__label {
+      font-size: 0.75rem;
+      color: var(--color-text-secondary);
+    }
+    .tool-tree-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .tool-tree-dot--active   { color: var(--color-accent-blue);  background: var(--color-accent-blue-dim);  box-shadow: inset 0 0 0 2px var(--color-accent-blue); }
+    .tool-tree-dot--done     { color: var(--color-accent-green); background: var(--color-accent-green-dim); box-shadow: inset 0 0 0 2px var(--color-accent-green); }
+    .tool-tree-dot--error    { color: var(--color-accent-red);   background: var(--color-accent-red-dim);   box-shadow: inset 0 0 0 2px var(--color-accent-red); }
+    .tool-tree-dot--retrying { color: var(--color-accent-amber); background: var(--color-accent-amber-dim); box-shadow: inset 0 0 0 2px var(--color-accent-amber); }
+
+    /* ── Divider ── */
+    .divider {
+      width: 100%;
+      max-width: 720px;
+      height: 1px;
+      background: var(--color-border-default);
+      margin-bottom: 48px;
+    }
+
+    /* ── Code Reference ── */
+    .code-ref {
+      width: 100%;
+      max-width: 720px;
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 8px;
+      background: var(--color-bg-input);
+      border: 1px solid var(--color-border-default);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--color-text-secondary);
+      line-height: 1.7;
+      overflow-x: auto;
+    }
+    .code-ref .kw  { color: var(--color-accent-purple); }
+    .code-ref .val { color: var(--color-accent-green); }
+    .code-ref .cmt { color: var(--color-text-muted); }
+  </style>
+</head>
+<body>
+
+  <!-- Page Title -->
+  <h1 class="page-title">Status Badge</h1>
+  <p class="page-subtitle">Project status indicators and tool-tree status dots</p>
+
+  <!-- ════════════════════════════════════════
+       Section 1 — Project Status Badges (Default)
+       ════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">Project Status Badges</div>
+    <div class="badge-row">
+      <span class="status-badge status-badge--active">
+        <span class="status-badge__dot status-badge__dot--pulse"></span>
+        Active
+      </span>
+      <span class="status-badge status-badge--completed">
+        <span class="status-badge__dot"></span>
+        Completed
+      </span>
+      <span class="status-badge status-badge--planning">
+        <span class="status-badge__dot"></span>
+        Planning
+      </span>
+      <span class="status-badge status-badge--error">
+        <span class="status-badge__dot"></span>
+        Error
+      </span>
+      <span class="status-badge status-badge--idle">
+        <span class="status-badge__dot"></span>
+        Idle
+      </span>
+      <span class="status-badge status-badge--busy">
+        <span class="status-badge__dot"></span>
+        Busy
+      </span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════
+       Section 2 — Project Status Badges (Large)
+       ════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">Large Variant</div>
+    <div class="badge-row">
+      <span class="status-badge status-badge--active status-badge--lg">
+        <span class="status-badge__dot status-badge__dot--pulse"></span>
+        Active
+      </span>
+      <span class="status-badge status-badge--completed status-badge--lg">
+        <span class="status-badge__dot"></span>
+        Completed
+      </span>
+      <span class="status-badge status-badge--planning status-badge--lg">
+        <span class="status-badge__dot"></span>
+        Planning
+      </span>
+      <span class="status-badge status-badge--error status-badge--lg">
+        <span class="status-badge__dot"></span>
+        Error
+      </span>
+      <span class="status-badge status-badge--idle status-badge--lg">
+        <span class="status-badge__dot"></span>
+        Idle
+      </span>
+      <span class="status-badge status-badge--busy status-badge--lg">
+        <span class="status-badge__dot"></span>
+        Busy
+      </span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════
+       Section 3 — Tool-Tree Status Dots
+       ════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">Tool-Tree Status Dots</div>
+    <div class="tool-tree-row">
+      <div class="tool-tree-item">
+        <span class="tool-tree-dot tool-tree-dot--active"></span>
+        <span class="tool-tree-item__label">active</span>
+      </div>
+      <div class="tool-tree-item">
+        <span class="tool-tree-dot tool-tree-dot--done"></span>
+        <span class="tool-tree-item__label">done</span>
+      </div>
+      <div class="tool-tree-item">
+        <span class="tool-tree-dot tool-tree-dot--error"></span>
+        <span class="tool-tree-item__label">error</span>
+      </div>
+      <div class="tool-tree-item">
+        <span class="tool-tree-dot tool-tree-dot--retrying"></span>
+        <span class="tool-tree-item__label">retrying</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════
+       Section 4 — Token Reference
+       ════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-label">Token Reference</div>
+    <div class="code-ref">
+<span class="cmt">/* Project Status */</span>
+<span class="kw">--color-status-active</span>:    <span class="val">#30d158</span>;
+<span class="kw">--color-status-completed</span>: <span class="val">#bf5af2</span>;
+<span class="kw">--color-status-planning</span>:  <span class="val">#0a84ff</span>;
+
+<span class="cmt">/* Semantic Accents */</span>
+<span class="kw">--color-accent-red</span>:   <span class="val">#f87171</span> <span class="cmt">(dark)</span>;
+<span class="kw">--color-accent-amber</span>: <span class="val">#f59e0b</span> <span class="cmt">(dark)</span>;
+<span class="kw">--color-text-muted</span>:   <span class="val">#4a5575</span> <span class="cmt">(dark)</span>;
+
+<span class="cmt">/* Tool-Tree Dots */</span>
+<span class="kw">--color-accent-blue</span>  / <span class="kw">--color-accent-blue-dim</span>
+<span class="kw">--color-accent-green</span> / <span class="kw">--color-accent-green-dim</span>
+<span class="kw">--color-accent-red</span>   / <span class="kw">--color-accent-red-dim</span>
+<span class="kw">--color-accent-amber</span> / <span class="kw">--color-accent-amber-dim</span>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,8 +1,8 @@
 import os
 
-DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_API_KEY = ""
-DEEPSEEK_MODEL = "deepseek-chat"
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
 SYSTEM_PROMPT = """你是一个浏览器自动化助手。你可以通过调用工具来执行浏览器操作。
 

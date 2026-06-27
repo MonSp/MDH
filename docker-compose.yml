@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.backend
+    ports:
+      - "8765:8765"
+    volumes:
+      - backend-data:/app/data
+    networks:
+      - app-network
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+    env_file:
+      - .env
+
+  mock-sso:
+    image: mdh-backend:latest
+    working_dir: /app
+    volumes:
+      - ./mock-sso:/app
+    command: python server.py 8766
+    ports:
+      - "8766:8766"
+    networks:
+      - app-network
+
+  executor:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.backend
+    command: python executor_server.py
+    ports:
+      - "8767:8767"
+    volumes:
+      - executor-workspace:/workspace
+    networks:
+      - app-network
+    environment:
+      - PYTHONUNBUFFERED=1
+      - EXECUTOR_WORKSPACE=/workspace
+
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    ports:
+      - "8080:9090"
+    volumes:
+      - ./dist:/dist
+    networks:
+      - app-network
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  backend-data:
+  executor-workspace:

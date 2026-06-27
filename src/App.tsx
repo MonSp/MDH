@@ -16,7 +16,7 @@ import OfficeTeamMode from './components/OfficeTeamMode';
 
 type AppMode = 'single' | 'team';
 
-const AGENT_URL_DEFAULT = `ws://${window.location.hostname}:8765/ws`;
+const AGENT_URL_DEFAULT = `ws://${window.location.host}/ws/`;
 const STORAGE_AGENT_URL = 'agentscope_url';
 const STORAGE_API_KEY = 'deepseek_api_key';
 const STORAGE_BASE_URL = 'deepseek_base_url';

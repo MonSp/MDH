@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh" class="dark" data-layout-guard="uikit-v1">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大荒界 MDH Design System — Interactive Dashboard Showcase</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<link rel="stylesheet" href="../../components.css">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+/* ── Page-level CSS skeleton (MANDATORY) ── */
+.uikit-shell{width:100%;max-width:1184px;margin:0 auto;overflow:hidden;display:grid;grid-template-columns:var(--uikit-sidebar-w,220px) minmax(0,1fr);gap:var(--space-4,16px)}
+.uikit-sidebar,.uikit-main,.uikit-toolbar{min-width:0}
+[data-component]{min-width:0;max-width:100%;overflow:hidden}
+.uikit-truncate{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:900px){.uikit-shell{grid-template-columns:minmax(0,1fr)}}
+
+/* ── Reset & Base ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{
+  background-color:var(--color-bg-base);
+  background-image:var(--body-bg-before);
+  font-family:var(--font-sans);
+  color:var(--color-text-primary);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── Grid Background Overlay ── */
+body::after{
+  content:'';position:fixed;inset:0;
+  background-image:var(--body-bg-after);
+  background-size:40px 40px;
+  pointer-events:none;z-index:0;
+}
+
+/* ── App Shell ── */
+#root{height:100vh;position:relative;z-index:1}
+.app-shell{
+  display:flex;height:100vh;
+  background:var(--color-bg-base);
+}
+
+/* ── Sidebar ── */
+.sidebar{
+  width:var(--uikit-sidebar-w,220px);
+  min-width:var(--uikit-sidebar-w,220px);
+  height:100vh;
+  background:var(--color-bg-elevated);
+  backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur));
+  border-right:1px solid var(--color-border-default);
+  display:flex;flex-direction:column;
+  padding:20px 12px;
+  gap:8px;
+  z-index:10;
+}
+.sidebar-brand{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px 20px;
+  border-bottom:1px solid var(--color-border-default);
+  margin-bottom:12px;
+}
+.sidebar-brand-icon{
+  width:32px;height:32px;border-radius:8px;
+  background:linear-gradient(135deg,var(--color-accent-blue),var(--color-accent-purple));
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.sidebar-brand-icon svg{color:#fff}
+.sidebar-brand-text{
+  font-size:0.85rem;font-weight:600;
+  color:var(--color-text-primary);
+  letter-spacing:-0.01em;
+}
+.sidebar-brand-sub{
+  font-size:0.65rem;font-weight:400;
+  color:var(--color-text-muted);
+  font-family:var(--font-mono);
+}
+.sidebar-section-label{
+  font-size:0.6rem;font-weight:600;
+  color:var(--color-text-muted);
+  text-transform:uppercase;letter-spacing:0.1em;
+  padding:12px 12px 6px;
+}
+.sidebar-nav{display:flex;flex-direction:column;gap:2px;flex:1}
+.sidebar-spacer{flex:1}
+.sidebar-footer{
+  padding-top:12px;
+  border-top:1px solid var(--color-border-default);
+}
+
+/* ── Main Area ── */
+.main-area{
+  flex:1;min-width:0;
+  overflow-y:auto;
+  padding:24px 28px;
+  display:flex;flex-direction:column;gap:24px;
+}
+.main-area::-webkit-scrollbar{width:6px}
+.main-area::-webkit-scrollbar-track{background:transparent}
+.main-area::-webkit-scrollbar-thumb{background:var(--color-scrollbar-thumb);border-radius:3px}
+
+/* ── Header Bar ── */
+.header-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:16px;flex-wrap:wrap;
+}
+.header-title-group{display:flex;flex-direction:column;gap:4px}
+.header-title{
+  font-size:1.35rem;font-weight:700;
+  color:var(--color-text-primary);
+  letter-spacing:-0.02em;
+}
+.header-subtitle{
+  font-size:0.75rem;color:var(--color-text-muted);
+  font-family:var(--font-mono);
+}
+.header-actions{display:flex;align-items:center;gap:12px}
+
+/* ── Search Input ── */
+.search-wrapper{position:relative;width:260px}
+.search-wrapper svg{
+  position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  color:var(--color-text-muted);pointer-events:none;
+}
+.search-input{
+  width:100%;padding:8px 10px 8px 34px;
+  background:var(--color-bg-input);
+  border:1px solid var(--color-border-default);
+  border-radius:var(--radius-sm);
+  color:var(--color-text-primary);
+  font-size:0.8rem;font-family:var(--font-sans);
+  transition:border-color 0.2s ease;
+  outline:none;
+}
+.search-input::placeholder{color:var(--color-text-muted)}
+.search-input:focus{border-color:var(--color-accent-blue)}
+
+/* ── Agent Grid ── */
+.agent-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:20px;
+}
+@media(max-width:1100px){.agent-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){.agent-grid{grid-template-columns:1fr}}
+
+/* ── Agent Card (Dark Theme Override) ── */
+.agent-card{
+  background:var(--color-bg-elevated);
+  border:1px solid var(--color-border-default);
+  border-radius:12px;
+  padding:20px;
+  backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur));
+  position:relative;overflow:hidden;
+  transition:all 0.3s cubic-bezier(0.4,0,0.2,1);
+  box-shadow:0 4px 16px rgba(0,0,0,0.2);
+}
+.agent-card:hover{
+  transform:translateY(-2px);
+  border-color:var(--color-border-glow);
+  box-shadow:0 8px 32px rgba(0,0,0,0.3);
+}
+.agent-card .top-bar{
+  position:absolute;top:0;left:0;right:0;height:4px;
+  background:linear-gradient(90deg,var(--grad-start),var(--grad-end));
+}
+.agent-card .card-header{
+  display:flex;align-items:center;gap:14px;
+  margin-bottom:14px;padding-top:4px;
+}
+.agent-card .avatar{
+  width:44px;height:44px;border-radius:10px;
+  background:linear-gradient(135deg,var(--grad-start),var(--grad-end));
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;flex-shrink:0;
+}
+.agent-card .name{
+  font-size:1rem;font-weight:600;
+  color:var(--color-text-primary);line-height:1.3;
+}
+.agent-card .role-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;
+  background:linear-gradient(135deg,var(--grad-start),var(--grad-end));
+  border-radius:20px;font-size:0.65rem;font-weight:500;color:#fff;
+}
+.agent-card .status-indicator{
+  display:flex;align-items:center;gap:8px;
+  padding:5px 10px;
+  background:var(--color-bg-input);
+  border-radius:20px;margin-bottom:14px;width:fit-content;
+  border:1px solid var(--color-border-default);
+}
+.agent-card .status-dot{
+  width:8px;height:8px;border-radius:50%;
+  animation:pulse 2s infinite;
+}
+.agent-card .status-label{
+  font-size:0.7rem;font-weight:500;
+  color:var(--color-text-secondary);
+}
+.agent-card .metrics-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+  margin-bottom:14px;
+}
+.agent-card .metric{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:10px 6px;
+  background:var(--color-bg-input);
+  border-radius:8px;
+  border:1px solid var(--color-border-default);
+}
+.agent-card .metric-label{
+  font-size:0.6rem;color:var(--color-text-muted);
+  text-transform:uppercase;letter-spacing:0.05em;
+}
+.agent-card .metric-value{
+  font-size:1rem;font-weight:700;
+  color:var(--color-text-primary);
+  font-family:var(--font-mono);
+}
+.agent-card .card-footer{
+  display:flex;justify-content:space-between;align-items:center;
+  padding-top:12px;border-top:1px solid var(--color-border-default);
+}
+.agent-card .last-heartbeat{
+  font-size:0.65rem;color:var(--color-text-muted);
+  font-family:var(--font-mono);
+}
+.agent-card .action-btn{
+  font-size:0.65rem;font-weight:500;
+  color:var(--grad-start);cursor:pointer;
+  padding:4px 10px;border-radius:var(--radius-sm);
+  border:1px solid var(--color-border-default);
+  background:transparent;
+  transition:all 0.2s ease;
+  font-family:var(--font-sans);
+}
+.agent-card .action-btn:hover{
+  background:var(--color-bg-input);
+  border-color:var(--color-border-glow);
+}
+
+/* ── Task Cards ── */
+.task-list{display:flex;flex-direction:column;gap:14px}
+.task-card{
+  background:var(--color-bg-elevated);
+  border:1px solid var(--color-border-default);
+  border-radius:12px;
+  padding:18px 20px;
+  backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur));
+  transition:all 0.2s ease;
+}
+.task-card:hover{
+  border-color:var(--color-border-glow);
+}
+.task-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:10px;gap:12px;
+}
+.task-name{
+  font-size:0.9rem;font-weight:600;
+  color:var(--color-text-primary);
+}
+.task-meta{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  margin-bottom:12px;
+}
+.task-meta-item{
+  font-size:0.7rem;color:var(--color-text-muted);
+  display:flex;align-items:center;gap:4px;
+}
+.task-meta-item svg{width:12px;height:12px}
+.task-agent-tag{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:2px 8px;border-radius:12px;
+  font-size:0.65rem;font-weight:500;color:#fff;
+}
+
+/* ── Progress Summary ── */
+.progress-summary{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:16px;
+  margin-bottom:8px;
+}
+@media(max-width:800px){.progress-summary{grid-template-columns:repeat(2,1fr)}}
+.summary-card{
+  background:var(--color-bg-elevated);
+  border:1px solid var(--color-border-default);
+  border-radius:12px;
+  padding:16px;
+  backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur));
+  display:flex;flex-direction:column;gap:8px;
+}
+.summary-label{
+  font-size:0.65rem;font-weight:600;
+  color:var(--color-text-muted);
+  text-transform:uppercase;letter-spacing:0.08em;
+}
+.summary-value{
+  font-size:1.5rem;font-weight:700;
+  color:var(--color-text-primary);
+  font-family:var(--font-mono);
+}
+.summary-sub{
+  font-size:0.7rem;color:var(--color-text-secondary);
+}
+
+/* ── Settings Card ── */
+.settings-card{
+  background:var(--color-bg-elevated);
+  border:1px solid var(--color-border-default);
+  border-radius:12px;
+  padding:28px 24px;
+  backdrop-filter:blur(var(--glass-blur));
+  -webkit-backdrop-filter:blur(var(--glass-blur));
+  max-width:560px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.2);
+}
+.settings-card .card-title{
+  font-size:0.95rem;font-weight:600;
+  color:var(--color-text-primary);
+  margin-bottom:20px;padding-bottom:12px;
+  border-bottom:1px solid var(--color-border-default);
+  letter-spacing:0.02em;
+}
+.settings-card .card-title span{
+  color:var(--color-text-secondary);
+  font-weight:400;font-size:0.75rem;margin-left:8px;
+}
+.settings-card .field-group{margin-bottom:16px}
+.settings-card .field-group:last-of-type{margin-bottom:24px}
+.settings-card label{
+  display:block;font-size:0.75rem;
+  color:var(--color-text-secondary);
+  margin-bottom:6px;font-weight:500;
+}
+.settings-card input[type="text"],
+.settings-card select{
+  width:100%;padding:8px 10px;
+  background:var(--color-bg-input);
+  border:1px solid var(--color-border-default);
+  border-radius:var(--radius-sm);
+  color:var(--color-text-primary);
+  font-size:0.8rem;font-family:var(--font-mono);
+  transition:border-color 0.2s ease;
+  -webkit-appearance:none;appearance:none;outline:none;
+}
+.settings-card input[type="text"]:focus,
+.settings-card select:focus{border-color:var(--color-accent-blue)}
+.settings-card input[type="text"]::placeholder{color:var(--color-text-muted)}
+.settings-card select{
+  cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%238899b4' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  padding-right:28px;
+}
+.settings-card .hint{
+  font-size:0.7rem;color:var(--color-text-secondary);
+  opacity:0.7;margin-top:4px;
+}
+.settings-actions{
+  display:flex;gap:10px;justify-content:flex-end;
+  padding-top:16px;
+  border-top:1px solid var(--color-border-default);
+}
+
+/* ── Animations ── */
+@keyframes pulse{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:0.5;transform:scale(0.85)}
+}
+@keyframes pulse-ring{
+  0%{box-shadow:0 0 0 0 rgba(48,209,88,0.4)}
+  70%{box-shadow:0 0 0 6px rgba(48,209,88,0)}
+  100%{box-shadow:0 0 0 0 rgba(48,209,88,0)}
+}
+@keyframes fadeIn{
+  from{opacity:0;transform:translateY(8px)}
+  to{opacity:1;transform:translateY(0)}
+}
+.fade-in{animation:fadeIn 0.35s var(--ease-out) both}
+
+/* ── Mobile Sidebar Toggle ── */
+.mobile-toggle{
+  display:none;
+  position:fixed;top:12px;left:12px;z-index:20;
+  width:36px;height:36px;border-radius:var(--radius-sm);
+  background:var(--color-bg-elevated);
+  border:1px solid var(--color-border-default);
+  color:var(--color-text-primary);
+  cursor:pointer;align-items:center;justify-content:center;
+  backdrop-filter:blur(var(--glass-blur));
+}
+@media(max-width:900px){
+  .mobile-toggle{display:flex}
+  .sidebar{
+    position:fixed;left:-240px;top:0;z-index:15;
+    transition:left 0.3s var(--ease-out);
+    box-shadow:4px 0 24px rgba(0,0,0,0.3);
+  }
+  .sidebar.open{left:0}
+  .main-area{padding:60px 16px 24px}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+/* ── Icon Helper ── */
+function Icon({ name, size = 18, color, strokeWidth = 2, ...props }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current && window.lucide) {
+      ref.current.innerHTML = '';
+      const icon = window.lucide.icons[name];
+      if (icon) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', size);
+        svg.setAttribute('height', size);
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', color || 'currentColor');
+        svg.setAttribute('stroke-width', strokeWidth);
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        svg.innerHTML = icon[0].map(([tag, attrs]) => {
+          const a = Object.entries(attrs).map(([k,v]) => `${k}="${v}"`).join(' ');
+          return `<${tag} ${a}/>`;
+        }).join('');
+        ref.current.appendChild(svg);
+      }
+    }
+  }, [name, size, color, strokeWidth]);
+  return <span ref={ref} style={{display:'inline-flex',alignItems:'center',justifyContent:'center',flexShrink:0}} {...props}/>;
+}
+
+/* ── Agent Data ── */
+const AGENTS = [
+  { role:'ceo', name:'CEO Agent', emoji:'\uD83D\uDC51', status:'active', statusText:'\u8FD0\u884C\u4E2D', tasks:12, completed:8, progress:67, heartbeat:'3s \u524D' },
+  { role:'planner', name:'Planner Agent', emoji:'\uD83D\uDCCB', status:'active', statusText:'\u89C4\u5212\u4E2D', tasks:8, completed:5, progress:63, heartbeat:'5s \u524D' },
+  { role:'executor', name:'Executor Agent', emoji:'\u26A1', status:'busy', statusText:'\u6267\u884C\u4E2D', tasks:15, completed:11, progress:73, heartbeat:'1s \u524D' },
+  { role:'monitor', name:'Monitor Agent', emoji:'\uD83D\uDD0D', status:'active', statusText:'\u76D1\u63A7\u4E2D', tasks:6, completed:6, progress:100, heartbeat:'2s \u524D' },
+  { role:'reviewer', name:'Reviewer Agent', emoji:'\u270F\uFE0F', status:'planning', statusText:'\u7B49\u5F85\u5BA1\u6838', tasks:4, completed:1, progress:25, heartbeat:'8s \u524D' },
+  { role:'coordinator', name:'Coordinator Agent', emoji:'\uD83E\uDD1D', status:'active', statusText:'\u534F\u8C03\u4E2D', tasks:10, completed:7, progress:70, heartbeat:'4s \u524D' }
+];
+
+const ROLE_COLORS = {
+  ceo:         { base:'#e11d48', gradStart:'#e11d48', gradEnd:'#f43f5e', statusColor:'#30d158' },
+  planner:     { base:'#8b5cf6', gradStart:'#8b5cf6', gradEnd:'#a78bfa', statusColor:'#30d158' },
+  executor:    { base:'#f59e0b', gradStart:'#f59e0b', gradEnd:'#fbbf24', statusColor:'#f59e0b' },
+  monitor:     { base:'#10b981', gradStart:'#10b981', gradEnd:'#34d399', statusColor:'#30d158' },
+  reviewer:    { base:'#3b82f6', gradStart:'#3b82f6', gradEnd:'#60a5fa', statusColor:'#0a84ff' },
+  coordinator: { base:'#ec4899', gradStart:'#ec4899', gradEnd:'#f472b6', statusColor:'#30d158' }
+};
+
+const STATUS_MAP = {
+  active:   { bg:'var(--color-status-active)',   label:'\u8FD0\u884C\u4E2D' },
+  completed:{ bg:'var(--color-status-completed)', label:'\u5DF2\u5B8C\u6210' },
+  planning: { bg:'var(--color-status-planning)',  label:'\u89C4\u5212\u4E2D' },
+  busy:     { bg:'var(--color-accent-amber)',     label:'\u7E41\u5FD9' },
+  idle:     { bg:'var(--color-text-muted)',        label:'\u7A7A\u95F2' }
+};
+
+/* ── Task Data ── */
+const TASKS = [
+  { id:1, name:'\u9700\u6C42\u5206\u6790\u4E0E\u89C4\u5212', status:'completed', progress:100, agent:'planner', priority:'\u9AD8' },
+  { id:2, name:'API \u63A5\u53E3\u5F00\u53D1', status:'active', progress:65, agent:'executor', priority:'\u9AD8' },
+  { id:3, name:'\u4EE3\u7801\u5BA1\u6838', status:'planning', progress:10, agent:'reviewer', priority:'\u4E2D' },
+  { id:4, name:'\u6027\u80FD\u76D1\u63A7\u62A5\u544A', status:'active', progress:45, agent:'monitor', priority:'\u4E2D' },
+  { id:5, name:'\u8DE8\u90E8\u95E8\u534F\u8C03', status:'active', progress:30, agent:'coordinator', priority:'\u4F4E' },
+  { id:6, name:'\u6218\u7565\u51B3\u7B56\u5BA1\u6279', status:'completed', progress:100, agent:'ceo', priority:'\u9AD8' },
+  { id:7, name:'\u524D\u7AEF\u754C\u9762\u5F00\u53D1', status:'active', progress:52, agent:'executor', priority:'\u4E2D' },
+  { id:8, name:'\u6570\u636E\u5E93\u4F18\u5316', status:'planning', progress:15, agent:'planner', priority:'\u4F4E' }
+];
+
+/* ── Sidebar Button ── */
+function SidebarButton({ icon, label, active, onClick }) {
+  return (
+    <button
+      className={`wb-btn ${active ? 'wb-btn--active' : 'wb-btn--ghost'}`}
+      onClick={onClick}
+      style={{width:'100%',justifyContent:'flex-start',padding:'8px 12px',gap:'10px',fontSize:'0.8rem'}}
+    >
+      <Icon name={icon} size={16}/>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+/* ── Progress Bar Component ── */
+function ProgressBar({ value, color, size='md', label }) {
+  return (
+    <div className={`progress-bar progress-bar--${size}`} style={{width:'100%'}}>
+      {label && <span className="progress-label uikit-truncate">{label}</span>}
+      <div className="progress-track">
+        <div className={`progress-fill progress-fill--${color || 'blue'}`} style={{width:`${value}%`}}/>
+      </div>
+      <span className="progress-percentage">{value}%</span>
+    </div>
+  );
+}
+
+/* ── Status Badge ── */
+function StatusBadge({ status }) {
+  const s = STATUS_MAP[status] || STATUS_MAP.idle;
+  return (
+    <span className="status-badge status-badge--lg" style={{background:s.bg}}>
+      <span className="status-badge__dot"/>
+      <span className="status-label">{s.label}</span>
+    </span>
+  );
+}
+
+/* ── Agent Card ── */
+function AgentCardComponent({ agent, index }) {
+  const rc = ROLE_COLORS[agent.role];
+  return (
+    <div className="agent-card fade-in" style={{
+      '--grad-start': rc.gradStart,
+      '--grad-end': rc.gradEnd,
+      animationDelay: `${index * 0.06}s`
+    }}>
+      <div className="top-bar"/>
+      <div className="card-header">
+        <div className="avatar">{agent.emoji}</div>
+        <div style={{display:'flex',flexDirection:'column',gap:4}}>
+          <div className="name">{agent.name}</div>
+          <div className="role-badge">{agent.role.toUpperCase()}</div>
+        </div>
+      </div>
+      <div className="status-indicator">
+        <span className="status-dot" style={{background:rc.statusColor}}/>
+        <span className="status-label">{agent.statusText}</span>
+      </div>
+      <div className="metrics-grid">
+        <div className="metric">
+          <span className="metric-label">\u4EFB\u52A1</span>
+          <span className="metric-value">{agent.tasks}</span>
+        </div>
+        <div className="metric">
+          <span className="metric-label">\u5B8C\u6210</span>
+          <span className="metric-value">{agent.completed}</span>
+        </div>
+        <div className="metric">
+          <span className="metric-label">\u8FDB\u5EA6</span>
+          <span className="metric-value" style={{color:rc.base}}>{agent.progress}%</span>
+        </div>
+      </div>
+      <ProgressBar value={agent.progress} color={agent.progress===100?'green':'blue'} size="sm"/>
+      <div className="card-footer">
+        <span className="last-heartbeat">
+          <Icon name="heart" size={10} style={{marginRight:4,verticalAlign:'middle'}}/>
+          {agent.heartbeat}
+        </span>
+        <button className="action-btn">\u67E5\u770B\u8BE6\u60C5</button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Task Card ── */
+function TaskCardComponent({ task, index }) {
+  const rc = ROLE_COLORS[task.agent];
+  const s = STATUS_MAP[task.status] || STATUS_MAP.idle;
+  const progressColor = task.status==='completed'?'green':task.status==='planning'?'purple':'blue';
+  return (
+    <div className="task-card fade-in" style={{animationDelay:`${index * 0.05}s`}}>
+      <div className="task-header">
+        <span className="task-name">{task.name}</span>
+        <StatusBadge status={task.status}/>
+      </div>
+      <div className="task-meta">
+        <span className="task-agent-tag" style={{background:`linear-gradient(135deg,${rc.gradStart},${rc.gradEnd})`}}>
+          {task.agent.toUpperCase()}
+        </span>
+        <span className="task-meta-item">
+          <Icon name="flag" size={12}/>
+          \u4F18\u5148\u7EA7: {task.priority}
+        </span>
+        <span className="task-meta-item">
+          <Icon name="hash" size={12}/>
+          TASK-{String(task.id).padStart(3,'0')}
+        </span>
+      </div>
+      <ProgressBar value={task.progress} color={progressColor} size="sm"/>
+    </div>
+  );
+}
+
+/* ── Screen 1: Agent Dashboard ── */
+function AgentDashboard() {
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:24}}>
+      <div className="header-bar">
+        <div className="header-title-group">
+          <h1 className="header-title">\u667A\u80FD\u4F53\u4EEA\u8868\u76D8</h1>
+          <p className="header-subtitle">agent-dashboard / real-time status</p>
+        </div>
+        <div className="header-actions">
+          <div className="search-wrapper">
+            <Icon name="search" size={16}/>
+            <input className="search-input" type="text" placeholder="\u641C\u7D22\u667A\u80FD\u4F53..."/>
+          </div>
+        </div>
+      </div>
+      <div className="agent-grid">
+        {AGENTS.map((agent, i) => <AgentCardComponent key={agent.role} agent={agent} index={i}/>)}
+      </div>
+    </div>
+  );
+}
+
+/* ── Screen 2: Task Management ── */
+function TaskManagement() {
+  const totalTasks = TASKS.length;
+  const completedTasks = TASKS.filter(t => t.status==='completed').length;
+  const activeTasks = TASKS.filter(t => t.status==='active').length;
+  const avgProgress = Math.round(TASKS.reduce((a,t) => a + t.progress, 0) / totalTasks);
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:24}}>
+      <div className="header-bar">
+        <div className="header-title-group">
+          <h1 className="header-title">\u4EFB\u52A1\u7BA1\u7406</h1>
+          <p className="header-subtitle">task-management / progress tracking</p>
+        </div>
+        <div className="header-actions">
+          <div className="search-wrapper">
+            <Icon name="search" size={16}/>
+            <input className="search-input" type="text" placeholder="\u641C\u7D22\u4EFB\u52A1..."/>
+          </div>
+        </div>
+      </div>
+      <div className="progress-summary">
+        <div className="summary-card fade-in">
+          <span className="summary-label">\u603B\u4EFB\u52A1</span>
+          <span className="summary-value">{totalTasks}</span>
+          <span className="summary-sub">\u5168\u90E8\u4EFB\u52A1\u6570</span>
+        </div>
+        <div className="summary-card fade-in" style={{animationDelay:'0.05s'}}>
+          <span className="summary-label">\u8FDB\u884C\u4E2D</span>
+          <span className="summary-value" style={{color:'var(--color-accent-blue)'}}>{activeTasks}</span>
+          <span className="summary-sub">\u6B63\u5728\u6267\u884C</span>
+        </div>
+        <div className="summary-card fade-in" style={{animationDelay:'0.1s'}}>
+          <span className="summary-label">\u5DF2\u5B8C\u6210</span>
+          <span className="summary-value" style={{color:'var(--color-accent-green)'}}>{completedTasks}</span>
+          <span className="summary-sub">\u5DF2\u5173\u95ED</span>
+        </div>
+        <div className="summary-card fade-in" style={{animationDelay:'0.15s'}}>
+          <span className="summary-label">\u603B\u8FDB\u5EA6</span>
+          <span className="summary-value" style={{color:'var(--color-accent-purple)'}}>{avgProgress}%</span>
+          <span className="summary-sub">\u5E73\u5747\u5B8C\u6210\u7387</span>
+        </div>
+      </div>
+      <div className="task-list">
+        {TASKS.map((task, i) => <TaskCardComponent key={task.id} task={task} index={i}/>)}
+      </div>
+    </div>
+  );
+}
+
+/* ── Screen 3: Settings ── */
+function Settings() {
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:24}}>
+      <div className="header-bar">
+        <div className="header-title-group">
+          <h1 className="header-title">\u7CFB\u7EDF\u8BBE\u7F6E</h1>
+          <p className="header-subtitle">settings / configuration</p>
+        </div>
+      </div>
+      <div className="settings-card fade-in">
+        <div className="card-title">
+          \u6A21\u578B\u914D\u7F6E
+          <span>Model Configuration</span>
+        </div>
+        <div className="field-group">
+          <label>API Endpoint</label>
+          <input type="text" defaultValue="https://api.mdh.ai/v1/chat/completions" placeholder="\u8F93\u5165 API \u5730\u5740..."/>
+          <div className="hint">\u652F\u6301 OpenAI \u517C\u5BB9\u63A5\u53E3\u683C\u5F0F</div>
+        </div>
+        <div className="field-group">
+          <label>Model Name</label>
+          <input type="text" defaultValue="gpt-4o" placeholder="\u8F93\u5165\u6A21\u578B\u540D\u79F0..."/>
+          <div className="hint">\u4F8B\u5982: gpt-4o, claude-3-opus, deepseek-v3</div>
+        </div>
+        <div className="field-group">
+          <label>Provider</label>
+          <select defaultValue="openai">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="custom">Custom Provider</option>
+          </select>
+        </div>
+        <div className="field-group">
+          <label>Temperature</label>
+          <input type="text" defaultValue="0.7" placeholder="0.0 - 2.0"/>
+          <div className="hint">\u63A7\u5236\u8F93\u51FA\u968F\u673A\u6027\uFF0C\u503C\u8D8A\u9AD8\u8D8A\u521B\u65B0</div>
+        </div>
+        <div className="settings-actions">
+          <button className="wb-btn wb-btn--secondary">
+            <Icon name="x" size={14}/>
+            \u53D6\u6D88
+          </button>
+          <button className="wb-btn wb-btn--primary">
+            <Icon name="check" size={14}/>
+            \u4FDD\u5B58\u914D\u7F6E
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── App Shell ── */
+function App() {
+  const [view, setView] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const navItems = [
+    { id:'dashboard', icon:'layout-dashboard', label:'\u4EEA\u8868\u76D8' },
+    { id:'tasks', icon:'list-todo', label:'\u4EFB\u52A1\u7BA1\u7406' },
+    { id:'settings', icon:'settings', label:'\u7CFB\u7EDF\u8BBE\u7F6E' }
+  ];
+
+  const handleNav = useCallback((id) => {
+    setView(id);
+    setSidebarOpen(false);
+  }, []);
+
+  return (
+    <div className="app-shell">
+      <button className="mobile-toggle" onClick={() => setSidebarOpen(v => !v)}>
+        <Icon name={sidebarOpen ? 'x' : 'menu'} size={18}/>
+      </button>
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-brand">
+          <div className="sidebar-brand-icon">
+            <Icon name="bot" size={18} color="#fff"/>
+          </div>
+          <div>
+            <div className="sidebar-brand-text">大荒界</div>
+            <div className="sidebar-brand-sub">v1.0.0</div>
+          </div>
+        </div>
+        <div className="sidebar-section-label">\u5BFC\u822A</div>
+        <nav className="sidebar-nav">
+          {navItems.map(item => (
+            <SidebarButton
+              key={item.id}
+              icon={item.icon}
+              label={item.label}
+              active={view === item.id}
+              onClick={() => handleNav(item.id)}
+            />
+          ))}
+        </nav>
+        <div className="sidebar-spacer"/>
+        <div className="sidebar-footer">
+          <SidebarButton icon="moon" label="\u6697\u8272\u4E3B\u9898" active={true} onClick={()=>{}}/>
+        </div>
+      </aside>
+      <main className="main-area">
+        {view === 'dashboard' && <AgentDashboard/>}
+        {view === 'tasks' && <TaskManagement/>}
+        {view === 'settings' && <Settings/>}
+      </main>
+    </div>
+  );
+}
+
+/* ── Mount ── */
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App/>);
+</script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Button — 大荒界 MDH Design System</title>
+  <link rel="stylesheet" href="../colors_and_type.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body.dark {
+      background-color: #050b14;
+      background-image:
+        radial-gradient(ellipse 60% 50% at 20% 10%, rgba(77, 159, 255, 0.04) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 80% 90%, rgba(167, 139, 250, 0.03) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 30% at 50% 50%, rgba(61, 214, 200, 0.02) 0%, transparent 50%);
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      color: var(--color-text-primary);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .preview-container {
+      text-align: center;
+    }
+
+    .preview-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .preview-subtitle {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+      margin-bottom: 48px;
+      font-family: var(--font-mono);
+    }
+
+    .variants-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 48px;
+    }
+
+    .variant-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .variant-label {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--color-text-muted);
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Base Button ── */
+    .wb-btn {
+      padding: 6px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      font-weight: 500;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1.5;
+      outline: none;
+    }
+
+    /* ── Primary ── */
+    .wb-btn--primary {
+      background: var(--color-accent-blue);
+      color: #ffffff;
+      border: none;
+    }
+
+    /* ── Secondary ── */
+    .wb-btn--secondary {
+      background: none;
+      border: 1px solid var(--color-border-default);
+      color: var(--color-text-secondary);
+    }
+
+    /* ── Ghost ── */
+    .wb-btn--ghost {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--color-border-default);
+      color: var(--color-text-secondary);
+    }
+
+    /* ── Active ── */
+    .wb-btn--active {
+      background: linear-gradient(135deg, var(--color-accent-blue-dim), rgba(139, 92, 246, 0.15));
+      border: 1px solid var(--color-accent-blue);
+      color: var(--color-accent-blue);
+      box-shadow: 0 0 12px rgba(77, 159, 255, 0.2);
+    }
+  </style>
+</head>
+<body class="dark">
+
+  <div class="preview-container">
+    <div class="preview-title">Button</div>
+    <div class="preview-subtitle">component / interactive</div>
+
+    <div class="variants-row">
+      <div class="variant-item">
+        <button class="wb-btn wb-btn--primary">Primary</button>
+        <span class="variant-label">Primary</span>
+      </div>
+
+      <div class="variant-item">
+        <button class="wb-btn wb-btn--secondary">Secondary</button>
+        <span class="variant-label">Secondary</span>
+      </div>
+
+      <div class="variant-item">
+        <button class="wb-btn wb-btn--ghost">Ghost</button>
+        <span class="variant-label">Ghost</span>
+      </div>
+
+      <div class="variant-item">
+        <button class="wb-btn wb-btn--active">Active</button>
+        <span class="variant-label">Active</span>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

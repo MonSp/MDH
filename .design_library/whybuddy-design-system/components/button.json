@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 2,
+  "slug": "button",
+  "sourceKind": "structured-spec",
+  "confidence": "medium",
+  "semanticTypeCandidates": ["Button"],
+  "variantDimensions": ["variant", "state"],
+  "representativeVariants": [
+    { "variant": "primary", "state": "default" },
+    { "variant": "secondary", "state": "default" },
+    { "variant": "ghost", "state": "default" },
+    { "variant": "primary", "state": "hover" }
+  ],
+  "anatomy": [
+    { "part": "label", "selector": ".btn-label" },
+    { "part": "icon", "selector": ".btn-icon" }
+  ],
+  "structurePatterns": {
+    "container": "inline-flex, align-items: center, justify-content: center, gap: 6px",
+    "padding": "6px 16px",
+    "borderRadius": "var(--radius-sm)",
+    "fontSize": "0.8rem",
+    "fontWeight": "500",
+    "cursor": "pointer",
+    "transition": "all 0.15s ease"
+  },
+  "usageHints": [
+    "Primary: main CTA actions",
+    "Secondary: supplementary actions",
+    "Ghost: minimal/tertiary actions"
+  ],
+  "doNotInvent": ["loading spinner", "icon-only variant", "disabled state"],
+  "unknowns": ["exact hover background values from source"]
+}

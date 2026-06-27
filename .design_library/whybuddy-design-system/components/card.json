@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "slug": "card",
+  "sourceKind": "structured-spec",
+  "confidence": "medium",
+  "semanticTypeCandidates": ["Card"],
+  "variantDimensions": ["elevation"],
+  "representativeVariants": [
+    { "elevation": "flat" },
+    { "elevation": "elevated" }
+  ],
+  "anatomy": [
+    { "part": "container", "selector": ".card" },
+    { "part": "header", "selector": ".card-header" },
+    { "part": "body", "selector": ".card-body" },
+    { "part": "footer", "selector": ".card-footer" }
+  ],
+  "structurePatterns": {
+    "container": "background: var(--bg-elevated), border: 1px solid var(--border-card), borderRadius: 12px, padding: 16px",
+    "header": "display: flex, align-items: center, justify-content: space-between, marginBottom: 16px, paddingBottom: 12px, borderBottom: 1px solid var(--border-card)",
+    "body": "flex: 1",
+    "footer": "display: flex, justify-content: space-between, alignItems: center, paddingTop: 12px, borderTop: 1px solid var(--border-card)"
+  },
+  "usageHints": [
+    "Agent status cards",
+    "Task decomposition nodes",
+    "Collaboration visualizer panels"
+  ],
+  "doNotInvent": ["image card variant", "horizontal card layout"],
+  "unknowns": ["exact shadow values for elevated state"]
+}

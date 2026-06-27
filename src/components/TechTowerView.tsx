@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import type { Project, ProjectDept, CustomTeam, PanelState, CameraTarget } from './techtower'
 import { DEFAULT_DEPTS, DEFAULT_PROJECTS, ALL_AGENTS, TowerScene, SidePanel, ViewBookmarks, OverlayButtons } from './techtower'
 import CeoChatPanel from './office-team/CeoChatPanel'
+import { useLocalStorage } from '../hooks/useLocalStorage'
 
 const CATEGORY_ICONS: Record<string, string> = {
   '软件开发': '💻',
@@ -39,12 +40,25 @@ interface TechTowerViewProps {
   refreshKey?: number
 }
 
-interface CategoryProjects {
-  [category: string]: Array<{ project_id: string; name: string; status: string; created_at: string }>
-}
-
 export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBackToSingle, onEnterProject, refreshKey }: TechTowerViewProps) {
   void onSendTask
+
+  const {
+    isReady,
+    isSupported,
+    dirName,
+    needPermission,
+    projects: storedProjects,
+    initStorage,
+    grantAccess,
+    createProject,
+    renameProject,
+    deleteProject,
+    addTask,
+    getCategories,
+    exportData,
+    importData,
+  } = useLocalStorage()
 
   const simplifyName = (name: string) => {
     if (name.startsWith('任务-')) name = name.slice(3)
@@ -52,8 +66,32 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
     return name
   }
 
-  const [projects, setProjects] = useState<Project[]>(DEFAULT_PROJECTS)
-  const [categories, setCategories] = useState<CategoryProjects>({})
+  // 合并存储项目和默认项目
+  const projects: Project[] = [
+    ...storedProjects.map(p => ({
+      id: p.project_id,
+      name: simplifyName(p.name),
+      description: p.category || '本地项目',
+      selectedDeptIds: ['dept-software'],
+      status: (p.status === 'running' ? 'active' : p.status === 'archived' ? 'completed' : 'planning') as 'planning' | 'active' | 'completed',
+      createdAt: new Date(p.created_at).getTime() || Date.now(),
+      iterations: p.tasks?.length || 0,
+    })),
+    ...DEFAULT_PROJECTS,
+  ]
+
+  // 获取分类
+  const categories = getCategories()
+  const categoriesForDisplay: Record<string, Array<{ project_id: string; name: string; status: string; created_at: string }>> = {}
+  for (const [cat, projs] of Object.entries(categories)) {
+    categoriesForDisplay[cat] = projs.map(p => ({
+      project_id: p.project_id,
+      name: p.name,
+      status: p.status,
+      created_at: p.created_at,
+    }))
+  }
+
   const [selectedFloor, setSelectedFloor] = useState<string | null>(null)
   const [showFloorPanel, setShowFloorPanel] = useState(false)
   const [renamingProjectId, setRenamingProjectId] = useState<string | null>(null)
@@ -70,49 +108,6 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
-
-  // 从后端加载项目和分类
-  const fetchProjects = useCallback(() => {
-    // 先触发批量分类
-    fetch('/api/projects/classify-all', { method: 'POST' })
-      .then(() => {
-        // 分类完成后获取项目列表
-        return fetch('/api/projects')
-      })
-      .then(r => r.json())
-      .then(data => {
-        if (!data.success || !Array.isArray(data.data)) return
-        const backendProjects: Project[] = data.data.map((p: { project_id: string; name: string; status: string; created_at: string; category?: string }) => ({
-          id: p.project_id,
-          name: simplifyName(p.name),
-          description: '后端项目',
-          selectedDeptIds: ['dept-software'],
-          status: (p.status === 'running' ? 'active' : p.status === 'archived' ? 'completed' : 'planning') as 'planning' | 'active' | 'completed',
-          createdAt: new Date(p.created_at).getTime() || Date.now(),
-          iterations: 0,
-        }))
-        setProjects(prev => {
-          const defaultIds = new Set(DEFAULT_PROJECTS.map(p => p.id))
-          const uniqueBackend = backendProjects.filter(bp => !defaultIds.has(bp.id))
-          return [...uniqueBackend, ...DEFAULT_PROJECTS]
-        })
-      })
-      .catch(err => console.error('加载项目列表失败:', err))
-
-    // 获取分类数据
-    fetch('/api/projects/categories')
-      .then(r => r.json())
-      .then(data => {
-        if (data.success && data.data) {
-          setCategories(data.data)
-        }
-      })
-      .catch(err => console.error('加载分类数据失败:', err))
-  }, [])
-
-  useEffect(() => {
-    fetchProjects()
-  }, [refreshKey, fetchProjects])
 
   const [cameraNav, setCameraNav] = useState<CameraTarget | null>(null)
   const [fogEnabled, setFogEnabled] = useState(true)
@@ -152,41 +147,20 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
     setPanel(null)
   }, [])
 
-  const handleCreateProject = useCallback((deptId: string) => {
+  const handleCreateProject = useCallback(async (deptId: string) => {
     setPanel(null)
     const dept = DEFAULT_DEPTS.find(d => d.deptId === deptId)
-    const newProject: Project = {
-      id: `proj-${Date.now()}`,
-      name: `新项目 ${projects.length + 1}`,
-      description: '待定义项目描述',
-      selectedDeptIds: [deptId],
-      status: 'planning',
-      createdAt: Date.now(),
-      iterations: 0,
-    }
-    setProjects(prev => [...prev, newProject])
-    onSendTask(`创建新项目: ${newProject.name}, 部门: ${dept?.name ?? deptId}`)
-  }, [onSendTask, projects.length])
+    await createProject(`新项目 ${projects.length + 1}`, dept?.name || '其他')
+  }, [createProject, projects.length])
 
   const handleCeoEnterProject = useCallback((projectId: string, meetingId: string) => {
     setShowCeoChat(false)
     onStartMeeting()
   }, [onStartMeeting])
 
-  const handleCeoProjectCreated = useCallback((projectId: string) => {
-    setProjects(prev => {
-      if (prev.some(p => p.id === projectId)) return prev
-      const shortId = projectId.slice(0, 8)
-      return [...prev, {
-        id: projectId,
-        name: `CEO项目-${shortId}`,
-        description: '通过CEO对话创建',
-        selectedDeptIds: ['dept-software'],
-        status: 'active' as const,
-        createdAt: Date.now(),
-        iterations: 0,
-      }]
-    })
+  const handleCeoProjectCreated = useCallback(async (projectId: string) => {
+    // CEO创建的项目已经在后端，同步到本地存储
+    // 这里可以添加从后端同步的逻辑
   }, [])
 
   // 处理楼层点击（进入分类视图）
@@ -202,74 +176,133 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
     setCameraNav({ pos: [30, 55, 45], target: [0, 14, 0] })
   }, [])
 
-  // 刷新分类数据
-  const refreshCategories = useCallback(() => {
-    fetch('/api/projects/categories')
-      .then(r => r.json())
-      .then(data => {
-        if (data.success && data.data) {
-          setCategories(data.data)
-        }
-      })
-      .catch(err => console.error('刷新分类数据失败:', err))
-  }, [])
-
-  // 刷新项目列表（用于3D渲染）
-  const refreshProjects = useCallback(() => {
-    fetch('/api/projects')
-      .then(r => r.json())
-      .then(data => {
-        if (!data.success || !Array.isArray(data.data)) return
-        const backendProjects: Project[] = data.data.map((p: { project_id: string; name: string; status: string; created_at: string; category?: string }) => ({
-          id: p.project_id,
-          name: simplifyName(p.name),
-          description: '后端项目',
-          selectedDeptIds: ['dept-software'],
-          status: (p.status === 'running' ? 'active' : p.status === 'archived' ? 'completed' : 'planning') as 'planning' | 'active' | 'completed',
-          createdAt: new Date(p.created_at).getTime() || Date.now(),
-          iterations: 0,
-        }))
-        setProjects(prev => {
-          const defaultIds = new Set(DEFAULT_PROJECTS.map(p => p.id))
-          const uniqueBackend = backendProjects.filter(bp => !defaultIds.has(bp.id))
-          return [...uniqueBackend, ...DEFAULT_PROJECTS]
-        })
-      })
-      .catch(err => console.error('刷新项目列表失败:', err))
-  }, [])
-
-  // 刷新所有数据
-  const refreshAll = useCallback(() => {
-    refreshProjects()
-    refreshCategories()
-  }, [refreshProjects, refreshCategories])
-
   // 点击电脑打开项目面板
   const handleComputerClick = useCallback((category: string) => {
-    refreshAll()
     setShowFloorPanel(true)
-  }, [refreshAll])
+  }, [])
 
   // 重命名项目
-  const handleRename = useCallback((projectId: string) => {
+  const handleRename = useCallback(async (projectId: string) => {
     if (!renameValue.trim()) return
-    fetch(`/api/projects/${projectId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: renameValue.trim() }),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.success) {
-          setRenamingProjectId(null)
-          setRenameValue('')
-          refreshAll()
-        } else {
-          alert('重命名失败: ' + (data.error || '未知错误'))
-        }
-      })
-      .catch(() => alert('重命名失败'))
-  }, [renameValue, refreshAll])
+    await renameProject(projectId, renameValue.trim())
+    setRenamingProjectId(null)
+    setRenameValue('')
+  }, [renameValue, renameProject])
+
+  // 删除项目
+  const handleDelete = useCallback(async (projectId: string) => {
+    await deleteProject(projectId)
+    setDeletingProjectId(null)
+  }, [deleteProject])
+
+  // 导出数据
+  const handleExport = useCallback(async () => {
+    const data = await exportData()
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `tech-tower-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [exportData])
+
+  // 导入数据
+  const handleImport = useCallback(() => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json'
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) {
+        const text = await file.text()
+        await importData(text)
+      }
+    }
+    input.click()
+  }, [importData])
+
+  const [skipSetup, setSkipSetup] = useState(false)
+
+  // 如果需要授权访问已保存的目录
+  if (isSupported && needPermission && !skipSetup) {
+    return (
+      <div style={{
+        width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 20,
+        background: '#080818', color: '#e2e8f0',
+      }}>
+        <div style={{ fontSize: 48 }}>🔐</div>
+        <h2 style={{ margin: 0, fontSize: 20 }}>需要访问存储目录</h2>
+        <p style={{ color: '#9ca3af', fontSize: 14, maxWidth: 400, textAlign: 'center', lineHeight: 1.6 }}>
+          检测到之前选择的存储目录，需要你授权访问以加载项目数据。
+        </p>
+        <button
+          onClick={grantAccess}
+          style={{
+            padding: '12px 32px', borderRadius: 10, cursor: 'pointer',
+            fontSize: 15, fontWeight: 600, border: 'none',
+            background: 'linear-gradient(135deg, #10b981, #059669)',
+            color: '#fff', boxShadow: '0 4px 20px rgba(16,185,129,0.4)',
+            transition: 'all 0.2s',
+          }}
+        >
+          🔓 授权访问
+        </button>
+        <button
+          onClick={() => setSkipSetup(true)}
+          style={{
+            padding: '8px 20px', borderRadius: 8, cursor: 'pointer',
+            fontSize: 12, border: '1px solid rgba(255,255,255,0.15)',
+            background: 'rgba(255,255,255,0.05)', color: '#9ca3af',
+            transition: 'all 0.2s',
+          }}
+        >
+          选择其他目录
+        </button>
+      </div>
+    )
+  }
+
+  // 如果不支持 File System API 或未选择目录，显示设置提示
+  if (isSupported && !dirName && !skipSetup) {
+    return (
+      <div style={{
+        width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 20,
+        background: '#080818', color: '#e2e8f0',
+      }}>
+        <div style={{ fontSize: 48 }}>📁</div>
+        <h2 style={{ margin: 0, fontSize: 20 }}>选择数据存储目录</h2>
+        <p style={{ color: '#9ca3af', fontSize: 14, maxWidth: 400, textAlign: 'center', lineHeight: 1.6 }}>
+          项目数据将存储在你选择的本地目录中，所有文件以 JSON 格式保存，方便备份和管理。
+        </p>
+        <button
+          onClick={initStorage}
+          style={{
+            padding: '12px 32px', borderRadius: 10, cursor: 'pointer',
+            fontSize: 15, fontWeight: 600, border: 'none',
+            background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+            color: '#fff', boxShadow: '0 4px 20px rgba(139,92,246,0.4)',
+            transition: 'all 0.2s',
+          }}
+        >
+          📂 选择存储目录
+        </button>
+        <button
+          onClick={() => setSkipSetup(true)}
+          style={{
+            padding: '8px 20px', borderRadius: 8, cursor: 'pointer',
+            fontSize: 12, border: '1px solid rgba(255,255,255,0.15)',
+            background: 'rgba(255,255,255,0.05)', color: '#9ca3af',
+            transition: 'all 0.2s',
+          }}
+        >
+          跳过，使用浏览器本地存储
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080818', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
@@ -298,7 +331,7 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
           showRain={showRain}
           showNeonLines={showNeonLines}
           isDayMode={isDayMode}
-          categories={categories}
+          categories={categoriesForDisplay}
           selectedFloor={selectedFloor}
           onFloorClick={handleFloorClick}
           onEnterProject={onEnterProject}
@@ -326,16 +359,27 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
             <div style={{ fontSize: 15, fontWeight: 700, color: '#e2e8f0' }}>
               📂 项目管理中心
             </div>
-            <button
-              onClick={() => setShowFloorPanel(false)}
-              style={{
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleExport} style={{
+                padding: '4px 10px', borderRadius: 4,
+                border: '1px solid rgba(59,130,246,0.4)',
+                background: 'rgba(59,130,246,0.15)',
+                color: '#60a5fa', fontSize: 11, cursor: 'pointer',
+              }}>导出</button>
+              <button onClick={handleImport} style={{
+                padding: '4px 10px', borderRadius: 4,
+                border: '1px solid rgba(16,185,129,0.4)',
+                background: 'rgba(16,185,129,0.15)',
+                color: '#10b981', fontSize: 11, cursor: 'pointer',
+              }}>导入</button>
+              <button onClick={() => setShowFloorPanel(false)} style={{
                 width: 28, height: 28, borderRadius: 6,
                 border: '1px solid rgba(255,255,255,0.1)',
                 background: 'rgba(255,255,255,0.05)',
                 color: '#9ca3af', fontSize: 16, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >×</button>
+              }}>×</button>
+            </div>
           </div>
 
           {/* 内容区：左侧分类导航 + 右侧项目列表 */}
@@ -347,8 +391,8 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
               overflowY: 'auto',
               padding: '8px',
             }}>
-              {Object.keys(categories)
-                .sort((a, b) => (categories[b]?.length || 0) - (categories[a]?.length || 0))
+              {Object.keys(categoriesForDisplay)
+                .sort((a, b) => (categoriesForDisplay[b]?.length || 0) - (categoriesForDisplay[a]?.length || 0))
                 .map(cat => {
                   const color = CATEGORY_COLORS[cat] || '#6b7280'
                   const icon = CATEGORY_ICONS[cat] || '📋'
@@ -376,7 +420,7 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
                             color: isActive ? '#fff' : '#9ca3af',
                           }}>{cat}</div>
                           <div style={{ fontSize: 10, color: '#6b7280' }}>
-                            {categories[cat]?.length || 0} 个
+                            {categoriesForDisplay[cat]?.length || 0} 个
                           </div>
                         </div>
                       </div>
@@ -387,7 +431,7 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
 
             {/* 右侧项目列表 */}
             <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-              {selectedFloor && categories[selectedFloor] ? (
+              {selectedFloor && categoriesForDisplay[selectedFloor] ? (
                 <>
                   <div style={{
                     fontSize: 13, fontWeight: 600, color: '#e2e8f0', marginBottom: 12,
@@ -399,15 +443,14 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
                     <span>{CATEGORY_ICONS[selectedFloor] || '📋'}</span>
                     <span>{selectedFloor}</span>
                     <span style={{ fontSize: 11, color: '#6b7280', marginLeft: 'auto' }}>
-                      {categories[selectedFloor].length} 个项目
+                      {categoriesForDisplay[selectedFloor].length} 个项目
                     </span>
                   </div>
 
                   {/* 按时间排序（最新在前） */}
-                  {[...categories[selectedFloor]]
+                  {[...categoriesForDisplay[selectedFloor]]
                     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                     .map((proj) => {
-                      const project = projects.find(p => p.id === proj.project_id)
                       const statusMap: Record<string, { label: string; color: string; bg: string }> = {
                         active: { label: '进行中', color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
                         completed: { label: '已完成', color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
@@ -429,8 +472,6 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
                             setSelectedFloor(null)
                             if (onEnterProject) {
                               onEnterProject(proj.project_id, proj.name)
-                            } else if (project) {
-                              handleSelectProject(project)
                             }
                           }}
                           style={{
@@ -441,18 +482,6 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
                             border: `1px solid ${renamingProjectId === proj.project_id ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.06)'}`,
                             cursor: renamingProjectId === proj.project_id ? 'default' : 'pointer',
                             transition: 'all 0.15s',
-                          }}
-                          onMouseOver={(e) => {
-                            if (renamingProjectId !== proj.project_id) {
-                              e.currentTarget.style.background = 'rgba(139,92,246,0.1)'
-                              e.currentTarget.style.borderColor = 'rgba(139,92,246,0.3)'
-                            }
-                          }}
-                          onMouseOut={(e) => {
-                            if (renamingProjectId !== proj.project_id) {
-                              e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'
-                            }
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -506,26 +535,12 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
                                     <>
                                       <span style={{ fontSize: 10, color: '#f59e0b', whiteSpace: 'nowrap' }}>确认删除?</span>
                                       <button
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          fetch(`/api/projects/${proj.project_id}`, { method: 'DELETE' })
-                                            .then(r => r.json())
-                                            .then(data => {
-                                              if (data.success) {
-                                                setDeletingProjectId(null)
-                                                refreshAll()
-                                              } else {
-                                                alert('删除失败: ' + (data.error || '未知错误'))
-                                              }
-                                            })
-                                            .catch(() => alert('删除失败'))
-                                        }}
+                                        onClick={(e) => { e.stopPropagation(); handleDelete(proj.project_id) }}
                                         style={{
                                           padding: '3px 8px', borderRadius: 4,
                                           border: '1px solid rgba(239,68,68,0.5)',
                                           background: 'rgba(239,68,68,0.2)',
-                                          color: '#ef4444', fontSize: 10, cursor: 'pointer',
-                                          fontWeight: 600,
+                                          color: '#ef4444', fontSize: 10, cursor: 'pointer', fontWeight: 600,
                                         }}
                                       >删除</button>
                                       <button
@@ -552,27 +567,18 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
                                           background: 'rgba(59,130,246,0.1)',
                                           color: '#3b82f6', fontSize: 11, cursor: 'pointer',
                                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                          transition: 'all 0.15s',
                                         }}
-                                        onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(59,130,246,0.3)' }}
-                                        onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(59,130,246,0.1)' }}
                                         title="重命名"
                                       >✎</button>
                                       <button
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setDeletingProjectId(proj.project_id)
-                                        }}
+                                        onClick={(e) => { e.stopPropagation(); setDeletingProjectId(proj.project_id) }}
                                         style={{
                                           width: 22, height: 22, borderRadius: 4,
                                           border: '1px solid rgba(239,68,68,0.3)',
                                           background: 'rgba(239,68,68,0.1)',
                                           color: '#ef4444', fontSize: 12, cursor: 'pointer',
                                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                          transition: 'all 0.15s',
                                         }}
-                                        onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.3)' }}
-                                        onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)' }}
                                         title="删除项目"
                                       >×</button>
                                     </>

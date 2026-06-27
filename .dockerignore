@@ -1,0 +1,16 @@
+node_modules
+dist
+.git
+.gitignore
+.mimocode
+.pytest_cache
+.trae
+.uploads
+coverage
+logs
+previews
+*.md
+!README.md
+docker-compose.yml
+Dockerfile*
+.env*

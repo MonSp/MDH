@@ -1,0 +1,459 @@
+/* Source: structured-spec */
+/* mdh-design-system — colors_and_type.css */
+/* Theme mode: light-dark | Brand: 大荒界 Matrix DaHuang (mdh) */
+
+/* ──────────────────────────────────────────────
+   1. Web Font Imports
+   ────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+/* ──────────────────────────────────────────────
+   2. :root — Light Theme (default)
+   ────────────────────────────────────────────── */
+
+:root {
+
+  /* ── Background Colors ── */
+  --bg-deep: #f7f4ef;
+  --bg-elevated: rgba(255, 252, 248, 0.92);
+  --bg-input: rgba(250, 247, 242, 0.9);
+  --body-bg-before: radial-gradient(ellipse 60% 50% at 20% 10%, rgba(37, 99, 235, 0.045) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 90%, rgba(124, 58, 237, 0.035) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 50% 50%, rgba(8, 145, 178, 0.025) 0%, transparent 50%);
+  --body-bg-after: linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+  --header-bg: rgba(255, 252, 248, 0.88);
+  --input-bar-bg: rgba(255, 252, 248, 0.88);
+  --think-summary-bg: rgba(0, 0, 0, 0.03);
+  --kbd-bg: rgba(0, 0, 0, 0.03);
+
+  /* ── Border Colors ── */
+  --border-card: rgba(0, 0, 0, 0.06);
+  --border-glow: rgba(0, 0, 0, 0.08);
+  --icon-btn-border: rgba(0, 0, 0, 0.08);
+  --think-summary-border: rgba(0, 0, 0, 0.05);
+  --think-collapse-border: rgba(0, 0, 0, 0.06);
+  --pipeline-divider: rgba(0, 0, 0, 0.05);
+  --kbd-border: rgba(0, 0, 0, 0.08);
+
+  /* ── Glassmorphism ── */
+  --glass-blur: 20px;
+
+  /* ── Semantic Accent Colors ── */
+  --blue: #2563eb;
+  --blue-dim: rgba(37, 99, 235, 0.08);
+  --cyan: #0891b2;
+  --cyan-dim: rgba(8, 145, 178, 0.08);
+  --purple: #7c3aed;
+  --purple-dim: rgba(124, 58, 237, 0.08);
+  --amber: #d97706;
+  --amber-dim: rgba(217, 119, 6, 0.08);
+  --green: #059669;
+  --green-dim: rgba(5, 150, 105, 0.08);
+  --red: #dc2626;
+  --red-dim: rgba(220, 38, 38, 0.06);
+
+  /* ── Text Colors ── */
+  --text-primary: #1c1917;
+  --text-secondary: #78716c;
+  --text-muted: #a8a29e;
+
+  /* ── Shadows ── */
+  --settings-panel-shadow: 0 24px 80px rgba(0, 0, 0, 0.08);
+
+  /* ── Scrollbar ── */
+  --scrollbar-thumb: rgba(0, 0, 0, 0.08);
+
+  /* ── Typography ── */
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
+  --font-sans: 'Noto Sans SC', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* ── Border Radius ── */
+  --radius-sm: 6px;
+
+  /* ── Motion / Easing ── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Department Colors (techtower) ── */
+  --dept-software: #0a84ff;
+  --dept-software-accent: #64d2ff;
+  --dept-ai-movie: #ff375f;
+  --dept-ai-movie-accent: #ff6b8a;
+  --dept-data: #bf5af2;
+  --dept-data-accent: #d4a0ff;
+  --dept-content: #ff9f0a;
+  --dept-content-accent: #ffb340;
+  --dept-ppt: #30d158;
+  --dept-ppt-accent: #5e9e6b;
+  --dept-marketing: #34c759;
+  --dept-marketing-accent: #5e9e6b;
+  --dept-sales: #ff9500;
+  --dept-sales-accent: #ffb340;
+  --dept-design: #af52de;
+  --dept-design-accent: #d4a0ff;
+  --dept-product: #5856d6;
+  --dept-product-accent: #8b83ff;
+  --dept-finance: #63e6be;
+  --dept-finance-accent: #a7f3d0;
+
+  /* ── Status Colors (techtower) ── */
+  --status-active: #30d158;
+  --status-completed: #bf5af2;
+  --status-planning: #0a84ff;
+
+  /* ── Floor Gradient Colors (techtower building) ── */
+  --floor-0: #0a84ff;
+  --floor-1: #1a6aff;
+  --floor-2: #2a50ff;
+  --floor-3: #5e56e0;
+  --floor-4: #7b59b6;
+  --floor-5: #9b59b6;
+  --floor-6: #ff9f0a;
+  --floor-7: #ffb340;
+
+  /* ── Role Theme Colors (agentTypes) ── */
+  --role-ceo: #e11d48;
+  --role-ceo-gradient-start: #e11d48;
+  --role-ceo-gradient-end: #f43f5e;
+  --role-planner: #8b5cf6;
+  --role-planner-gradient-start: #8b5cf6;
+  --role-planner-gradient-end: #a78bfa;
+  --role-executor: #f59e0b;
+  --role-executor-gradient-start: #f59e0b;
+  --role-executor-gradient-end: #fbbf24;
+  --role-monitor: #10b981;
+  --role-monitor-gradient-start: #10b981;
+  --role-monitor-gradient-end: #34d399;
+  --role-reviewer: #3b82f6;
+  --role-reviewer-gradient-start: #3b82f6;
+  --role-reviewer-gradient-end: #60a5fa;
+  --role-coordinator: #ec4899;
+  --role-coordinator-gradient-start: #ec4899;
+  --role-coordinator-gradient-end: #f472b6;
+
+  /* ──────────────────────────────────────────
+   Portable Alias Layer (light)
+   Consumers MUST prefer these aliases.
+   ────────────────────────────────────────── */
+  /* Alias Naming Convention: mdh-{semantic-category} */
+
+  /* bg */
+  --color-bg-base: var(--bg-deep);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-input: var(--bg-input);
+  --color-bg-header: var(--header-bg);
+  --color-bg-input-bar: var(--input-bar-bg);
+  --color-bg-think-summary: var(--think-summary-bg);
+  --color-bg-kbd: var(--kbd-bg);
+
+  /* border */
+  --color-border-default: var(--border-card);
+  --color-border-glow: var(--border-glow);
+  --color-border-icon-btn: var(--icon-btn-border);
+  --color-border-think-summary: var(--think-summary-border);
+  --color-border-think-collapse: var(--think-collapse-border);
+  --color-border-pipeline-divider: var(--pipeline-divider);
+  --color-border-kbd: var(--kbd-border);
+
+  /* accent-blue */
+  --color-accent-blue: var(--blue);
+  --color-accent-blue-dim: var(--blue-dim);
+
+  /* accent-cyan */
+  --color-accent-cyan: var(--cyan);
+  --color-accent-cyan-dim: var(--cyan-dim);
+
+  /* accent-purple */
+  --color-accent-purple: var(--purple);
+  --color-accent-purple-dim: var(--purple-dim);
+
+  /* accent-amber */
+  --color-accent-amber: var(--amber);
+  --color-accent-amber-dim: var(--amber-dim);
+
+  /* accent-green */
+  --color-accent-green: var(--green);
+  --color-accent-green-dim: var(--green-dim);
+
+  /* accent-red */
+  --color-accent-red: var(--red);
+  --color-accent-red-dim: var(--red-dim);
+
+  /* text */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  /* scrollbar */
+  --color-scrollbar-thumb: var(--scrollbar-thumb);
+
+  /* dept-software */
+  --color-dept-software: var(--dept-software);
+
+  /* dept-ai-movie */
+  --color-dept-ai-movie: var(--dept-ai-movie);
+
+  /* dept-data */
+  --color-dept-data: var(--dept-data);
+
+  /* dept-content */
+  --color-dept-content: var(--dept-content);
+
+  /* dept-ppt */
+  --color-dept-ppt: var(--dept-ppt);
+
+  /* dept-marketing */
+  --color-dept-marketing: var(--dept-marketing);
+
+  /* dept-sales */
+  --color-dept-sales: var(--dept-sales);
+
+  /* dept-design */
+  --color-dept-design: var(--dept-design);
+
+  /* dept-product */
+  --color-dept-product: var(--dept-product);
+
+  /* dept-finance */
+  --color-dept-finance: var(--dept-finance);
+
+  /* status */
+  --color-status-active: var(--status-active);
+  --color-status-completed: var(--status-completed);
+  --color-status-planning: var(--status-planning);
+
+  /* role-ceo */
+  --color-role-ceo: var(--role-ceo);
+
+  /* role-planner */
+  --color-role-planner: var(--role-planner);
+
+  /* role-executor */
+  --color-role-executor: var(--role-executor);
+
+  /* role-monitor */
+  --color-role-monitor: var(--role-monitor);
+
+  /* role-reviewer */
+  --color-role-reviewer: var(--role-reviewer);
+
+  /* role-coordinator */
+  --color-role-coordinator: var(--role-coordinator);
+}
+
+/* ──────────────────────────────────────────────
+   3. .dark — Dark Theme Overrides
+   ────────────────────────────────────────────── */
+
+.dark {
+
+  /* ── Background Colors ── */
+  --bg-deep: #050b14;
+  --bg-elevated: rgba(15, 25, 45, 0.85);
+  --bg-input: rgba(8, 14, 26, 0.8);
+  --body-bg-before: radial-gradient(ellipse 60% 50% at 20% 10%, rgba(77, 159, 255, 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 80% 90%, rgba(167, 139, 250, 0.03) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 50% 50%, rgba(61, 214, 200, 0.02) 0%, transparent 50%);
+  --body-bg-after: linear-gradient(rgba(90, 140, 210, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(90, 140, 210, 0.02) 1px, transparent 1px);
+  --header-bg: rgba(8, 14, 26, 0.7);
+  --input-bar-bg: rgba(8, 14, 26, 0.7);
+  --think-summary-bg: rgba(15, 25, 45, 0.35);
+  --kbd-bg: rgba(255, 255, 255, 0.03);
+
+  /* ── Border Colors ── */
+  --border-card: rgba(90, 140, 210, 0.12);
+  --border-glow: rgba(90, 140, 210, 0.22);
+  --icon-btn-border: rgba(255, 255, 255, 0.06);
+  --think-summary-border: rgba(255, 255, 255, 0.03);
+  --think-collapse-border: rgba(255, 255, 255, 0.04);
+  --pipeline-divider: rgba(255, 255, 255, 0.03);
+  --kbd-border: rgba(255, 255, 255, 0.06);
+
+  /* ── Glassmorphism ── */
+  --glass-blur: 16px;
+
+  /* ── Semantic Accent Colors ── */
+  --blue: #4d9fff;
+  --blue-dim: rgba(77, 159, 255, 0.1);
+  --cyan: #3dd6c8;
+  --cyan-dim: rgba(61, 214, 200, 0.1);
+  --purple: #a78bfa;
+  --purple-dim: rgba(167, 139, 250, 0.1);
+  --amber: #f59e0b;
+  --amber-dim: rgba(245, 158, 11, 0.1);
+  --green: #34d399;
+  --green-dim: rgba(52, 211, 153, 0.1);
+  --red: #f87171;
+  --red-dim: rgba(248, 113, 113, 0.1);
+
+  /* ── Text Colors ── */
+  --text-primary: #e2e8f0;
+  --text-secondary: #8899b4;
+  --text-muted: #4a5575;
+
+  /* ── Shadows ── */
+  --settings-panel-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+
+  /* ── Scrollbar ── */
+  --scrollbar-thumb: rgba(255, 255, 255, 0.04);
+
+  /* ──────────────────────────────────────────
+     Portable Alias Layer (dark)
+     Re-declared so aliases auto-inherit dark overrides.
+     ────────────────────────────────────────── */
+
+  /* bg */
+  --color-bg-base: var(--bg-deep);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-input: var(--bg-input);
+  --color-bg-header: var(--header-bg);
+  --color-bg-input-bar: var(--input-bar-bg);
+  --color-bg-think-summary: var(--think-summary-bg);
+  --color-bg-kbd: var(--kbd-bg);
+
+  /* border */
+  --color-border-default: var(--border-card);
+  --color-border-glow: var(--border-glow);
+  --color-border-icon-btn: var(--icon-btn-border);
+  --color-border-think-summary: var(--think-summary-border);
+  --color-border-think-collapse: var(--think-collapse-border);
+  --color-border-pipeline-divider: var(--pipeline-divider);
+  --color-border-kbd: var(--kbd-border);
+
+  /* accent-blue */
+  --color-accent-blue: var(--blue);
+  --color-accent-blue-dim: var(--blue-dim);
+
+  /* accent-cyan */
+  --color-accent-cyan: var(--cyan);
+  --color-accent-cyan-dim: var(--cyan-dim);
+
+  /* accent-purple */
+  --color-accent-purple: var(--purple);
+  --color-accent-purple-dim: var(--purple-dim);
+
+  /* accent-amber */
+  --color-accent-amber: var(--amber);
+  --color-accent-amber-dim: var(--amber-dim);
+
+  /* accent-green */
+  --color-accent-green: var(--green);
+  --color-accent-green-dim: var(--green-dim);
+
+  /* accent-red */
+  --color-accent-red: var(--red);
+  --color-accent-red-dim: var(--red-dim);
+
+  /* text */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  /* scrollbar */
+  --color-scrollbar-thumb: var(--scrollbar-thumb);
+
+  /* dept-software */
+  --color-dept-software: var(--dept-software);
+
+  /* dept-ai-movie */
+  --color-dept-ai-movie: var(--dept-ai-movie);
+
+  /* dept-data */
+  --color-dept-data: var(--dept-data);
+
+  /* dept-content */
+  --color-dept-content: var(--dept-content);
+
+  /* dept-ppt */
+  --color-dept-ppt: var(--dept-ppt);
+
+  /* dept-marketing */
+  --color-dept-marketing: var(--dept-marketing);
+
+  /* dept-sales */
+  --color-dept-sales: var(--dept-sales);
+
+  /* dept-design */
+  --color-dept-design: var(--dept-design);
+
+  /* dept-product */
+  --color-dept-product: var(--dept-product);
+
+  /* dept-finance */
+  --color-dept-finance: var(--dept-finance);
+
+  /* status */
+  --color-status-active: var(--status-active);
+  --color-status-completed: var(--status-completed);
+  --color-status-planning: var(--status-planning);
+
+  /* role-ceo */
+  --color-role-ceo: var(--role-ceo);
+
+  /* role-planner */
+  --color-role-planner: var(--role-planner);
+
+  /* role-executor */
+  --color-role-executor: var(--role-executor);
+
+  /* role-monitor */
+  --color-role-monitor: var(--role-monitor);
+
+  /* role-reviewer */
+  --color-role-reviewer: var(--role-reviewer);
+
+  /* role-coordinator */
+  --color-role-coordinator: var(--role-coordinator);
+}
+
+/* ──────────────────────────────────────────────
+   4. Typography Utility Classes
+   ────────────────────────────────────────────── */
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.font-sans {
+  font-family: var(--font-sans);
+}
+
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-accent-blue {
+  color: var(--blue);
+}
+
+.text-accent-cyan {
+  color: var(--cyan);
+}
+
+.text-accent-purple {
+  color: var(--purple);
+}
+
+.text-accent-amber {
+  color: var(--amber);
+}
+
+.text-accent-green {
+  color: var(--green);
+}
+
+.text-accent-red {
+  color: var(--red);
+}

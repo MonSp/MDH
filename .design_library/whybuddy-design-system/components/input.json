@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "slug": "input",
+  "sourceKind": "structured-spec",
+  "confidence": "medium",
+  "semanticTypeCandidates": ["TextInput"],
+  "variantDimensions": ["type"],
+  "representativeVariants": [
+    { "type": "text" },
+    { "type": "select" }
+  ],
+  "anatomy": [
+    { "part": "label", "selector": ".input-label" },
+    { "part": "field", "selector": ".input-field" }
+  ],
+  "structurePatterns": {
+    "label": "display: block, fontSize: 0.75rem, color: var(--text-secondary), marginBottom: 6px",
+    "field": "width: 100%, padding: 8px 10px, background: var(--bg-input), border: 1px solid var(--border-card), borderRadius: var(--radius-sm), color: var(--text-primary), fontSize: 0.8rem, fontFamily: var(--font-mono)",
+    "focus": "outline: none, borderColor: var(--blue)"
+  },
+  "usageHints": [
+    "Settings panel inputs",
+    "Skill configuration fields"
+  ],
+  "doNotInvent": ["textarea variant", "search input", "password input"],
+  "unknowns": ["focus ring style"]
+}

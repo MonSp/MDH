@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "screensGenerated": 3,
+  "coreComponentsUsed": ["card", "button", "input", "progress-bar"],
+  "supportComponentsUsed": [],
+  "previewClassReuseRate": 0.26,
+  "hasProductContext": true,
+  "inventedComponents": [],
+  "renderedFromEvidence": ["card", "button", "input", "progress-bar"],
+  "interactiveStatesRendered": ["hover", "active", "selected"],
+  "primaryActionPerScreen": ["save-settings", "create-task", "search-agents"],
+  "warnings": [
+    "UIKit uses custom component classes instead of extracted preview classes",
+    "data-component markers not present on component wrappers"
+  ]
+}

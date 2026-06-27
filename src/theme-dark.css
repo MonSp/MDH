@@ -21,7 +21,7 @@
   --text-secondary: #8899b4;
   --text-muted: #4a5575;
   --font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
-  --font-sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  --font-sans: 'Noto Sans SC', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --radius-sm: 6px;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
