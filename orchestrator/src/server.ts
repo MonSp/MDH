@@ -25,8 +25,8 @@ const CONTENT_TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-export async function startServer(port: number, executorUrl: string, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>) {
-  const executor = new ExecutorClient(executorUrl);
+export async function startServer(port: number, executorUrl: string, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>, executorToken?: string) {
+  const executor = new ExecutorClient({ baseUrl: executorUrl, token: executorToken });
   const distDir = process.env.DIST_DIR || resolve(process.cwd(), '../dist');
 
   const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -206,6 +206,11 @@ async function handleMessage(
 
     case 'list_roles': {
       ws.send(JSON.stringify({ type: 'roles_list', roles: getAvailableRoles() }));
+      break;
+    }
+
+    case 'workspace_confirm_response': {
+      // 由 onWorkspaceConfirm 回调中的 listener 处理，这里不做额外操作
       break;
     }
 

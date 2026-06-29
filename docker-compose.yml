@@ -55,6 +55,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - EXECUTOR_WORKSPACE=/workspace
+      - EXECUTOR_STORAGE=local
+      - EXECUTOR_TOKEN=${EXECUTOR_TOKEN:-}
 
   orchestrator:
     build:
@@ -70,6 +72,7 @@ services:
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
       - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      - EXECUTOR_TOKEN=${EXECUTOR_TOKEN:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

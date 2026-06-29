@@ -262,7 +262,7 @@ export class TeamCoordinator {
       return t?.team_role === 'Reviewer';
     });
 
-    const maxReviewRounds = reviewerRole ? 3 : 1;
+    const maxReviewRounds = reviewerRole ? 2 : 1;
     let finalResult = '';
 
     for (let round = 0; round < maxReviewRounds; round++) {
@@ -315,17 +315,28 @@ export class TeamCoordinator {
     let response = '';
     try {
       response = await this.callLLMOnce([
-        { role: 'system', content: `你是技术CEO。分析任务复杂度，返回JSON：
-{"level": "simple|complex", "reason": "原因"}
-simple: 单文件、单步操作、无需讨论
-complex: 多文件、多步骤、需要设计或讨论` },
+        { role: 'system', content: `你是技术CEO。分析任务复杂度，返回JSON格式：{"level": "simple" 或 "complex", "reason": "原因"}
+
+判断标准：
+- simple: 真正的单步操作，如"查看某个文件"、"运行一条命令"
+- complex: 需要创建/修改多个文件、需要设计、需要测试、涉及前后端、需要团队协作
+
+注意：只要涉及"创建项目"、"开发应用"、"编写测试"、"多个文件"等关键词，一律判为 complex。` },
         { role: 'user', content: task },
       ]);
-      console.log('[CEO] complexity response:', response.substring(0, 200));
+      console.log('[CEO] complexity:', response.substring(0, 200));
       const match = response.match(/\{[\s\S]*\}/);
-      if (match) return JSON.parse(match[0]);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        // 兜底：如果用户选择了多角色但被判为 simple，强制改为 complex
+        if (parsed.level === 'simple' && task.length > 50) {
+          console.log('[CEO] overriding simple -> complex (task too long for simple)');
+          return { level: 'complex', reason: '任务描述较长，按复杂任务处理' };
+        }
+        return parsed;
+      }
     } catch (e) {
-      console.error('[CEO] complexity parse error:', e, 'response:', response.substring(0, 200));
+      console.error('[CEO] parse error:', e, response.substring(0, 200));
     }
     return { level: 'complex', reason: '无法判断，默认按复杂任务处理' };
   }
@@ -421,7 +432,16 @@ complex: 多文件、多步骤、需要设计或讨论` },
           ? `Error: ${toolResult.error}`
           : typeof toolResult.result === 'string' ? toolResult.result : JSON.stringify(toolResult.result);
 
-        onEvent?.({ type: 'tool_result', id: tc.id, tool: tc.function.name, result: resultStr });
+        onEvent?.({
+          type: 'tool_result',
+          id: tc.id,
+          tool_name: tc.function.name,
+          tool: tc.function.name,
+          result: resultStr,
+          success: !toolResult.error,
+          output: resultStr,
+          timestamp: new Date().toISOString(),
+        });
         messages.push({ role: 'tool', content: resultStr, tool_call_id: tc.id });
       }
     }
@@ -445,8 +465,9 @@ complex: 多文件、多步骤、需要设计或讨论` },
     const prompt = formatPrompt(tmpl, { name: tmpl.name, description: tmpl.description });
 
     const reviewResult = await this.callLLMOnce([
-      { role: 'system', content: `${prompt}\n\n你正在审查代码质量。返回JSON：
-{"approved": true/false, "feedback": "审查意见"}` },
+      { role: 'system', content: `${prompt}\n\n你正在审查代码质量。如果代码基本功能正确、结构合理，返回 approved: true。只在有严重问题时才返回 false。
+
+返回JSON：{"approved": true/false, "feedback": "审查意见"}` },
       { role: 'user', content: `原始任务：${task}\n\n执行结果：\n${executionResult.substring(0, 3000)}` },
     ]);
 

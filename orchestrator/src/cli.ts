@@ -12,6 +12,7 @@ function getArg(name: string, fallback: string): string {
 
 const port = parseInt(getArg('port', '9090'));
 const executorUrl = getArg('executor', process.env.EXECUTOR_URL || 'http://localhost:8767');
+const executorToken = getArg('executor-token', process.env.EXECUTOR_TOKEN || '');
 const workspace = getArg('workspace', process.env.WORKSPACE || '/workspace');
 
 // Pre-load LLM config from environment
@@ -27,12 +28,12 @@ async function main() {
   console.log('  MDH Orchestrator');
   console.log('========================================');
 
-  const executor = new ExecutorClient(executorUrl);
-  const healthy = await executor.health();
-  if (!healthy) {
+  const executor = new ExecutorClient({ baseUrl: executorUrl, token: executorToken });
+  const healthInfo = await executor.health();
+  if (!healthInfo) {
     console.warn(`[WARN] Executor at ${executorUrl} is not reachable`);
   } else {
-    console.log(`[OK]   Executor: ${executorUrl}`);
+    console.log(`[OK]   Executor: ${executorUrl} (storage: ${healthInfo.storage_backend}, auth: ${healthInfo.auth_enabled ? 'on' : 'off'})`);
   }
 
   if (defaultLlmConfig.apiKey) {
@@ -41,7 +42,7 @@ async function main() {
     console.warn('[WARN] No API Key configured. Set DEEPSEEK_API_KEY in .env');
   }
 
-  await startServer(port, executorUrl, workspace, defaultLlmConfig);
+  await startServer(port, executorUrl, workspace, defaultLlmConfig, executorToken);
   console.log(`[OK]   http://localhost:${port}`);
   console.log('========================================');
 }

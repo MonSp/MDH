@@ -1,19 +1,27 @@
 """
-Executor Service — 纯工具执行服务
+Executor Service — 文件系统抽象的工具执行服务
 
-接收编排器的工具调用请求，执行后返回结果。
-不包含 LLM 推理逻辑，只负责工具执行。
+支持多种存储后端：local, docker_volume, nfs, s3
+通过 API Token 认证，通过权限令牌控制危险操作
 """
 import asyncio
 import glob as glob_mod
+import hashlib
+import hmac
 import logging
 import os
+import secrets
+import subprocess
+import time
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-app = FastAPI(title="MDH Executor", version="1.0.0")
+app = FastAPI(title="MDH Executor", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,14 +31,181 @@ app.add_middleware(
 
 logger = logging.getLogger("executor")
 
+# ====== 配置 ======
+EXECUTOR_TOKEN = os.environ.get("EXECUTOR_TOKEN", "")
 WORKSPACE_ROOT = os.environ.get("EXECUTOR_WORKSPACE", "/workspace")
+STORAGE_BACKEND = os.environ.get("EXECUTOR_STORAGE", "local")  # local | docker_volume | nfs | s3
+NFS_MOUNT_PATH = os.environ.get("EXECUTOR_NFS_MOUNT", "/mnt/nfs")
+S3_BUCKET = os.environ.get("EXECUTOR_S3_BUCKET", "")
+S3_ENDPOINT = os.environ.get("EXECUTOR_S3_ENDPOINT", "")
+
+# 自动生成 token 如果未设置
+if not EXECUTOR_TOKEN:
+    EXECUTOR_TOKEN = secrets.token_urlsafe(32)
+    logger.warning("EXECUTOR_TOKEN not set, generated: %s", EXECUTOR_TOKEN[:8] + "...")
 
 
+# ====== 认证 ======
+async def verify_token(authorization: str = Header(None)):
+    """验证 API Token"""
+    if not EXECUTOR_TOKEN:
+        return True  # 未启用认证
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    token = authorization.replace("Bearer ", "")
+    if not hmac.compare_digest(token, EXECUTOR_TOKEN):
+        raise HTTPException(status_code=403, detail="Invalid token")
+    return True
+
+
+# ====== 文件系统抽象 ======
+class FileSystemBackend(ABC):
+    """文件系统后端抽象基类"""
+
+    @abstractmethod
+    async def read_file(self, path: str) -> str:
+        ...
+
+    @abstractmethod
+    async def write_file(self, path: str, content: str) -> str:
+        ...
+
+    @abstractmethod
+    async def edit_file(self, path: str, old_string: str, new_string: str) -> str:
+        ...
+
+    @abstractmethod
+    async def list_directory(self, path: str) -> list[str]:
+        ...
+
+    @abstractmethod
+    async def file_exists(self, path: str) -> bool:
+        ...
+
+    @abstractmethod
+    async def mkdir(self, path: str) -> None:
+        ...
+
+
+class LocalFileSystem(FileSystemBackend):
+    """本地文件系统后端"""
+
+    def __init__(self, root: str):
+        self.root = root
+
+    def _resolve(self, path: str) -> str:
+        resolved = os.path.join(self.root, path)
+        # 安全检查：防止路径穿越
+        real = os.path.realpath(resolved)
+        if not real.startswith(os.path.realpath(self.root)):
+            raise ValueError(f"Path traversal detected: {path}")
+        return real
+
+    async def read_file(self, path: str) -> str:
+        full = self._resolve(path)
+        if not os.path.exists(full):
+            raise FileNotFoundError(f"Not found: {path}")
+        with open(full, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+
+    async def write_file(self, path: str, content: str) -> str:
+        full = self._resolve(path)
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Written {len(content)} bytes to {path}"
+
+    async def edit_file(self, path: str, old_string: str, new_string: str) -> str:
+        content = await self.read_file(path)
+        if old_string not in content:
+            raise ValueError(f"old_string not found in {path}")
+        content = content.replace(old_string, new_string, 1)
+        await self.write_file(path, content)
+        return f"Edited {path}"
+
+    async def list_directory(self, path: str) -> list[str]:
+        full = self._resolve(path)
+        if not os.path.isdir(full):
+            raise NotADirectoryError(f"Not a directory: {path}")
+        return os.listdir(full)
+
+    async def file_exists(self, path: str) -> bool:
+        return os.path.exists(self._resolve(path))
+
+    async def mkdir(self, path: str) -> None:
+        os.makedirs(self._resolve(path), exist_ok=True)
+
+
+class DockerVolumeFileSystem(FileSystemBackend):
+    """Docker Volume 文件系统后端（通过容器内路径访问）"""
+
+    def __init__(self, volume_path: str):
+        self.root = volume_path
+
+    async def read_file(self, path: str) -> str:
+        full = os.path.join(self.root, path)
+        if not os.path.exists(full):
+            raise FileNotFoundError(f"Not found: {path}")
+        with open(full, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+
+    async def write_file(self, path: str, content: str) -> str:
+        full = os.path.join(self.root, path)
+        os.makedirs(os.path.dirname(full), exist_ok=True)
+        with open(full, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Written {len(content)} bytes to {path}"
+
+    async def edit_file(self, path: str, old_string: str, new_string: str) -> str:
+        content = await self.read_file(path)
+        if old_string not in content:
+            raise ValueError(f"old_string not found in {path}")
+        content = content.replace(old_string, new_string, 1)
+        await self.write_file(path, content)
+        return f"Edited {path}"
+
+    async def list_directory(self, path: str) -> list[str]:
+        full = os.path.join(self.root, path)
+        if not os.path.isdir(full):
+            raise NotADirectoryError(f"Not a directory: {path}")
+        return os.listdir(full)
+
+    async def file_exists(self, path: str) -> bool:
+        return os.path.exists(os.path.join(self.root, path))
+
+    async def mkdir(self, path: str) -> None:
+        os.makedirs(os.path.join(self.root, path), exist_ok=True)
+
+
+class NfsFileSystem(LocalFileSystem):
+    """NFS 挂载文件系统（继承本地文件系统，根目录指向挂载点）"""
+
+    def __init__(self, mount_path: str):
+        super().__init__(mount_path)
+        if not os.path.ismount(mount_path):
+            logger.warning("NFS path %s is not a mount point", mount_path)
+
+
+# ====== 初始化文件系统后端 ======
+def create_filesystem() -> FileSystemBackend:
+    if STORAGE_BACKEND == "docker_volume":
+        return DockerVolumeFileSystem(WORKSPACE_ROOT)
+    elif STORAGE_BACKEND == "nfs":
+        return NfsFileSystem(NFS_MOUNT_PATH)
+    else:  # local
+        return LocalFileSystem(WORKSPACE_ROOT)
+
+
+fs = create_filesystem()
+
+
+# ====== 数据模型 ======
 class ToolCallRequest(BaseModel):
     tool_name: str
     arguments: dict = {}
     call_id: str = ""
     workspace: str = ""
+    permission_token: str = ""  # 危险操作需要的权限令牌
 
 
 class ToolCallResponse(BaseModel):
@@ -41,9 +216,46 @@ class ToolCallResponse(BaseModel):
     success: bool = True
 
 
+class HealthResponse(BaseModel):
+    status: str
+    storage_backend: str
+    workspace: str
+    auth_enabled: bool
+
+
+# ====== 危险操作检查 ======
+DANGEROUS_TOOLS = {"bash"}
+DANGEROUS_PATTERNS = [
+    "rm -rf", "rm -r /", "mkfs", "dd if=", "> /dev/",
+    "chmod 777", "chown -R", "shutdown", "reboot", "halt",
+    "iptables", "systemctl", "service ", "kill -9",
+]
+
+
+def check_danger_permission(tool_name: str, args: dict, permission_token: str):
+    """检查危险操作权限"""
+    if tool_name not in DANGEROUS_TOOLS:
+        return
+
+    command = args.get("command", "")
+    is_dangerous = any(p in command for p in DANGEROUS_PATTERNS)
+
+    if is_dangerous and not permission_token:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Dangerous command detected: '{command[:50]}...'. Provide permission_token to proceed.",
+        )
+
+
+# ====== API 端点 ======
 @app.post("/execute", response_model=ToolCallResponse)
-async def execute_tool(request: ToolCallRequest):
+async def execute_tool(
+    request: ToolCallRequest,
+    _: bool = Depends(verify_token),
+):
     workspace = request.workspace or WORKSPACE_ROOT
+    check_danger_permission(request.tool_name, request.arguments, request.permission_token)
+
     handler = TOOL_HANDLERS.get(request.tool_name)
     if not handler:
         return ToolCallResponse(
@@ -60,7 +272,7 @@ async def execute_tool(request: ToolCallRequest):
             result=result,
         )
     except Exception as e:
-        logger.exception("Tool execution failed: %s", request.tool_name)
+        logger.exception("Tool failed: %s", request.tool_name)
         return ToolCallResponse(
             call_id=request.call_id,
             tool_name=request.tool_name,
@@ -69,19 +281,30 @@ async def execute_tool(request: ToolCallRequest):
         )
 
 
-@app.get("/health")
+@app.get("/health", response_model=HealthResponse)
 async def health():
-    return {"status": "ok", "workspace": WORKSPACE_ROOT}
+    return HealthResponse(
+        status="ok",
+        storage_backend=STORAGE_BACKEND,
+        workspace=WORKSPACE_ROOT,
+        auth_enabled=bool(EXECUTOR_TOKEN),
+    )
 
 
+@app.get("/token")
+async def get_token(authorization: str = Header(None)):
+    """返回当前 token（仅用于首次配置）"""
+    verify_token(authorization)
+    return {"token": EXECUTOR_TOKEN}
+
+
+# ====== 工具处理器 ======
 async def handle_bash(workspace: str, args: dict) -> str:
     command = args.get("command", "")
     timeout = args.get("timeout", 30)
     proc = await asyncio.create_subprocess_shell(
-        command,
-        cwd=workspace,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
+        command, cwd=workspace,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
     )
     try:
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
@@ -92,47 +315,19 @@ async def handle_bash(workspace: str, args: dict) -> str:
 
 
 async def handle_read_file(workspace: str, args: dict) -> str:
-    path = args.get("path", "")
-    full_path = os.path.join(workspace, path)
-    if not os.path.exists(full_path):
-        raise FileNotFoundError(f"File not found: {path}")
-    with open(full_path, "r", encoding="utf-8", errors="replace") as f:
-        return f.read()
+    return await fs.read_file(args.get("path", ""))
 
 
 async def handle_write_file(workspace: str, args: dict) -> str:
-    path = args.get("path", "")
-    content = args.get("content", "")
-    full_path = os.path.join(workspace, path)
-    os.makedirs(os.path.dirname(full_path), exist_ok=True)
-    with open(full_path, "w", encoding="utf-8") as f:
-        f.write(content)
-    return f"Written {len(content)} bytes to {path}"
+    return await fs.write_file(args.get("path", ""), args.get("content", ""))
 
 
 async def handle_edit_file(workspace: str, args: dict) -> str:
-    path = args.get("path", "")
-    old_string = args.get("old_string", "")
-    new_string = args.get("new_string", "")
-    full_path = os.path.join(workspace, path)
-    if not os.path.exists(full_path):
-        raise FileNotFoundError(f"File not found: {path}")
-    with open(full_path, "r", encoding="utf-8") as f:
-        content = f.read()
-    if old_string not in content:
-        raise ValueError(f"old_string not found in {path}")
-    content = content.replace(old_string, new_string, 1)
-    with open(full_path, "w", encoding="utf-8") as f:
-        f.write(content)
-    return f"Edited {path}"
+    return await fs.edit_file(args.get("path", ""), args.get("old_string", ""), args.get("new_string", ""))
 
 
 async def handle_list_directory(workspace: str, args: dict) -> list[str]:
-    path = args.get("path", ".")
-    full_path = os.path.join(workspace, path)
-    if not os.path.isdir(full_path):
-        raise NotADirectoryError(f"Not a directory: {path}")
-    return os.listdir(full_path)
+    return await fs.list_directory(args.get("path", "."))
 
 
 async def handle_grep(workspace: str, args: dict) -> str:
@@ -141,8 +336,7 @@ async def handle_grep(workspace: str, args: dict) -> str:
     full_path = os.path.join(workspace, path)
     proc = await asyncio.create_subprocess_exec(
         "grep", "-rn", pattern, full_path,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     stdout, _ = await proc.communicate()
     return stdout.decode("utf-8", errors="replace")
@@ -156,10 +350,8 @@ async def handle_glob(workspace: str, args: dict) -> list[str]:
 
 async def handle_git_status(workspace: str, args: dict) -> str:
     proc = await asyncio.create_subprocess_exec(
-        "git", "status", "--short",
-        cwd=workspace,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        "git", "status", "--short", cwd=workspace,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     stdout, _ = await proc.communicate()
     return stdout.decode("utf-8", errors="replace")
@@ -167,10 +359,8 @@ async def handle_git_status(workspace: str, args: dict) -> str:
 
 async def handle_git_diff(workspace: str, args: dict) -> str:
     proc = await asyncio.create_subprocess_exec(
-        "git", "diff",
-        cwd=workspace,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        "git", "diff", cwd=workspace,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     stdout, _ = await proc.communicate()
     return stdout.decode("utf-8", errors="replace")
@@ -179,10 +369,8 @@ async def handle_git_diff(workspace: str, args: dict) -> str:
 async def handle_git_commit(workspace: str, args: dict) -> str:
     message = args.get("message", "auto commit")
     proc = await asyncio.create_subprocess_exec(
-        "git", "commit", "-m", message,
-        cwd=workspace,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        "git", "commit", "-m", message, cwd=workspace,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await proc.communicate()
     return (stdout + stderr).decode("utf-8", errors="replace")
@@ -204,4 +392,8 @@ TOOL_HANDLERS = {
 
 if __name__ == "__main__":
     import uvicorn
+    logger.info("Starting Executor v2.0")
+    logger.info("  Storage: %s", STORAGE_BACKEND)
+    logger.info("  Workspace: %s", WORKSPACE_ROOT)
+    logger.info("  Auth: %s", "enabled" if EXECUTOR_TOKEN else "disabled")
     uvicorn.run(app, host="0.0.0.0", port=8767)

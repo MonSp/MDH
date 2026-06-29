@@ -16,3 +16,12 @@ logs/
 
 # Agent workspaces (created at runtime)
 data/workspaces/
+
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# Orchestrator build output
+orchestrator/dist/
+orchestrator/node_modules/
