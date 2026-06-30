@@ -28,9 +28,6 @@ orchestrator/node_modules/
 orchestrator/checkpoints/
 orchestrator/config.json
 
-# Loop Engineering (legacy, merged into orchestrator/src/loop/)
-loop-engineering/
-
 # Test/temp files
 backend/test_loop_modules.py
 orchestrator/test-deep.ts
