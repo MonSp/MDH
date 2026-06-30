@@ -37,3 +37,10 @@ orchestrator/test-suite.ts
 **/__pycache__/
 *.pyc
 .pytest_cache/
+
+# Loop Engineering
+loop-engineering/node_modules/
+loop-engineering/dist/
+loop-engineering/data/metrics.db
+loop-engineering/data/metrics.db-wal
+loop-engineering/data/metrics.db-shm
