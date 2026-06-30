@@ -418,12 +418,18 @@ export class TeamCoordinator {
     ];
 
     let result = '';
-    const maxIter = 10;
-    const MAX_CONTEXT_TOKENS = 800000; // 保守上限，留 buffer
+    const maxIter = 15; // 增加最大迭代次数
+    const MAX_CONTEXT_CHARS = 600000; // 约 150k tokens（4 chars ≈ 1 token）
 
     for (let i = 0; i < maxIter; i++) {
+      // 监控上下文大小
+      const totalChars = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+      if (totalChars > MAX_CONTEXT_CHARS * 0.8) {
+        console.log(`[context] Warning: ${totalChars} chars (${Math.round(totalChars/4)} tokens)`);
+      }
+
       // 截断过长的上下文
-      this.truncateMessages(messages, MAX_CONTEXT_TOKENS);
+      this.truncateMessages(messages, MAX_CONTEXT_CHARS);
 
       const response = await this.callLLMWithTools(messages);
 
@@ -456,7 +462,13 @@ export class TeamCoordinator {
           output: resultStr,
           timestamp: new Date().toISOString(),
         });
-        messages.push({ role: 'tool', content: resultStr, tool_call_id: tc.id });
+
+        // 限制工具结果大小，防止上下文膨胀
+        const MAX_TOOL_RESULT = 2000;
+        const truncatedResult = resultStr.length > MAX_TOOL_RESULT
+          ? resultStr.substring(0, MAX_TOOL_RESULT) + '\n... [结果过长，已截断]'
+          : resultStr;
+        messages.push({ role: 'tool', content: truncatedResult, tool_call_id: tc.id });
       }
     }
 
@@ -522,22 +534,41 @@ export class TeamCoordinator {
     let totalChars = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
     if (totalChars <= maxChars) return;
 
-    // 保留 system prompt (index 0) 和最近 4 条消息，截断中间的工具结果
-    const keepRecent = 4;
-    for (let i = 1; i < messages.length - keepRecent && totalChars > maxChars; i++) {
+    console.log(`[truncate] Context: ${totalChars} chars, target: ${maxChars}`);
+
+    // 第一轮：截断过长的工具结果（保留关键信息）
+    for (let i = 1; i < messages.length - 2 && totalChars > maxChars; i++) {
       const msg = messages[i];
-      if (msg.role === 'tool' && msg.content && msg.content.length > 300) {
-        const truncated = msg.content.substring(0, 300) + '\n... [截断]';
-        totalChars -= (msg.content.length - truncated.length);
-        messages[i] = { ...msg, content: truncated };
-      }
-      // 也截断过长的 assistant 消息
-      if (msg.role === 'assistant' && msg.content && msg.content.length > 2000) {
-        const truncated = msg.content.substring(0, 2000) + '\n... [截断]';
+      if (msg.role === 'tool' && msg.content && msg.content.length > 500) {
+        // 保留前 200 字符和后 100 字符，中间用摘要替代
+        const keepStart = 200;
+        const keepEnd = 100;
+        const truncated = msg.content.substring(0, keepStart) + 
+          '\n... [中间省略 ' + (msg.content.length - keepStart - keepEnd) + ' 字符] ...\n' + 
+          msg.content.substring(msg.content.length - keepEnd);
         totalChars -= (msg.content.length - truncated.length);
         messages[i] = { ...msg, content: truncated };
       }
     }
+
+    // 第二轮：如果仍然超限，截断 assistant 消息
+    for (let i = 1; i < messages.length - 2 && totalChars > maxChars; i++) {
+      const msg = messages[i];
+      if (msg.role === 'assistant' && msg.content && msg.content.length > 1000) {
+        const truncated = msg.content.substring(0, 1000) + '\n... [截断]';
+        totalChars -= (msg.content.length - truncated.length);
+        messages[i] = { ...msg, content: truncated };
+      }
+    }
+
+    // 第三轮：如果仍然超限，删除最早的消息（保留 system 和最近 6 条）
+    const keepRecent = 6;
+    while (messages.length > keepRecent + 1 && totalChars > maxChars) {
+      const removed = messages.splice(1, 1)[0];
+      totalChars -= (removed.content?.length || 0);
+    }
+
+    console.log(`[truncate] Result: ${totalChars} chars, ${messages.length} messages`);
   }
 
   // ====== LLM 调用工具版本 ======
@@ -573,6 +604,19 @@ export class TeamCoordinator {
     let args: Record<string, unknown>;
     try { args = JSON.parse(toolCall.function.arguments); }
     catch { return { call_id: toolCall.id, tool_name: toolCall.function.name, result: null, error: 'Invalid JSON' }; }
+
+    // 规范化路径参数：移除 workspace/ 前缀，防止双重嵌套
+    const pathKeys = ['path', 'directory'];
+    for (const key of pathKeys) {
+      if (typeof args[key] === 'string') {
+        let path = args[key] as string;
+        // 移除 workspace/ 或 /workspace/ 前缀
+        path = path.replace(/^\/?workspace\//, '');
+        // 移除开头的 ./
+        path = path.replace(/^\.\//, '');
+        args[key] = path;
+      }
+    }
 
     const response = await this.config.executor.execute({
       tool_name: toolCall.function.name,
