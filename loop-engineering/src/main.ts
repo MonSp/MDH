@@ -27,9 +27,13 @@ async function runCommand(cmd: Command, args: string[]): Promise<void> {
       showMetrics(trend);
       break;
     }
-    case "evolve":
-      console.log("[evolve] Not yet implemented — stub");
+    case "evolve": {
+      const { evolvePrompt } = await import("./evolution/evolver.js");
+      const componentArg = args.find((a) => a.startsWith("--component="));
+      const component = componentArg?.split("=")[1] || "reviewer";
+      await evolvePrompt(component);
       break;
+    }
     case "ci":
       console.log("[ci] Not yet implemented — stub");
       break;
