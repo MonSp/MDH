@@ -22,32 +22,52 @@ function parsePhases(phasesJson: string): string[] {
   }
 }
 
+function parseToolsUsed(toolsJson: string): string[] {
+  try {
+    return JSON.parse(toolsJson) as string[];
+  } catch {
+    return [];
+  }
+}
+
 export function calculateScore(
   metric: Omit<ScenarioMetric, "quality_score">
 ): number {
+  // 完成度 (30%)
   const fileRate =
     metric.files_expected > 0
       ? metric.files_created / metric.files_expected
       : 0;
-  const completion = fileRate * 20 + metric.test_pass_rate * 20;
+  const completion = fileRate * 15 + metric.test_pass_rate * 15;
 
-  const efficiency = Math.max(0, 20 - Math.floor(metric.duration_ms / 10000));
+  // 效率 (15%)
+  const efficiency = Math.max(0, 15 - Math.floor(metric.duration_ms / 10000));
 
+  // 协作质量 (15%)
   const agentRate =
     metric.agents_expected > 0
       ? metric.agents_participated / metric.agents_expected
       : 0;
   const phases = parsePhases(metric.phases);
-  const hasDiscussion = phases.includes("discussing") ? 5 : 0;
-  const hasReview = phases.includes("reviewing") ? 5 : 0;
-  const collaboration = agentRate * 10 + hasDiscussion + hasReview;
+  const hasDiscussion = phases.includes("discussing") ? 4 : 0;
+  const hasReview = phases.includes("reviewing") ? 4 : 0;
+  const collaboration = agentRate * 7 + hasDiscussion + hasReview;
 
+  // 代码质量 (20%)
   const issues = parseIssues(metric.issues);
   const hasNoCritical = issues.some((i) => i.severity === "critical") ? 0 : 10;
   const hasNoHigh = issues.some((i) => i.severity === "high") ? 0 : 10;
   const codeQuality = hasNoCritical + hasNoHigh;
 
-  const total = completion + efficiency + collaboration + codeQuality;
+  // 过程质量 (20%) - 新增
+  const tools = parseToolsUsed(metric.tools_used || "[]");
+  const hasWriteFile = tools.includes("write_file") ? 5 : 0;  // 使用 write_file 创建文件
+  const hasListDir = tools.includes("list_directory") ? 5 : 0;  // 开始前查看目录
+  const hasReadFile = tools.includes("read_file") ? 5 : 0;  // 读取文件内容
+  const hasGitStatus = tools.includes("git_status") ? 5 : 0;  // 提交前检查状态
+  const processQuality = hasWriteFile + hasListDir + hasReadFile + hasGitStatus;
+
+  const total = completion + efficiency + collaboration + codeQuality + processQuality;
   return Math.min(100, Math.max(0, Math.round(total)));
 }
 

@@ -87,6 +87,7 @@ export function collectFromCheckpoints(): ScenarioMetric[] {
         tool_calls: result.toolsUsed?.length ?? 0,
         phases: JSON.stringify(result.phases),
         issues: JSON.stringify(result.issues ?? []),
+        tools_used: JSON.stringify(result.toolsUsed ?? []),
         quality_score: 0,
         timestamp: checkpoint.timestamp,
       });

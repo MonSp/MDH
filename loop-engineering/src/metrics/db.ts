@@ -1,8 +1,10 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "fs";
-import { dirname } from "path";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 
-const DB_PATH = "loop-engineering/data/metrics.db";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DB_PATH = join(__dirname, "../../data/metrics.db");
 
 export interface ScenarioMetric {
   id?: number;
@@ -18,6 +20,7 @@ export interface ScenarioMetric {
   tool_calls: number;
   phases: string; // JSON string
   issues: string; // JSON string
+  tools_used: string; // JSON string array
   quality_score: number;
   timestamp: string;
 }
@@ -72,6 +75,7 @@ export function initDb(db: Database.Database): void {
       tool_calls INTEGER NOT NULL,
       phases TEXT NOT NULL,
       issues TEXT NOT NULL,
+      tools_used TEXT NOT NULL DEFAULT '[]',
       quality_score REAL NOT NULL,
       timestamp TEXT NOT NULL
     );

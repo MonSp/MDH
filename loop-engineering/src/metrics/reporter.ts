@@ -19,8 +19,8 @@ export function ingestCheckpoints(): void {
     INSERT INTO scenario_metrics
       (iteration_id, scenario_id, passed, duration_ms, files_created, files_expected,
        test_pass_rate, agents_participated, agents_expected, tool_calls, phases, issues,
-       quality_score, timestamp)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       tools_used, quality_score, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertSummary = db.prepare(`
@@ -52,7 +52,7 @@ export function ingestCheckpoints(): void {
           m.iteration_id, m.scenario_id, m.passed ? 1 : 0, m.duration_ms,
           m.files_created, m.files_expected, m.test_pass_rate,
           m.agents_participated, m.agents_expected, m.tool_calls,
-          m.phases, m.issues, m.quality_score, m.timestamp
+          m.phases, m.issues, m.tools_used, m.quality_score, m.timestamp
         );
       }
       insertSummary.run(

@@ -493,9 +493,41 @@ export class TeamCoordinator {
     const reviewTmpl = getPromptTemplate('review') || '{prompt}\n\n你正在审查代码质量。检查以下几点：\n1. 功能完整性\n2. 错误处理\n3. 代码结构\n4. 命名规范\n\n返回JSON：{"approved": true/false, "feedback": "审查意见"}';
     const reviewSystem = reviewTmpl.replace(/\{prompt\}/g, prompt);
 
+    // 读取实际代码文件
+    let codeContent = '';
+    try {
+      const filesResult = await this.config.executor.execute({
+        tool_name: 'bash',
+        arguments: { command: `find ${this.config.workspace} -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.tsx" 2>/dev/null | head -10` },
+        call_id: 'review-files',
+        workspace: this.config.workspace,
+      });
+      
+      if (filesResult.result && typeof filesResult.result === 'string') {
+        const files = filesResult.result.trim().split('\n').filter(f => f);
+        for (const file of files.slice(0, 5)) { // 最多读取 5 个文件
+          const readResult = await this.config.executor.execute({
+            tool_name: 'read_file',
+            arguments: { path: file.replace(this.config.workspace + '/', '') },
+            call_id: `review-read-${file}`,
+            workspace: this.config.workspace,
+          });
+          if (readResult.result && typeof readResult.result === 'string') {
+            codeContent += `\n--- ${file} ---\n${readResult.result.substring(0, 1500)}\n`;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[review] Failed to read code files:', e);
+    }
+
+    const reviewContent = codeContent
+      ? `任务：${task}\n\n代码文件：\n${codeContent.substring(0, 4000)}\n\n执行摘要：\n${executionResult.substring(0, 1000)}`
+      : `任务：${task}\n\n执行结果：\n${executionResult.substring(0, 3000)}`;
+
     const reviewResult = await this.callLLMOnce([
       { role: 'system', content: reviewSystem },
-      { role: 'user', content: `任务：${task}\n\n执行结果：\n${executionResult.substring(0, 3000)}` },
+      { role: 'user', content: reviewContent },
     ]);
 
     // 将审查结果发给前端
