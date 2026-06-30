@@ -12,7 +12,8 @@
     "test": "node --loader tsx src/team/templates.ts",
     "loop": "tsx src/loop/loop.ts",
     "loop:retry": "tsx src/loop/loop.ts --retry-failed",
-    "loop:scenario": "tsx src/loop/loop.ts --scenario="
+    "loop:scenario": "tsx src/loop/loop.ts --scenario=",
+    "loop:ci": "cd ../loop-engineering && npx tsx src/main.ts ci"
   },
   "dependencies": {
     "ws": "^8.16.0"

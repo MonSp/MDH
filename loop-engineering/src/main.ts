@@ -1,4 +1,4 @@
-const COMMANDS = ["metrics", "evolve", "ci"] as const;
+const COMMANDS = ["metrics", "evolve", "ci", "coverage"] as const;
 
 type Command = (typeof COMMANDS)[number];
 
@@ -13,9 +13,13 @@ Commands:
   metrics    Collect and analyze codebase metrics
   evolve     Run prompt evolution cycles
   ci         CI integration and regression detection
+  coverage   Show scenario coverage report
 
 Options:
-  --help     Show this help message
+  --help             Show this help message
+  --trend            (metrics) Show quality trend across iterations
+  --component=X      (evolve) Evolve a specific component
+  --threshold=N      (ci) Set quality score threshold (default: 80)
 `);
 }
 
@@ -40,6 +44,11 @@ async function runCommand(cmd: Command, args: string[]): Promise<void> {
       const threshold = thresholdArg ? parseInt(thresholdArg.split("=")[1]) : 80;
       const passed = await runCiGate(threshold);
       process.exit(passed ? 0 : 1);
+      break;
+    }
+    case "coverage": {
+      const { getCoverageReport } = await import("./scenarios/registry.js");
+      getCoverageReport();
       break;
     }
   }
