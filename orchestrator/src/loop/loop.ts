@@ -179,6 +179,81 @@ const SCENARIOS: Scenario[] = [
     qualityChecks: [],
     timeout: 120000,
   },
+
+  // ===== 新增场景 — 扩展覆盖 =====
+
+  // --- Git 操作 ---
+  {
+    id: 'git-workflow',
+    name: 'Git: 提交工作流',
+    subsystem: 'tool-executor',
+    content: '在 workspace 中创建一个 Git 提交工作流：1) 创建 project/README.md 描述项目 2) 创建 project/app.py 一个简单的 Flask hello world 3) 初始化 git 仓库并做首次提交。验证 git log 有提交记录。',
+    roles: ['executor'],
+    verifyFiles: ['README.md', 'app.py'],
+    verifyCommands: ['cd /workspace && git log --oneline 2>&1 | head -3'],
+    qualityChecks: [
+      { name: 'Git 操作', check: r => r.toolsUsed.includes('bash') || r.toolsUsed.includes('execute_command'), desc: '应使用工具执行 git 命令' },
+    ],
+    timeout: 120000,
+  },
+  // --- API 开发 ---
+  {
+    id: 'api-endpoint',
+    name: 'API: FastAPI 端点开发',
+    subsystem: 'workflow',
+    content: '在 workspace 中使用 FastAPI 创建一个 REST API：1) main.py 定义 /items 和 /items/{id} 两个端点（CRUD）2) models.py 定义 Pydantic 模型 3) test_api.py 使用 httpx 测试所有端点。要求支持分页查询。',
+    roles: ['coordinator', 'planner', 'executor', 'reviewer'],
+    verifyFiles: ['main.py', 'models.py', 'test_api.py'],
+    verifyCommands: ['find /workspace -name "test_api.py" -exec python3 -m pytest {} -v \\; 2>&1 | tail -10'],
+    qualityChecks: [
+      { name: 'API 设计', check: r => r.filesCreated.length >= 3, desc: '至少创建3个文件' },
+      { name: '审查参与', check: r => r.agents.includes('reviewer'), desc: 'reviewer 应参与 API 审查' },
+    ],
+    timeout: 150000,
+  },
+  // --- 大项目 ---
+  {
+    id: 'multi-file-project',
+    name: '大项目: 6文件工程',
+    subsystem: 'agent-core',
+    content: '在 workspace 中创建一个完整的博客系统，至少 6 个文件：1) models.py（Post, Comment dataclass）2) database.py（SQLite CRUD 操作）3) api.py（REST 端点）4) auth.py（简单 token 认证）5) config.py（配置管理）6) test_blog.py（测试核心功能）。要求模块间正确 import。',
+    roles: ['coordinator', 'planner', 'executor', 'reviewer'],
+    verifyFiles: ['models.py', 'database.py', 'api.py', 'auth.py', 'config.py', 'test_blog.py'],
+    verifyCommands: ['find /workspace -name "test_blog.py" -exec python3 -m pytest {} -v \\; 2>&1 | tail -10'],
+    qualityChecks: [
+      { name: '大文件数', check: r => r.filesCreated.length >= 5, desc: '至少创建5个文件' },
+      { name: '多角色', check: r => r.agents.length >= 3, desc: '多角色协作' },
+    ],
+    timeout: 180000,
+  },
+  // --- 数据库持久化 ---
+  {
+    id: 'database-persistence',
+    name: '数据库: SQLite 持久化',
+    subsystem: 'workflow',
+    content: '在 workspace 中创建一个 SQLite 持久化层：1) db.py 实现连接管理、建表、CRUD 操作 2) migrations.py 实现简单的 schema 迁移 3) seed.py 填充测试数据 4) test_db.py 测试增删改查和迁移。要求使用 context manager 管理连接。',
+    roles: ['coordinator', 'planner', 'executor', 'reviewer'],
+    verifyFiles: ['db.py', 'migrations.py', 'seed.py', 'test_db.py'],
+    verifyCommands: ['find /workspace -name "test_db.py" -exec python3 -m pytest {} -v \\; 2>&1 | tail -10'],
+    qualityChecks: [
+      { name: '数据库文件', check: r => r.filesCreated.length >= 3, desc: '至少创建3个文件' },
+    ],
+    timeout: 150000,
+  },
+  // --- 角色选择 ---
+  {
+    id: 'role-selection',
+    name: '角色: 自动角色选择',
+    subsystem: 'dynamic-router',
+    content: '在 workspace 中创建 role_selector.py，实现一个自动角色选择器：给定任务描述文本，自动判断需要哪些角色（planner/executor/reviewer/coordinator）。使用关键词匹配和简单规则。创建 test_role_selector.py 测试各种任务类型的自动选择结果。',
+    roles: [],
+    verifyFiles: ['role_selector.py', 'test_role_selector.py'],
+    verifyCommands: ['find /workspace -name "test_role_selector.py" -exec python3 -m pytest {} -v \\; 2>&1 | tail -10'],
+    qualityChecks: [
+      { name: '空角色触发自动选择', check: r => r.agents.length >= 1, desc: '空 roles 应触发自动角色选择' },
+    ],
+    timeout: 120000,
+  },
 ];
 
 // ====== 执行任务 ======
