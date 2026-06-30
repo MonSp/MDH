@@ -367,7 +367,7 @@ export class TeamCoordinator {
 
       const opinion = await this.callLLMOnce([
         { role: 'system', content: discussionSystem },
-        { role: 'user', content: `任务：${task}\n\n请从你的专业角度发表意见。` },
+        { role: 'user', content: `任务：${task.substring(0, 200)}\n\n请从你的专业角度发表意见。` },
       ]);
 
       onEvent?.({ type: 'agent_message', agentId: `agent-${role}`, content: opinion, timestamp: Date.now() });
@@ -389,7 +389,7 @@ export class TeamCoordinator {
 
     const coordSummary = await this.callLLMOnce([
       { role: 'system', content: coordSummarySystem },
-      { role: 'user', content: `任务：${task}\n\n讨论记录：\n${discussions.join('\n')}\n\n请给出执行方案。` },
+      { role: 'user', content: `任务：${task.substring(0, 200)}\n\n讨论记录：\n${discussions.join('\n').substring(0, 800)}\n\n请给出执行方案。` },
     ]);
 
     onEvent?.({ type: 'agent_message', agentId: `agent-${coordinatorRole}`, content: coordSummary, timestamp: Date.now() });
@@ -464,9 +464,9 @@ export class TeamCoordinator {
         });
 
         // 限制工具结果大小，防止上下文膨胀
-        const MAX_TOOL_RESULT = 2000;
+        const MAX_TOOL_RESULT = 1500;
         const truncatedResult = resultStr.length > MAX_TOOL_RESULT
-          ? resultStr.substring(0, MAX_TOOL_RESULT) + '\n... [结果过长，已截断]'
+          ? resultStr.substring(0, 1500) + '\n... [已截断]'
           : resultStr;
         messages.push({ role: 'tool', content: truncatedResult, tool_call_id: tc.id });
       }
@@ -493,27 +493,31 @@ export class TeamCoordinator {
     const reviewTmpl = getPromptTemplate('review') || '{prompt}\n\n你正在审查代码质量。检查以下几点：\n1. 功能完整性\n2. 错误处理\n3. 代码结构\n4. 命名规范\n\n返回JSON：{"approved": true/false, "feedback": "审查意见"}';
     const reviewSystem = reviewTmpl.replace(/\{prompt\}/g, prompt);
 
-    // 读取实际代码文件
+    // 并行读取实际代码文件
     let codeContent = '';
     try {
       const filesResult = await this.config.executor.execute({
         tool_name: 'bash',
-        arguments: { command: `find ${this.config.workspace} -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.tsx" 2>/dev/null | head -10` },
+        arguments: { command: `find ${this.config.workspace} -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.tsx" 2>/dev/null | head -5` },
         call_id: 'review-files',
         workspace: this.config.workspace,
       });
       
       if (filesResult.result && typeof filesResult.result === 'string') {
-        const files = filesResult.result.trim().split('\n').filter(f => f);
-        for (const file of files.slice(0, 5)) { // 最多读取 5 个文件
-          const readResult = await this.config.executor.execute({
+        const files = filesResult.result.trim().split('\n').filter(f => f).slice(0, 3); // 最多 3 个文件
+        const readPromises = files.map(file => 
+          this.config.executor.execute({
             tool_name: 'read_file',
             arguments: { path: file.replace(this.config.workspace + '/', '') },
             call_id: `review-read-${file}`,
             workspace: this.config.workspace,
-          });
-          if (readResult.result && typeof readResult.result === 'string') {
-            codeContent += `\n--- ${file} ---\n${readResult.result.substring(0, 1500)}\n`;
+          })
+        );
+        const readResults = await Promise.all(readPromises);
+        for (let i = 0; i < files.length; i++) {
+          const result = readResults[i].result;
+          if (result && typeof result === 'string') {
+            codeContent += `\n--- ${files[i]} ---\n${result.substring(0, 1000)}\n`;
           }
         }
       }
@@ -522,8 +526,8 @@ export class TeamCoordinator {
     }
 
     const reviewContent = codeContent
-      ? `任务：${task}\n\n代码文件：\n${codeContent.substring(0, 4000)}\n\n执行摘要：\n${executionResult.substring(0, 1000)}`
-      : `任务：${task}\n\n执行结果：\n${executionResult.substring(0, 3000)}`;
+      ? `任务：${task}\n\n代码文件：\n${codeContent.substring(0, 3000)}\n\n执行摘要：\n${executionResult.substring(0, 500)}`
+      : `任务：${task}\n\n执行结果：\n${executionResult.substring(0, 2000)}`;
 
     const reviewResult = await this.callLLMOnce([
       { role: 'system', content: reviewSystem },
