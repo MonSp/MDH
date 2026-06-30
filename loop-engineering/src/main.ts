@@ -19,11 +19,14 @@ Options:
 `);
 }
 
-function runCommand(cmd: Command): void {
+async function runCommand(cmd: Command, args: string[]): Promise<void> {
   switch (cmd) {
-    case "metrics":
-      console.log("[metrics] Not yet implemented — stub");
+    case "metrics": {
+      const { showMetrics } = await import("./metrics/reporter.js");
+      const trend = args.includes("--trend");
+      showMetrics(trend);
       break;
+    }
     case "evolve":
       console.log("[evolve] Not yet implemented — stub");
       break;
@@ -33,7 +36,7 @@ function runCommand(cmd: Command): void {
   }
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   if (args.includes("--help") || args.length === 0) {
@@ -49,7 +52,7 @@ function main(): void {
     process.exit(1);
   }
 
-  runCommand(command);
+  await runCommand(command, args.slice(1));
 }
 
 main();
