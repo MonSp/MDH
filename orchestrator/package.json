@@ -9,7 +9,10 @@
     "build": "tsc",
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
-    "test": "node --loader tsx src/team/templates.ts"
+    "test": "node --loader tsx src/team/templates.ts",
+    "loop": "tsx src/loop/loop.ts",
+    "loop:retry": "tsx src/loop/loop.ts --retry-failed",
+    "loop:scenario": "tsx src/loop/loop.ts --scenario="
   },
   "dependencies": {
     "ws": "^8.16.0"

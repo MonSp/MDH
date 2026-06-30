@@ -161,6 +161,12 @@ class SkillRegistry:
             )
 
         manifest = self._read_manifest(skill_path / "manifest.yaml")
+        skill_name = manifest.get("name", "")
+
+        # 检查是否已存在同名技能
+        for existing in self._registry.values():
+            if existing.name == skill_name:
+                raise ValueError(f"技能 '{skill_name}' 已注册，不能重复注册")
 
         skill_id = str(uuid.uuid4())
         dest_dir = self._base_dir / skill_id

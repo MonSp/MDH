@@ -45,6 +45,13 @@ class SecurityMiddleware:
     def __init__(self) -> None:
         self._high_risk_capabilities: set[str] = {"browser_automation", "file_operation"}
         self._dual_signature_capabilities: set[str] = {"browser_automation"}
+        # 工具级风险映射：高危操作需要明确批准
+        self._high_risk_tools: set[str] = {"bash"}
+        self._denied_patterns: list[str] = [
+            "rm -rf /", "rm -rf /*", "mkfs", "dd if=", "> /dev/",
+            "chmod 777 /", "shutdown", "reboot", "halt",
+            ":(){ :|:& };:",  # fork bomb
+        ]
         self._rate_limits: Dict[str, RateLimitConfig] = {
             "browser_automation": RateLimitConfig("browser_automation", 10, 60.0),
             "file_operation": RateLimitConfig("file_operation", 10, 60.0),
@@ -60,11 +67,29 @@ class SecurityMiddleware:
         operation: str,
         target: str,
     ) -> dict:
+        # 检查拒绝模式（危险命令直接拒绝）
+        for pattern in self._denied_patterns:
+            if pattern in operation:
+                self._log_audit(agent_id, operation, target, capability, False, f"Denied: matches pattern '{pattern}'", [])
+                return {"allowed": False, "requires_signature": False, "reason": f"Dangerous operation blocked: {pattern}"}
+
+        # 检查高危工具（需要 dual signature）
+        if capability in self._high_risk_tools:
+            pending_id = str(uuid.uuid4())
+            self._pending_signatures[pending_id] = {
+                "request": OperationRequest(agent_id, capability, operation, target),
+                "signers": [],
+            }
+            self._log_audit(agent_id, operation, target, capability, False, "High-risk tool requires approval", [])
+            return {
+                "allowed": False,
+                "requires_signature": True,
+                "pending_id": pending_id,
+                "reason": f"High-risk tool '{capability}' requires approval",
+            }
+
         if not self._check_rate_limit(agent_id, capability):
-            self._log_audit(
-                agent_id, operation, target, capability,
-                False, "Rate limit exceeded", [],
-            )
+            self._log_audit(agent_id, operation, target, capability, False, "Rate limit exceeded", [])
             return {"allowed": False, "requires_signature": False, "reason": "Rate limit exceeded"}
 
         if capability in self._dual_signature_capabilities:
@@ -73,10 +98,7 @@ class SecurityMiddleware:
                 "request": OperationRequest(agent_id, capability, operation, target),
                 "signers": [],
             }
-            self._log_audit(
-                agent_id, operation, target, capability,
-                False, "Requires dual signature", [],
-            )
+            self._log_audit(agent_id, operation, target, capability, False, "Requires dual signature", [])
             return {
                 "allowed": False,
                 "requires_signature": True,
@@ -84,10 +106,7 @@ class SecurityMiddleware:
                 "reason": "Requires dual signature",
             }
 
-        self._log_audit(
-            agent_id, operation, target, capability,
-            True, "Operation approved", [],
-        )
+        self._log_audit(agent_id, operation, target, capability, True, "Operation approved", [])
         return {"allowed": True, "requires_signature": False, "reason": "Operation approved"}
 
     def sign_operation(self, pending_id: str, signer_id: str) -> dict:

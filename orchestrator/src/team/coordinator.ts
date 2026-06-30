@@ -1,7 +1,7 @@
 import { LLMConfig, Message, ToolDefinition, ToolCall } from '../llm/types.js';
 import { chatStream } from '../llm/openai.js';
 import { ExecutorClient } from '../executor/client.js';
-import { getTemplate, formatPrompt } from './templates.js';
+import { getTemplate, formatPrompt, getPromptTemplate } from './templates.js';
 import { Team, TeamMember, ToolResult } from './types.js';
 
 export interface CoordinatorConfig {
@@ -31,15 +31,15 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     type: 'function',
     function: {
-      name: 'bash',
-      description: '执行 Shell 命令',
+      name: 'write_file',
+      description: '创建或覆盖文件。用这个工具创建代码文件，不要用bash的echo/cat/heredoc。',
       parameters: {
         type: 'object',
         properties: {
-          command: { type: 'string', description: '要执行的命令' },
-          timeout: { type: 'number', description: '超时秒数', default: 30 },
+          path: { type: 'string', description: '文件路径（相对于workspace）' },
+          content: { type: 'string', description: '完整的文件内容' },
         },
-        required: ['command'],
+        required: ['path', 'content'],
       },
     },
   },
@@ -47,7 +47,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'read_file',
-      description: '读取文件内容',
+      description: '读取文件内容。修改文件前必须先读取。',
       parameters: {
         type: 'object',
         properties: { path: { type: 'string', description: '文件路径' } },
@@ -58,23 +58,8 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     type: 'function',
     function: {
-      name: 'write_file',
-      description: '写入文件',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', description: '文件路径' },
-          content: { type: 'string', description: '文件内容' },
-        },
-        required: ['path', 'content'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
       name: 'edit_file',
-      description: '编辑文件（替换指定内容）',
+      description: '编辑文件的特定部分。用 old_string 定位，new_string 替换。',
       parameters: {
         type: 'object',
         properties: {
@@ -90,10 +75,25 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'list_directory',
-      description: '列出目录内容',
+      description: '列出目录内容。开始任务前先用这个了解环境。',
       parameters: {
         type: 'object',
-        properties: { path: { type: 'string', default: '.' } },
+        properties: { path: { type: 'string', description: '目录路径', default: '.' } },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'bash',
+      description: '执行Shell命令。只用于运行测试、安装依赖、git操作等，不要用来创建文件。',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: '要执行的命令' },
+          timeout: { type: 'number', description: '超时秒数', default: 30 },
+        },
+        required: ['command'],
       },
     },
   },
@@ -116,7 +116,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'git_status',
-      description: '查看 git 状态',
+      description: '查看 git 状态。提交前必须先检查。',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -124,7 +124,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     type: 'function',
     function: {
       name: 'git_diff',
-      description: '查看 git diff',
+      description: '查看代码变更',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -218,7 +218,9 @@ export class TeamCoordinator {
     const DEFAULT_ROLES = ['coordinator', 'planner', 'executor', 'reviewer'];
     const effectiveRoles = selectedRoles.length > 0 ? selectedRoles : DEFAULT_ROLES;
 
-    const rolesToUse = complexity.level === 'simple'
+    // 如果用户明确选了多角色，强制走 complex 路径（不看 LLM 判断）
+    const forceComplex = effectiveRoles.length > 1;
+    const rolesToUse = (complexity.level === 'simple' && !forceComplex)
       ? ['executor']
       : effectiveRoles;
 
@@ -238,7 +240,7 @@ export class TeamCoordinator {
     onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `团队已组建：${this.team.members.map(m => m.name).join('、')}` });
 
     // ====== 阶段 2: 项目经理协调讨论 ======
-    if (complexity.level !== 'simple' && rolesToUse.length > 1) {
+    if ((complexity.level !== 'simple' || forceComplex) && rolesToUse.length > 1) {
       onEvent?.({ type: 'phase', phase: 'discussing' });
 
       const coordinatorRole = rolesToUse.find(r => r === 'coordinator') || rolesToUse[0];
@@ -297,9 +299,10 @@ export class TeamCoordinator {
     // ====== 阶段 5: 汇报结果 ======
     onEvent?.({ type: 'phase', phase: 'summarizing' });
 
+    const summarySystem = getPromptTemplate('summary') || '你是一位技术项目经理，请用简洁的中文总结项目执行结果。使用 Markdown 表格格式。';
     const summaryPrompt = `请根据以下执行结果，生成一份简洁的项目总结报告。\n\n任务：${userMessage}\n\n执行结果：\n${finalResult.substring(0, 2000)}`;
     const summary = await this.callLLMOnce([
-      { role: 'system', content: '你是一位技术项目经理，请用简洁的中文总结项目执行结果。使用 Markdown 表格格式。' },
+      { role: 'system', content: summarySystem },
       { role: 'user', content: summaryPrompt },
     ]);
 
@@ -314,23 +317,19 @@ export class TeamCoordinator {
   private async analyzeComplexity(task: string): Promise<{ level: string; reason: string }> {
     let response = '';
     try {
+      const ceoAnalysisPrompt = getPromptTemplate('ceo_analysis') || '你是技术CEO。分析任务复杂度，返回JSON格式：{"level": "simple" 或 "complex", "reason": "原因"}';
       response = await this.callLLMOnce([
-        { role: 'system', content: `你是技术CEO。分析任务复杂度，返回JSON格式：{"level": "simple" 或 "complex", "reason": "原因"}
-
-判断标准：
-- simple: 真正的单步操作，如"查看某个文件"、"运行一条命令"
-- complex: 需要创建/修改多个文件、需要设计、需要测试、涉及前后端、需要团队协作
-
-注意：只要涉及"创建项目"、"开发应用"、"编写测试"、"多个文件"等关键词，一律判为 complex。` },
+        { role: 'system', content: ceoAnalysisPrompt },
         { role: 'user', content: task },
       ]);
       console.log('[CEO] complexity:', response.substring(0, 200));
       const match = response.match(/\{[\s\S]*\}/);
       if (match) {
         const parsed = JSON.parse(match[0]);
-        // 兜底：如果用户选择了多角色但被判为 simple，强制改为 complex
-        if (parsed.level === 'simple' && task.length > 50) {
-          console.log('[CEO] overriding simple -> complex (task too long for simple)');
+        // 兜底：如果用户选择了多角色但被判为 simple，检查是否真的需要团队
+        // 只有当任务涉及多个独立模块时才强制升级
+        if (parsed.level === 'simple' && task.length > 150) {
+          console.log('[CEO] overriding simple -> complex (long task)');
           return { level: 'complex', reason: '任务描述较长，按复杂任务处理' };
         }
         return parsed;
@@ -350,38 +349,47 @@ export class TeamCoordinator {
   ): Promise<string> {
     const discussions: string[] = [];
 
-    // 每个角色发表意见（排除 coordinator，它是主持人）
-    const discussRoles = roles.filter(r => r !== coordinatorRole).slice(0, 3);
+    // 每个角色发表意见（排除 coordinator，它是主持人），最多 2 个，并行执行
+    const discussRoles = roles.filter(r => r !== coordinatorRole).slice(0, 2);
 
-    for (const role of discussRoles) {
+    const discussionTmpl = getPromptTemplate('discussion') || '你是{name}。{member_description}\n\n你正在参加团队会议讨论一个技术任务。从你的专业角度给出具体建议，包括：1)你认为应该怎么实现 2)需要注意什么风险 3)你建议用什么技术方案。用2-3句话回答。';
+
+    const opinions = await Promise.all(discussRoles.map(async (role) => {
       const tmpl = getTemplate(role);
-      if (!tmpl) continue;
+      if (!tmpl) return null;
 
       onEvent?.({ type: 'agent_status_update', agentId: `agent-${role}`, status: 'speaking' });
 
-      const prompt = formatPrompt(tmpl, {
-        name: tmpl.name,
-        description: tmpl.description,
-      });
+      const discussionSystem = formatPrompt(
+        { ...tmpl, custom_prompt: discussionTmpl },
+        { name: tmpl.name, description: tmpl.description },
+      );
 
       const opinion = await this.callLLMOnce([
-        { role: 'system', content: `${prompt}\n\n你正在参加团队会议讨论以下任务。请用2-3句话发表你的专业意见，包含具体的建议。` },
-        { role: 'user', content: `任务：${task}\n\n请发表你的看法。` },
+        { role: 'system', content: discussionSystem },
+        { role: 'user', content: `任务：${task}\n\n请从你的专业角度发表意见。` },
       ]);
 
       onEvent?.({ type: 'agent_message', agentId: `agent-${role}`, content: opinion, timestamp: Date.now() });
       onEvent?.({ type: 'agent_status_update', agentId: `agent-${role}`, status: 'meeting' });
 
-      discussions.push(`${tmpl.name}：${opinion}`);
+      return { name: tmpl.name, opinion };
+    }));
+
+    for (const op of opinions) {
+      if (op) discussions.push(`${op.name}：${op.opinion}`);
     }
 
     // coordinator 总结讨论
     const coordTmpl = getTemplate(coordinatorRole);
-    const summaryPrompt = `团队讨论记录：\n\n${discussions.join('\n\n')}\n\n请作为项目经理，总结讨论要点，明确分工和执行方案。`;
+    const coordSummaryTmpl = getPromptTemplate('coordinator_summary') || '你是{name}。根据团队讨论，给出明确的执行方案：1)具体分工 2)技术方案选择 3)验收标准。简洁明了。';
+    const coordSummarySystem = coordTmpl
+      ? formatPrompt({ ...coordTmpl, custom_prompt: coordSummaryTmpl }, { name: coordTmpl.name, description: coordTmpl.description })
+      : '项目经理。根据团队讨论，给出明确的执行方案。';
 
     const coordSummary = await this.callLLMOnce([
-      { role: 'system', content: `${coordTmpl ? formatPrompt(coordTmpl, { name: coordTmpl.name, description: coordTmpl.description }) : '你是项目经理'}\n\n你正在主持团队会议，请总结讨论结果并明确分工。` },
-      { role: 'user', content: summaryPrompt },
+      { role: 'system', content: coordSummarySystem },
+      { role: 'user', content: `任务：${task}\n\n讨论记录：\n${discussions.join('\n')}\n\n请给出执行方案。` },
     ]);
 
     onEvent?.({ type: 'agent_message', agentId: `agent-${coordinatorRole}`, content: coordSummary, timestamp: Date.now() });
@@ -402,15 +410,23 @@ export class TeamCoordinator {
     onEvent?.({ type: 'agent_status_update', agentId: `agent-${role}`, status: 'working' });
 
     const systemPrompt = formatPrompt(tmpl, { name: tmpl.name, description: tmpl.description });
+    const toolGuide = `工具：write_file(path,content) | edit_file(path,old,new) | read_file(path) | list_directory(path) | bash(command) | grep_content(pattern) | git_status() | git_diff() | git_commit(msg)
+
+流程：1.list_directory 2.write_file创建文件 3.bash运行测试 4.git_commit提交。不要用bash创建文件。`;
+
     const messages: Message[] = [
-      { role: 'system', content: `${systemPrompt}\n\n${instruction}` },
+      { role: 'system', content: `${systemPrompt}\n\n${toolGuide}\n\n${instruction}` },
       { role: 'user', content: task },
     ];
 
     let result = '';
     const maxIter = 10;
+    const MAX_CONTEXT_TOKENS = 800000; // 保守上限，留 buffer
 
     for (let i = 0; i < maxIter; i++) {
+      // 截断过长的上下文
+      this.truncateMessages(messages, MAX_CONTEXT_TOKENS);
+
       const response = await this.callLLMWithTools(messages);
 
       if (response.content) {
@@ -464,20 +480,44 @@ export class TeamCoordinator {
 
     const prompt = formatPrompt(tmpl, { name: tmpl.name, description: tmpl.description });
 
-    const reviewResult = await this.callLLMOnce([
-      { role: 'system', content: `${prompt}\n\n你正在审查代码质量。如果代码基本功能正确、结构合理，返回 approved: true。只在有严重问题时才返回 false。
+    const reviewTmpl = getPromptTemplate('review') || '{prompt}\n\n你正在审查代码质量。检查以下几点：\n1. 功能完整性\n2. 错误处理\n3. 代码结构\n4. 命名规范\n\n返回JSON：{"approved": true/false, "feedback": "审查意见"}';
+    const reviewSystem = reviewTmpl.replace(/\{prompt\}/g, prompt);
 
-返回JSON：{"approved": true/false, "feedback": "审查意见"}` },
-      { role: 'user', content: `原始任务：${task}\n\n执行结果：\n${executionResult.substring(0, 3000)}` },
+    const reviewResult = await this.callLLMOnce([
+      { role: 'system', content: reviewSystem },
+      { role: 'user', content: `任务：${task}\n\n执行结果：\n${executionResult.substring(0, 1200)}` },
     ]);
 
-    onEvent?.({ type: 'agent_status_update', agentId: `agent-${reviewerRole}`, status: 'meeting' });
-
+    // 将审查结果发给前端
     try {
       const match = reviewResult.match(/\{[\s\S]*\}/);
-      if (match) return JSON.parse(match[0]);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        onEvent?.({ type: 'agent_message', agentId: `agent-${reviewerRole}`, content: parsed.feedback || '审查完成', timestamp: Date.now() });
+        onEvent?.({ type: 'agent_status_update', agentId: `agent-${reviewerRole}`, status: 'meeting' });
+        return parsed;
+      }
     } catch {}
+
+    onEvent?.({ type: 'agent_message', agentId: `agent-${reviewerRole}`, content: reviewResult.substring(0, 300), timestamp: Date.now() });
+    onEvent?.({ type: 'agent_status_update', agentId: `agent-${reviewerRole}`, status: 'meeting' });
     return { approved: true, feedback: reviewResult };
+  }
+
+  // ====== 上下文截断 ======
+  private truncateMessages(messages: Message[], maxChars: number): void {
+    let totalChars = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
+    if (totalChars <= maxChars) return;
+
+    // 保留 system prompt (index 0) 和最近的消息，截断中间的工具结果
+    for (let i = 1; i < messages.length - 2 && totalChars > maxChars; i++) {
+      const msg = messages[i];
+      if (msg.role === 'tool' && msg.content && msg.content.length > 500) {
+        const truncated = msg.content.substring(0, 500) + '\n... [截断]';
+        totalChars -= (msg.content.length - truncated.length);
+        messages[i] = { ...msg, content: truncated };
+      }
+    }
   }
 
   // ====== LLM 调用工具版本 ======

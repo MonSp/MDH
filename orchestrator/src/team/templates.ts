@@ -73,6 +73,11 @@ export function getAvailableRoles(): string[] {
   return Array.from(loadRoleTemplates().keys());
 }
 
+export function getPromptTemplate(key: string): string | undefined {
+  const config = loadConfig();
+  return config.prompt_templates[key];
+}
+
 export function formatPrompt(template: RoleTemplate, vars: {
   name: string;
   description: string;

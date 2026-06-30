@@ -285,7 +285,28 @@ class ToolExecutor:
             )
 
         try:
-            return executor(tool_call)
+            # Execute with timeout protection
+            timeout = getattr(definition, 'timeout', 30) or 30
+            import signal
+
+            def timeout_handler(signum, frame):
+                raise TimeoutError(f"Tool {tool_call.tool_name} timed out after {timeout}s")
+
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout)
+            try:
+                result = executor(tool_call)
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+            return result
+        except TimeoutError as e:
+            logger.warning("Tool %s timed out after %ds", tool_call.tool_name, timeout)
+            return ToolResult(
+                success=False,
+                error=str(e),
+                call_id=tool_call.call_id,
+            )
         except Exception as e:
             logger.exception("Error executing tool %s", tool_call.tool_name)
             return ToolResult(

@@ -188,10 +188,13 @@ class MeetingSession:
 
     def update_agent_status(self, agent_id: str, status: MeetingAgentStatus, current_task: str = None) -> None:
         agent = self.get_agent(agent_id)
-        if agent:
-            agent.status = status
+        if not agent:
+            raise ValueError(f"Agent not found: {agent_id}")
+        agent.status = status
 
     def add_task(self, agent_id: str, description: str) -> MeetingTaskInfo:
+        if not self.get_agent(agent_id):
+            raise ValueError(f"Agent not found: {agent_id}")
         task = MeetingTaskInfo(
             id=str(uuid.uuid4())[:8],
             agent_id=agent_id,
@@ -206,7 +209,8 @@ class MeetingSession:
         for task in self.tasks:
             if task.id == task_id:
                 task.status = status
-                break
+                return
+        raise ValueError(f"Task not found: {task_id}")
 
     def delete_task(self, task_id: str) -> bool:
         """删除任务。"""
@@ -214,7 +218,7 @@ class MeetingSession:
             if task.id == task_id:
                 self.tasks.pop(i)
                 return True
-        return False
+        raise ValueError(f"Task not found: {task_id}")
 
     def add_message(self, role: str, content: str, agent_id: str = None) -> dict:
         message = {

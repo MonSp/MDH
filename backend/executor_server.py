@@ -299,6 +299,16 @@ async def get_token(authorization: str = Header(None)):
 
 
 # ====== 工具处理器 ======
+def _resolve_in_workspace(workspace: str, path: str) -> str:
+    """Resolve a path relative to the given workspace, with traversal protection."""
+    full = os.path.join(workspace, path)
+    real = os.path.realpath(full)
+    ws_real = os.path.realpath(workspace)
+    if not real.startswith(ws_real):
+        raise ValueError(f"Path traversal detected: {path}")
+    return real
+
+
 async def handle_bash(workspace: str, args: dict) -> str:
     command = args.get("command", "")
     timeout = args.get("timeout", 30)
@@ -315,25 +325,49 @@ async def handle_bash(workspace: str, args: dict) -> str:
 
 
 async def handle_read_file(workspace: str, args: dict) -> str:
-    return await fs.read_file(args.get("path", ""))
+    path = args.get("path", "")
+    full = _resolve_in_workspace(workspace, path)
+    with open(full, "r", encoding="utf-8", errors="replace") as f:
+        return f.read()
 
 
 async def handle_write_file(workspace: str, args: dict) -> str:
-    return await fs.write_file(args.get("path", ""), args.get("content", ""))
+    path = args.get("path", "")
+    content = args.get("content", "")
+    full = _resolve_in_workspace(workspace, path)
+    os.makedirs(os.path.dirname(full), exist_ok=True)
+    with open(full, "w", encoding="utf-8") as f:
+        f.write(content)
+    return f"Written {len(content)} bytes to {path}"
 
 
 async def handle_edit_file(workspace: str, args: dict) -> str:
-    return await fs.edit_file(args.get("path", ""), args.get("old_string", ""), args.get("new_string", ""))
+    path = args.get("path", "")
+    old_string = args.get("old_string", "")
+    new_string = args.get("new_string", "")
+    full = _resolve_in_workspace(workspace, path)
+    with open(full, "r", encoding="utf-8", errors="replace") as f:
+        content = f.read()
+    if old_string not in content:
+        raise ValueError(f"old_string not found in {path}")
+    content = content.replace(old_string, new_string, 1)
+    with open(full, "w", encoding="utf-8") as f:
+        f.write(content)
+    return f"Edited {path}"
 
 
 async def handle_list_directory(workspace: str, args: dict) -> list[str]:
-    return await fs.list_directory(args.get("path", "."))
+    path = args.get("path", ".")
+    full = _resolve_in_workspace(workspace, path)
+    if not os.path.isdir(full):
+        raise NotADirectoryError(f"Not a directory: {path}")
+    return os.listdir(full)
 
 
 async def handle_grep(workspace: str, args: dict) -> str:
     pattern = args.get("pattern", "")
     path = args.get("path", ".")
-    full_path = os.path.join(workspace, path)
+    full_path = _resolve_in_workspace(workspace, path)
     proc = await asyncio.create_subprocess_exec(
         "grep", "-rn", pattern, full_path,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
