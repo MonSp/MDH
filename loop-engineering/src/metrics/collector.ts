@@ -17,6 +17,19 @@ const SCENARIO_META: Record<string, { filesExpected: number; agentsExpected: num
   "routing-task": { filesExpected: 2, agentsExpected: 3 },
   "security-validation": { filesExpected: 2, agentsExpected: 4 },
   "fallback-recovery": { filesExpected: 2, agentsExpected: 4 },
+  "git-workflow": { filesExpected: 2, agentsExpected: 1 },
+  "api-endpoint": { filesExpected: 3, agentsExpected: 4 },
+  "multi-file-project": { filesExpected: 6, agentsExpected: 4 },
+  "database-persistence": { filesExpected: 3, agentsExpected: 4 },
+  "role-selection": { filesExpected: 2, agentsExpected: 2 },
+  "error-handling-complex": { filesExpected: 2, agentsExpected: 4 },
+  "multi-module-integration": { filesExpected: 4, agentsExpected: 4 },
+  "performance-optimization": { filesExpected: 3, agentsExpected: 4 },
+  "security-audit": { filesExpected: 3, agentsExpected: 4 },
+  "frontend-react": { filesExpected: 4, agentsExpected: 4 },
+  "database-sqlite": { filesExpected: 4, agentsExpected: 4 },
+  "api-rest": { filesExpected: 3, agentsExpected: 4 },
+  "refactor-complex": { filesExpected: 3, agentsExpected: 4 },
 };
 
 interface CheckpointResult {

@@ -254,6 +254,125 @@ const SCENARIOS: Scenario[] = [
     ],
     timeout: 120000,
   },
+
+  // ===== 更多复杂场景 =====
+
+  // --- 错误处理复杂场景 ---
+  {
+    id: 'error-handling-complex',
+    name: '错误处理: 复杂异常场景',
+    subsystem: 'review-pipeline',
+    content: '在 workspace 中创建 robust_parser.py，实现一个健壮的配置文件解析器：1) 支持 JSON/YAML 两种格式 2) 文件不存在时返回默认配置 3) 格式错误时返回详细错误信息 4) 支持环境变量覆盖配置项。创建 test_robust_parser.py 测试所有异常场景。',
+    roles: ['coordinator', 'planner', 'executor', 'reviewer'],
+    verifyFiles: ['robust_parser.py', 'test_robust_parser.py'],
+    verifyCommands: ['find /workspace -name "test_robust_parser.py" -exec python3 -m pytest {} -v \\; 2>&1 | tail -15'],
+    qualityChecks: [
+      { name: '错误处理', check: r => r.agents.includes('reviewer'), desc: 'reviewer 应参与错误处理审查' },
+    ],
+    timeout: 180000,
+  },
+  // --- 多模块协作 ---
+  {
+    id: 'multi-module-integration',
+    name: '集成: 多模块协作',
+    subsystem: 'workflow',
+    content: '在 workspace 中创建一个任务管理系统：task_manager.py（核心逻辑）、storage.py（JSON持久化）、cli.py（命令行接口）、test_task_manager.py（集成测试）。要求：支持 add/list/delete/complete 四个命令，数据持久化到 tasks.json，测试覆盖所有命令和边界情况。',
+    roles: ['coordinator', 'planner', 'executor', 'reviewer'],
+    verifyFiles: ['task_manager.py', 'storage.py', 'cli.py', 'test_task_manager.py'],
+    verifyCommands: ['find /workspace -name "test_task_manager.py" -exec python3 -m pytest {} -v \\; 2>&1 | tail -15'],
+    qualityChecks: [
+      { name: '多文件', check: r => r.filesCreated.length >= 4, desc: '至少4个文件' },
+      { name: '协作', check: r => r.agents.length >= 3, desc: '多角色协作' },
+    ],
+    timeout: 180000,
+  },
+  // --- 性能优化 ---
+  {
+    id: 'performance-optimization',
+    name: '性能: 优化算法',
+    subsystem: 'skill',
+    content: '在 workspace 中创建 fibonacci.py，实现三种斐波那契计算方式：1) 递归（最慢）2) 带缓存的递归 3) 迭代（最快）。创建 benchmark.py 比较三种方式的性能差异（计算 fib(30)），创建 test_fibonacci.py 验证三种方式结果一致。',
+    roles: ['coordinator', 'planner', 'executor', 'reviewer'],
+    verifyFiles: ['fibonacci.py', 'benchmark.py', 'test_fibonacci.py'],
+    verifyCommands: ['find /workspace -name "test_fibonacci.py" -exec python3 -m pytest {} -v \\; 2>&1 | tail -10'],
+    qualityChecks: [
+      { name: '性能对比', check: r => r.filesCreated.length >= 3, desc: '至少3个文件' },
+    ],
+    timeout: 150000,
+  },
+  // --- 安全审计 ---
+  {
+    id: 'security-audit',
+    name: '安全: 代码审计',
+    subsystem: 'security',
+    content: '在 workspace 中创建 vulnerable_app.py，故意包含以下安全漏洞：1) SQL注入 2) 路径穿越 3) 硬编码密码 4) 命令注入。然后创建 fix_vulnerable_app.py 修复所有漏洞，创建 test_security.py 验证修复后不再存在漏洞。',
+    roles: ['coordinator', 'planner', 'executor', 'reviewer'],
+    verifyFiles: ['vulnerable_app.py', 'fix_vulnerable_app.py', 'test_security.py'],
+    verifyCommands: ['find /workspace -name "test_security.py" -exec python3 -m pytest {} -v \\; 2>&1 | tail -10'],
+    qualityChecks: [
+      { name: '安全审查', check: r => r.agents.includes('reviewer'), desc: 'reviewer 应参与安全审查' },
+    ],
+    timeout: 180000,
+  },
+
+  // ===== 更多复杂场景 =====
+
+  // --- 前端开发 ---
+  {
+    id: 'frontend-react',
+    name: '前端: React组件开发',
+    subsystem: 'workflow',
+    content: '在 workspace 中创建一个 React 待办事项应用：1) TodoApp.tsx 主组件 2) TodoItem.tsx 单个待办项 3) AddTodo.tsx 添加待办表单 4) TodoApp.test.tsx 测试所有功能。要求：支持添加、删除、标记完成，使用 TypeScript。',
+    roles: ['coordinator', 'planner', 'executor', 'reviewer'],
+    verifyFiles: ['TodoApp.tsx', 'TodoItem.tsx', 'AddTodo.tsx', 'TodoApp.test.tsx'],
+    verifyCommands: ['find /workspace -name "TodoApp.test.tsx" -exec cat {} \\; 2>&1 | head -20'],
+    qualityChecks: [
+      { name: 'TypeScript', check: r => r.filesCreated.length >= 4, desc: '至少4个文件' },
+    ],
+    timeout: 180000,
+  },
+  // --- 数据库操作 ---
+  {
+    id: 'database-sqlite',
+    name: '数据库: SQLite操作',
+    subsystem: 'workflow',
+    content: '在 workspace 中创建一个 SQLite 数据库应用：1) db.py 封装 SQLite 连接和基本操作 2) models.py 定义 User 和 Post 两个表 3) crud.py 实现增删改查操作 4) test_db.py 测试所有数据库操作。要求使用 Python 内置 sqlite3 模块。',
+    roles: ['coordinator', 'planner', 'executor', 'reviewer'],
+    verifyFiles: ['db.py', 'models.py', 'crud.py', 'test_db.py'],
+    verifyCommands: ['find /workspace -name "test_db.py" -exec python3 -m pytest {} -v \\; 2>&1 | tail -10'],
+    qualityChecks: [
+      { name: '数据库操作', check: r => r.filesCreated.length >= 4, desc: '至少4个文件' },
+    ],
+    timeout: 180000,
+  },
+  // --- API开发 ---
+  {
+    id: 'api-rest',
+    name: 'API: RESTful接口',
+    subsystem: 'workflow',
+    content: '在 workspace 中创建一个 RESTful API：1) app.py 使用 Flask 创建 /users 和 /posts 两个资源的 CRUD 接口 2) models.py 定义数据模型 3) test_api.py 使用 pytest 测试所有接口。要求支持 JSON 格式，包含错误处理。',
+    roles: ['coordinator', 'planner', 'executor', 'reviewer'],
+    verifyFiles: ['app.py', 'models.py', 'test_api.py'],
+    verifyCommands: ['find /workspace -name "test_api.py" -exec python3 -m pytest {} -v \\; 2>&1 | tail -10'],
+    qualityChecks: [
+      { name: 'API设计', check: r => r.agents.includes('reviewer'), desc: 'reviewer 应参与API审查' },
+    ],
+    timeout: 180000,
+  },
+  // --- 复杂重构 ---
+  {
+    id: 'refactor-complex',
+    name: '重构: 代码重构',
+    subsystem: 'review-pipeline',
+    content: '在 workspace 中创建 legacy_code.py，包含一个 200 行的单体函数 process_data()，然后创建 refactored_code.py 将其重构为多个小函数，创建 test_refactored.py 验证重构后功能不变。要求：保持接口不变，提升可读性和可测试性。',
+    roles: ['coordinator', 'planner', 'executor', 'reviewer'],
+    verifyFiles: ['legacy_code.py', 'refactored_code.py', 'test_refactored.py'],
+    verifyCommands: ['find /workspace -name "test_refactored.py" -exec python3 -m pytest {} -v \\; 2>&1 | tail -10'],
+    qualityChecks: [
+      { name: '重构质量', check: r => r.agents.includes('reviewer'), desc: 'reviewer 应审查重构质量' },
+    ],
+    timeout: 180000,
+  },
 ];
 
 // ====== 执行任务 ======

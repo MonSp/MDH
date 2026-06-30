@@ -410,9 +410,7 @@ export class TeamCoordinator {
     onEvent?.({ type: 'agent_status_update', agentId: `agent-${role}`, status: 'working' });
 
     const systemPrompt = formatPrompt(tmpl, { name: tmpl.name, description: tmpl.description });
-    const toolGuide = `工具：write_file(path,content) | edit_file(path,old,new) | read_file(path) | list_directory(path) | bash(command) | grep_content(pattern) | git_status() | git_diff() | git_commit(msg)
-
-流程：1.list_directory 2.write_file创建文件 3.bash运行测试 4.git_commit提交。不要用bash创建文件。`;
+    const toolGuide = getPromptTemplate('tool_guide') || '工具：write_file(创建文件) | edit_file(修改文件) | read_file(读取) | list_directory(列目录) | bash(运行命令) | git_*。流程：1.list_directory 2.write_file 3.bash测试 4.git_commit。不要用bash创建文件。';
 
     const messages: Message[] = [
       { role: 'system', content: `${systemPrompt}\n\n${toolGuide}\n\n${instruction}` },
@@ -485,7 +483,7 @@ export class TeamCoordinator {
 
     const reviewResult = await this.callLLMOnce([
       { role: 'system', content: reviewSystem },
-      { role: 'user', content: `任务：${task}\n\n执行结果：\n${executionResult.substring(0, 1200)}` },
+      { role: 'user', content: `任务：${task}\n\n执行结果：\n${executionResult.substring(0, 3000)}` },
     ]);
 
     // 将审查结果发给前端
@@ -493,13 +491,28 @@ export class TeamCoordinator {
       const match = reviewResult.match(/\{[\s\S]*\}/);
       if (match) {
         const parsed = JSON.parse(match[0]);
-        onEvent?.({ type: 'agent_message', agentId: `agent-${reviewerRole}`, content: parsed.feedback || '审查完成', timestamp: Date.now() });
+        const feedback = parsed.feedback || '审查完成';
+        onEvent?.({ type: 'agent_message', agentId: `agent-${reviewerRole}`, content: feedback, timestamp: Date.now() });
         onEvent?.({ type: 'agent_status_update', agentId: `agent-${reviewerRole}`, status: 'meeting' });
-        return parsed;
+        
+        // 如果有详细评分，输出评分信息
+        if (parsed.details) {
+          const detailsStr = Object.entries(parsed.details)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(', ');
+          onEvent?.({ 
+            type: 'agent_message', 
+            agentId: `agent-${reviewerRole}`, 
+            content: `评分详情：${detailsStr}，总分：${parsed.score || 'N/A'}`, 
+            timestamp: Date.now() 
+          });
+        }
+        
+        return { approved: parsed.approved !== false, feedback };
       }
     } catch {}
 
-    onEvent?.({ type: 'agent_message', agentId: `agent-${reviewerRole}`, content: reviewResult.substring(0, 300), timestamp: Date.now() });
+    onEvent?.({ type: 'agent_message', agentId: `agent-${reviewerRole}`, content: reviewResult.substring(0, 500), timestamp: Date.now() });
     onEvent?.({ type: 'agent_status_update', agentId: `agent-${reviewerRole}`, status: 'meeting' });
     return { approved: true, feedback: reviewResult };
   }
@@ -509,11 +522,18 @@ export class TeamCoordinator {
     let totalChars = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
     if (totalChars <= maxChars) return;
 
-    // 保留 system prompt (index 0) 和最近的消息，截断中间的工具结果
-    for (let i = 1; i < messages.length - 2 && totalChars > maxChars; i++) {
+    // 保留 system prompt (index 0) 和最近 4 条消息，截断中间的工具结果
+    const keepRecent = 4;
+    for (let i = 1; i < messages.length - keepRecent && totalChars > maxChars; i++) {
       const msg = messages[i];
-      if (msg.role === 'tool' && msg.content && msg.content.length > 500) {
-        const truncated = msg.content.substring(0, 500) + '\n... [截断]';
+      if (msg.role === 'tool' && msg.content && msg.content.length > 300) {
+        const truncated = msg.content.substring(0, 300) + '\n... [截断]';
+        totalChars -= (msg.content.length - truncated.length);
+        messages[i] = { ...msg, content: truncated };
+      }
+      // 也截断过长的 assistant 消息
+      if (msg.role === 'assistant' && msg.content && msg.content.length > 2000) {
+        const truncated = msg.content.substring(0, 2000) + '\n... [截断]';
         totalChars -= (msg.content.length - truncated.length);
         messages[i] = { ...msg, content: truncated };
       }
