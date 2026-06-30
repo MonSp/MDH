@@ -34,9 +34,14 @@ async function runCommand(cmd: Command, args: string[]): Promise<void> {
       await evolvePrompt(component);
       break;
     }
-    case "ci":
-      console.log("[ci] Not yet implemented — stub");
+    case "ci": {
+      const { runCiGate } = await import("./ci/gate.js");
+      const thresholdArg = args.find((a) => a.startsWith("--threshold="));
+      const threshold = thresholdArg ? parseInt(thresholdArg.split("=")[1]) : 80;
+      const passed = await runCiGate(threshold);
+      process.exit(passed ? 0 : 1);
       break;
+    }
   }
 }
 
