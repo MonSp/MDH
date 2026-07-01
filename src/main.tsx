@@ -8,6 +8,10 @@ import './theme-dark.css';
 import './theme-light.css';
 import './assets/base.css';
 import './assets/collaboration.css';
+import './styles/App.css';
+import './styles/Header.css';
+import './styles/Settings.css';
+import './styles/Conversation.css';
 
 const SSO_TOKEN_KEY = 'sso_auth_token';
 const SSO_USERNAME_KEY = 'sso_auth_username';

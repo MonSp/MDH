@@ -1,0 +1,69 @@
+.conv-bubble {
+  max-width: 80%;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.conv-bubble.user {
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-color);
+  margin-left: auto;
+}
+
+.conv-bubble.assistant {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+}
+
+.conv-thinking {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.conv-thinking.collapsed {
+  max-height: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  overflow: hidden;
+}
+
+.conv-thinking-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  background: none;
+  border: none;
+}
+
+.conv-thinking-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.conv-status {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.conv-status.error {
+  color: var(--error-color);
+}

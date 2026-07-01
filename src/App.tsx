@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Sender } from '@agentscope-ai/chat';
 import { getFriendlyName } from './modules/commands';
 import { retryWithBackoff } from './modules/retry';
@@ -28,7 +29,10 @@ import {
   type AppMode,
 } from './constants';
 
-export default function App() {
+function AppContent() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isTeamMode = location.pathname.startsWith('/team');
   const [chatText, setChatText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -39,7 +43,7 @@ export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [pageCtx, setPageCtx] = useState({ url: '', title: '' });
   const [ssoUsername] = useState(localStorage.getItem(SSO_KEYS.USERNAME) || '');
-  const [appMode, setAppMode] = useState<AppMode>('single');
+  const appMode: AppMode = isTeamMode ? 'team' : 'single';
   const [settingsCfg, setSettingsCfg] = useState<SettingsConfig>({
     agentUrl: AGENT_URL_DEFAULT,
     provider: 'deepseek',
@@ -417,11 +421,11 @@ export default function App() {
                 submitType="enter"
               />
               <div className="mode-switcher">
-                <button className="mode-btn active" onClick={() => setAppMode('single')}>
+                <button className={`mode-btn ${!isTeamMode ? 'active' : ''}`} onClick={() => navigate('/')}>
                   <span className="mode-icon">🤖</span>
                   <span className="mode-label">单智能体</span>
                 </button>
-                <button className="mode-btn" onClick={() => setAppMode('team')}>
+                <button className={`mode-btn ${isTeamMode ? 'active' : ''}`} onClick={() => navigate('/team')}>
                   <span className="mode-icon">👥</span>
                   <span className="mode-label">多智能体团队</span>
                 </button>
@@ -431,7 +435,7 @@ export default function App() {
         ) : (
           <OfficeTeamMode
             wsRef={wsRef}
-            onBackToSingle={() => setAppMode('single')}
+            onBackToSingle={() => navigate('/')}
             pendingApprovalCount={pendingCount}
             onOpenApproval={() => {
               if (currentRequest) close();
@@ -468,5 +472,13 @@ export default function App() {
         onClose={() => setSkillPanelOpen(false)}
       />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 }
