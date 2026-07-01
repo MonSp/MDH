@@ -46,6 +46,15 @@ class Session:
         self._sequence_no += 1
         return self._sequence_no
 
+    async def send_error(self, message: str) -> None:
+        """发送 meeting_error 消息"""
+        await self.ws.send_json({"type": "meeting_error", "message": message})
+
+    async def send_and_buffer(self, msg: dict) -> None:
+        """添加到缓冲区并发送"""
+        self.add_to_buffer(msg)
+        await self.ws.send_json(msg)
+
     def clear_meeting(self):
         self.meeting_session = None
         self.meeting_mode = False

@@ -1051,7 +1051,7 @@ async def ws_handler(ws: WebSocket):
                                        result.get("type"), result.get("path_used"))
                     except Exception as e:
                         logger.exception("CEO处理异常: %s", e)
-                        await ws.send_json({"type": "meeting_error", "message": str(e)})
+                        await session.send_error(str(e))
                 asyncio.create_task(_run_ceo())
 
             elif msg_type == "workspace_confirm_response":
@@ -1111,7 +1111,7 @@ async def ws_handler(ws: WebSocket):
 
             elif msg_type == "start_meeting":
                 if session.meeting_session and session.meeting_session.is_running():
-                    await ws.send_json({"type": "meeting_error", "message": "会议已在进行中"})
+                    await session.send_error("会议已在进行中")
                     continue
 
                 if msg.get("provider"):
@@ -1177,8 +1177,7 @@ async def ws_handler(ws: WebSocket):
                     "agents": meeting.get_agents_dict(),
                     "sequence_no": session.next_sequence(),
                 }
-                session.add_to_buffer(msg_meeting_started)
-                await ws.send_json(msg_meeting_started)
+                await session.send_and_buffer(msg_meeting_started)
 
                 session._agenda = coordinator.agenda
                 agenda_init = {
@@ -1191,12 +1190,11 @@ async def ws_handler(ws: WebSocket):
                     "event_history": [],
                     "sequence_no": session.next_sequence(),
                 }
-                session.add_to_buffer(agenda_init)
-                await ws.send_json(agenda_init)
+                await session.send_and_buffer(agenda_init)
 
             elif msg_type == "meeting_message":
                 if not session.meeting_session or not session.meeting_session.is_running():
-                    await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
+                    await session.send_error("没有进行中的会议")
                     continue
 
                 content = msg.get("content", "")
@@ -1213,7 +1211,7 @@ async def ws_handler(ws: WebSocket):
                         await ceo.handle_meeting_message(content, ws.send_json)
                     except Exception:
                         logger.exception("会议消息处理异常: session=%s", session.session_id)
-                        await ws.send_json({"type": "meeting_error", "message": "会议消息处理出错"})
+                        await session.send_error("会议消息处理出错")
                 else:
                     logger.warning("CEO Agent未初始化: session=%s", session.session_id)
 
@@ -1221,7 +1219,7 @@ async def ws_handler(ws: WebSocket):
 
             elif msg_type == "task_assign":
                 if not session.meeting_session or not session.meeting_session.is_running():
-                    await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
+                    await session.send_error("没有进行中的会议")
                     continue
 
                 agent_id = msg.get("agentId", "")
@@ -1251,8 +1249,7 @@ async def ws_handler(ws: WebSocket):
                     "status": "assigned",
                     "sequence_no": session.next_sequence(),
                 }
-                session.add_to_buffer(msg_task_assigned)
-                await ws.send_json(msg_task_assigned)
+                await session.send_and_buffer(msg_task_assigned)
 
                 msg_agent_status = {
                     "type": "agent_status_update",
@@ -1261,12 +1258,11 @@ async def ws_handler(ws: WebSocket):
                     "currentTask": task.id,
                     "sequence_no": session.next_sequence(),
                 }
-                session.add_to_buffer(msg_agent_status)
-                await ws.send_json(msg_agent_status)
+                await session.send_and_buffer(msg_agent_status)
 
             elif msg_type == "task_delete":
                 if not session.meeting_session or not session.meeting_session.is_running():
-                    await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
+                    await session.send_error("没有进行中的会议")
                     continue
 
                 task_id = msg.get("taskId", "")
@@ -1281,14 +1277,13 @@ async def ws_handler(ws: WebSocket):
                         "taskId": task_id,
                         "sequence_no": session.next_sequence(),
                     }
-                    session.add_to_buffer(msg_task_deleted)
-                    await ws.send_json(msg_task_deleted)
+                    await session.send_and_buffer(msg_task_deleted)
                 else:
-                    await ws.send_json({"type": "meeting_error", "message": f"任务不存在: {task_id}"})
+                    await session.send_error(f"任务不存在: {task_id}")
 
             elif msg_type == "end_meeting":
                 if not session.meeting_session:
-                    await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
+                    await session.send_error("没有进行中的会议")
                     continue
 
                 summary = session.meeting_session.get_summary()
@@ -1311,12 +1306,11 @@ async def ws_handler(ws: WebSocket):
                     "summary": summary,
                     "sequence_no": session.next_sequence(),
                 }
-                session.add_to_buffer(msg_meeting_ended)
-                await ws.send_json(msg_meeting_ended)
+                await session.send_and_buffer(msg_meeting_ended)
 
             elif msg_type == "get_meeting_status":
                 if not session.meeting_session:
-                    await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
+                    await session.send_error("没有进行中的会议")
                     continue
 
                 await ws.send_json({
@@ -1347,7 +1341,7 @@ async def ws_handler(ws: WebSocket):
 
             elif msg_type == "agenda_action":
                 if not session.meeting_session or not session.meeting_session.is_running():
-                    await ws.send_json({"type": "meeting_error", "message": "没有进行中的会议"})
+                    await session.send_error("没有进行中的会议")
                     continue
 
                 # 优先从CeoAgent获取agenda，然后从coordinator，最后从session
@@ -1398,8 +1392,7 @@ async def ws_handler(ws: WebSocket):
                     "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
                     "sequence_no": session.next_sequence(),
                 }
-                session.add_to_buffer(agenda_snapshot)
-                await ws.send_json(agenda_snapshot)
+                await session.send_and_buffer(agenda_snapshot)
 
             elif msg_type == "override_decision":
                 decision_id = msg.get("decision_id", "")
