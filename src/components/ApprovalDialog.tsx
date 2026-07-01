@@ -1,5 +1,6 @@
 import React from 'react'
 import type { ApprovalRequestInfo } from '../modules/meetingProtocol'
+import '../styles/ApprovalDialog.css'
 
 interface ApprovalDialogProps {
   request: ApprovalRequestInfo
@@ -9,9 +10,9 @@ interface ApprovalDialogProps {
 }
 
 const riskLevelColors: Record<string, string> = {
-  low: '#10b981',
-  medium: '#f59e0b',
-  high: '#ef4444',
+  low: 'var(--success-color)',
+  medium: 'var(--warning-color)',
+  high: 'var(--error-color)',
   critical: '#dc2626',
 }
 
@@ -29,57 +30,56 @@ export default function ApprovalDialog({ request, onApprove, onReject, onClose }
   const riskLabel = riskLevelLabels[request.riskLevel] || '未知风险'
   const confidencePercent = Math.round(request.confidence * 100)
 
+  const confidenceLevel = confidencePercent >= 70 ? 'high' : confidencePercent >= 40 ? 'medium' : 'low'
+
   return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.dialog} onClick={e => e.stopPropagation()}>
-        <div style={styles.header}>
-          <h3 style={styles.title}>审批请求</h3>
-          <button style={styles.closeBtn} onClick={onClose}>✕</button>
+    <div className="approval-overlay" onClick={onClose}>
+      <div className="approval-dialog" onClick={e => e.stopPropagation()}>
+        <div className="approval-header">
+          <h3 className="approval-title">审批请求</h3>
+          <button className="approval-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        <div style={styles.riskBadge}>
-          <span style={{
-            ...styles.riskDot,
-            background: riskColor,
-            boxShadow: `0 0 8px ${riskColor}80`,
-          }} />
-          <span style={{ ...styles.riskLabel, color: riskColor }}>{riskLabel}</span>
+        <div className="approval-risk-badge">
+          <span
+            className="approval-risk-dot"
+            style={{
+              background: riskColor,
+              boxShadow: `0 0 8px ${riskColor}80`,
+            }}
+          />
+          <span className="approval-risk-label" style={{ color: riskColor }}>{riskLabel}</span>
         </div>
 
-        <div style={styles.section}>
-          <div style={styles.field}>
-            <span style={styles.fieldLabel}>操作名称</span>
-            <span style={styles.fieldValue}>{request.operation}</span>
+        <div className="approval-section">
+          <div className="approval-field">
+            <span className="approval-field-label">操作名称</span>
+            <span className="approval-field-value">{request.operation}</span>
           </div>
-          <div style={styles.field}>
-            <span style={styles.fieldLabel}>描述</span>
-            <span style={styles.fieldValue}>{request.description}</span>
+          <div className="approval-field">
+            <span className="approval-field-label">描述</span>
+            <span className="approval-field-value">{request.description}</span>
           </div>
-          <div style={styles.field}>
-            <span style={styles.fieldLabel}>请求者</span>
-            <span style={styles.fieldValue}>{request.requesterId}</span>
+          <div className="approval-field">
+            <span className="approval-field-label">请求者</span>
+            <span className="approval-field-value">{request.requesterId}</span>
           </div>
         </div>
 
-        <div style={styles.section}>
-          <span style={styles.fieldLabel}>置信度</span>
-          <div style={styles.confidenceBar}>
-            <div style={{
-              ...styles.confidenceFill,
-              width: `${confidencePercent}%`,
-              background: confidencePercent >= 70
-                ? 'linear-gradient(90deg, #10b981, #34d399)'
-                : confidencePercent >= 40
-                ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
-                : 'linear-gradient(90deg, #ef4444, #f87171)',
-            }} />
+        <div className="approval-section">
+          <span className="approval-field-label">置信度</span>
+          <div className="approval-confidence-bar">
+            <div
+              className={`approval-confidence-fill ${confidenceLevel}`}
+              style={{ width: `${confidencePercent}%` }}
+            />
           </div>
-          <span style={styles.confidenceText}>{confidencePercent}%</span>
+          <span className="approval-confidence-text">{confidencePercent}%</span>
         </div>
 
-        <div style={styles.section}>
+        <div className="approval-section">
           <textarea
-            style={styles.textarea}
+            className="approval-textarea"
             placeholder="输入审批理由（可选）..."
             value={reason}
             onChange={e => setReason(e.target.value)}
@@ -87,15 +87,15 @@ export default function ApprovalDialog({ request, onApprove, onReject, onClose }
           />
         </div>
 
-        <div style={styles.actions}>
+        <div className="approval-actions">
           <button
-            style={styles.rejectBtn}
+            className="approval-btn reject"
             onClick={() => onReject(request.id, reason || undefined)}
           >
             拒绝
           </button>
           <button
-            style={styles.approveBtn}
+            className="approval-btn approve"
             onClick={() => onApprove(request.id, reason || undefined)}
           >
             批准
@@ -104,155 +104,4 @@ export default function ApprovalDialog({ request, onApprove, onReject, onClose }
       </div>
     </div>
   )
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(0, 0, 0, 0.6)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-    backdropFilter: 'blur(4px)',
-  },
-  dialog: {
-    width: '420px',
-    maxWidth: '90vw',
-    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: '16px',
-    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
-    padding: '24px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px',
-    fontFamily: "'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif",
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  title: {
-    margin: 0,
-    fontSize: '18px',
-    fontWeight: 600,
-    color: '#e2e8f0',
-  },
-  closeBtn: {
-    width: '28px',
-    height: '28px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'rgba(255, 255, 255, 0.06)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: '6px',
-    color: '#6b7280',
-    fontSize: '14px',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
-  riskBadge: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '8px 12px',
-    background: 'rgba(0, 0, 0, 0.2)',
-    borderRadius: '8px',
-  },
-  riskDot: {
-    width: '10px',
-    height: '10px',
-    borderRadius: '50%',
-    flexShrink: 0,
-  },
-  riskLabel: {
-    fontSize: '13px',
-    fontWeight: 600,
-  },
-  section: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-  },
-  field: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-  },
-  fieldLabel: {
-    fontSize: '11px',
-    fontWeight: 600,
-    color: '#6b7280',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-  },
-  fieldValue: {
-    fontSize: '14px',
-    color: '#e2e8f0',
-    lineHeight: 1.5,
-    wordBreak: 'break-word',
-  },
-  confidenceBar: {
-    height: '6px',
-    background: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: '3px',
-    overflow: 'hidden',
-  },
-  confidenceFill: {
-    height: '100%',
-    borderRadius: '3px',
-    transition: 'width 0.3s ease',
-  },
-  confidenceText: {
-    fontSize: '12px',
-    color: '#a0a0b0',
-    textAlign: 'right',
-  },
-  textarea: {
-    width: '100%',
-    padding: '10px 12px',
-    background: 'rgba(0, 0, 0, 0.3)',
-    color: '#e2e8f0',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-    borderRadius: '8px',
-    fontSize: '13px',
-    outline: 'none',
-    resize: 'vertical',
-    fontFamily: 'inherit',
-    lineHeight: 1.5,
-    boxSizing: 'border-box',
-  },
-  actions: {
-    display: 'flex',
-    gap: '10px',
-    justifyContent: 'flex-end',
-  },
-  approveBtn: {
-    padding: '8px 24px',
-    background: 'linear-gradient(135deg, #10b981, #34d399)',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '14px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    fontFamily: 'inherit',
-  },
-  rejectBtn: {
-    padding: '8px 24px',
-    background: 'linear-gradient(135deg, #ef4444, #f87171)',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '14px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    fontFamily: 'inherit',
-  },
 }

@@ -1,4 +1,4 @@
-export function formatStepResult(result: any): string {
+export function formatStepResult(result: unknown): string {
   if (result == null) return '';
   if (typeof result === 'string') return result;
   if (typeof result === 'number' || typeof result === 'boolean') return String(result);
@@ -11,32 +11,41 @@ export function formatStepResult(result: any): string {
       : str;
   } catch {
     try {
-      return Object.entries(result)
-        .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
-        .join('\n');
+      if (typeof result === 'object' && result !== null) {
+        return Object.entries(result as Record<string, unknown>)
+          .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+          .join('\n');
+      }
+      return String(result);
     } catch {
       return '[无法序列化的对象]';
     }
   }
 }
 
+export interface CommandResponse {
+  success: boolean;
+  error?: { message: string; code?: string };
+  payload?: unknown;
+}
+
 export function executeCommand(
   command: string,
-  payload: any,
+  payload: Record<string, unknown>,
   parentOrigin: string,
   timeout = 15000
-): Promise<any> {
+): Promise<Record<string, unknown>> {
   const id = 'req_' + Date.now();
   return new Promise((resolve, reject) => {
     const handler = (event: MessageEvent) => {
       if (event.origin !== parentOrigin) return;
-      const msg = event.data;
-      if (!msg || msg.type !== 'response' || msg.id !== id) return;
+      const msg = event.data as CommandResponse;
+      if (!msg || !('type' in msg) || msg.type !== 'response' || !('id' in msg) || msg.id !== id) return;
       window.removeEventListener('message', handler);
       if (msg.error) {
         reject(Object.assign(new Error(msg.error.message || '失败'), { code: msg.error.code }));
       } else {
-        resolve(msg.payload || { success: true });
+        resolve((msg.payload as Record<string, unknown>) || { success: true });
       }
     };
     window.addEventListener('message', handler);

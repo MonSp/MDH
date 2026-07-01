@@ -3,7 +3,7 @@ import React from 'react';
 export interface ToolStep {
   callId: string;
   name: string;
-  args: any;
+  args: Record<string, unknown>;
   status: 'active' | 'done' | 'error' | 'retrying';
   detail: string;
   duration: string;
