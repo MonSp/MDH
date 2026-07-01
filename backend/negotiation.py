@@ -202,6 +202,34 @@ class NegotiationEngine:
                     oppose_count += 1
                     weighted_oppose += vote.weight
 
+        total_votes = len(proposal_votes)
+
+        # 无票时返回 pending 而非 rejected
+        if total_votes == 0:
+            result = VoteResult(
+                proposal_id=proposal_id,
+                strategy=effective_strategy,
+                total_votes=0,
+                approve_count=0,
+                oppose_count=0,
+                weighted_approve=0.0,
+                weighted_oppose=0.0,
+                accepted=False,
+                timestamp=time.time(),
+            )
+            node = DecisionNode(
+                id=str(uuid.uuid4()),
+                proposal_id=proposal_id,
+                decision="pending",
+                supporters=[],
+                opposers=[],
+                arguments=proposal.arguments if proposal else [],
+                vote_result=result,
+                timestamp=time.time(),
+            )
+            self._decision_graph.append(node)
+            return result
+
         if effective_strategy == ConsensusStrategy.SIMPLE_MAJORITY:
             accepted = approve_count > oppose_count
         else:
@@ -210,7 +238,7 @@ class NegotiationEngine:
         result = VoteResult(
             proposal_id=proposal_id,
             strategy=effective_strategy,
-            total_votes=len(proposal_votes),
+            total_votes=total_votes,
             approve_count=approve_count,
             oppose_count=oppose_count,
             weighted_approve=weighted_approve,

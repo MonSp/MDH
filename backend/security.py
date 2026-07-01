@@ -74,7 +74,8 @@ class SecurityMiddleware:
                 return {"allowed": False, "requires_signature": False, "reason": f"Dangerous operation blocked: {pattern}"}
 
         # 检查高危工具（需要 dual signature）
-        if capability in self._high_risk_tools:
+        # 同时检查 capability 和 operation，因为调用方可能传工具名作为 capability
+        if capability in self._high_risk_tools or operation in self._high_risk_tools:
             pending_id = str(uuid.uuid4())
             self._pending_signatures[pending_id] = {
                 "request": OperationRequest(agent_id, capability, operation, target),
