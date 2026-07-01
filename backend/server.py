@@ -932,8 +932,7 @@ async def ws_handler(ws: WebSocket):
     await ws.accept()
     session = Session(ws)
     sessions[session.session_id] = session
-    # _message_buffer 已在 Session.__init__ 中初始化
-    session._sequence_no = 0
+    # _sequence_no 和 _message_buffer 已在 Session.__init__ 中初始化
     logger.info("WebSocket 已连接: session=%s", session.session_id)
 
     await ws.send_json({
@@ -1172,18 +1171,16 @@ async def ws_handler(ws: WebSocket):
                 session._agenda = coordinator.agenda
 
                 logger.info("会议已创建: meeting_id=%s session=%s", meeting_id, session.session_id)
-                session._sequence_no += 1
                 msg_meeting_started = {
                     "type": "meeting_started",
                     "meeting_id": meeting_id,
                     "agents": meeting.get_agents_dict(),
-                    "sequence_no": session._sequence_no,
+                    "sequence_no": session.next_sequence(),
                 }
                 session.add_to_buffer(msg_meeting_started)
                 await ws.send_json(msg_meeting_started)
 
                 session._agenda = coordinator.agenda
-                session._sequence_no += 1
                 agenda_init = {
                     "type": "agenda_update",
                     "phase": "idle",
@@ -1192,7 +1189,7 @@ async def ws_handler(ws: WebSocket):
                     "proposal_id": None,
                     "token_queue": [],
                     "event_history": [],
-                    "sequence_no": session._sequence_no,
+                    "sequence_no": session.next_sequence(),
                 }
                 session.add_to_buffer(agenda_init)
                 await ws.send_json(agenda_init)
@@ -1247,24 +1244,22 @@ async def ws_handler(ws: WebSocket):
                         logger.warning("子任务持久化到项目失败: %s", e)
 
                 logger.info("任务已派发: task_id=%s agent_id=%s meeting=%s", task.id, agent_id, session.meeting_session.meeting_id)
-                session._sequence_no += 1
                 msg_task_assigned = {
                     "type": "task_assigned",
                     "taskId": task.id,
                     "agentId": agent_id,
                     "status": "assigned",
-                    "sequence_no": session._sequence_no,
+                    "sequence_no": session.next_sequence(),
                 }
                 session.add_to_buffer(msg_task_assigned)
                 await ws.send_json(msg_task_assigned)
 
-                session._sequence_no += 1
                 msg_agent_status = {
                     "type": "agent_status_update",
                     "agentId": agent_id,
                     "status": "working",
                     "currentTask": task.id,
-                    "sequence_no": session._sequence_no,
+                    "sequence_no": session.next_sequence(),
                 }
                 session.add_to_buffer(msg_agent_status)
                 await ws.send_json(msg_agent_status)
@@ -1281,11 +1276,10 @@ async def ws_handler(ws: WebSocket):
                 success = session.meeting_session.delete_task(task_id)
                 if success:
                     logger.info("任务已删除: task_id=%s meeting=%s", task_id, session.meeting_session.meeting_id)
-                    session._sequence_no += 1
                     msg_task_deleted = {
                         "type": "task_deleted",
                         "taskId": task_id,
-                        "sequence_no": session._sequence_no,
+                        "sequence_no": session.next_sequence(),
                     }
                     session.add_to_buffer(msg_task_deleted)
                     await ws.send_json(msg_task_deleted)
@@ -1312,11 +1306,10 @@ async def ws_handler(ws: WebSocket):
                         logger.warning("工作区清理失败: %s", e)
 
                 logger.info("会议已结束: meeting_id=%s session=%s", meeting_id, session.session_id)
-                session._sequence_no += 1
                 msg_meeting_ended = {
                     "type": "meeting_ended",
                     "summary": summary,
-                    "sequence_no": session._sequence_no,
+                    "sequence_no": session.next_sequence(),
                 }
                 session.add_to_buffer(msg_meeting_ended)
                 await ws.send_json(msg_meeting_ended)
@@ -1395,7 +1388,6 @@ async def ws_handler(ws: WebSocket):
                 elif action == "resolve_emergency":
                     result = agenda.resolve_emergency()
 
-                session._sequence_no += 1
                 agenda_snapshot = {
                     "type": "agenda_update",
                     "phase": agenda.get_phase().value,
@@ -1404,7 +1396,7 @@ async def ws_handler(ws: WebSocket):
                     "proposal_id": None,
                     "token_queue": [{"agent_id": t.agent_id, "relevance_score": t.relevance_score} for t in agenda.get_token_queue()],
                     "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
-                    "sequence_no": session._sequence_no,
+                    "sequence_no": session.next_sequence(),
                 }
                 session.add_to_buffer(agenda_snapshot)
                 await ws.send_json(agenda_snapshot)

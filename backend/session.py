@@ -33,12 +33,18 @@ class Session:
         self.task_id: str = ""     # 当前会议关联的任务ID
         self._message_buffer: list[dict] = []
         self._buffer_limit: int = buffer_limit
+        self._sequence_no: int = 0
 
     def add_to_buffer(self, msg: dict) -> None:
         """添加消息到缓冲区，超出限制时自动移除最旧的消息"""
         if len(self._message_buffer) >= self._buffer_limit:
             self._message_buffer.pop(0)
         self._message_buffer.append(msg)
+
+    def next_sequence(self) -> int:
+        """自增并返回序列号"""
+        self._sequence_no += 1
+        return self._sequence_no
 
     def clear_meeting(self):
         self.meeting_session = None
