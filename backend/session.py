@@ -34,6 +34,12 @@ class Session:
         self._message_buffer: list[dict] = []
         self._buffer_limit: int = buffer_limit
         self._sequence_no: int = 0
+        # 动态属性（在 ws_handler 中初始化）
+        self._ceo_agent = None
+        self._meeting_coordinator = None
+        self._workspace_manager = None
+        self._workspace = None
+        self._agenda = None
 
     def add_to_buffer(self, msg: dict) -> None:
         """添加消息到缓冲区，超出限制时自动移除最旧的消息"""

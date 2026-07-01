@@ -1034,7 +1034,7 @@ async def ws_handler(ws: WebSocket):
                 selected_roles = msg.get("selected_roles", [])
 
                 # 委托给CEO Agent处理
-                if not hasattr(session, '_ceo_agent') or session._ceo_agent is None:
+                if session._ceo_agent is None:
                     session._ceo_agent = CeoAgent(
                         session=session,
                         project_manager=project_manager,
@@ -1060,7 +1060,7 @@ async def ws_handler(ws: WebSocket):
                            session.session_id,
                            msg.get("workspace_type", ""),
                            msg.get("output_dir", ""))
-                if hasattr(session, '_ceo_agent') and session._ceo_agent:
+                if session._ceo_agent:
                     session._ceo_agent.handle_workspace_confirm_response({
                         "workspace_type": msg.get("workspace_type", "standalone"),
                         "repo_path": msg.get("repo_path", ""),
@@ -1159,7 +1159,7 @@ async def ws_handler(ws: WebSocket):
                 session._meeting_coordinator = coordinator
 
                 # 创建CeoAgent并同步引用
-                if not hasattr(session, '_ceo_agent') or session._ceo_agent is None:
+                if session._ceo_agent is None:
                     session._ceo_agent = CeoAgent(
                         session=session,
                         project_manager=project_manager,
@@ -1293,7 +1293,7 @@ async def ws_handler(ws: WebSocket):
                 session.clear_meeting()
                 
                 # 清理工作区
-                if hasattr(session, '_workspace_manager') and hasattr(session, '_workspace'):
+                if session._workspace_manager and session._workspace:
                     try:
                         session._workspace_manager.cleanup_workspace(session._workspace)
                         logger.info("工作区已清理: workspace=%s", session._workspace)
@@ -1352,7 +1352,7 @@ async def ws_handler(ws: WebSocket):
                     coordinator = getattr(session, '_meeting_coordinator', None)
                     if coordinator and hasattr(coordinator, 'agenda'):
                         agenda = coordinator.agenda
-                    elif hasattr(session, '_agenda') and session._agenda is not None:
+                    elif session._agenda is not None:
                         agenda = session._agenda
                     else:
                         from agenda import AgendaStateMachine
@@ -1427,13 +1427,13 @@ async def ws_handler(ws: WebSocket):
                 workspace_id = msg.get("workspace_id")
 
                 if action == "list":
-                    workspaces = session._workspace_manager.list_workspaces() if hasattr(session, '_workspace_manager') and session._workspace_manager else []
+                    workspaces = session._workspace_manager.list_workspaces() if session._workspace_manager else []
                     await ws.send_json({
                         "type": "workspace_list",
                         "workspaces": [w.__dict__ for w in workspaces],
                     })
                 elif action == "destroy":
-                    if hasattr(session, '_workspace_manager') and session._workspace_manager:
+                    if session._workspace_manager:
                         success = session._workspace_manager.destroy_workspace(workspace_id)
                         await ws.send_json({
                             "type": "workspace_destroyed",
@@ -1445,7 +1445,7 @@ async def ws_handler(ws: WebSocket):
                 tool_name = msg.get("tool_name")
                 arguments = msg.get("arguments", {})
 
-                if hasattr(session, '_meeting_coordinator') and session._meeting_coordinator and session._meeting_coordinator._tool_executor:
+                if session._meeting_coordinator and session._meeting_coordinator._tool_executor:
                     result = await session._meeting_coordinator.execute_tool_call(tool_name, arguments)
                     await ws.send_json({
                         "type": "tool_result",
