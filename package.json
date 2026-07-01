@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:backend": "C:\\Users\\qgh13\\miniconda3\\envs\\browser-agent\\python.exe backend/server.py",
+    "dev:backend": "python3 backend/server.py",
     "build": "vite build && node esbuild.config.mjs && node copy-shell.mjs",
     "build:shell": "node esbuild.config.mjs",
     "preview": "vite preview",

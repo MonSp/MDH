@@ -10,9 +10,12 @@ _current_session: ContextVar["Session | None"] = ContextVar(
     "_current_session", default=None
 )
 
+# 消息缓冲区默认上限
+DEFAULT_BUFFER_LIMIT = 500
+
 
 class Session:
-    def __init__(self, ws: WebSocket):
+    def __init__(self, ws: WebSocket, buffer_limit: int = DEFAULT_BUFFER_LIMIT):
         self.ws = ws
         self.session_id = str(uuid.uuid4())[:8]
         self.pending: dict[str, asyncio.Future] = {}
@@ -28,6 +31,14 @@ class Session:
         self.meeting_mode = False
         self.project_id: str = ""  # 当前会议关联的项目ID
         self.task_id: str = ""     # 当前会议关联的任务ID
+        self._message_buffer: list[dict] = []
+        self._buffer_limit: int = buffer_limit
+
+    def add_to_buffer(self, msg: dict) -> None:
+        """添加消息到缓冲区，超出限制时自动移除最旧的消息"""
+        if len(self._message_buffer) >= self._buffer_limit:
+            self._message_buffer.pop(0)
+        self._message_buffer.append(msg)
 
     def clear_meeting(self):
         self.meeting_session = None

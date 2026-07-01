@@ -932,7 +932,7 @@ async def ws_handler(ws: WebSocket):
     await ws.accept()
     session = Session(ws)
     sessions[session.session_id] = session
-    session._message_buffer = []
+    # _message_buffer 已在 Session.__init__ 中初始化
     session._sequence_no = 0
     logger.info("WebSocket 已连接: session=%s", session.session_id)
 
@@ -1179,9 +1179,7 @@ async def ws_handler(ws: WebSocket):
                     "agents": meeting.get_agents_dict(),
                     "sequence_no": session._sequence_no,
                 }
-                if len(session._message_buffer) >= 100:
-                    session._message_buffer.pop(0)
-                session._message_buffer.append(msg_meeting_started)
+                session.add_to_buffer(msg_meeting_started)
                 await ws.send_json(msg_meeting_started)
 
                 session._agenda = coordinator.agenda
@@ -1196,9 +1194,7 @@ async def ws_handler(ws: WebSocket):
                     "event_history": [],
                     "sequence_no": session._sequence_no,
                 }
-                if len(session._message_buffer) >= 100:
-                    session._message_buffer.pop(0)
-                session._message_buffer.append(agenda_init)
+                session.add_to_buffer(agenda_init)
                 await ws.send_json(agenda_init)
 
             elif msg_type == "meeting_message":
@@ -1259,9 +1255,7 @@ async def ws_handler(ws: WebSocket):
                     "status": "assigned",
                     "sequence_no": session._sequence_no,
                 }
-                if len(session._message_buffer) >= 100:
-                    session._message_buffer.pop(0)
-                session._message_buffer.append(msg_task_assigned)
+                session.add_to_buffer(msg_task_assigned)
                 await ws.send_json(msg_task_assigned)
 
                 session._sequence_no += 1
@@ -1272,9 +1266,7 @@ async def ws_handler(ws: WebSocket):
                     "currentTask": task.id,
                     "sequence_no": session._sequence_no,
                 }
-                if len(session._message_buffer) >= 100:
-                    session._message_buffer.pop(0)
-                session._message_buffer.append(msg_agent_status)
+                session.add_to_buffer(msg_agent_status)
                 await ws.send_json(msg_agent_status)
 
             elif msg_type == "task_delete":
@@ -1295,9 +1287,7 @@ async def ws_handler(ws: WebSocket):
                         "taskId": task_id,
                         "sequence_no": session._sequence_no,
                     }
-                    if len(session._message_buffer) >= 100:
-                        session._message_buffer.pop(0)
-                    session._message_buffer.append(msg_task_deleted)
+                    session.add_to_buffer(msg_task_deleted)
                     await ws.send_json(msg_task_deleted)
                 else:
                     await ws.send_json({"type": "meeting_error", "message": f"任务不存在: {task_id}"})
@@ -1328,9 +1318,7 @@ async def ws_handler(ws: WebSocket):
                     "summary": summary,
                     "sequence_no": session._sequence_no,
                 }
-                if len(session._message_buffer) >= 100:
-                    session._message_buffer.pop(0)
-                session._message_buffer.append(msg_meeting_ended)
+                session.add_to_buffer(msg_meeting_ended)
                 await ws.send_json(msg_meeting_ended)
 
             elif msg_type == "get_meeting_status":
@@ -1418,9 +1406,7 @@ async def ws_handler(ws: WebSocket):
                     "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
                     "sequence_no": session._sequence_no,
                 }
-                if len(session._message_buffer) >= 100:
-                    session._message_buffer.pop(0)
-                session._message_buffer.append(agenda_snapshot)
+                session.add_to_buffer(agenda_snapshot)
                 await ws.send_json(agenda_snapshot)
 
             elif msg_type == "override_decision":

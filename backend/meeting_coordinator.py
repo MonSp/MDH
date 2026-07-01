@@ -1166,7 +1166,8 @@ class MeetingCoordinator:
             arguments=arguments,
         )
 
-        result = self._tool_executor.execute(tool_call)
+        # 在线程池中执行，避免阻塞事件循环
+        result = await asyncio.to_thread(self._tool_executor.execute, tool_call)
 
         if self._on_message:
             ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"

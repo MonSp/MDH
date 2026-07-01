@@ -138,7 +138,12 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
 
   // 计时器：会议进行中每秒更新elapsed
   useEffect(() => {
-    if (!meetingStartTime || meetingPhase === 'idle' || meetingPhase === 'done') return
+    if (!meetingStartTime || meetingPhase === 'idle' || meetingPhase === 'done') {
+      setElapsed(0)
+      return
+    }
+    // 立即更新一次，不等 setInterval
+    setElapsed(Math.floor((Date.now() - meetingStartTime) / 1000))
     const timer = setInterval(() => {
       setElapsed(Math.floor((Date.now() - meetingStartTime) / 1000))
     }, 1000)
