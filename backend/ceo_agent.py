@@ -113,13 +113,12 @@ class CeoAgent:
     def _send_fn(self, send_message: Callable) -> Callable:
         """创建进度回调，自动管理sequence_no"""
         async def send(agent_id: str, text: str, delta: str, **kwargs):
-            self._session._sequence_no += 1
             msg_data = {
                 "type": "agent_message",
                 "agentId": agent_id,
                 "content": text,
                 "delta": delta,
-                "sequence_no": self._session._sequence_no,
+                "sequence_no": self._session.next_sequence(),
             }
             msg_data.update(kwargs)
             await send_message(msg_data)
@@ -414,14 +413,13 @@ class CeoAgent:
         self._session._agenda = coordinator.agenda
 
         # 通知前端会议已启动
-        self._session._sequence_no += 1
         self._session.project_id = project.project_id  # 存储项目ID到会话
         await send_message({
             "type": "meeting_started",
             "meeting_id": meeting_id,
             "agents": meeting.get_agents_dict(),
             "project_id": project.project_id,
-            "sequence_no": self._session._sequence_no,
+            "sequence_no": self._session.next_sequence(),
         })
 
         await self._emit(send_message, "CEO：团队已就绪，将任务交给项目经理。项目经理将组织讨论、分派任务并监督执行。")
@@ -494,7 +492,6 @@ class CeoAgent:
             review_result = result.get("review_result", {})
 
             # 发送任务分配消息
-            self._session._sequence_no += 1
             await send_message({
                 "type": "task_auto_assigned",
                 "taskId": assignment.get("task_id", ""),
@@ -503,24 +500,22 @@ class CeoAgent:
                 "reason": assignment.get("reason", ""),
                 "status": assignment.get("status", "assigned"),
                 "analysis": result.get("analysis", {}),
-                "sequence_no": self._session._sequence_no,
+                "sequence_no": self._session.next_sequence(),
             })
 
             # 发送审查结果
             if review_result:
                 if review_result.get("structured_feedback"):
-                    self._session._sequence_no += 1
                     feedback = review_result["structured_feedback"]
                     await send_message({
                         "type": "structured_feedback",
                         "taskId": assignment.get("task_id", ""),
                         "agentId": "agent-reviewer",
                         "feedback": feedback,
-                        "sequence_no": self._session._sequence_no,
+                        "sequence_no": self._session.next_sequence(),
                     })
 
                     if feedback.get("status") == "revision_required":
-                        self._session._sequence_no += 1
                         await send_message({
                             "type": "iteration_update",
                             "taskId": assignment.get("task_id", ""),
@@ -532,16 +527,15 @@ class CeoAgent:
                                 "status": feedback.get("status", "revision_required"),
                                 "corrections": [],
                             },
-                            "sequence_no": self._session._sequence_no,
+                            "sequence_no": self._session.next_sequence(),
                         })
 
-                self._session._sequence_no += 1
                 await send_message({
                     "type": "review_completed",
                     "taskId": assignment.get("task_id", ""),
                     "critic_result": review_result.get("critic_result", {}),
                     "grounding_result": review_result.get("grounding_result", {}),
-                    "sequence_no": self._session._sequence_no,
+                    "sequence_no": self._session.next_sequence(),
                 })
 
             await self._emit(send_message, "CEO：任务执行完成，质量审查已通过。")
@@ -616,11 +610,10 @@ class CeoAgent:
         text: str,
     ):
         """发送CEO发言消息"""
-        self._session._sequence_no += 1
         await send_message({
             "type": "agent_message",
             "agentId": "agent-ceo",
             "content": text,
             "delta": "",
-            "sequence_no": self._session._sequence_no,
+            "sequence_no": self._session.next_sequence(),
         })
