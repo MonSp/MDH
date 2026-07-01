@@ -10,6 +10,8 @@ interface UseWebSocketOptions {
   initialReconnectInterval?: number;
   maxReconnectInterval?: number;
   maxRetries?: number;
+  /** 会话 ID，用于断线重连时恢复会话状态 */
+  sessionId?: string;
 }
 
 export function useWebSocket({
@@ -20,12 +22,14 @@ export function useWebSocket({
   initialReconnectInterval = 1000,
   maxReconnectInterval = 30000,
   maxRetries = Infinity,
+  sessionId,
 }: UseWebSocketOptions) {
   const [status, setStatus] = useState<WsStatus>('disconnected');
   const [retryCount, setRetryCount] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCountRef = useRef(0);
+  const sessionIdRef = useRef<string | undefined>(sessionId);
 
   const getBackoffDelay = useCallback((attempt: number) => {
     // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
@@ -44,7 +48,11 @@ export function useWebSocket({
 
     setStatus('connecting');
     try {
-      const ws = new WebSocket(url);
+      // 重连时带上 sessionId 以恢复会话
+      const connectUrl = sessionIdRef.current
+        ? `${url}?session=${sessionIdRef.current}`
+        : url;
+      const ws = new WebSocket(connectUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -72,6 +80,10 @@ export function useWebSocket({
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
+          // 保存服务端分配的 sessionId
+          if (msg.type === 'connected' && msg.session_id) {
+            sessionIdRef.current = msg.session_id;
+          }
           onMessage?.(msg);
         } catch (e) {
           console.error('[WebSocket] Failed to parse message:', e);
