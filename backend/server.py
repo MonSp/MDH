@@ -930,15 +930,34 @@ async def delete_skill(skill_id: str):
 @app.websocket("/ws")
 async def ws_handler(ws: WebSocket):
     await ws.accept()
-    session = Session(ws)
-    sessions[session.session_id] = session
-    # _sequence_no 和 _message_buffer 已在 Session.__init__ 中初始化
-    logger.info("WebSocket 已连接: session=%s", session.session_id)
+
+    # 尝试从 URL 参数恢复会话
+    restore_id = ws.scope.get("query_string", b"").decode()
+    session = None
+    if restore_id:
+        session = Session.load_state(restore_id, ws)
+        if session:
+            sessions[session.session_id] = session
+            logger.info("WebSocket 恢复会话: session=%s", session.session_id)
+
+    if not session:
+        session = Session(ws)
+        sessions[session.session_id] = session
+        logger.info("WebSocket 新建会话: session=%s", session.session_id)
 
     await ws.send_json({
         "type": "connected",
         "session_id": session.session_id,
+        "restored": restore_id is not None and session.session_id == restore_id,
+        "buffer_size": len(session._message_buffer),
     })
+
+    # 恢复的消息历史发给前端
+    if session._message_buffer:
+        await ws.send_json({
+            "type": "session_restored",
+            "messages": session._message_buffer[-20:],  # 最近 20 条
+        })
 
     agent_task: asyncio.Task | None = None
 
@@ -1458,6 +1477,12 @@ async def ws_handler(ws: WebSocket):
     except Exception:
         logger.exception("WebSocket 异常: session=%s", session.session_id)
     finally:
+        # 保存会话状态（支持重连恢复）
+        try:
+            session.save_state()
+        except Exception as e:
+            logger.warning("保存会话状态失败: %s", e)
+
         if session.meeting_session:
             session.meeting_session.stop()
             session.meeting_session.cleanup()

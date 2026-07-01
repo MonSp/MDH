@@ -1,6 +1,9 @@
 import asyncio
+import json
+import time
 import uuid
 from contextvars import ContextVar
+from pathlib import Path
 
 from fastapi import WebSocket
 
@@ -81,6 +84,46 @@ class Session:
 
     def update_page_context(self, context: dict[str, str]) -> None:
         self.page_context = context
+
+    def save_state(self, directory: str = "data/sessions") -> None:
+        """保存会话状态到磁盘（不含 WebSocket 连接）"""
+        Path(directory).mkdir(parents=True, exist_ok=True)
+        state = {
+            "session_id": self.session_id,
+            "provider": self.provider,
+            "model_name": self.model_name,
+            "multimodal": self.multimodal,
+            "project_id": self.project_id,
+            "task_id": self.task_id,
+            "message_buffer": self._message_buffer[-50:],  # 只保存最近 50 条
+            "sequence_no": self._sequence_no,
+            "page_context": self.page_context,
+            "saved_at": time.time(),
+        }
+        path = Path(directory) / f"{self.session_id}.json"
+        path.write_text(json.dumps(state, ensure_ascii=False, indent=2))
+
+    @classmethod
+    def load_state(cls, session_id: str, ws: WebSocket, directory: str = "data/sessions") -> "Session | None":
+        """从磁盘恢复会话状态"""
+        path = Path(directory) / f"{session_id}.json"
+        if not path.exists():
+            return None
+        try:
+            state = json.loads(path.read_text())
+            session = cls(ws)
+            session.session_id = state["session_id"]
+            session.provider = state.get("provider", "deepseek")
+            session.model_name = state.get("model_name", "")
+            session.multimodal = state.get("multimodal", True)
+            session.project_id = state.get("project_id", "")
+            session.task_id = state.get("task_id", "")
+            session._message_buffer = state.get("message_buffer", [])
+            session._sequence_no = state.get("sequence_no", 0)
+            session.page_context = state.get("page_context", {})
+            return session
+        except Exception:
+            return None
 
 
 def get_session() -> Session:
