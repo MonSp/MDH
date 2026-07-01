@@ -1501,6 +1501,40 @@ async def health():
     return {"status": "ok", "sessions": len(sessions)}
 
 
+@app.get("/api/sessions/{session_id}")
+async def get_session_info(session_id: str):
+    """查询会话状态（支持持久化会话）"""
+    # 先查内存
+    session = sessions.get(session_id)
+    if session:
+        return {
+            "session_id": session.session_id,
+            "provider": session.provider,
+            "model_name": session.model_name,
+            "project_id": session.project_id,
+            "buffer_size": len(session._message_buffer),
+            "sequence_no": session._sequence_no,
+            "source": "memory",
+        }
+    # 再查磁盘
+    from pathlib import Path
+    state_path = Path("data/sessions") / f"{session_id}.json"
+    if state_path.exists():
+        import json
+        state = json.loads(state_path.read_text())
+        return {
+            "session_id": state["session_id"],
+            "provider": state.get("provider"),
+            "model_name": state.get("model_name"),
+            "project_id": state.get("project_id"),
+            "buffer_size": len(state.get("message_buffer", [])),
+            "sequence_no": state.get("sequence_no", 0),
+            "saved_at": state.get("saved_at"),
+            "source": "disk",
+        }
+    raise HTTPException(status_code=404, detail="Session not found")
+
+
 if __name__ == "__main__":
     import uvicorn
     logging.basicConfig(
