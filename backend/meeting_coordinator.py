@@ -80,6 +80,7 @@ class MeetingCoordinator:
         self._models: Dict[str, Agent] = {}
         self._tasks: List[Dict[str, Any]] = []
         self._on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
+        self._current_on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
         self.logger = logging.getLogger("meeting_coordinator")
         self.agenda = AgendaStateMachine()
         self.negotiation = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
@@ -297,6 +298,12 @@ class MeetingCoordinator:
             if a.role == role:
                 return a.id
         return None
+
+    async def _msg(self, agent_id: str, text: str) -> None:
+        """发送消息给前端并记录到会议"""
+        if self._current_on_message:
+            await self._current_on_message(agent_id, text, "")
+        self.meeting.add_message("agent", text, agent_id)
 
     def _resolve_agent(self, agent_id: str) -> Optional['MeetingAgentInfo']:
         """解析Agent ID，支持多种格式（直接ID、带前缀、不带前缀）"""
@@ -524,7 +531,7 @@ class MeetingCoordinator:
             except Exception as e:
                 self.logger.warning("紧急响应LLM调用失败: %s", e)
                 text = LLM_FALLBACK_TEMPLATE.format(role="planner", content_type="应急方案")
-            await on_message(planner_id, text, "")
+            await self._msg(planner_id, text)
             self.meeting.add_message("agent", text, planner_id)
 
         if hasattr(self.agenda, 'resolveEmergency'):
@@ -691,15 +698,15 @@ class MeetingCoordinator:
         - COORDINATOR（团队负责人）接管所有内部流程管理
         """
         self._on_message = on_message
-        
+        self._current_on_message = on_message
+
         # 获取CEO和COORDINATOR的ID
         ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
         coordinator_id = self._find_agent_id(AgentRole.COORDINATOR) or "agent-coordinator"
         
         # CEO将任务交给COORDINATOR
         ceo_handoff_text = f"CEO：收到任务「{user_message[:50]}...」，已交给项目经理处理。"
-        await on_message(ceo_id, ceo_handoff_text, "")
-        self.meeting.add_message("agent", ceo_handoff_text, ceo_id)
+        await self._msg(ceo_id, ceo_handoff_text)
         
         # COORDINATOR接管内部流程
         coordinator = self._get_model(AgentRole.COORDINATOR)
@@ -710,8 +717,7 @@ class MeetingCoordinator:
             f"需求概述：{user_message[:100]}\n"
             f"正在分析需求复杂度和团队配置..."
         )
-        await on_message(coordinator_id, confirmation_text, "")
-        self.meeting.add_message("agent", confirmation_text, coordinator_id)
+        await self._msg(coordinator_id, confirmation_text)
         
         # COORDINATOR进行语义分析
         analysis = await self.semantic_analyze(user_message)
@@ -729,7 +735,7 @@ class MeetingCoordinator:
         else:
             analysis_text += f"• 讨论主题：{analysis.discussion_topic}"
         
-        await on_message(coordinator_id, analysis_text, "")
+        await self._msg(coordinator_id, analysis_text)
         self.meeting.add_message("agent", analysis_text, coordinator_id)
 
         # 项目规划阶段 - 模拟人类公司的项目规划流程
@@ -740,7 +746,7 @@ class MeetingCoordinator:
             f"阶段3：质量审查与验收\n"
             f"阶段4：交付与总结"
         )
-        await on_message(coordinator_id, plan_text, "")
+        await self._msg(coordinator_id, plan_text)
         self.meeting.add_message("agent", plan_text, coordinator_id)
 
         # 1. 工作流模式
@@ -752,7 +758,7 @@ class MeetingCoordinator:
                 f"节点数量：{len(analysis.workflow_definition.nodes)}\n"
                 f"执行策略：{analysis.workflow_definition.execution_strategy}"
             )
-            await on_message(coordinator_id, workflow_text, "")
+            await self._msg(coordinator_id, workflow_text)
             self.meeting.add_message("agent", workflow_text, coordinator_id)
 
             # 创建并执行工作流
@@ -770,7 +776,7 @@ class MeetingCoordinator:
         self.logger.info("串行流程 - 讨论阶段: topic=%s", topic[:50])
         
         coordinator_discuss_text = f"项目经理：组织团队讨论「{topic[:30]}...」"
-        await on_message(coordinator_id, coordinator_discuss_text, "")
+        await self._msg(coordinator_id, coordinator_discuss_text)
         self.meeting.add_message("agent", coordinator_discuss_text, coordinator_id)
         
         discussion_results = await self.run_discussion(topic, on_message)
@@ -782,7 +788,7 @@ class MeetingCoordinator:
                         len(original_description), len(enhanced_description))
         
         coordinator_integrate_text = f"项目经理：已整合团队讨论结果，任务描述已更新。"
-        await on_message(coordinator_id, coordinator_integrate_text, "")
+        await self._msg(coordinator_id, coordinator_integrate_text)
         self.meeting.add_message("agent", coordinator_integrate_text, coordinator_id)
 
         # COORDINATOR分派任务
@@ -794,7 +800,7 @@ class MeetingCoordinator:
         self.logger.info("串行流程 - 分派阶段: target=%s", target_agent_id)
         
         coordinator_assign_text = f"项目经理：将任务分派给{target_agent_id}执行。"
-        await on_message(coordinator_id, coordinator_assign_text, "")
+        await self._msg(coordinator_id, coordinator_assign_text)
         self.meeting.add_message("agent", coordinator_assign_text, coordinator_id)
         
         assign_result = await self.auto_assign_task(
@@ -807,7 +813,7 @@ class MeetingCoordinator:
         self.logger.info("串行流程 - 审查阶段: task=%s", assign_result.get("task_id", ""))
         
         coordinator_review_text = f"项目经理：监督任务执行和质量审查。"
-        await on_message(coordinator_id, coordinator_review_text, "")
+        await self._msg(coordinator_id, coordinator_review_text)
         self.meeting.add_message("agent", coordinator_review_text, coordinator_id)
         
         # ── 开发循环：执行 → 审查 → 修复 → 再审查 ──
@@ -822,7 +828,7 @@ class MeetingCoordinator:
         for dev_iter in range(1, max_dev_iterations + 1):
             # 执行
             coordinator_exec_text = f"项目经理：第 {dev_iter} 轮开发，监督任务执行。"
-            await on_message(coordinator_id, coordinator_exec_text, "")
+            await self._msg(coordinator_id, coordinator_exec_text)
             self.meeting.add_message("agent", coordinator_exec_text, coordinator_id)
 
             try:
@@ -843,7 +849,7 @@ class MeetingCoordinator:
 
             # 审查
             coordinator_review_text = f"项目经理：第 {dev_iter} 轮质量审查。"
-            await on_message(coordinator_id, coordinator_review_text, "")
+            await self._msg(coordinator_id, coordinator_review_text)
             self.meeting.add_message("agent", coordinator_review_text, coordinator_id)
 
             execution_text = ""
@@ -876,14 +882,13 @@ class MeetingCoordinator:
                     coordinator_pass_text = f"项目经理：第 {dev_iter} 轮审查通过！"
                 else:
                     coordinator_pass_text = f"项目经理：已达最大迭代次数({max_dev_iterations})，结束开发循环。"
-                await on_message(coordinator_id, coordinator_pass_text, "")
+                await self._msg(coordinator_id, coordinator_pass_text)
                 self.meeting.add_message("agent", coordinator_pass_text, coordinator_id)
                 break
 
             # 审查未通过 → 将反馈注入下一轮任务描述
             coordinator_fix_text = f"项目经理：第 {dev_iter} 轮审查发现问题，启动修复。"
-            await on_message(coordinator_fix_text, coordinator_fix_text, "")
-            self.meeting.add_message("agent", coordinator_fix_text, coordinator_id)
+            await self._msg(coordinator_id, coordinator_fix_text)
 
             # 将审查反馈作为修复要求注入任务描述（只保留最新一轮）
             fix_description = (
@@ -908,11 +913,11 @@ class MeetingCoordinator:
         )
         
         coordinator_summary_text = f"项目经理：已生成项目总结报告。"
-        await on_message(coordinator_id, coordinator_summary_text, "")
+        await self._msg(coordinator_id, coordinator_summary_text)
         self.meeting.add_message("agent", coordinator_summary_text, coordinator_id)
         
         # 发送项目总结到前端
-        await on_message(coordinator_id, project_summary, "")
+        await self._msg(coordinator_id, project_summary)
 
         # 技能进化：从项目结果中提取经验规则
         try:
@@ -932,19 +937,19 @@ class MeetingCoordinator:
                     f"项目经理：已从本次项目中提取 {len(evolution_rules)} 条经验规则，"
                     f"可在「技能进化」面板中查看和审核。"
                 )
-                await on_message(coordinator_id, evolution_text, "")
+                await self._msg(coordinator_id, evolution_text)
                 self.meeting.add_message("agent", evolution_text, coordinator_id)
         except Exception as e:
             self.logger.warning("技能进化提取失败: %s", e)
 
         # COORDINATOR汇报结果
         coordinator_report_text = f"项目经理：任务执行完成，向CEO汇报结果。"
-        await on_message(coordinator_id, coordinator_report_text, "")
+        await self._msg(coordinator_id, coordinator_report_text)
         self.meeting.add_message("agent", coordinator_report_text, coordinator_id)
 
         # CEO接收汇报
         ceo_report_text = f"CEO：收到项目经理汇报，任务已完成。"
-        await on_message(ceo_id, ceo_report_text, "")
+        await self._msg(ceo_id, ceo_report_text)
         self.meeting.add_message("agent", ceo_report_text, ceo_id)
 
         # 返回所有阶段结果
@@ -1201,7 +1206,7 @@ class MeetingCoordinator:
             # 推送工作流创建消息
             ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
             create_msg = f"工作流已创建: {workflow_definition.name} (ID: {execution.execution_id})"
-            await on_message(ceo_id, create_msg, "")
+            await self._msg(ceo_id, create_msg)
             self.meeting.add_message("agent", create_msg, ceo_id)
 
             # 执行工作流
@@ -1212,7 +1217,7 @@ class MeetingCoordinator:
 
             # 推送工作流完成消息
             complete_msg = f"工作流执行完成: {status.status.value}"
-            await on_message(ceo_id, complete_msg, "")
+            await self._msg(ceo_id, complete_msg)
             self.meeting.add_message("agent", complete_msg, ceo_id)
 
             # 汇总结果
@@ -1223,7 +1228,7 @@ class MeetingCoordinator:
 
             if results_summary:
                 summary_msg = "工作流执行结果汇总:\n" + "\n".join(results_summary)
-                await on_message(ceo_id, summary_msg, "")
+                await self._msg(ceo_id, summary_msg)
                 self.meeting.add_message("agent", summary_msg, ceo_id)
 
             return {
@@ -1236,7 +1241,7 @@ class MeetingCoordinator:
             self.logger.error("工作流执行失败: %s", str(e))
             ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
             error_msg = f"工作流执行失败: {str(e)}"
-            await on_message(ceo_id, error_msg, "")
+            await self._msg(ceo_id, error_msg)
             self.meeting.add_message("agent", error_msg, ceo_id)
 
             return {
