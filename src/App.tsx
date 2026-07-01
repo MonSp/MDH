@@ -1,60 +1,32 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sender } from '@agentscope-ai/chat';
 import { getFriendlyName } from './modules/commands';
 import { retryWithBackoff } from './modules/retry';
 import { extractSkillParams, stepsToServerFormat, buildSkillPrompt } from './modules/skillParser';
-import { ApprovalQueue } from './modules/approvalQueue';
-import type { ApprovalRequestInfo, RiskLevel } from './modules/meetingProtocol';
 
 import AppHeader from './components/AppHeader';
 import ConversationStream, { type Conversation } from './components/ConversationStream';
 import SettingsPanel from './components/SettingsPanel';
 import SkillPanel from './components/SkillPanel';
 import ApprovalDialog from './components/ApprovalDialog';
-import type { ToolStep } from './components/ToolTree';
 import OfficeTeamMode from './components/OfficeTeamMode';
+import ErrorBoundary from './components/ErrorBoundary';
+import type { ToolStep } from './components/ToolTree';
 
-type AppMode = 'single' | 'team';
-
-const AGENT_URL_DEFAULT = `ws://${window.location.host}/ws/`;
-const STORAGE_AGENT_URL = 'agentscope_url';
-const STORAGE_API_KEY = 'deepseek_api_key';
-const STORAGE_BASE_URL = 'deepseek_base_url';
-const STORAGE_PROVIDER = 'llm_provider';
-const STORAGE_MODEL_NAME = 'llm_model_name';
-const STORAGE_MULTIMODAL = 'llm_multimodal';
-const STORAGE_CONVERSATIONS = 'agent_conversations';
-const SSO_TOKEN_KEY = 'sso_auth_token';
-const SSO_USERNAME_KEY = 'sso_auth_username';
-
-const PARENT_ORIGIN = 'chrome://ai-automation-side-panel.top-chrome';
-const PROTOCOL_VERSION = '1.3';
-const MIN_SUPPORTED_VERSION = '1.1';
-
-interface SkillInfo {
-  name: string;
-  description: string;
-  dir: string;
-  type?: string;
-}
-
-interface EditingSkill {
-  name: string;
-  description: string;
-  params: Array<{ key: string; label: string; defaultValue: string }>;
-  steps: Array<{ command: string; payload: Record<string, any> }>;
-  skillType: string;
-  generating: boolean;
-}
-
-interface SettingsConfig {
-  agentUrl: string;
-  provider: string;
-  modelName: string;
-  apiKey: string;
-  baseUrl: string;
-  multimodal: boolean;
-}
+import { useWebSocket } from './hooks/useWebSocket';
+import { useApproval } from './hooks/useApproval';
+import { useScroll } from './hooks/useScroll';
+import { formatStepResult, executeCommand } from './utils/commands';
+import {
+  AGENT_URL_DEFAULT,
+  STORAGE_KEYS,
+  SSO_KEYS,
+  BRIDGE,
+  type SettingsConfig,
+  type SkillInfo,
+  type EditingSkill,
+  type AppMode,
+} from './constants';
 
 export default function App() {
   const [chatText, setChatText] = useState('');
@@ -65,14 +37,9 @@ export default function App() {
   const [skillPanelOpen, setSkillPanelOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState<EditingSkill | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [wsStatus, setWsStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
   const [pageCtx, setPageCtx] = useState({ url: '', title: '' });
-  const [ssoUsername] = useState(localStorage.getItem(SSO_USERNAME_KEY) || '');
+  const [ssoUsername] = useState(localStorage.getItem(SSO_KEYS.USERNAME) || '');
   const [appMode, setAppMode] = useState<AppMode>('single');
-  const [currentApprovalRequest, setCurrentApprovalRequest] = useState<ApprovalRequestInfo | null>(null);
-  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
-  const approvalQueueRef = useRef<ApprovalQueue>(new ApprovalQueue());
-  const approvalCallbacksRef = useRef<Map<string, { resolve: (v: any) => void }>>(new Map());
   const [settingsCfg, setSettingsCfg] = useState<SettingsConfig>({
     agentUrl: AGENT_URL_DEFAULT,
     provider: 'deepseek',
@@ -82,343 +49,198 @@ export default function App() {
     multimodal: true,
   });
 
-  const wsRef = useRef<WebSocket | null>(null);
   const activeConvRef = useRef<Conversation | null>(null);
-  const streamRef = useRef<HTMLDivElement>(null);
-  const scrollRafIdRef = useRef<number | null>(null);
-  const wsReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handshakeSentRef = useRef(false);
   const manifestVersionRef = useRef('');
 
-  const isNearBottom = useCallback((el: HTMLElement | null) => {
-    if (!el) return true;
-    return el.scrollTop + el.clientHeight >= el.scrollHeight - 50;
-  }, []);
+  const { containerRef: streamRef, scrollToBottom, forceScrollToBottom } = useScroll();
 
-  const scheduleScroll = useCallback(() => {
-    if (scrollRafIdRef.current !== null) return;
-    scrollRafIdRef.current = requestAnimationFrame(() => {
-      scrollRafIdRef.current = null;
-      const el = streamRef.current;
-      if (el && isNearBottom(el)) {
-        el.scrollTop = el.scrollHeight;
+  const { currentRequest, pendingCount, addRequest, approve, reject, close, waitForDecision, queueRef } = useApproval();
+
+  const handleWsMessage = useCallback((msg: any) => {
+    switch (msg.type) {
+      case 'connected': break;
+      case 'thinking': {
+        if (!activeConvRef.current) return;
+        const delta = typeof msg.delta === 'string' ? msg.delta : JSON.stringify(msg.delta ?? '');
+        activeConvRef.current.thinking += delta;
+        setConversations(prev => [...prev]);
+        scrollToBottom();
+        break;
       }
-    });
-  }, [isNearBottom]);
-
-  const forceScrollToBottom = useCallback(() => {
-    setTimeout(() => {
-      if (streamRef.current) streamRef.current.scrollTop = streamRef.current.scrollHeight;
-    }, 50);
-  }, []);
-
-  const formatStepResult = useCallback((result: any): string => {
-    if (result == null) return '';
-    if (typeof result === 'string') return result;
-    if (typeof result === 'number' || typeof result === 'boolean') return String(result);
-    try {
-      const str = JSON.stringify(result, null, 2);
-      if (str === undefined) return '[undefined]';
-      const lines = str.split('\n');
-      return lines.length > 10 ? lines.slice(0, 10).join('\n') + '\n... 还有 ' + (lines.length - 10) + ' 行' : str;
-    } catch {
-      try {
-        return Object.entries(result).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`).join('\n');
-      } catch {
-        return '[无法序列化的对象]';
+      case 'reply_text': {
+        if (!activeConvRef.current) return;
+        const delta = typeof msg.delta === 'string' ? msg.delta : JSON.stringify(msg.delta ?? '');
+        activeConvRef.current.replyText += delta;
+        setConversations(prev => [...prev]);
+        scrollToBottom();
+        break;
       }
-    }
-  }, []);
+      case 'tool_call': {
+        if (!activeConvRef.current) return;
+        const { call_id, name, args } = msg;
+        const stepStart = Date.now();
+        const step: ToolStep = {
+          callId: call_id,
+          name: getFriendlyName(name) || name,
+          args,
+          status: 'active',
+          detail: '执行中...',
+          duration: '',
+          resultText: '',
+          startTime: stepStart,
+        };
+        activeConvRef.current.toolSteps.push(step);
+        setConversations(prev => [...prev]);
+        scrollToBottom();
 
-  const executeCommand = useCallback((command: string, payload: any): Promise<any> => {
-    const id = 'req_' + Date.now();
-    return new Promise((resolve, reject) => {
-      const handler = (event: MessageEvent) => {
-        if (event.origin !== PARENT_ORIGIN) return;
-        const msg = event.data;
-        if (!msg || msg.type !== 'response' || msg.id !== id) return;
-        window.removeEventListener('message', handler);
-        if (msg.error) {
-          reject(Object.assign(new Error(msg.error.message || '失败'), { code: msg.error.code }));
-        } else {
-          resolve(msg.payload || { success: true });
-        }
-      };
-      window.addEventListener('message', handler);
-      parent.postMessage({ type: 'request', id, command, payload, timestamp: Date.now() }, PARENT_ORIGIN);
-      setTimeout(() => { window.removeEventListener('message', handler); reject(new Error('超时')); }, 15000);
-    });
-  }, []);
-
-  const handleThinking = useCallback((msg: any) => {
-    if (!activeConvRef.current) return;
-    const delta = typeof msg.delta === 'string' ? msg.delta : JSON.stringify(msg.delta ?? '');
-    activeConvRef.current.thinking += delta;
-    setConversations(prev => [...prev]);
-    scheduleScroll();
-  }, [scheduleScroll]);
-
-  const handleReplyText = useCallback((msg: any) => {
-    if (!activeConvRef.current) return;
-    const delta = typeof msg.delta === 'string' ? msg.delta : JSON.stringify(msg.delta ?? '');
-    activeConvRef.current.replyText += delta;
-    setConversations(prev => [...prev]);
-    scheduleScroll();
-  }, [scheduleScroll]);
-
-  const handleToolCall = useCallback((msg: any) => {
-    if (!activeConvRef.current) return;
-    const { call_id, name, args } = msg;
-    const stepStart = Date.now();
-
-    const step: ToolStep = {
-      callId: call_id,
-      name: getFriendlyName(name) || name,
-      args,
-      status: 'active',
-      detail: '执行中...',
-      duration: '',
-      resultText: '',
-      startTime: stepStart,
-    };
-    activeConvRef.current.toolSteps.push(step);
-    setConversations(prev => [...prev]);
-    scheduleScroll();
-
-    retryWithBackoff(
-      () => executeCommand(name, args),
-      {
-        maxRetries: 3,
-        onRetry: (state) => {
-          step.status = 'retrying';
-          step.detail = `重试中 (${state.attempt}/${state.maxRetries})`;
+        retryWithBackoff(
+          () => executeCommand(name, args, BRIDGE.PARENT_ORIGIN),
+          {
+            maxRetries: 3,
+            onRetry: (state) => {
+              step.status = 'retrying';
+              step.detail = `重试中 (${state.attempt}/${state.maxRetries})`;
+              setConversations(prev => [...prev]);
+              scrollToBottom();
+            },
+          },
+        ).then(result => {
+          step.status = 'done';
+          step.detail = '';
+          step.duration = ((Date.now() - stepStart) / 1000).toFixed(1) + 's';
+          step.resultText = formatStepResult(result);
+          send({ type: 'tool_result', call_id, result });
           setConversations(prev => [...prev]);
-          scheduleScroll();
-        },
-        onTARGET_STALE: () => executeCommand('discover_tools', {}),
-      },
-    ).then(result => {
-      step.status = 'done';
-      step.detail = '';
-      step.duration = ((Date.now() - stepStart) / 1000).toFixed(1) + 's';
-      step.resultText = formatStepResult(result);
-      wsRef.current?.send(JSON.stringify({ type: 'tool_result', call_id, result }));
-      setConversations(prev => [...prev]);
-      scheduleScroll();
-    }).catch(err => {
-      step.status = 'error';
-      step.detail = err.message || '执行失败';
-      wsRef.current?.send(JSON.stringify({ type: 'tool_result', call_id, result: { error: err.message || '执行失败' } }));
-      setConversations(prev => [...prev]);
-      scheduleScroll();
-    });
-  }, [executeCommand, formatStepResult, scheduleScroll]);
+          scrollToBottom();
+        }).catch(err => {
+          step.status = 'error';
+          step.detail = err.message || '执行失败';
+          send({ type: 'tool_result', call_id, result: { error: err.message || '执行失败' } });
+          setConversations(prev => [...prev]);
+          scrollToBottom();
+        });
+        break;
+      }
+      case 'confirm_request': {
+        if (!activeConvRef.current) return;
+        const { call_id, name, args } = msg;
+        const riskLevel = args?.risk_level || 'medium';
+        const approvalRequest = {
+          id: call_id || crypto.randomUUID(),
+          requesterId: name || 'agent',
+          operation: getFriendlyName(name) || name,
+          description: args?.description || args?.reason || `确认操作: ${name}`,
+          riskLevel,
+          confidence: args?.confidence ?? 0.5,
+          status: 'pending' as const,
+          createdAt: Date.now(),
+        };
+        addRequest(approvalRequest);
 
-  const processNextApproval = useCallback(() => {
-    const queue = approvalQueueRef.current
-    const next = queue.getNextRequest()
-    if (next) {
-      setCurrentApprovalRequest(next.request)
-    } else {
-      setCurrentApprovalRequest(null)
-    }
-    setPendingApprovalCount(queue.getPendingCount())
-  }, [])
+        const step: ToolStep = {
+          callId: call_id,
+          name: getFriendlyName(name) || name,
+          args,
+          status: 'active',
+          detail: '等待审批...',
+          duration: '',
+          resultText: '',
+          startTime: Date.now(),
+        };
+        activeConvRef.current.toolSteps.push(step);
+        setConversations(prev => [...prev]);
+        scrollToBottom();
 
-  const handleApprove = useCallback((requestId: string, reason?: string) => {
-    const queue = approvalQueueRef.current
-    queue.approveRequest(requestId, reason)
-    const cb = approvalCallbacksRef.current.get(requestId)
-    if (cb) {
-      cb.resolve({ confirmed: true, reason })
-      approvalCallbacksRef.current.delete(requestId)
-    }
-    processNextApproval()
-  }, [processNextApproval])
-
-  const handleReject = useCallback((requestId: string, reason?: string) => {
-    const queue = approvalQueueRef.current
-    queue.rejectRequest(requestId, reason)
-    const cb = approvalCallbacksRef.current.get(requestId)
-    if (cb) {
-      cb.resolve({ rejected: true, reason })
-      approvalCallbacksRef.current.delete(requestId)
-    }
-    processNextApproval()
-  }, [processNextApproval])
-
-  const handleCloseApproval = useCallback(() => {
-    setCurrentApprovalRequest(null)
-  }, [])
-
-  const handleConfirmRequest = useCallback((msg: any) => {
-    if (!activeConvRef.current) return;
-    const { call_id, name, args } = msg;
-
-    const riskLevel: RiskLevel = args?.risk_level || 'medium'
-    const approvalRequest: ApprovalRequestInfo = {
-      id: call_id || crypto.randomUUID(),
-      requesterId: name || 'agent',
-      operation: getFriendlyName(name) || name,
-      description: args?.description || args?.reason || `确认操作: ${name}`,
-      riskLevel,
-      confidence: args?.confidence ?? 0.5,
-      status: 'pending',
-      createdAt: Date.now(),
-    }
-
-    const queue = approvalQueueRef.current
-    queue.addRequest(approvalRequest, riskLevel === 'critical' ? 100 : riskLevel === 'high' ? 80 : riskLevel === 'medium' ? 50 : 20)
-
-    if (!currentApprovalRequest) {
-      processNextApproval()
-    }
-
-    setPendingApprovalCount(queue.getPendingCount())
-
-    const step: ToolStep = {
-      callId: call_id,
-      name: getFriendlyName(name) || name,
-      args,
-      status: 'active',
-      detail: '等待审批...',
-      duration: '',
-      resultText: '',
-      startTime: Date.now(),
-    };
-    activeConvRef.current.toolSteps.push(step);
-    setConversations(prev => [...prev]);
-    scheduleScroll();
-
-    return new Promise<void>((resolve) => {
-      approvalCallbacksRef.current.set(approvalRequest.id, {
-        resolve: (result: any) => {
-          const idx = activeConvRef.current?.toolSteps.findIndex(s => s.callId === call_id)
+        waitForDecision(approvalRequest.id).then(result => {
+          const idx = activeConvRef.current?.toolSteps.findIndex((s: ToolStep) => s.callId === call_id);
           if (idx !== undefined && idx >= 0 && activeConvRef.current) {
-            const s = activeConvRef.current.toolSteps[idx]
-            if (result.confirmed) {
-              s.status = 'done'
-              s.detail = '已批准'
-            } else {
-              s.status = 'error'
-              s.detail = '已拒绝'
-            }
-            s.duration = ((Date.now() - step.startTime) / 1000).toFixed(1) + 's'
+            const step = activeConvRef.current.toolSteps[idx];
+            step.status = result.confirmed ? 'done' : 'error';
+            step.detail = result.confirmed ? '已批准' : '已拒绝';
+            step.duration = ((Date.now() - step.startTime) / 1000).toFixed(1) + 's';
           }
-          wsRef.current?.send(JSON.stringify({
+          send({
             type: 'confirm_result',
             call_id,
             confirmed: !!result.confirmed,
             rejected: !!result.rejected,
             reason: result.reason,
-          }));
+          });
           setConversations(prev => [...prev]);
-          scheduleScroll();
-          resolve();
-        },
-      });
-    });
-  }, [currentApprovalRequest, processNextApproval, scheduleScroll]);
-
-  const handleDone = useCallback((msg: any) => {
-    if (!activeConvRef.current) return;
-    activeConvRef.current.status = 'done';
-    if (msg.message != null && !activeConvRef.current.replyText) {
-      const text = typeof msg.message === 'string' ? msg.message : JSON.stringify(msg.message);
-      activeConvRef.current.replyText = text;
-    }
-    setIsProcessing(false);
-    activeConvRef.current = null;
-    setConversations(prev => [...prev]);
-    scheduleScroll();
-  }, [scheduleScroll]);
-
-  const handleError = useCallback((msg: any) => {
-    if (!activeConvRef.current) return;
-    activeConvRef.current.status = 'error';
-    const errMsg = typeof msg.message === 'string' ? msg.message : (msg.message ? JSON.stringify(msg.message) : '执行错误');
-    activeConvRef.current.errorMessage = errMsg;
-    setIsProcessing(false);
-    activeConvRef.current = null;
-    setConversations(prev => [...prev]);
-    scheduleScroll();
-  }, [scheduleScroll]);
-
-  const connectWs = useCallback(() => {
-    const url = localStorage.getItem(STORAGE_AGENT_URL) || AGENT_URL_DEFAULT;
-    setWsStatus('connecting');
-    try {
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setWsStatus('connected');
-        ws.send(JSON.stringify({ type: 'get_skills' }));
-      };
-
-      ws.onclose = () => {
-        setWsStatus('disconnected');
-        wsReconnectTimerRef.current = setTimeout(connectWs, 3000);
-      };
-
-      ws.onerror = () => setWsStatus('error');
-
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        switch (msg.type) {
-          case 'connected': setWsStatus('connected'); break;
-          case 'thinking': handleThinking(msg); break;
-          case 'tool_call': handleToolCall(msg); break;
-          case 'confirm_request': handleConfirmRequest(msg); break;
-          case 'reply_text': handleReplyText(msg); break;
-          case 'done': handleDone(msg); break;
-          case 'error': handleError(msg); break;
-          case 'skill_list': setSkills(msg.skills || []); break;
-          case 'skill_saved':
-          case 'skill_deleted':
-            ws.send(JSON.stringify({ type: 'get_skills' }));
-            break;
+          scrollToBottom();
+        });
+        break;
+      }
+      case 'done': {
+        if (!activeConvRef.current) return;
+        activeConvRef.current.status = 'done';
+        if (msg.message != null && !activeConvRef.current.replyText) {
+          activeConvRef.current.replyText = typeof msg.message === 'string' ? msg.message : JSON.stringify(msg.message);
         }
-      };
-    } catch {
-      setWsStatus('error');
-      wsReconnectTimerRef.current = setTimeout(connectWs, 3000);
+        setIsProcessing(false);
+        activeConvRef.current = null;
+        setConversations(prev => [...prev]);
+        scrollToBottom();
+        break;
+      }
+      case 'error': {
+        if (!activeConvRef.current) return;
+        activeConvRef.current.status = 'error';
+        activeConvRef.current.errorMessage = typeof msg.message === 'string' ? msg.message : (msg.message ? JSON.stringify(msg.message) : '执行错误');
+        setIsProcessing(false);
+        activeConvRef.current = null;
+        setConversations(prev => [...prev]);
+        scrollToBottom();
+        break;
+      }
+      case 'skill_list':
+        setSkills(msg.skills || []);
+        break;
+      case 'skill_saved':
+      case 'skill_deleted':
+        send({ type: 'get_skills' });
+        break;
     }
-  }, [handleThinking, handleToolCall, handleConfirmRequest, handleReplyText, handleDone, handleError]);
+  }, [scrollToBottom, addRequest, waitForDecision]);
+
+  const { status: wsStatus, send, wsRef } = useWebSocket({
+    url: localStorage.getItem(STORAGE_KEYS.AGENT_URL) || AGENT_URL_DEFAULT,
+    onMessage: handleWsMessage,
+    onOpen: () => send({ type: 'get_skills' }),
+  });
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('app_theme') || 'dark';
+    const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME) || 'dark';
     setTheme(savedTheme as 'dark' | 'light');
     document.documentElement.setAttribute('data-theme', savedTheme);
 
-    const savedConversations = localStorage.getItem(STORAGE_CONVERSATIONS);
+    const savedConversations = localStorage.getItem(STORAGE_KEYS.CONVERSATIONS);
     if (savedConversations) {
       try { setConversations(JSON.parse(savedConversations)); }
-      catch { localStorage.removeItem(STORAGE_CONVERSATIONS); }
+      catch { localStorage.removeItem(STORAGE_KEYS.CONVERSATIONS); }
     }
 
     setSettingsCfg({
-      agentUrl: localStorage.getItem(STORAGE_AGENT_URL) || AGENT_URL_DEFAULT,
-      provider: localStorage.getItem(STORAGE_PROVIDER) || 'deepseek',
-      modelName: localStorage.getItem(STORAGE_MODEL_NAME) || '',
-      apiKey: localStorage.getItem(STORAGE_API_KEY) || '',
-      baseUrl: localStorage.getItem(STORAGE_BASE_URL) || '',
-      multimodal: localStorage.getItem(STORAGE_MULTIMODAL) !== 'false',
+      agentUrl: localStorage.getItem(STORAGE_KEYS.AGENT_URL) || AGENT_URL_DEFAULT,
+      provider: localStorage.getItem(STORAGE_KEYS.PROVIDER) || 'deepseek',
+      modelName: localStorage.getItem(STORAGE_KEYS.MODEL_NAME) || '',
+      apiKey: localStorage.getItem(STORAGE_KEYS.API_KEY) || '',
+      baseUrl: localStorage.getItem(STORAGE_KEYS.BASE_URL) || '',
+      multimodal: localStorage.getItem(STORAGE_KEYS.MULTIMODAL) !== 'false',
     });
 
-    connectWs();
-
     const handleBridgeEvent = (event: MessageEvent) => {
-      if (event.origin !== PARENT_ORIGIN) return;
+      if (event.origin !== BRIDGE.PARENT_ORIGIN) return;
       const msg = event.data;
       if (!msg || msg.type !== 'event') return;
 
       if (msg.command === 'host_ready' && !handshakeSentRef.current) {
         handshakeSentRef.current = true;
         executeCommand('handshake', {
-          protocol_version: PROTOCOL_VERSION,
-          min_supported_version: MIN_SUPPORTED_VERSION,
-        }).catch(() => {});
+          protocol_version: BRIDGE.PROTOCOL_VERSION,
+          min_supported_version: BRIDGE.MIN_SUPPORTED_VERSION,
+        }, BRIDGE.PARENT_ORIGIN).catch(() => {});
       }
 
       if (msg.command === 'manifest_push' || msg.command === 'manifest_update') {
@@ -435,49 +257,33 @@ export default function App() {
     };
 
     window.addEventListener('message', handleBridgeEvent);
-
-    return () => {
-      window.removeEventListener('message', handleBridgeEvent);
-      if (wsReconnectTimerRef.current) clearTimeout(wsReconnectTimerRef.current);
-      if (wsRef.current) {
-        const ws = wsRef.current;
-        ws.onclose = null;
-        ws.onerror = null;
-        ws.onopen = null;
-        ws.onmessage = null;
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.close();
-        }
-        wsRef.current = null;
-      }
-    };
+    return () => window.removeEventListener('message', handleBridgeEvent);
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_CONVERSATIONS, JSON.stringify(conversations));
+    const timer = setTimeout(() => {
+      localStorage.setItem(STORAGE_KEYS.CONVERSATIONS, JSON.stringify(conversations));
+    }, 500);
+    return () => clearTimeout(timer);
   }, [conversations]);
 
   useEffect(() => {
-    approvalQueueRef.current.startAutoExpiryCheck(30000)
-    return () => {
-      approvalQueueRef.current.stopAutoExpiryCheck()
-    }
-  }, []);
+    queueRef.current.startAutoExpiryCheck(30000);
+    return () => queueRef.current.stopAutoExpiryCheck();
+  }, [queueRef]);
 
   const toggleTheme = useCallback(() => {
     const newTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
     document.documentElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem('app_theme', newTheme);
+    localStorage.setItem(STORAGE_KEYS.THEME, newTheme);
   }, [theme]);
 
   const newSession = useCallback(() => {
     setConversations([]);
-    localStorage.removeItem(STORAGE_CONVERSATIONS);
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'user_message', content: '', reset: true }));
-    }
-  }, []);
+    localStorage.removeItem(STORAGE_KEYS.CONVERSATIONS);
+    send({ type: 'user_message', content: '', reset: true });
+  }, [send]);
 
   const sendMessage = useCallback(() => {
     const text = chatText.trim();
@@ -499,37 +305,33 @@ export default function App() {
     setConversations(prev => [...prev, conv]);
     forceScrollToBottom();
 
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+    if (!send({
+      type: 'user_message',
+      content: text,
+      provider: localStorage.getItem(STORAGE_KEYS.PROVIDER) || undefined,
+      model_name: localStorage.getItem(STORAGE_KEYS.MODEL_NAME) || undefined,
+      api_key: localStorage.getItem(STORAGE_KEYS.API_KEY) || undefined,
+      base_url: localStorage.getItem(STORAGE_KEYS.BASE_URL) || undefined,
+      multimodal: localStorage.getItem(STORAGE_KEYS.MULTIMODAL) !== 'false',
+    })) {
       conv.status = 'error';
       conv.errorMessage = '未连接到 AgentScope 后端';
       setIsProcessing(false);
       activeConvRef.current = null;
       setConversations(prev => [...prev]);
-      return;
     }
-
-    wsRef.current.send(JSON.stringify({
-      type: 'user_message',
-      content: text,
-      provider: localStorage.getItem(STORAGE_PROVIDER) || undefined,
-      model_name: localStorage.getItem(STORAGE_MODEL_NAME) || undefined,
-      api_key: localStorage.getItem(STORAGE_API_KEY) || undefined,
-      base_url: localStorage.getItem(STORAGE_BASE_URL) || undefined,
-      multimodal: localStorage.getItem(STORAGE_MULTIMODAL) !== 'false',
-    }));
-  }, [chatText, isProcessing, forceScrollToBottom]);
+  }, [chatText, isProcessing, forceScrollToBottom, send]);
 
   const saveSettings = useCallback(() => {
-    localStorage.setItem(STORAGE_AGENT_URL, settingsCfg.agentUrl.trim() || AGENT_URL_DEFAULT);
-    localStorage.setItem(STORAGE_PROVIDER, settingsCfg.provider);
-    localStorage.setItem(STORAGE_MODEL_NAME, settingsCfg.modelName.trim());
-    localStorage.setItem(STORAGE_API_KEY, settingsCfg.apiKey.trim());
-    localStorage.setItem(STORAGE_BASE_URL, settingsCfg.baseUrl.trim());
-    localStorage.setItem(STORAGE_MULTIMODAL, String(settingsCfg.multimodal));
+    localStorage.setItem(STORAGE_KEYS.AGENT_URL, settingsCfg.agentUrl.trim() || AGENT_URL_DEFAULT);
+    localStorage.setItem(STORAGE_KEYS.PROVIDER, settingsCfg.provider);
+    localStorage.setItem(STORAGE_KEYS.MODEL_NAME, settingsCfg.modelName.trim());
+    localStorage.setItem(STORAGE_KEYS.API_KEY, settingsCfg.apiKey.trim());
+    localStorage.setItem(STORAGE_KEYS.BASE_URL, settingsCfg.baseUrl.trim());
+    localStorage.setItem(STORAGE_KEYS.MULTIMODAL, String(settingsCfg.multimodal));
     setSettingsOpen(false);
-    if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
-    setTimeout(connectWs, 200);
-  }, [settingsCfg, connectWs]);
+    window.location.reload();
+  }, [settingsCfg]);
 
   const openSkillEditor = useCallback((conv: Conversation) => {
     const steps = stepsToServerFormat(conv.toolSteps);
@@ -547,16 +349,16 @@ export default function App() {
   }, []);
 
   const confirmSaveSkill = useCallback(() => {
-    if (!editingSkill?.name.trim() || !wsRef.current) return;
-    wsRef.current.send(JSON.stringify({
+    if (!editingSkill?.name.trim()) return;
+    send({
       type: 'save_skill',
       name: editingSkill.name.trim(),
       description: editingSkill.description.trim(),
       steps: editingSkill.steps,
       skill_type: editingSkill.skillType || 'strict',
-    }));
+    });
     setEditingSkill(null);
-  }, [editingSkill]);
+  }, [editingSkill, send]);
 
   const runSkill = useCallback((skill: SkillInfo) => {
     setChatText(buildSkillPrompt(skill.name));
@@ -564,12 +366,12 @@ export default function App() {
   }, []);
 
   const removeSkillByDir = useCallback((dir: string) => {
-    wsRef.current?.send(JSON.stringify({ type: 'delete_skill', dir }));
-  }, []);
+    send({ type: 'delete_skill', dir });
+  }, [send]);
 
   const logout = useCallback(() => {
-    localStorage.removeItem(SSO_TOKEN_KEY);
-    localStorage.removeItem(SSO_USERNAME_KEY);
+    localStorage.removeItem(SSO_KEYS.TOKEN);
+    localStorage.removeItem(SSO_KEYS.USERNAME);
     window.location.reload();
   }, []);
 
@@ -593,62 +395,57 @@ export default function App() {
         onLogout={logout}
       />
 
-      {appMode === 'single' ? (
-        <>
-          <div className="conv-stream" ref={streamRef}>
-            <ConversationStream
-              conversations={conversations}
-              onOpenSkillEditor={openSkillEditor}
-              onToggleThinkCollapse={toggleThinkCollapse}
-            />
-          </div>
-
-          <div className="input-bar">
-            <Sender
-              value={chatText}
-              onChange={setChatText}
-              onSubmit={sendMessage}
-              disabled={isProcessing}
-              loading={isProcessing}
-              placeholder="输入指令，例如：打开 GitHub 搜索 react..."
-              submitType="enter"
-            />
-            <div className="mode-switcher">
-              <button
-                className={`mode-btn active`}
-                onClick={() => setAppMode('single')}
-              >
-                <span className="mode-icon">🤖</span>
-                <span className="mode-label">单智能体</span>
-              </button>
-              <button
-                className={`mode-btn`}
-                onClick={() => setAppMode('team')}
-              >
-                <span className="mode-icon">👥</span>
-                <span className="mode-label">多智能体团队</span>
-              </button>
+      <ErrorBoundary>
+        {appMode === 'single' ? (
+          <>
+            <div className="conv-stream" ref={streamRef}>
+              <ConversationStream
+                conversations={conversations}
+                onOpenSkillEditor={openSkillEditor}
+                onToggleThinkCollapse={toggleThinkCollapse}
+              />
             </div>
-          </div>
-        </>
-      ) : (
-        <OfficeTeamMode
-          wsRef={wsRef}
-          onBackToSingle={() => setAppMode('single')}
-          pendingApprovalCount={pendingApprovalCount}
-          onOpenApproval={() => {
-            const next = approvalQueueRef.current.getNextRequest()
-            if (next) setCurrentApprovalRequest(next.request)
-          }}
-        />
-      )}
 
-      {currentApprovalRequest && (
+            <div className="input-bar">
+              <Sender
+                value={chatText}
+                onChange={setChatText}
+                onSubmit={sendMessage}
+                disabled={isProcessing}
+                loading={isProcessing}
+                placeholder="输入指令，例如：打开 GitHub 搜索 react..."
+                submitType="enter"
+              />
+              <div className="mode-switcher">
+                <button className="mode-btn active" onClick={() => setAppMode('single')}>
+                  <span className="mode-icon">🤖</span>
+                  <span className="mode-label">单智能体</span>
+                </button>
+                <button className="mode-btn" onClick={() => setAppMode('team')}>
+                  <span className="mode-icon">👥</span>
+                  <span className="mode-label">多智能体团队</span>
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <OfficeTeamMode
+            wsRef={wsRef}
+            onBackToSingle={() => setAppMode('single')}
+            pendingApprovalCount={pendingCount}
+            onOpenApproval={() => {
+              if (currentRequest) close();
+            }}
+          />
+        )}
+      </ErrorBoundary>
+
+      {currentRequest && (
         <ApprovalDialog
-          request={currentApprovalRequest}
-          onApprove={handleApprove}
-          onReject={handleReject}
-          onClose={handleCloseApproval}
+          request={currentRequest}
+          onApprove={approve}
+          onReject={reject}
+          onClose={close}
         />
       )}
 
