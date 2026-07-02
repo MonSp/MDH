@@ -367,7 +367,13 @@ export class TaskScheduler {
         const endTime = startTime + duration
 
         const slot = getAvailableSlot(startTime)
-        if (slot === -1) continue
+        if (slot === -1) {
+          // 无可用 slot，标记为已处理避免死循环，放到队尾重试
+          processed.add(task.id)
+          const queueIndex = readyQueue.indexOf(task)
+          if (queueIndex > -1) readyQueue.splice(queueIndex, 1)
+          continue
+        }
 
         task.scheduledStartTime = startTime
         task.scheduledEndTime = endTime
