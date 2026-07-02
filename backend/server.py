@@ -25,6 +25,8 @@ from dynamic_router import DynamicRouter, RouteEntry
 from complexity_classifier import ComplexityClassifier
 from simple_executor import SimpleExecutor
 from ceo_agent import CeoAgent
+from agent_pool import AgentPool
+from key_manager import KeyManager
 
 logger = logging.getLogger("server")
 
@@ -63,6 +65,10 @@ dynamic_router = DynamicRouter(
 # 自适应协作链路组件
 complexity_classifier = ComplexityClassifier()
 simple_executor = SimpleExecutor(project_manager=project_manager)
+
+# Agent 池（全局单例，支持复用和负载均衡）
+key_manager = KeyManager()
+agent_pool = AgentPool(key_manager=key_manager, max_instances_per_role=2)
 
 
 def _ok(data=None):
@@ -1174,6 +1180,7 @@ async def ws_handler(ws: WebSocket):
                     api_key=session.api_key,
                     base_url=session.base_url or "",
                     workspace=workspace,
+                    agent_pool=agent_pool,
                 )
                 session._meeting_coordinator = coordinator
 

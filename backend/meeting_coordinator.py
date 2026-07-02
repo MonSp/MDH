@@ -10,6 +10,7 @@ from agentscope.agent import Agent
 from agentscope.message import Msg
 
 from agent import PROVIDER_REGISTRY, _extract_text
+from agent_pool import AgentPool, AgentConfig
 from agenda import AgendaStateMachine, AgendaPhase
 from collaboration.planner_agent import PlannerAgent, SubTask
 from dynamic_router import DynamicRouter
@@ -56,6 +57,7 @@ class MeetingCoordinator:
         base_url: str = "",
         data_dir: str = "data",
         workspace=None,
+        agent_pool: Optional[AgentPool] = None,
     ):
         self.meeting = meeting_session
         self.provider = provider
@@ -77,6 +79,7 @@ class MeetingCoordinator:
             self._tool_registry = None
             self._tool_executor = None
             self._workspace = None
+        self._agent_pool = agent_pool
         self._models: Dict[str, Agent] = {}
         self._tasks: List[Dict[str, Any]] = []
         self._on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
@@ -247,6 +250,12 @@ class MeetingCoordinator:
     def _get_model(self, role: AgentRole) -> Agent:
         key = role.value
         if key not in self._models:
+            # 优先从 AgentPool 获取（支持复用和负载均衡）
+            if self._agent_pool:
+                instance = self._agent_pool.get_agent_by_role(key)
+                if instance:
+                    self._models[key] = instance.agent
+                    return instance.agent
             self._models[key] = self._create_model(role)
         return self._models[key]
 
