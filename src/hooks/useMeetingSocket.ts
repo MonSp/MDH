@@ -126,6 +126,18 @@ export default function useMeetingSocket({
   const [votes, setVotes] = useState<Map<string, VoteEntry>>(new Map())
   const [voteResults, setVoteResults] = useState<VoteResults | null>(null)
 
+  // 人工审批状态
+  interface PendingApprovalInfo {
+    id: string
+    requesterId: string
+    operation: string
+    description: string
+    riskLevel: string
+    confidence: number
+    createdAt: number
+  }
+  const [pendingApprovals, setPendingApprovals] = useState<Map<string, PendingApprovalInfo>>(new Map())
+
   const send = useCallback((data: Record<string, unknown>) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       console.log('[MeetingSocket] 发送消息:', data)
@@ -642,6 +654,68 @@ export default function useMeetingSocket({
           }
           break
         }
+        case 'human_approval_request': {
+          // 收到人工审批请求
+          const request = msg.request
+          if (request) {
+            setPendingApprovals(prev => {
+              const next = new Map(prev)
+              next.set(request.id, {
+                id: request.id,
+                requesterId: request.requesterId,
+                operation: request.operation,
+                description: request.description,
+                riskLevel: request.riskLevel,
+                confidence: request.confidence,
+                createdAt: request.createdAt,
+              })
+              return next
+            })
+            setChatMessages(prev => [...prev, {
+              role: 'boss' as const,
+              content: `[审批请求] ${request.operation}: ${request.description} (风险: ${request.riskLevel})`,
+              timestamp: Date.now(),
+              _msgSubtype: 'feedback',
+            }])
+          }
+          break
+        }
+        case 'human_approval_response': {
+          // 审批响应确认
+          const { requestId, approved, reason } = msg
+          setPendingApprovals(prev => {
+            const next = new Map(prev)
+            next.delete(requestId)
+            return next
+          })
+          setChatMessages(prev => [...prev, {
+            role: 'boss' as const,
+            content: `[审批结果] ${approved ? '已批准' : '已拒绝'}${reason ? ': ' + reason : ''}`,
+            timestamp: Date.now(),
+            _msgSubtype: 'feedback',
+          }])
+          break
+        }
+        case 'pending_approvals': {
+          // 获取待审批列表
+          const requests = msg.requests || []
+          setPendingApprovals(prev => {
+            const next = new Map(prev)
+            for (const req of requests) {
+              next.set(req.id, {
+                id: req.id,
+                requesterId: req.requesterId,
+                operation: req.operation,
+                description: req.description,
+                riskLevel: req.riskLevel,
+                confidence: req.confidence,
+                createdAt: req.createdAt,
+              })
+            }
+            return next
+          })
+          break
+        }
         case 'bridge_agent_registered': {
           // Bridge registration confirmation from Python
           console.log('[Bridge] Agent registered:', msg.tsAgentId, '->', msg.pyAgentId, 'success:', msg.success)
@@ -781,6 +855,21 @@ export default function useMeetingSocket({
     })
   }, [send])
 
+  // === 人工审批函数 ===
+
+  const sendApprovalResponse = useCallback((requestId: string, approved: boolean, reason: string = '') => {
+    send({
+      type: 'human_approval_response',
+      requestId,
+      approved,
+      reason,
+    })
+  }, [send])
+
+  const getPendingApprovals = useCallback(() => {
+    send({ type: 'get_pending_approvals' })
+  }, [send])
+
   return {
     meetingId,
     agents,
@@ -816,5 +905,9 @@ export default function useMeetingSocket({
     createProposal,
     castVote,
     evaluateConsensus,
+    // 人工审批
+    pendingApprovals,
+    sendApprovalResponse,
+    getPendingApprovals,
   }
 }

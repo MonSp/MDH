@@ -28,6 +28,7 @@ from ceo_agent import CeoAgent
 from agent_pool import AgentPool
 from key_manager import KeyManager
 from agent_bridge import AgentBridge
+from approval_manager import ApprovalManager
 
 logger = logging.getLogger("server")
 
@@ -1197,6 +1198,9 @@ async def ws_handler(ws: WebSocket):
                 session._ceo_agent._agenda = coordinator.agenda
                 session._agenda = coordinator.agenda
 
+                # 创建审批管理器
+                session._approval_manager = ApprovalManager()
+
                 logger.info("会议已创建: meeting_id=%s session=%s", meeting_id, session.session_id)
                 msg_meeting_started = {
                     "type": "meeting_started",
@@ -1675,6 +1679,32 @@ async def ws_handler(ws: WebSocket):
                     session.send_and_buffer,
                     coordinator=session._meeting_coordinator,
                 )
+
+            # === 人工审批系统 ===
+            elif msg_type == "human_approval_response":
+                request_id = msg.get("requestId", "")
+                approved = msg.get("approved", False)
+                reason = msg.get("reason", "")
+
+                if not session._approval_manager:
+                    session._approval_manager = ApprovalManager()
+
+                success = await session._approval_manager.handle_response(
+                    request_id, approved, reason, session.send_and_buffer,
+                )
+                if not success:
+                    await session.send_error(f"审批请求 {request_id} 不存在或已处理")
+
+            elif msg_type == "get_pending_approvals":
+                if not session._approval_manager:
+                    session._approval_manager = ApprovalManager()
+
+                pending = session._approval_manager.get_pending_requests()
+                await ws.send_json({
+                    "type": "pending_approvals",
+                    "requests": pending,
+                    "count": len(pending),
+                })
 
     except WebSocketDisconnect:
         logger.info("WebSocket 断开: session=%s", session.session_id)
