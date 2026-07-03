@@ -10,6 +10,8 @@ import WorkflowPanel from './WorkflowPanel'
 import WorkspacePanel from './office-team/WorkspacePanel'
 import SkillEvolutionPanel from './skill-evolution/SkillEvolutionPanel'
 import useMeetingSocket from '../hooks/useMeetingSocket'
+import { useAgentSystem } from '../hooks/useAgentSystem'
+import { AgentRole, AgentCapability } from '../modules/agentTypes'
 
 interface OfficeTeamModeProps {
   wsRef: React.MutableRefObject<WebSocket | null>
@@ -45,7 +47,22 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     meetingPhase,
     meetingStartTime,
     deleteTask,
+    // Bridge
+    registerBridgeAgent,
+    sendBridgeMessage,
+    onBridgeMessage,
   } = useMeetingSocket({ wsRef })
+
+  // TS 智能体系统
+  const {
+    agents: tsAgents,
+    createAgent: createTsAgent,
+    removeAgent: removeTsAgent,
+    sendAgentMessage,
+    onAgentMessage,
+    getPythonId,
+    registerToPython,
+  } = useAgentSystem({ wsRef, autoRegister: true })
 
   // 从科技大厦进入办公室
   const handleEnterOffice = useCallback((projectId: string, projectName: string) => {
@@ -185,6 +202,33 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
             projectDetail={projectDetail}
           />
         </div>
+
+        {/* TS 智能体管理面板 */}
+        {!isMeeting && tsAgents.length > 0 && (
+          <div style={styles.tsAgentPanel}>
+            <div style={styles.tsAgentPanelHeader}>
+              <span>🤖 自定义智能体</span>
+              <span style={styles.tsAgentCount}>{tsAgents.length}</span>
+            </div>
+            {tsAgents.map(agent => (
+              <div key={agent.id} style={styles.tsAgentCard}>
+                <div style={styles.tsAgentInfo}>
+                  <span style={styles.tsAgentName}>{agent.configId}</span>
+                  <span style={styles.tsAgentStatus}>{agent.status}</span>
+                </div>
+                {getPythonId(agent.id) && (
+                  <span style={styles.tsAgentPyId}>→ {getPythonId(agent.id)}</span>
+                )}
+                <button
+                  style={styles.tsAgentRemoveBtn}
+                  onClick={() => removeTsAgent(agent.id)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* 会议面板（从右侧滑出，覆盖办公室右侧） */}
         {isMeeting && (
@@ -495,6 +539,80 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     transition: 'all 0.15s',
+    flexShrink: 0,
+  },
+  // TS 智能体面板样式
+  tsAgentPanel: {
+    position: 'absolute' as const,
+    top: '60px',
+    right: '16px',
+    width: '220px',
+    background: 'rgba(15, 23, 42, 0.95)',
+    borderRadius: '12px',
+    border: '1px solid rgba(139, 92, 246, 0.3)',
+    padding: '12px',
+    zIndex: 10,
+    backdropFilter: 'blur(8px)',
+  },
+  tsAgentPanelHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '8px',
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#e2e8f0',
+  },
+  tsAgentCount: {
+    fontSize: '11px',
+    color: '#a78bfa',
+    background: 'rgba(139, 92, 246, 0.2)',
+    padding: '1px 6px',
+    borderRadius: '8px',
+  },
+  tsAgentCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '6px 8px',
+    borderRadius: '6px',
+    background: 'rgba(255, 255, 255, 0.03)',
+    marginBottom: '4px',
+  },
+  tsAgentInfo: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    minWidth: 0,
+  },
+  tsAgentName: {
+    fontSize: '12px',
+    color: '#e2e8f0',
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  tsAgentStatus: {
+    fontSize: '10px',
+    color: '#94a3b8',
+  },
+  tsAgentPyId: {
+    fontSize: '10px',
+    color: '#a78bfa',
+    whiteSpace: 'nowrap' as const,
+  },
+  tsAgentRemoveBtn: {
+    width: '18px',
+    height: '18px',
+    borderRadius: '4px',
+    border: 'none',
+    background: 'rgba(239, 68, 68, 0.15)',
+    color: '#ef4444',
+    fontSize: '11px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     flexShrink: 0,
   },
 }

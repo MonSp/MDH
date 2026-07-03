@@ -150,8 +150,12 @@ export class WebSocketBridge {
         timestamp: Date.now(),
         priority: MessagePriority.Normal,
         status: 'pending' as any,
-        retryCount: 0,
-        maxRetries: 3,
+        broadcast: false,
+        sessionId: '',
+        correlationId: null,
+        replyTo: null,
+        expiresAt: null,
+        metadata: {},
       }
 
       // Directly notify any pending handler
