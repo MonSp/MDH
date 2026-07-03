@@ -1442,6 +1442,159 @@ async def ws_handler(ws: WebSocket):
                     "weight": weight,
                 })
 
+            # === 投票决策系统 ===
+            elif msg_type == "create_proposal":
+                if not session.meeting_session or not session.meeting_session.is_running():
+                    await session.send_error("没有进行中的会议")
+                    continue
+
+                coordinator = getattr(session, '_meeting_coordinator', None)
+                if not coordinator or not hasattr(coordinator, 'negotiation'):
+                    await session.send_error("协商引擎未初始化")
+                    continue
+
+                proposer_id = msg.get("proposerId", "user")
+                content = msg.get("content", "")
+                if not content:
+                    await session.send_error("提案内容不能为空")
+                    continue
+
+                proposal = coordinator.negotiation.create_proposal(proposer_id, content)
+
+                # 转换议程状态到 proposal 阶段
+                agenda = getattr(coordinator, 'agenda', None) or session._agenda
+                if agenda:
+                    agenda.propose(proposal.id)
+
+                # 发送提案消息
+                proposal_msg = {
+                    "type": "proposal",
+                    "proposal": {
+                        "id": proposal.id,
+                        "proposerId": proposal.proposer_id,
+                        "content": proposal.content,
+                        "stance": "neutral",
+                        "confidence": 0.5,
+                        "argumentRefs": [],
+                        "createdAt": proposal.created_at,
+                    },
+                    "sequence_no": session.next_sequence(),
+                }
+                await session.send_and_buffer(proposal_msg)
+
+                # 同步更新议程状态
+                if agenda:
+                    agenda_snapshot = {
+                        "type": "agenda_update",
+                        "phase": agenda.get_phase().value,
+                        "topic": agenda._topic,
+                        "current_speaker": agenda.get_current_speaker(),
+                        "proposal_id": proposal.id,
+                        "token_queue": [{"agent_id": t.agent_id, "relevance_score": t.relevance_score} for t in agenda.get_token_queue()],
+                        "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
+                        "sequence_no": session.next_sequence(),
+                    }
+                    await session.send_and_buffer(agenda_snapshot)
+
+            elif msg_type == "cast_vote":
+                if not session.meeting_session or not session.meeting_session.is_running():
+                    await session.send_error("没有进行中的会议")
+                    continue
+
+                coordinator = getattr(session, '_meeting_coordinator', None)
+                if not coordinator or not hasattr(coordinator, 'negotiation'):
+                    await session.send_error("协商引擎未初始化")
+                    continue
+
+                proposal_id = msg.get("proposalId", "")
+                voter_id = msg.get("voterId", "user")
+                approve = msg.get("approve", True)
+                weight = msg.get("weight")
+                reason = msg.get("reason", "")
+
+                vote = coordinator.negotiation.cast_vote(
+                    proposal_id, voter_id, approve, weight, reason,
+                )
+                if vote is None:
+                    await session.send_error(f"提案 {proposal_id} 不存在")
+                    continue
+
+                # 广播投票消息
+                vote_msg = {
+                    "type": "vote",
+                    "vote": {
+                        "proposalId": vote.proposal_id,
+                        "voterId": vote.voter_id,
+                        "approve": vote.approve,
+                        "weight": vote.weight,
+                        "reason": vote.reason,
+                    },
+                    "sequence_no": session.next_sequence(),
+                }
+                await session.send_and_buffer(vote_msg)
+
+            elif msg_type == "evaluate_consensus":
+                if not session.meeting_session or not session.meeting_session.is_running():
+                    await session.send_error("没有进行中的会议")
+                    continue
+
+                coordinator = getattr(session, '_meeting_coordinator', None)
+                if not coordinator or not hasattr(coordinator, 'negotiation'):
+                    await session.send_error("协商引擎未初始化")
+                    continue
+
+                proposal_id = msg.get("proposalId", "")
+                strategy = msg.get("strategy")
+
+                from negotiation import ConsensusStrategy
+                strategy_enum = None
+                if strategy:
+                    try:
+                        strategy_enum = ConsensusStrategy(strategy)
+                    except ValueError:
+                        pass
+
+                result = coordinator.negotiation.evaluate_consensus(proposal_id, strategy_enum)
+
+                # 更新议程状态
+                agenda = getattr(coordinator, 'agenda', None) or session._agenda
+                if agenda:
+                    if result.accepted:
+                        agenda.accept()
+                    else:
+                        agenda.reject()
+
+                # 发送投票结果
+                vote_result_msg = {
+                    "type": "vote_result",
+                    "result": {
+                        "proposalId": result.proposal_id,
+                        "strategy": result.strategy.value,
+                        "totalVotes": result.total_votes,
+                        "approveCount": result.approve_count,
+                        "opposeCount": result.oppose_count,
+                        "weightedApprove": result.weighted_approve,
+                        "weightedOppose": result.weighted_oppose,
+                        "accepted": result.accepted,
+                    },
+                    "sequence_no": session.next_sequence(),
+                }
+                await session.send_and_buffer(vote_result_msg)
+
+                # 同步更新议程状态
+                if agenda:
+                    agenda_snapshot = {
+                        "type": "agenda_update",
+                        "phase": agenda.get_phase().value,
+                        "topic": agenda._topic,
+                        "current_speaker": agenda.get_current_speaker(),
+                        "proposal_id": proposal_id,
+                        "token_queue": [{"agent_id": t.agent_id, "relevance_score": t.relevance_score} for t in agenda.get_token_queue()],
+                        "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
+                        "sequence_no": session.next_sequence(),
+                    }
+                    await session.send_and_buffer(agenda_snapshot)
+
             elif msg_type == "request_retransmit":
                 from_seq = msg.get("from_sequence_no", 0)
                 buffered = getattr(session, "_message_buffer", [])

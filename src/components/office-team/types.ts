@@ -37,8 +37,8 @@ export interface ChatMessage {
   _routingDecision?: RoutingDecision
   /** 迭代状态 */
   _iterationStatus?: IterationStatus
-  /** 消息子类型：feedback / routing / experience / iteration */
-  _msgSubtype?: 'feedback' | 'routing' | 'experience' | 'iteration'
+  /** 消息子类型 */
+  _msgSubtype?: 'feedback' | 'routing' | 'experience' | 'iteration' | 'proposal' | 'vote' | 'vote_result' | 'workflow' | 'workflow_summary'
 }
 
 export type ViewState = 'tower' | 'office' | 'meeting'

@@ -103,6 +103,29 @@ export default function useMeetingSocket({
   }
   const [bridgeMessages, setBridgeMessages] = useState<BridgeMessage[]>([])
 
+  // 投票决策状态
+  interface ActiveProposal {
+    id: string
+    proposerId: string
+    content: string
+    createdAt: number
+  }
+  interface VoteEntry {
+    voterId: string
+    approve: boolean
+    reason: string
+  }
+  interface VoteResults {
+    proposalId: string
+    totalVotes: number
+    approveCount: number
+    opposeCount: number
+    accepted: boolean
+  }
+  const [activeProposal, setActiveProposal] = useState<ActiveProposal | null>(null)
+  const [votes, setVotes] = useState<Map<string, VoteEntry>>(new Map())
+  const [voteResults, setVoteResults] = useState<VoteResults | null>(null)
+
   const send = useCallback((data: Record<string, unknown>) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       console.log('[MeetingSocket] 发送消息:', data)
@@ -552,6 +575,73 @@ export default function useMeetingSocket({
           }])
           break
         }
+        case 'proposal': {
+          // 收到提案
+          const proposal = msg.proposal
+          if (proposal) {
+            setActiveProposal({
+              id: proposal.id,
+              proposerId: proposal.proposerId,
+              content: proposal.content,
+              createdAt: proposal.createdAt,
+            })
+            setVoteResults(null) // 清除旧投票结果
+            setChatMessages(prev => [...prev, {
+              role: 'agent' as const,
+              agentId: proposal.proposerId,
+              content: `[提案] ${proposal.content}`,
+              timestamp: Date.now(),
+              _msgSubtype: 'proposal',
+            }])
+          }
+          break
+        }
+        case 'vote': {
+          // 收到投票
+          const vote = msg.vote
+          if (vote) {
+            setVotes(prev => {
+              const next = new Map(prev)
+              next.set(vote.voterId, {
+                voterId: vote.voterId,
+                approve: vote.approve,
+                reason: vote.reason,
+              })
+              return next
+            })
+            setChatMessages(prev => [...prev, {
+              role: 'agent' as const,
+              agentId: vote.voterId,
+              content: `[投票] ${vote.approve ? '赞成' : '反对'}${vote.reason ? ': ' + vote.reason : ''}`,
+              timestamp: Date.now(),
+              _msgSubtype: 'vote',
+            }])
+          }
+          break
+        }
+        case 'vote_result': {
+          // 收到投票结果
+          const result = msg.result
+          if (result) {
+            setVoteResults({
+              proposalId: result.proposalId,
+              totalVotes: result.totalVotes,
+              approveCount: result.approveCount,
+              opposeCount: result.opposeCount,
+              accepted: result.accepted,
+            })
+            // 清除活跃提案
+            setActiveProposal(null)
+            setVotes(new Map())
+            setChatMessages(prev => [...prev, {
+              role: 'boss' as const,
+              content: `投票结果: ${result.accepted ? '通过' : '未通过'} (${result.approveCount}赞成 / ${result.opposeCount}反对，共${result.totalVotes}票)`,
+              timestamp: Date.now(),
+              _msgSubtype: 'vote_result',
+            }])
+          }
+          break
+        }
         case 'bridge_agent_registered': {
           // Bridge registration confirmation from Python
           console.log('[Bridge] Agent registered:', msg.tsAgentId, '->', msg.pyAgentId, 'success:', msg.success)
@@ -663,6 +753,34 @@ export default function useMeetingSocket({
     }
   }, [])
 
+  // === 投票决策函数 ===
+
+  const createProposal = useCallback((content: string, proposerId: string = 'user') => {
+    send({
+      type: 'create_proposal',
+      proposerId,
+      content,
+    })
+  }, [send])
+
+  const castVote = useCallback((proposalId: string, approve: boolean, reason: string = '', voterId: string = 'user') => {
+    send({
+      type: 'cast_vote',
+      proposalId,
+      voterId,
+      approve,
+      reason,
+    })
+  }, [send])
+
+  const evaluateConsensus = useCallback((proposalId: string, strategy?: string) => {
+    send({
+      type: 'evaluate_consensus',
+      proposalId,
+      strategy,
+    })
+  }, [send])
+
   return {
     meetingId,
     agents,
@@ -691,5 +809,12 @@ export default function useMeetingSocket({
     unregisterBridgeAgent,
     sendBridgeMessage,
     onBridgeMessage,
+    // 投票决策
+    activeProposal,
+    votes,
+    voteResults,
+    createProposal,
+    castVote,
+    evaluateConsensus,
   }
 }
