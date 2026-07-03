@@ -92,6 +92,16 @@ export default function useMeetingSocket({
   const reconnectAttempts = useRef(0)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSequenceNo = useRef(-1)
+  const bridgeCallbacks = useRef<Map<string, (msg: any) => void>>(new Map())
+
+  // Bridge state
+  interface BridgeMessage {
+    fromAgentId: string
+    toAgentId: string
+    payload: any
+    timestamp: number
+  }
+  const [bridgeMessages, setBridgeMessages] = useState<BridgeMessage[]>([])
 
   const send = useCallback((data: Record<string, unknown>) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -542,6 +552,33 @@ export default function useMeetingSocket({
           }])
           break
         }
+        case 'bridge_agent_registered': {
+          // Bridge registration confirmation from Python
+          console.log('[Bridge] Agent registered:', msg.tsAgentId, '->', msg.pyAgentId, 'success:', msg.success)
+          // Notify any pending bridge registration callbacks
+          const regCallback = bridgeCallbacks.current.get(`reg:${msg.tsAgentId}`)
+          if (regCallback) {
+            regCallback(msg)
+            bridgeCallbacks.current.delete(`reg:${msg.tsAgentId}`)
+          }
+          break
+        }
+        case 'bridge_message': {
+          // Incoming message from Python agent to TS agent
+          console.log('[Bridge] Message received:', msg.fromAgentId, '->', msg.toAgentId)
+          const msgCallback = bridgeCallbacks.current.get(`msg:${msg.toAgentId}`)
+          if (msgCallback) {
+            msgCallback(msg)
+          }
+          // Also store in bridge messages state
+          setBridgeMessages(prev => [...prev, {
+            fromAgentId: msg.fromAgentId,
+            toAgentId: msg.toAgentId,
+            payload: msg.payload,
+            timestamp: Date.now(),
+          }])
+          break
+        }
       }
     }
 
@@ -584,6 +621,48 @@ export default function useMeetingSocket({
     })
   }, [send])
 
+  // === Bridge functions ===
+
+  const registerBridgeAgent = useCallback((agentId: string, name: string, role: string, capabilities: string[]): Promise<{ pyAgentId: string; success: boolean }> => {
+    return new Promise((resolve) => {
+      bridgeCallbacks.current.set(`reg:${agentId}`, (msg: any) => {
+        resolve({ pyAgentId: msg.pyAgentId, success: msg.success })
+      })
+      send({
+        type: 'bridge_register_agent',
+        tsAgentId: agentId,
+        name,
+        role,
+        capabilities,
+      })
+    })
+  }, [send])
+
+  const unregisterBridgeAgent = useCallback((agentId: string) => {
+    send({
+      type: 'bridge_unregister_agent',
+      tsAgentId: agentId,
+    })
+    bridgeCallbacks.current.delete(`reg:${agentId}`)
+    bridgeCallbacks.current.delete(`msg:${agentId}`)
+  }, [send])
+
+  const sendBridgeMessage = useCallback((fromId: string, toId: string, payload: any) => {
+    send({
+      type: 'bridge_message',
+      fromAgentId: fromId,
+      toAgentId: toId,
+      payload,
+    })
+  }, [send])
+
+  const onBridgeMessage = useCallback((agentId: string, callback: (msg: any) => void) => {
+    bridgeCallbacks.current.set(`msg:${agentId}`, callback)
+    return () => {
+      bridgeCallbacks.current.delete(`msg:${agentId}`)
+    }
+  }, [])
+
   return {
     meetingId,
     agents,
@@ -606,5 +685,11 @@ export default function useMeetingSocket({
     meetingPhase,
     meetingStartTime,
     deleteTask,
+    // Bridge
+    bridgeMessages,
+    registerBridgeAgent,
+    unregisterBridgeAgent,
+    sendBridgeMessage,
+    onBridgeMessage,
   }
 }

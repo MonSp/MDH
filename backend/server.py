@@ -27,6 +27,7 @@ from simple_executor import SimpleExecutor
 from ceo_agent import CeoAgent
 from agent_pool import AgentPool
 from key_manager import KeyManager
+from agent_bridge import AgentBridge
 
 logger = logging.getLogger("server")
 
@@ -1478,6 +1479,49 @@ async def ws_handler(ws: WebSocket):
                         "tool_name": tool_name,
                         **result,
                     })
+
+            # === Bridge 消息处理 ===
+            elif msg_type == "bridge_register_agent":
+                ts_agent_id = msg.get("tsAgentId")
+                name = msg.get("name", "Unknown")
+                role = msg.get("role", "executor")
+                capabilities = msg.get("capabilities", [])
+
+                if not session._agent_bridge:
+                    # 懒初始化：首次 bridge 消息时创建
+                    session._agent_bridge = AgentBridge(
+                        meeting_session=session.meeting_session,
+                        agent_pool=agent_pool,
+                    )
+
+                await session._agent_bridge.register_ts_agent(
+                    ts_agent_id, name, role, capabilities,
+                    session.send_and_buffer,
+                )
+
+            elif msg_type == "bridge_unregister_agent":
+                ts_agent_id = msg.get("tsAgentId")
+                if session._agent_bridge:
+                    await session._agent_bridge.unregister_ts_agent(
+                        ts_agent_id, session.send_and_buffer,
+                    )
+
+            elif msg_type == "bridge_message":
+                from_id = msg.get("fromAgentId")
+                to_id = msg.get("toAgentId")
+                payload = msg.get("payload", {})
+
+                if not session._agent_bridge:
+                    session._agent_bridge = AgentBridge(
+                        meeting_session=session.meeting_session,
+                        agent_pool=agent_pool,
+                    )
+
+                await session._agent_bridge.route_message(
+                    from_id, to_id, payload,
+                    session.send_and_buffer,
+                    coordinator=session._meeting_coordinator,
+                )
 
     except WebSocketDisconnect:
         logger.info("WebSocket 断开: session=%s", session.session_id)

@@ -42,6 +42,8 @@ export interface AgentConfig {
   }
   metadata: Record<string, unknown>
   roleProfile?: AgentRoleProfile
+  remote?: boolean       // 是否为远程（Python 端）智能体
+  pyAgentId?: string     // Python 端的 ID（注册后由 bridge 回填）
 }
 
 export interface AgentInstance {
