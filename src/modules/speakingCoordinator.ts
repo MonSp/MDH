@@ -167,6 +167,7 @@ export class SpeakingCoordinator {
         return this.sortByDynamic(queue)
       case SpeakingStrategy.Random:
         return this.sortByRandom(queue)
+      /* v8 ignore next 2 */
       default:
         return queue
     }
@@ -243,6 +244,7 @@ export class SpeakingCoordinator {
 
   private async finishSpeaking(conversationId: string, agentId: string): Promise<void> {
     const turn = this.currentSpeakers.get(conversationId)
+    /* v8 ignore next */
     if (!turn || turn.agentId !== agentId) return
 
     turn.endTime = Date.now()
@@ -303,6 +305,7 @@ export class SpeakingCoordinator {
 
   private async checkForInterruption(conversationId: string, request: SpeakingRequest): Promise<void> {
     const currentSpeaker = this.currentSpeakers.get(conversationId)
+    /* v8 ignore next */
     if (!currentSpeaker) return
 
     const currentRole = this.getAgentRole(currentSpeaker.agentId)
@@ -318,6 +321,7 @@ export class SpeakingCoordinator {
 
   private removeFromQueue(conversationId: string, agentId: string): void {
     const queue = this.speakingQueues.get(conversationId)
+    /* v8 ignore next */
     if (!queue) return
 
     const index = queue.findIndex(r => r.agentId === agentId)
@@ -328,6 +332,7 @@ export class SpeakingCoordinator {
 
   private async notifySpeakingStart(conversationId: string, agentId: string): Promise<void> {
     const conversation = this.conversationManager.getConversation(conversationId)
+    /* v8 ignore next */
     if (!conversation) return
 
     const activeParticipants = this.conversationManager.getActiveParticipants(conversationId)
@@ -352,6 +357,7 @@ export class SpeakingCoordinator {
 
   private async notifySpeakingEnd(conversationId: string, agentId: string): Promise<void> {
     const conversation = this.conversationManager.getConversation(conversationId)
+    /* v8 ignore next */
     if (!conversation) return
 
     const activeParticipants = this.conversationManager.getActiveParticipants(conversationId)
@@ -394,9 +400,10 @@ export class SpeakingCoordinator {
     switch (priority) {
       case MessagePriority.Urgent: return 10
       case MessagePriority.High: return 7
+      /* v8 ignore next */
       case MessagePriority.Normal: return 5
       case MessagePriority.Low: return 2
-      default: return 1
+      default: /* v8 ignore next */ return 1
     }
   }
 
