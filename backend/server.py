@@ -1706,6 +1706,30 @@ async def ws_handler(ws: WebSocket):
                     "count": len(pending),
                 })
 
+            elif msg_type == "request_approval":
+                # 创建审批请求（用于测试或 agent 主动请求审批）
+                if not session._approval_manager:
+                    session._approval_manager = ApprovalManager()
+
+                from protocol import RiskLevel
+                risk_map = {"low": RiskLevel.LOW, "medium": RiskLevel.MEDIUM, "high": RiskLevel.HIGH, "critical": RiskLevel.CRITICAL}
+
+                requester_id = msg.get("requesterId", "agent-executor")
+                operation = msg.get("operation", "unknown_operation")
+                description = msg.get("description", "")
+                risk_level = risk_map.get(msg.get("riskLevel", "medium"), RiskLevel.MEDIUM)
+                confidence = msg.get("confidence", 0.5)
+
+                approval = await session._approval_manager.request_approval(
+                    requester_id=requester_id,
+                    operation=operation,
+                    description=description,
+                    risk_level=risk_level,
+                    confidence=confidence,
+                    send_fn=session.send_and_buffer,
+                )
+                logger.info("审批请求已发送: id=%s operation=%s", approval.id, operation)
+
     except WebSocketDisconnect:
         logger.info("WebSocket 断开: session=%s", session.session_id)
     except Exception:
