@@ -154,6 +154,19 @@ export default function useMeetingSocket({
   const [checkpoints, setCheckpoints] = useState<CheckpointInfo[]>([])
   const [restoredState, setRestoredState] = useState<RestoredState | null>(null)
 
+  // 审计日志状态
+  interface AuditLogEntry {
+    id: string
+    agentId: string
+    operation: string
+    target: string
+    riskLevel: string
+    allowed: boolean
+    reason: string
+    timestamp: number
+  }
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([])
+
   const send = useCallback((data: Record<string, unknown>) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       console.log('[MeetingSocket] 发送消息:', data)
@@ -791,6 +804,38 @@ export default function useMeetingSocket({
           }])
           break
         }
+        case 'audit_log': {
+          // 实时审计日志推送
+          const entry = msg.entry
+          if (entry) {
+            setAuditLog(prev => [...prev, {
+              id: entry.id,
+              agentId: entry.agentId,
+              operation: entry.operation,
+              target: entry.target,
+              riskLevel: entry.riskLevel,
+              allowed: entry.allowed,
+              reason: entry.reason,
+              timestamp: entry.timestamp,
+            }])
+          }
+          break
+        }
+        case 'audit_log_list': {
+          // 审计日志查询结果
+          const entries = msg.entries || []
+          setAuditLog(entries.map((e: any) => ({
+            id: e.id,
+            agentId: e.agentId,
+            operation: e.operation,
+            target: e.target,
+            riskLevel: e.riskLevel,
+            allowed: e.allowed,
+            reason: e.reason,
+            timestamp: e.timestamp,
+          })))
+          break
+        }
         case 'bridge_agent_registered': {
           // Bridge registration confirmation from Python
           console.log('[Bridge] Agent registered:', msg.tsAgentId, '->', msg.pyAgentId, 'success:', msg.success)
@@ -992,6 +1037,24 @@ export default function useMeetingSocket({
     })
   }, [send])
 
+  // === 审计日志函数 ===
+
+  const getAuditLog = useCallback((filters?: { agentId?: string; operation?: string; riskLevel?: string }) => {
+    send({
+      type: 'get_audit_log',
+      agentId: filters?.agentId,
+      operation: filters?.operation,
+      riskLevel: filters?.riskLevel,
+    })
+  }, [send])
+
+  const logAudit = useCallback((entry: { agentId: string; operation: string; target?: string; capability?: string; allowed?: boolean; reason?: string }) => {
+    send({
+      type: 'log_audit',
+      ...entry,
+    })
+  }, [send])
+
   return {
     meetingId,
     agents,
@@ -1041,5 +1104,9 @@ export default function useMeetingSocket({
     clearRestoredState,
     // 关键阻塞
     reportCriticalBlocker,
+    // 审计日志
+    auditLog,
+    getAuditLog,
+    logAudit,
   }
 }

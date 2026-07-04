@@ -72,6 +72,10 @@ simple_executor = SimpleExecutor(project_manager=project_manager)
 key_manager = KeyManager()
 agent_pool = AgentPool(key_manager=key_manager, max_instances_per_role=2)
 
+# 安全中间件（全局单例，审计日志）
+from security import SecurityMiddleware
+security_guard = SecurityMiddleware()
+
 
 def _ok(data=None):
     return {"success": True, "data": data, "error": None}
@@ -1874,6 +1878,73 @@ async def ws_handler(ws: WebSocket):
                 except Exception as e:
                     logger.error("紧急响应处理失败: %s", e)
                     await session.send_error(f"紧急响应处理失败: {e}")
+
+            # === 审计日志 ===
+            elif msg_type == "get_audit_log":
+                agent_id = msg.get("agentId")
+                operation = msg.get("operation")
+                risk_level_str = msg.get("riskLevel")
+
+                from security import RiskLevel
+                risk_level = None
+                if risk_level_str:
+                    try:
+                        risk_level = RiskLevel(risk_level_str)
+                    except ValueError:
+                        pass
+
+                entries = security_guard.get_audit_log(
+                    agent_id=agent_id,
+                    operation=operation,
+                    risk_level=risk_level,
+                )
+
+                await ws.send_json({
+                    "type": "audit_log_list",
+                    "entries": [
+                        {
+                            "id": e.id,
+                            "agentId": e.agent_id,
+                            "operation": e.operation,
+                            "target": e.target,
+                            "riskLevel": e.risk_level.value,
+                            "allowed": e.allowed,
+                            "reason": e.reason,
+                            "timestamp": e.timestamp,
+                        }
+                        for e in entries
+                    ],
+                    "count": len(entries),
+                })
+
+            elif msg_type == "log_audit":
+                # 手动记录审计日志（agent 或前端触发）
+                agent_id = msg.get("agentId", "unknown")
+                operation = msg.get("operation", "unknown")
+                target = msg.get("target", "")
+                capability = msg.get("capability", operation)
+                allowed = msg.get("allowed", True)
+                reason = msg.get("reason", "")
+
+                security_guard._log_audit(agent_id, operation, target, capability, allowed, reason, [])
+
+                # 推送最新的审计条目给前端
+                latest = security_guard._audit_log[-1] if security_guard._audit_log else None
+                if latest:
+                    await session.send_and_buffer({
+                        "type": "audit_log",
+                        "entry": {
+                            "id": latest.id,
+                            "agentId": latest.agent_id,
+                            "operation": latest.operation,
+                            "target": latest.target,
+                            "riskLevel": latest.risk_level.value,
+                            "allowed": latest.allowed,
+                            "reason": latest.reason,
+                            "timestamp": latest.timestamp,
+                        },
+                        "sequence_no": session.next_sequence(),
+                    })
 
     except WebSocketDisconnect:
         logger.info("WebSocket 断开: session=%s", session.session_id)
