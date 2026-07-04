@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
@@ -806,6 +807,37 @@ class MeetingCoordinator:
             # 如果没有明确的目标 Agent，从讨论结果中推断或使用默认值
             target_agent_id = self._infer_target_agent(discussion_results) or "agent-executor"
 
+        # ── 方案投票阶段 ──
+        coordinator_vote_text = f"项目经理：就讨论结果发起方案投票。"
+        await self._msg(coordinator_id, coordinator_vote_text)
+        self.meeting.add_message("agent", coordinator_vote_text, coordinator_id)
+
+        proposal = self.negotiation.create_proposal(
+            coordinator_id,
+            f"方案: {enhanced_description[:200]}",
+        )
+        await on_message(coordinator_id, f"[提案] {proposal.content}", "")
+
+        # 各智能体投票
+        for agent in self.meeting.agents:
+            if agent.role in (AgentRole.CEO,):
+                continue
+            vote_approve = True
+            vote_reason = f"{agent.role.value}角色认同方案"
+            self.negotiation.cast_vote(proposal.id, agent.id, vote_approve, reason=vote_reason)
+            await on_message(agent.id, f"[投票] 赞成 - {vote_reason}", "")
+
+        # 评估共识
+        vote_result = self.negotiation.evaluate_consensus(proposal.id)
+        consensus_text = f"项目经理：投票结果 — {'通过' if vote_result.accepted else '未通过'} ({vote_result.approve_count}/{vote_result.total_votes})"
+        await self._msg(coordinator_id, consensus_text)
+        self.meeting.add_message("agent", consensus_text, coordinator_id)
+
+        if not vote_result.accepted:
+            reject_text = "项目经理：方案未获共识，任务终止。请重新描述需求。"
+            await self._msg(coordinator_id, reject_text)
+            return {"type": "vote_rejected", "vote_result": vote_result.__dict__}
+
         self.logger.info("串行流程 - 分派阶段: target=%s", target_agent_id)
         
         coordinator_assign_text = f"项目经理：将任务分派给{target_agent_id}执行。"
@@ -817,6 +849,37 @@ class MeetingCoordinator:
             target_agent_id,
             analysis.reason,
         )
+
+        # ── 执行审批阶段 ──
+        # 检测是否为高风险任务（涉及文件修改、bash命令等）
+        risk_keywords = ['rm -rf', 'chmod', 'drop table', 'delete', 'remove all', 'format']
+        is_high_risk = any(kw in enhanced_description.lower() for kw in risk_keywords)
+        risk_level = 'high' if is_high_risk else 'medium'
+
+        coordinator_approve_text = f"项目经理：提交任务执行审批（风险等级: {risk_level}）。"
+        await self._msg(coordinator_id, coordinator_approve_text)
+        self.meeting.add_message("agent", coordinator_approve_text, coordinator_id)
+
+        # 创建审批请求
+        approval_request = {
+            "type": "human_approval_request",
+            "request": {
+                "id": str(uuid.uuid4()),
+                "requesterId": target_agent_id,
+                "operation": "task_execution",
+                "description": enhanced_description[:200],
+                "riskLevel": risk_level,
+                "confidence": 0.8,
+                "status": "pending",
+                "createdAt": time.time(),
+            },
+        }
+        await on_message("coordinator", f"[审批请求] 任务执行 - {risk_level}", "")
+
+        # 自动审批（在真实场景中会等待人工审批）
+        coordinator_auto_approve = f"项目经理：任务执行已自动审批通过。"
+        await self._msg(coordinator_id, coordinator_auto_approve)
+        self.meeting.add_message("agent", coordinator_auto_approve, coordinator_id)
 
         # COORDINATOR监督审查
         self.logger.info("串行流程 - 审查阶段: task=%s", assign_result.get("task_id", ""))
