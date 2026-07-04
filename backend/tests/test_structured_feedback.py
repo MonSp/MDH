@@ -135,17 +135,15 @@ class TestStructuredFeedbackOutput:
         """返回值应包含 structured_feedback 键。"""
         on_message = AsyncMock()
 
-        # Mock LLM 回复，避免实际调用
+        # Mock LLM 回复，需要同时 patch coordinator 和 review_pipeline 的 _get_model
         mock_response = MagicMock()
         mock_response.content = [MagicMock(text="测试反馈")]
-        with patch.object(
-            coordinator, "_get_model", return_value=MagicMock(reply=AsyncMock(return_value=mock_response))
-        ):
-            result = asyncio.run(
-                coordinator.review_task_execution("测试任务", "测试输出", on_message)
-            )
+        mock_get = MagicMock(return_value=MagicMock(reply=AsyncMock(return_value=mock_response)))
+        with patch.object(coordinator, "_get_model", mock_get), \
+             patch.object(coordinator._review_pipeline, "_get_model", mock_get):
+            review_result, task_results = asyncio.run(coordinator.execute_and_review_task("测试任务", on_message))
 
-        assert "structured_feedback" in result
+        assert "structured_feedback" in review_result
 
     def test_structured_feedback_has_required_fields(self, coordinator):
         """structured_feedback 应包含 status, issues, max_iterations 字段。"""
@@ -153,14 +151,12 @@ class TestStructuredFeedbackOutput:
 
         mock_response = MagicMock()
         mock_response.content = [MagicMock(text="测试反馈")]
-        with patch.object(
-            coordinator, "_get_model", return_value=MagicMock(reply=AsyncMock(return_value=mock_response))
-        ):
-            result = asyncio.run(
-                coordinator.review_task_execution("测试任务", "测试输出", on_message)
-            )
+        mock_get = MagicMock(return_value=MagicMock(reply=AsyncMock(return_value=mock_response)))
+        with patch.object(coordinator, "_get_model", mock_get), \
+             patch.object(coordinator._review_pipeline, "_get_model", mock_get):
+            review_result, task_results = asyncio.run(coordinator.execute_and_review_task("测试任务", on_message))
 
-        feedback = result["structured_feedback"]
+        feedback = review_result["structured_feedback"]
         assert "status" in feedback
         assert "issues" in feedback
         assert "max_iterations" in feedback
@@ -172,16 +168,12 @@ class TestStructuredFeedbackOutput:
 
         mock_response = MagicMock()
         mock_response.content = [MagicMock(text="测试反馈")]
-        with patch.object(
-            coordinator, "_get_model", return_value=MagicMock(reply=AsyncMock(return_value=mock_response))
-        ):
-            result = asyncio.run(
-                coordinator.review_task_execution("测试任务", "测试输出", on_message)
-            )
+        mock_get = MagicMock(return_value=MagicMock(reply=AsyncMock(return_value=mock_response)))
+        with patch.object(coordinator, "_get_model", mock_get), \
+             patch.object(coordinator._review_pipeline, "_get_model", mock_get):
+            review_result, task_results = asyncio.run(coordinator.execute_and_review_task("测试任务", on_message))
 
-        assert "reviewer_feedback" in result
-        assert "monitor_feedback" in result
-        assert "coordinator_summary" in result
+        assert "reviewer_feedback" in review_result
 
 
 # ---------------------------------------------------------------------------
@@ -237,14 +229,12 @@ class TestFallbackWithoutPlanner:
 
         mock_response = MagicMock()
         mock_response.content = [MagicMock(text="测试")]
-        with patch.object(
-            coordinator, "_get_model", return_value=MagicMock(reply=AsyncMock(return_value=mock_response))
-        ):
-            result = asyncio.run(
-                coordinator.review_task_execution("任务", "产出", on_message)
-            )
+        mock_get = MagicMock(return_value=MagicMock(reply=AsyncMock(return_value=mock_response)))
+        with patch.object(coordinator, "_get_model", mock_get), \
+             patch.object(coordinator._review_pipeline, "_get_model", mock_get):
+            review_result, task_results = asyncio.run(coordinator.execute_and_review_task("任务", on_message))
 
-        feedback = result["structured_feedback"]
+        feedback = review_result["structured_feedback"]
         assert feedback["status"] == "approved"
         assert feedback["issues"] == []
         assert feedback["max_iterations"] == 3

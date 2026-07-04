@@ -143,11 +143,10 @@ class TestMeetingCoordinatorDelegation:
             api_key="test",
         )
         
-        # 验证降级方法存在
-        assert hasattr(coordinator, '_semantic_analyze_legacy')
-        assert hasattr(coordinator, '_run_discussion_legacy')
-        assert hasattr(coordinator, '_review_task_execution_legacy')
-        assert hasattr(coordinator, '_execute_assigned_tasks_legacy')
+        # 验证核心方法存在
+        assert hasattr(coordinator, 'semantic_analyze')
+        assert hasattr(coordinator, 'execute_and_review_task')
+        assert hasattr(coordinator, 'execute_assigned_tasks')
     
     def test_meeting_coordinator_semantic_analyze_delegates(self):
         """semantic_analyze应委托给SemanticAnalyzer"""
@@ -174,7 +173,7 @@ class TestMeetingCoordinatorDelegation:
         coordinator._semantic_analyzer.analyze.assert_called_once_with("test message")
     
     def test_meeting_coordinator_semantic_analyze_fallback(self):
-        """semantic_analyze失败时应降级到_legacy"""
+        """semantic_analyze失败时应抛出异常（无降级方法）"""
         from meeting_coordinator import MeetingCoordinator
         
         mock_meeting = MagicMock()
@@ -191,14 +190,9 @@ class TestMeetingCoordinatorDelegation:
         coordinator._semantic_analyzer = MagicMock()
         coordinator._semantic_analyzer.analyze = AsyncMock(side_effect=Exception("test error"))
         
-        # Mock _semantic_analyze_legacy
-        coordinator._semantic_analyze_legacy = AsyncMock(return_value=MagicMock())
-        
         import asyncio
-        asyncio.run(coordinator.semantic_analyze("test message"))
-        
-        # 验证降级方法被调用
-        coordinator._semantic_analyze_legacy.assert_called_once_with("test message")
+        with pytest.raises(Exception, match="test error"):
+            asyncio.run(coordinator.semantic_analyze("test message"))
 
 
 if __name__ == "__main__":

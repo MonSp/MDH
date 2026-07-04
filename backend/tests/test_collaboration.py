@@ -197,16 +197,16 @@ class TestPlannerAgent:
         assert status["completed"] == 0
 
     @pytest.mark.asyncio
-    async def test_assign_tasks(self, planner, communication_manager):
-        communication_manager.register_agent("planner")
-        communication_manager.register_agent("executor")
+    async def test_assign_tasks(self, planner):
+        planner.communication_manager.register_agent("test_planner")
+        planner.communication_manager.register_agent("test_executor")
 
-        planner.register_child_agent("executor", None)
+        planner.register_child_agent("test_executor", None)
         await planner.plan_task("Test task")
 
         assignments = await planner.assign_tasks()
         assert len(assignments) > 0
-        assert "executor" in assignments
+        assert "test_executor" in assignments
 
 
 class TestExecutorAgent:
