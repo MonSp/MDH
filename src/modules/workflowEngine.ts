@@ -2,11 +2,10 @@ import { WorkflowDefinition, WorkflowExecution, WorkflowVisualization } from './
 import { apiClient, ApiResponse } from './apiClient'
 
 /**
- * 工作流引擎 REST API 接口（预留）
+ * 工作流引擎 REST API 接口
  *
- * 当前后端 (server.py) 无对应的 /api/workflow/* 端点。
- * 工作流的创建和执行完全通过 WebSocket 的 meeting_message 流程驱动。
- * 此模块保留为未来独立管理工作流的预留接口，当前不应在生产代码中调用。
+ * 对应后端 /api/workflow/* 端点。
+ * 工作流也可以通过 WebSocket 的 meeting_message 流程驱动。
  */
 
 export interface WorkflowEngineAPI {

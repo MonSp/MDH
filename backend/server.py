@@ -1970,6 +1970,121 @@ async def ws_handler(ws: WebSocket):
         logger.info("Session 已清理: session=%s, 活跃会话数=%d", session.session_id, len(sessions))
 
 
+# ──────────────────── WorkflowEngine REST API ────────────────────
+
+from workflow_engine import WorkflowEngine
+from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge, workflow_execution_to_dict, workflow_definition_to_dict
+
+workflow_engine = WorkflowEngine()
+
+
+@app.post("/api/workflow/create")
+async def create_workflow(definition: dict):
+    """创建工作流执行实例"""
+    try:
+        # 将 dict 转换为 WorkflowDefinition
+        nodes = [WorkflowNode(
+            node_id=n["node_id"],
+            task_description=n.get("task_description", ""),
+            dept_id=n.get("dept_id", ""),
+            input_spec=n.get("input_spec", {}),
+            output_spec=n.get("output_spec", {}),
+        ) for n in definition.get("nodes", [])]
+
+        edges = [WorkflowEdge(
+            source_node_id=e["source_node_id"],
+            target_node_id=e["target_node_id"],
+            condition=e.get("condition"),
+        ) for e in definition.get("edges", [])]
+
+        wf_def = WorkflowDefinition(
+            workflow_id=definition.get("workflow_id", str(uuid.uuid4())[:8]),
+            name=definition.get("name", "Unnamed"),
+            description=definition.get("description", ""),
+            nodes=nodes,
+            edges=edges,
+            execution_strategy=definition.get("execution_strategy", "sequential"),
+        )
+
+        execution = workflow_engine.create_workflow(wf_def)
+        return {"success": True, "data": workflow_execution_to_dict(execution)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/workflow/execute/{execution_id}")
+async def execute_workflow(execution_id: str):
+    """执行工作流"""
+    try:
+        await workflow_engine.execute_workflow(execution_id)
+        execution = workflow_engine.get_workflow_status(execution_id)
+        return {"success": True, "data": workflow_execution_to_dict(execution)}
+    except KeyError as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/workflow/pause/{execution_id}")
+async def pause_workflow(execution_id: str):
+    """暂停工作流"""
+    try:
+        await workflow_engine.pause_workflow(execution_id)
+        return {"success": True, "data": None}
+    except (KeyError, ValueError) as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/workflow/resume/{execution_id}")
+async def resume_workflow(execution_id: str):
+    """恢复工作流"""
+    try:
+        await workflow_engine.resume_workflow(execution_id)
+        return {"success": True, "data": None}
+    except (KeyError, ValueError) as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/workflow/cancel/{execution_id}")
+async def cancel_workflow(execution_id: str):
+    """取消工作流"""
+    try:
+        await workflow_engine.cancel_workflow(execution_id)
+        return {"success": True, "data": None}
+    except KeyError as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/workflow/retry/{execution_id}/{node_id}")
+async def retry_node(execution_id: str, node_id: str):
+    """重试工作流节点"""
+    try:
+        await workflow_engine.retry_node(execution_id, node_id)
+        return {"success": True, "data": None}
+    except (KeyError, ValueError) as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/workflow/status/{execution_id}")
+async def get_workflow_status(execution_id: str):
+    """获取工作流状态"""
+    try:
+        execution = workflow_engine.get_workflow_status(execution_id)
+        return {"success": True, "data": workflow_execution_to_dict(execution)}
+    except KeyError as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/workflow/visualization/{execution_id}")
+async def get_workflow_visualization(execution_id: str):
+    """获取工作流可视化数据"""
+    try:
+        vis = workflow_engine.get_workflow_visualization(execution_id)
+        return {"success": True, "data": vis}
+    except KeyError as e:
+        return {"success": False, "error": str(e)}
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "sessions": len(sessions)}
