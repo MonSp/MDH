@@ -75,6 +75,21 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# 任务类型 → 相关关键词映射
+TASK_TYPE_KEYWORDS: dict[str, list[str]] = {
+    "web-dev": ["前端", "frontend", "react", "vue", "html", "css", "javascript", "typescript", "网页", "界面"],
+    "backend-dev": ["后端", "backend", "api", "数据库", "database", "服务器", "server", "python", "java"],
+    "data-analysis": ["数据", "data", "分析", "analysis", "统计", "图表", "可视化", "visualization"],
+    "devops": ["部署", "deploy", "docker", "kubernetes", "ci/cd", "监控", "monitoring", "运维"],
+    "testing": ["测试", "test", "qa", "质量", "quality", "自动化测试", "automation"],
+    "design": ["设计", "design", "ui", "ux", "原型", "prototype", "交互", "界面设计"],
+    "documentation": ["文档", "documentation", "说明", "readme", "api文档", "技术文档"],
+    "code-review": ["审查", "review", "代码质量", "code quality", "重构", "refactor"],
+    "architecture": ["架构", "architecture", "系统设计", "system design", "技术方案"],
+    "security": ["安全", "security", "漏洞", "vulnerability", "认证", "authentication", "授权", "authorization"],
+}
+
+
 # ---------------------------------------------------------------------------
 # DynamicRouter
 # ---------------------------------------------------------------------------
@@ -188,11 +203,12 @@ class DynamicRouter:
         流程：
         1. 提取用户输入中的关键词（分词后与各部门 capability_keywords 比对）
         2. 计算匹配度 = 匹配关键词数 / 该部门总关键词数
-        3. 过滤掉匹配度过低（< 0.1）的部门；若无任何匹配则返回全部部门
+        3. 如果指定了 task_type，对关键词匹配度进行加成
+        4. 过滤掉匹配度过低（< 0.1）的部门；若无任何匹配则返回全部
 
         Args:
             user_input: 用户输入文本
-            task_type: 任务类型（可选，暂未启用，预留扩展）
+            task_type: 任务类型（可选，如 web-dev, backend-dev, data-analysis 等）
 
         Returns:
             匹配的候选部门列表
@@ -209,6 +225,13 @@ class DynamicRouter:
         input_lower = user_input.lower()
         input_tokens = _tokenize(user_input)
 
+        # 获取 task_type 相关的关键词集合
+        type_keywords: set[str] = set()
+        if task_type:
+            type_keywords = {kw.lower() for kw in TASK_TYPE_KEYWORDS.get(task_type, [])}
+            # 也把 task_type 本身作为关键词
+            type_keywords.add(task_type.lower())
+
         scored: list[tuple[RouteEntry, float]] = []
         for entry in entries:
             if not entry.capability_keywords:
@@ -217,13 +240,23 @@ class DynamicRouter:
 
             # 计算有多少关键词出现在用户输入中
             matched = 0
+            type_matched = 0
             for kw in entry.capability_keywords:
                 kw_lower = kw.lower()
                 # 直接子串匹配 或 分词交集
                 if kw_lower in input_lower or kw_lower in input_tokens:
                     matched += 1
+                # 检查是否与 task_type 关键词匹配
+                if type_keywords and kw_lower in type_keywords:
+                    type_matched += 1
 
             match_ratio = matched / len(entry.capability_keywords)
+
+            # task_type 加成：如果部门关键词与 task_type 关键词有重叠，提升匹配度
+            if type_keywords and type_matched > 0:
+                type_boost = type_matched / len(entry.capability_keywords)
+                match_ratio = min(1.0, match_ratio + type_boost * 0.5)
+
             scored.append((entry, match_ratio))
 
         # 如果没有任何部门有关键词命中，返回全部
