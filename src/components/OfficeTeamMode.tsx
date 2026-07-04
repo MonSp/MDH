@@ -9,6 +9,8 @@ import TechTowerView from './TechTowerView'
 import WorkflowPanel from './WorkflowPanel'
 import WorkspacePanel from './office-team/WorkspacePanel'
 import SkillEvolutionPanel from './skill-evolution/SkillEvolutionPanel'
+import VotingPanel from './office-team/VotingPanel'
+import ApprovalPanel from './office-team/ApprovalPanel'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 import { useAgentSystem } from '../hooks/useAgentSystem'
 import { AgentRole, AgentCapability } from '../modules/agentTypes'
@@ -25,7 +27,7 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
   const [selectedProject, setSelectedProject] = useState<{ id: string; name: string } | null>(null)
   const [projectDetail, setProjectDetail] = useState<ProjectDetail | null>(null)
   const [taskInput, setTaskInput] = useState('')
-  const [meetingTab, setMeetingTab] = useState<'chat' | 'files' | 'skills'>('chat')
+  const [meetingTab, setMeetingTab] = useState<'chat' | 'files' | 'skills' | 'vote'>('chat')
   const [refreshKey, setRefreshKey] = useState(0)
 
   const {
@@ -51,6 +53,17 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     registerBridgeAgent,
     sendBridgeMessage,
     onBridgeMessage,
+    // 投票决策
+    activeProposal,
+    votes,
+    voteResults,
+    createProposal,
+    castVote,
+    evaluateConsensus,
+    // 人工审批
+    pendingApprovals,
+    sendApprovalResponse,
+    getPendingApprovals,
   } = useMeetingSocket({ wsRef })
 
   // TS 智能体系统
@@ -243,7 +256,7 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
               </div>
 
               <div style={styles.meetingTabBar}>
-                {([['chat', '💬 对话'], ['files', '📄 文件'], ['skills', '🧬 技能进化']] as const).map(([key, label]) => (
+                {([['chat', '💬 对话'], ['files', '📄 文件'], ['skills', '🧬 技能进化'], ['vote', '🗳️ 投票']] as const).map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => setMeetingTab(key)}
@@ -317,6 +330,22 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                     onDestroy={() => sendWorkspaceAction('destroy', workspace?.workspace_id)}
                     messages={chatMessages}
                   />
+                ) : meetingTab === 'vote' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflow: 'auto' }}>
+                    <VotingPanel
+                      activeProposal={activeProposal}
+                      votes={votes}
+                      voteResults={voteResults}
+                      onCreateProposal={createProposal}
+                      onCastVote={castVote}
+                      onEvaluateConsensus={evaluateConsensus}
+                    />
+                    <ApprovalPanel
+                      pendingApprovals={pendingApprovals}
+                      onApprove={(id, reason) => sendApprovalResponse(id, true, reason)}
+                      onReject={(id, reason) => sendApprovalResponse(id, false, reason)}
+                    />
+                  </div>
                 ) : (
                   <SkillEvolutionPanel />
                 )}
