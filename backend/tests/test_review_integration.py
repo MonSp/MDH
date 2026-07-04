@@ -63,7 +63,7 @@ class TestReviewPipelineIntegration:
     
     def test_review_pipeline_has_critic_and_grounding(self):
         """ReviewPipeline应包含CriticAgent和GroundingAgent"""
-        from backend.review_pipeline import ReviewPipeline
+        from review_pipeline import ReviewPipeline
         
         mock_get_model = MagicMock()
         mock_meeting = MagicMock()
@@ -79,7 +79,7 @@ class TestReviewPipelineIntegration:
     
     def test_review_pipeline_critic_has_review_method(self):
         """CriticAgent应有review方法"""
-        from backend.review_pipeline import ReviewPipeline
+        from review_pipeline import ReviewPipeline
         
         mock_get_model = MagicMock()
         mock_meeting = MagicMock()
@@ -93,7 +93,7 @@ class TestReviewPipelineIntegration:
     
     def test_review_pipeline_grounding_has_verify_method(self):
         """GroundingAgent应有verify方法"""
-        from backend.review_pipeline import ReviewPipeline
+        from review_pipeline import ReviewPipeline
         
         mock_get_model = MagicMock()
         mock_meeting = MagicMock()
@@ -111,7 +111,7 @@ class TestMeetingCoordinatorDelegation:
     
     def test_meeting_coordinator_has_submodules(self):
         """MeetingCoordinator应实例化4个子模块"""
-        from backend.meeting_coordinator import MeetingCoordinator
+        from meeting_coordinator import MeetingCoordinator
         
         mock_meeting = MagicMock()
         mock_meeting.agents = []
@@ -131,7 +131,7 @@ class TestMeetingCoordinatorDelegation:
     
     def test_meeting_coordinator_has_legacy_methods(self):
         """MeetingCoordinator应保留降级用的_legacy方法"""
-        from backend.meeting_coordinator import MeetingCoordinator
+        from meeting_coordinator import MeetingCoordinator
         
         mock_meeting = MagicMock()
         mock_meeting.agents = []
@@ -151,7 +151,7 @@ class TestMeetingCoordinatorDelegation:
     
     def test_meeting_coordinator_semantic_analyze_delegates(self):
         """semantic_analyze应委托给SemanticAnalyzer"""
-        from backend.meeting_coordinator import MeetingCoordinator
+        from meeting_coordinator import MeetingCoordinator
         
         mock_meeting = MagicMock()
         mock_meeting.agents = []
@@ -175,7 +175,7 @@ class TestMeetingCoordinatorDelegation:
     
     def test_meeting_coordinator_semantic_analyze_fallback(self):
         """semantic_analyze失败时应降级到_legacy"""
-        from backend.meeting_coordinator import MeetingCoordinator
+        from meeting_coordinator import MeetingCoordinator
         
         mock_meeting = MagicMock()
         mock_meeting.agents = []

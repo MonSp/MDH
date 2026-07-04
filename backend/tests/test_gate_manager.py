@@ -6,8 +6,8 @@ import pytest
 import json
 import os
 import tempfile
-from backend.gate_manager import GateManager, GateResult, ChecksLedger
-from backend.spec_tree import (
+from gate_manager import GateManager, GateResult, ChecksLedger
+from spec_tree import (
     SpecTree, SpecTreeNode, SpecTreeNodeType,
     SuccessCriterion, Provenance
 )

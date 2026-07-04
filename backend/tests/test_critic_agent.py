@@ -6,7 +6,7 @@ import pytest
 import json
 import os
 import tempfile
-from backend.collaboration.critic_agent import CriticAgent, CriticResult
+from collaboration.critic_agent import CriticAgent, CriticResult
 
 
 class TestCriticAgent:

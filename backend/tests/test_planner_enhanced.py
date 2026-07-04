@@ -1,5 +1,5 @@
 import pytest
-from backend.collaboration.planner_agent import (
+from collaboration.planner_agent import (
     PlannerAgent,
     SubTask,
     TaskStatus,

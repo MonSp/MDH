@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.collaboration.executor_agent import ExecutorAgent, AgentStatus
-from backend.experience_extractor import ExecutionLog, ExperienceExtractor, ExperienceRule
+from collaboration.executor_agent import ExecutorAgent, AgentStatus
+from experience_extractor import ExecutionLog, ExperienceExtractor, ExperienceRule
 
 
 # ──────────────────── Fixtures ────────────────────

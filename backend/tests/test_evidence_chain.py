@@ -3,7 +3,7 @@ Evidence Chain 测试
 """
 
 import pytest
-from backend.evidence_chain import EvidenceChain, Evidence
+from evidence_chain import EvidenceChain, Evidence
 
 
 class TestEvidenceChain:

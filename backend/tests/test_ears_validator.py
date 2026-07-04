@@ -3,7 +3,7 @@ EARS验收句式校验器测试
 """
 
 import pytest
-from backend.ears_validator import EarsValidator, EarsViolation, validate_ears
+from ears_validator import EarsValidator, EarsViolation, validate_ears
 
 
 class TestEarsValidator:

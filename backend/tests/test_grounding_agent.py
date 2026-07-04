@@ -6,7 +6,7 @@ import pytest
 import json
 import os
 import tempfile
-from backend.collaboration.grounding_agent import GroundingAgent, GroundingResult
+from collaboration.grounding_agent import GroundingAgent, GroundingResult
 
 
 class TestGroundingAgent:

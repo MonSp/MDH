@@ -58,17 +58,17 @@ class TestSemanticAnalyzerStructure:
     
     def test_import(self):
         """模块应可导入"""
-        from backend.semantic_analyzer import SemanticAnalyzer
+        from semantic_analyzer import SemanticAnalyzer
         assert SemanticAnalyzer is not None
     
     def test_class_has_analyze_method(self):
         """应有analyze方法"""
-        from backend.semantic_analyzer import SemanticAnalyzer
+        from semantic_analyzer import SemanticAnalyzer
         assert hasattr(SemanticAnalyzer, 'analyze')
     
     def test_class_has_detect_complex_task(self):
         """应有_detect_complex_task方法"""
-        from backend.semantic_analyzer import SemanticAnalyzer
+        from semantic_analyzer import SemanticAnalyzer
         assert hasattr(SemanticAnalyzer, '_detect_complex_task')
 
 
@@ -77,12 +77,12 @@ class TestDiscussionManagerStructure:
     
     def test_import(self):
         """模块应可导入"""
-        from backend.discussion_manager import DiscussionManager
+        from discussion_manager import DiscussionManager
         assert DiscussionManager is not None
     
     def test_class_has_run_method(self):
         """应有run方法"""
-        from backend.discussion_manager import DiscussionManager
+        from discussion_manager import DiscussionManager
         assert hasattr(DiscussionManager, 'run')
 
 
@@ -91,12 +91,12 @@ class TestReviewPipelineStructure:
     
     def test_import(self):
         """模块应可导入"""
-        from backend.review_pipeline import ReviewPipeline
+        from review_pipeline import ReviewPipeline
         assert ReviewPipeline is not None
     
     def test_class_has_review_method(self):
         """应有review方法"""
-        from backend.review_pipeline import ReviewPipeline
+        from review_pipeline import ReviewPipeline
         assert hasattr(ReviewPipeline, 'review')
 
 
@@ -105,22 +105,22 @@ class TestTaskOrchestratorStructure:
     
     def test_import(self):
         """模块应可导入"""
-        from backend.task_orchestrator import TaskOrchestrator
+        from task_orchestrator import TaskOrchestrator
         assert TaskOrchestrator is not None
     
     def test_class_has_decompose_method(self):
         """应有decompose方法"""
-        from backend.task_orchestrator import TaskOrchestrator
+        from task_orchestrator import TaskOrchestrator
         assert hasattr(TaskOrchestrator, 'decompose')
     
     def test_class_has_assign_method(self):
         """应有assign方法"""
-        from backend.task_orchestrator import TaskOrchestrator
+        from task_orchestrator import TaskOrchestrator
         assert hasattr(TaskOrchestrator, 'assign')
     
     def test_class_has_execute_method(self):
         """应有execute方法"""
-        from backend.task_orchestrator import TaskOrchestrator
+        from task_orchestrator import TaskOrchestrator
         assert hasattr(TaskOrchestrator, 'execute')
 
 
@@ -129,7 +129,7 @@ class TestModuleIndependence:
     
     def test_semantic_analyzer_independent(self):
         """SemanticAnalyzer应可独立实例化（mock依赖）"""
-        from backend.semantic_analyzer import SemanticAnalyzer
+        from semantic_analyzer import SemanticAnalyzer
         
         mock_router = MagicMock()
         mock_get_model = MagicMock()
@@ -142,7 +142,7 @@ class TestModuleIndependence:
     
     def test_task_orchestrator_independent(self):
         """TaskOrchestrator应可独立实例化（mock依赖）"""
-        from backend.task_orchestrator import TaskOrchestrator
+        from task_orchestrator import TaskOrchestrator
         
         mock_get_model = MagicMock()
         mock_meeting = MagicMock()

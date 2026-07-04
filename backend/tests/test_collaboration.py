@@ -1,15 +1,15 @@
 import asyncio
 import pytest
-from backend.collaboration.communication import (
+from collaboration.communication import (
     CommunicationInterface,
     InMemoryCommunication,
     CommunicationManager,
     Message,
     MessageType,
 )
-from backend.collaboration.planner_agent import PlannerAgent, TaskStatus, TaskPlan
-from backend.collaboration.executor_agent import ExecutorAgent, AgentStatus
-from backend.collaboration.collaborative_agent import CollaborativeAgent
+from collaboration.planner_agent import PlannerAgent, TaskStatus, TaskPlan
+from collaboration.executor_agent import ExecutorAgent, AgentStatus
+from collaboration.collaborative_agent import CollaborativeAgent
 
 
 @pytest.fixture

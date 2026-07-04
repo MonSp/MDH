@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 
-from backend.project_manager import (
+from project_manager import (
     EMPLOYEE_STATUS_DONE,
     EMPLOYEE_STATUS_IDLE,
     EMPLOYEE_STATUS_TERMINATED,
@@ -19,8 +19,8 @@ from backend.project_manager import (
     Project,
     ProjectManager,
 )
-from backend.skill_registry import SkillRegistry
-from backend.skill_packager import PackageResult, SkillPackager
+from skill_registry import SkillRegistry
+from skill_packager import PackageResult, SkillPackager
 
 
 def _create_skill_package(base_dir: str, name: str = "test-skill",

@@ -5,7 +5,7 @@ import tempfile
 import pytest
 import yaml
 
-from backend.skill_registry import SkillPackage, SkillRegistry
+from skill_registry import SkillPackage, SkillRegistry
 
 
 @pytest.fixture

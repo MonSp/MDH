@@ -9,17 +9,17 @@ import json
 import os
 import tempfile
 
-from backend.spec_tree import (
+from spec_tree import (
     SpecTree, SpecTreeNode, SpecTreeNodeType,
     SuccessCriterion, Provenance, SpecTreeValidator,
 )
-from backend.ears_validator import EarsValidator
-from backend.gate_manager import GateManager
-from backend.collaboration.critic_agent import CriticAgent
-from backend.collaboration.grounding_agent import GroundingAgent
-from backend.evidence_chain import EvidenceChain, Evidence
-from backend.fallback_chain import FallbackChain, FallbackStep, FallbackExecutor
-from backend.spec_manager import SpecManager
+from ears_validator import EarsValidator
+from gate_manager import GateManager
+from collaboration.critic_agent import CriticAgent
+from collaboration.grounding_agent import GroundingAgent
+from evidence_chain import EvidenceChain, Evidence
+from fallback_chain import FallbackChain, FallbackStep, FallbackExecutor
+from spec_manager import SpecManager
 
 
 class TestWhybuddyIntegration:

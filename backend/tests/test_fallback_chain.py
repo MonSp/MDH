@@ -4,7 +4,7 @@ Fallback Chain 回退链机制测试
 
 import pytest
 import asyncio
-from backend.fallback_chain import (
+from fallback_chain import (
     FallbackChain, FallbackStep, FallbackResult, FallbackExecutor,
     RoutingFallbackBuilder, WorkflowFallbackBuilder,
 )

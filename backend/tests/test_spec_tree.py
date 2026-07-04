@@ -3,7 +3,7 @@ Spec Tree 数据结构与校验器测试
 """
 
 import pytest
-from backend.spec_tree import (
+from spec_tree import (
     SpecTree, SpecTreeNode, SpecTreeNodeType,
     SuccessCriterion, Provenance, SpecTreeValidator, ValidationResult
 )

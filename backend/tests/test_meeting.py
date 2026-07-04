@@ -91,14 +91,14 @@ class TestProtocol:
 
     def test_meeting_summary_creation(self):
         summary = MeetingSummary(
-            total_agents=5,
+            total_agents=6,
             total_tasks=3,
             completed_tasks=1,
             failed_tasks=0,
             pending_tasks=2,
             messages_count=10,
         )
-        assert summary.total_agents == 5
+        assert summary.total_agents == 6
         assert summary.total_tasks == 3
         assert summary.messages_count == 10
 
@@ -134,7 +134,7 @@ class TestProtocol:
 
     def test_meeting_summary_to_dict(self):
         summary = MeetingSummary(
-            total_agents=5,
+            total_agents=6,
             total_tasks=3,
             completed_tasks=2,
             failed_tasks=1,
@@ -142,7 +142,7 @@ class TestProtocol:
             messages_count=15,
         )
         result = meeting_summary_to_dict(summary)
-        assert result["total_agents"] == 5
+        assert result["total_agents"] == 6
         assert result["total_tasks"] == 3
         assert result["completed_tasks"] == 2
         assert result["failed_tasks"] == 1
@@ -161,9 +161,10 @@ class TestMeetingSession:
     def test_start(self, meeting):
         meeting.start()
         assert meeting.is_running() is True
-        assert len(meeting.agents) == 5
+        assert len(meeting.agents) == 6
 
         agent_ids = [a.id for a in meeting.agents]
+        assert "agent-ceo" in agent_ids
         assert "agent-planner" in agent_ids
         assert "agent-executor" in agent_ids
         assert "agent-monitor" in agent_ids
@@ -175,6 +176,7 @@ class TestMeetingSession:
 
     def test_start_agents_have_correct_roles(self, started_meeting):
         role_map = {a.id: a.role for a in started_meeting.agents}
+        assert role_map["agent-ceo"] == AgentRole.CEO
         assert role_map["agent-planner"] == AgentRole.PLANNER
         assert role_map["agent-executor"] == AgentRole.EXECUTOR
         assert role_map["agent-monitor"] == AgentRole.MONITOR
@@ -201,7 +203,7 @@ class TestMeetingSession:
         agent = started_meeting.get_agent("agent-planner")
         assert agent is not None
         assert agent.id == "agent-planner"
-        assert agent.name == "规划者-Alpha"
+        assert agent.name == "架构师-Alpha"
 
     def test_get_agent_not_found(self, started_meeting):
         agent = started_meeting.get_agent("nonexistent")
@@ -213,7 +215,8 @@ class TestMeetingSession:
         assert agent.status == MeetingAgentStatus.WORKING
 
     def test_update_agent_status_not_found(self, started_meeting):
-        started_meeting.update_agent_status("nonexistent", MeetingAgentStatus.WORKING)
+        with pytest.raises(ValueError, match="Agent not found"):
+            started_meeting.update_agent_status("nonexistent", MeetingAgentStatus.WORKING)
 
     def test_add_task(self, started_meeting):
         task = started_meeting.add_task("agent-executor", "Build the frontend")
@@ -239,7 +242,8 @@ class TestMeetingSession:
         assert task.status == "completed"
 
     def test_update_task_status_not_found(self, started_meeting):
-        started_meeting.update_task_status("nonexistent", "completed")
+        with pytest.raises(ValueError, match="Task not found"):
+            started_meeting.update_task_status("nonexistent", "completed")
 
     def test_add_message(self, started_meeting):
         msg = started_meeting.add_message("boss", "Let's start the meeting")
@@ -257,7 +261,7 @@ class TestMeetingSession:
 
     def test_get_agents_dict(self, started_meeting):
         agents_dict = started_meeting.get_agents_dict()
-        assert len(agents_dict) == 5
+        assert len(agents_dict) == 6
         for d in agents_dict:
             assert "id" in d
             assert "name" in d
@@ -279,7 +283,7 @@ class TestMeetingSession:
 
     def test_get_summary_empty(self, started_meeting):
         summary = started_meeting.get_summary()
-        assert summary["total_agents"] == 5
+        assert summary["total_agents"] == 6
         assert summary["total_tasks"] == 0
         assert summary["completed_tasks"] == 0
         assert summary["failed_tasks"] == 0
@@ -294,7 +298,7 @@ class TestMeetingSession:
         started_meeting.add_message("agent", "Hi", "agent-planner")
 
         summary = started_meeting.get_summary()
-        assert summary["total_agents"] == 5
+        assert summary["total_agents"] == 6
         assert summary["total_tasks"] == 2
         assert summary["completed_tasks"] == 1
         assert summary["pending_tasks"] == 1
@@ -313,7 +317,7 @@ class TestMeetingSession:
         assert len(started_meeting.messages) == 0
 
     def test_default_meeting_agents_count(self):
-        assert len(DEFAULT_MEETING_AGENTS) == 5
+        assert len(DEFAULT_MEETING_AGENTS) == 6
 
     def test_default_meeting_agents_unique_ids(self):
         ids = [a["id"] for a in DEFAULT_MEETING_AGENTS]
@@ -325,7 +329,7 @@ class TestMeetingSession:
 
         meeting.start()
         assert meeting.is_running() is True
-        assert len(meeting.agents) == 5
+        assert len(meeting.agents) == 6
 
         meeting.add_message("boss", "Start discussion")
         task = meeting.add_task("agent-executor", "Do something")

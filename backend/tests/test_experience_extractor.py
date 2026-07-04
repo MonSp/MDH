@@ -5,7 +5,7 @@ import tempfile
 import pytest
 import yaml
 
-from backend.experience_extractor import (
+from experience_extractor import (
     ExecutionLog,
     ExperienceExtractor,
     ExperienceRule,
