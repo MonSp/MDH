@@ -10,6 +10,13 @@
 - 🔧 **工具执行** - Agent可调用18种工具（文件、Git、搜索、测试等）
 - 📋 **会议协作** - 支持实时讨论和任务协作
 - 📊 **技能进化** - 角色技能可配置和扩展
+- 🤖 **TS-Python 桥接** - 前端自定义智能体与后端 AgentScope 智能体互通
+- 🗳️ **投票决策** - 多智能体提案、投票、共识评估
+- ✅ **人工审批** - 高危操作的人工审批流程
+- 📸 **检查点** - 任务执行状态的保存与恢复
+- 🚨 **关键阻塞** - 紧急阻塞问题的快速响应
+- 📝 **审计日志** - 操作审计追踪
+- ⚙️ **工作流引擎** - REST API 管理工作流生命周期
 
 ## 项目结构
 
@@ -93,3 +100,19 @@ base_roles:
 
 - [Agent工具系统](docs/agent-tools.md)
 - [角色配置](backend/roles_config.yaml)
+- [集成测试报告](docs/integration-test-report.md)
+
+## 测试
+
+```bash
+# TypeScript (865 tests)
+npx vitest run
+
+# Python (532 tests)
+conda activate agentscope
+cd backend && python -m pytest tests/ --timeout=10
+
+# LLM 集成测试
+export $(cat .env | grep -v '^#' | xargs)
+python backend/test_llm_integration.py
+```
