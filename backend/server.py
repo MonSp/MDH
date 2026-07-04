@@ -1821,6 +1821,60 @@ async def ws_handler(ws: WebSocket):
                     "success": deleted,
                 })
 
+            # === 关键阻塞 ===
+            elif msg_type == "critical_blocker":
+                agent_id = msg.get("agentId", "unknown")
+                content = msg.get("content", "")
+                blocker_type = msg.get("blockerType", "unknown")
+
+                if not session.meeting_session or not session.meeting_session.is_running():
+                    await session.send_error("没有进行中的会议")
+                    continue
+
+                coordinator = getattr(session, '_meeting_coordinator', None)
+                if not coordinator:
+                    await session.send_error("会议协调器未初始化")
+                    continue
+
+                # 广播阻塞消息给所有参与者
+                blocker_msg = {
+                    "type": "critical_blocker",
+                    "agentId": agent_id,
+                    "content": content,
+                    "blockerType": blocker_type,
+                    "sequence_no": session.next_sequence(),
+                }
+                await session.send_and_buffer(blocker_msg)
+
+                # 触发紧急响应
+                try:
+                    await coordinator.handle_critical_blocker(
+                        agent_id, content,
+                        lambda aid, text, extra=None: session.send_and_buffer({
+                            "type": "agent_message",
+                            "agentId": aid,
+                            "content": text,
+                            "sequence_no": session.next_sequence(),
+                        }),
+                    )
+
+                    # 更新议程状态
+                    agenda = getattr(coordinator, 'agenda', None) or session._agenda
+                    if agenda:
+                        await session.send_and_buffer({
+                            "type": "agenda_update",
+                            "phase": agenda.get_phase().value,
+                            "topic": agenda._topic,
+                            "current_speaker": agenda.get_current_speaker(),
+                            "proposal_id": None,
+                            "token_queue": [{"agent_id": t.agent_id, "relevance_score": t.relevance_score} for t in agenda.get_token_queue()],
+                            "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
+                            "sequence_no": session.next_sequence(),
+                        })
+                except Exception as e:
+                    logger.error("紧急响应处理失败: %s", e)
+                    await session.send_error(f"紧急响应处理失败: {e}")
+
     except WebSocketDisconnect:
         logger.info("WebSocket 断开: session=%s", session.session_id)
     except Exception:

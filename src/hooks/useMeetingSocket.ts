@@ -781,6 +781,16 @@ export default function useMeetingSocket({
           }
           break
         }
+        case 'critical_blocker': {
+          // 关键阻塞通知
+          setChatMessages(prev => [...prev, {
+            role: 'boss' as const,
+            content: `[紧急阻塞] ${msg.agentId}: ${msg.content} (类型: ${msg.blockerType})`,
+            timestamp: Date.now(),
+            _msgSubtype: 'feedback',
+          }])
+          break
+        }
         case 'bridge_agent_registered': {
           // Bridge registration confirmation from Python
           console.log('[Bridge] Agent registered:', msg.tsAgentId, '->', msg.pyAgentId, 'success:', msg.success)
@@ -971,6 +981,17 @@ export default function useMeetingSocket({
     setRestoredState(null)
   }, [])
 
+  // === 关键阻塞函数 ===
+
+  const reportCriticalBlocker = useCallback((agentId: string, content: string, blockerType: string = 'unknown') => {
+    send({
+      type: 'critical_blocker',
+      agentId,
+      content,
+      blockerType,
+    })
+  }, [send])
+
   return {
     meetingId,
     agents,
@@ -1018,5 +1039,7 @@ export default function useMeetingSocket({
     getCheckpoints,
     deleteCheckpoint,
     clearRestoredState,
+    // 关键阻塞
+    reportCriticalBlocker,
   }
 }
