@@ -25,6 +25,7 @@ interface VotingPanelProps {
   activeProposal: ActiveProposal | null
   votes: Map<string, VoteEntry>
   voteResults: VoteResults | null
+  totalAgents?: number
   onCreateProposal: (content: string) => void
   onCastVote: (proposalId: string, approve: boolean, reason?: string) => void
   onEvaluateConsensus: (proposalId: string) => void
@@ -34,6 +35,7 @@ export default function VotingPanel({
   activeProposal,
   votes,
   voteResults,
+  totalAgents = 6,
   onCreateProposal,
   onCastVote,
   onEvaluateConsensus,
@@ -114,7 +116,12 @@ export default function VotingPanel({
           {/* 投票记录 */}
           {votesList.length > 0 && (
             <div style={styles.votesList}>
-              <div style={styles.votesTitle}>投票记录 ({votesList.length})</div>
+              <div style={styles.votesTitle}>
+                投票记录 ({votesList.length}/{totalAgents})
+                {votesList.length < totalAgents && (
+                  <span style={styles.waitingText}> — 等待其他智能体投票...</span>
+                )}
+              </div>
               {votesList.map(([voterId, vote]) => (
                 <div key={voterId} style={styles.voteItem}>
                   <span style={styles.voterName}>{voterId}</span>
@@ -298,6 +305,11 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#94a3b8',
     marginBottom: '6px',
     fontWeight: 600,
+  },
+  waitingText: {
+    fontSize: '11px',
+    color: '#6b7280',
+    fontWeight: 400,
   },
   voteItem: {
     display: 'flex',

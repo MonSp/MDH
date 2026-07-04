@@ -626,6 +626,7 @@ export default function useMeetingSocket({
               content: proposal.content,
               createdAt: proposal.createdAt,
             })
+            setVotes(new Map()) // 清除旧投票
             setVoteResults(null) // 清除旧投票结果
             setChatMessages(prev => [...prev, {
               role: 'agent' as const,
@@ -975,6 +976,12 @@ export default function useMeetingSocket({
     })
   }, [send])
 
+  const clearVotes = useCallback(() => {
+    setVotes(new Map())
+    setVoteResults(null)
+    setActiveProposal(null)
+  }, [])
+
   // === 人工审批函数 ===
 
   const sendApprovalResponse = useCallback((requestId: string, approved: boolean, reason: string = '') => {
@@ -1090,6 +1097,7 @@ export default function useMeetingSocket({
     createProposal,
     castVote,
     evaluateConsensus,
+    clearVotes,
     // 人工审批
     pendingApprovals,
     sendApprovalResponse,

@@ -1524,11 +1524,23 @@ async def ws_handler(ws: WebSocket):
                 weight = msg.get("weight")
                 reason = msg.get("reason", "")
 
+                # 验证提案存在
+                proposal = coordinator.negotiation._proposals.get(proposal_id)
+                if not proposal:
+                    await session.send_error(f"提案 {proposal_id} 不存在")
+                    continue
+
+                # 检查是否已经投过票
+                existing_votes = coordinator.negotiation._votes.get(proposal_id, [])
+                if any(v.voter_id == voter_id for v in existing_votes):
+                    await session.send_error(f"{voter_id} 已经对提案 {proposal_id} 投过票")
+                    continue
+
                 vote = coordinator.negotiation.cast_vote(
                     proposal_id, voter_id, approve, weight, reason,
                 )
                 if vote is None:
-                    await session.send_error(f"提案 {proposal_id} 不存在")
+                    await session.send_error(f"投票失败")
                     continue
 
                 # 广播投票消息
@@ -1544,6 +1556,50 @@ async def ws_handler(ws: WebSocket):
                     "sequence_no": session.next_sequence(),
                 }
                 await session.send_and_buffer(vote_msg)
+
+                # 检查是否所有参与者都已投票，自动评估共识
+                agents = session.meeting_session.agents
+                voted_ids = {v.voter_id for v in coordinator.negotiation._votes.get(proposal_id, [])}
+                all_voted = all(a.id in voted_ids for a in agents)
+                if all_voted and len(agents) > 0:
+                    result = coordinator.negotiation.evaluate_consensus(proposal_id)
+
+                    # 更新议程状态
+                    agenda = getattr(coordinator, 'agenda', None) or session._agenda
+                    if agenda:
+                        if result.accepted:
+                            agenda.accept()
+                        else:
+                            agenda.reject()
+
+                    vote_result_msg = {
+                        "type": "vote_result",
+                        "result": {
+                            "proposalId": result.proposal_id,
+                            "strategy": result.strategy.value,
+                            "totalVotes": result.total_votes,
+                            "approveCount": result.approve_count,
+                            "opposeCount": result.oppose_count,
+                            "weightedApprove": result.weighted_approve,
+                            "weightedOppose": result.weighted_oppose,
+                            "accepted": result.accepted,
+                        },
+                        "sequence_no": session.next_sequence(),
+                    }
+                    await session.send_and_buffer(vote_result_msg)
+
+                    # 同步议程状态
+                    if agenda:
+                        await session.send_and_buffer({
+                            "type": "agenda_update",
+                            "phase": agenda.get_phase().value,
+                            "topic": agenda._topic,
+                            "current_speaker": agenda.get_current_speaker(),
+                            "proposal_id": proposal_id,
+                            "token_queue": [{"agent_id": t.agent_id, "relevance_score": t.relevance_score} for t in agenda.get_token_queue()],
+                            "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
+                            "sequence_no": session.next_sequence(),
+                        })
 
             elif msg_type == "evaluate_consensus":
                 if not session.meeting_session or not session.meeting_session.is_running():
