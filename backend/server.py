@@ -1201,6 +1201,10 @@ async def ws_handler(ws: WebSocket):
                 # 创建审批管理器
                 session._approval_manager = ApprovalManager()
 
+                # 创建检查点管理器
+                from compensation import CheckpointManager
+                session._checkpoint_manager = CheckpointManager()
+
                 logger.info("会议已创建: meeting_id=%s session=%s", meeting_id, session.session_id)
                 msg_meeting_started = {
                     "type": "meeting_started",
@@ -1729,6 +1733,93 @@ async def ws_handler(ws: WebSocket):
                     send_fn=session.send_and_buffer,
                 )
                 logger.info("审批请求已发送: id=%s operation=%s", approval.id, operation)
+
+            # === 检查点系统 ===
+            elif msg_type == "checkpoint_save":
+                task_id = msg.get("taskId", "")
+                step_index = msg.get("stepIndex", 0)
+                state = msg.get("state", {})
+
+                if not session._checkpoint_manager:
+                    from compensation import CheckpointManager
+                    session._checkpoint_manager = CheckpointManager()
+
+                checkpoint = session._checkpoint_manager.save_checkpoint(task_id, step_index, state)
+
+                await session.send_and_buffer({
+                    "type": "checkpoint_saved",
+                    "checkpoint": {
+                        "id": checkpoint.id,
+                        "taskId": checkpoint.task_id,
+                        "stepIndex": checkpoint.step_index,
+                        "createdAt": checkpoint.created_at,
+                    },
+                    "sequence_no": session.next_sequence(),
+                })
+
+            elif msg_type == "checkpoint_restore":
+                checkpoint_id = msg.get("checkpointId", "")
+
+                if not session._checkpoint_manager:
+                    from compensation import CheckpointManager
+                    session._checkpoint_manager = CheckpointManager()
+
+                state = session._checkpoint_manager.restore_checkpoint(checkpoint_id)
+                if state is None:
+                    await session.send_error(f"检查点 {checkpoint_id} 不存在")
+                else:
+                    checkpoint = session._checkpoint_manager.get_checkpoint(checkpoint_id)
+                    await session.send_and_buffer({
+                        "type": "checkpoint_restored",
+                        "checkpointId": checkpoint_id,
+                        "taskId": checkpoint.task_id if checkpoint else "",
+                        "stepIndex": checkpoint.step_index if checkpoint else 0,
+                        "state": state,
+                        "sequence_no": session.next_sequence(),
+                    })
+
+            elif msg_type == "get_checkpoints":
+                task_id = msg.get("taskId", "")
+
+                if not session._checkpoint_manager:
+                    from compensation import CheckpointManager
+                    session._checkpoint_manager = CheckpointManager()
+
+                if task_id:
+                    checkpoints = session._checkpoint_manager.get_checkpoints_for_task(task_id)
+                else:
+                    # 返回所有检查点
+                    checkpoints = []
+                    for task_cps in session._checkpoint_manager._checkpoints.values():
+                        checkpoints.extend(task_cps)
+
+                await ws.send_json({
+                    "type": "checkpoints_list",
+                    "taskId": task_id,
+                    "checkpoints": [
+                        {
+                            "id": cp.id,
+                            "taskId": cp.task_id,
+                            "stepIndex": cp.step_index,
+                            "createdAt": cp.created_at,
+                        }
+                        for cp in checkpoints
+                    ],
+                })
+
+            elif msg_type == "checkpoint_delete":
+                checkpoint_id = msg.get("checkpointId", "")
+
+                if not session._checkpoint_manager:
+                    from compensation import CheckpointManager
+                    session._checkpoint_manager = CheckpointManager()
+
+                deleted = session._checkpoint_manager.delete_checkpoint(checkpoint_id)
+                await ws.send_json({
+                    "type": "checkpoint_deleted",
+                    "checkpointId": checkpoint_id,
+                    "success": deleted,
+                })
 
     except WebSocketDisconnect:
         logger.info("WebSocket 断开: session=%s", session.session_id)

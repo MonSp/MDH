@@ -138,6 +138,22 @@ export default function useMeetingSocket({
   }
   const [pendingApprovals, setPendingApprovals] = useState<Map<string, PendingApprovalInfo>>(new Map())
 
+  // 检查点状态
+  interface CheckpointInfo {
+    id: string
+    taskId: string
+    stepIndex: number
+    createdAt: number
+  }
+  interface RestoredState {
+    checkpointId: string
+    taskId: string
+    stepIndex: number
+    state: Record<string, unknown>
+  }
+  const [checkpoints, setCheckpoints] = useState<CheckpointInfo[]>([])
+  const [restoredState, setRestoredState] = useState<RestoredState | null>(null)
+
   const send = useCallback((data: Record<string, unknown>) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       console.log('[MeetingSocket] 发送消息:', data)
@@ -716,6 +732,55 @@ export default function useMeetingSocket({
           })
           break
         }
+        case 'checkpoint_saved': {
+          const cp = msg.checkpoint
+          if (cp) {
+            setCheckpoints(prev => [...prev, {
+              id: cp.id,
+              taskId: cp.taskId,
+              stepIndex: cp.stepIndex,
+              createdAt: cp.createdAt,
+            }])
+            setChatMessages(prev => [...prev, {
+              role: 'boss' as const,
+              content: `[检查点] 已保存: 任务 ${cp.taskId} 步骤 ${cp.stepIndex}`,
+              timestamp: Date.now(),
+              _msgSubtype: 'feedback',
+            }])
+          }
+          break
+        }
+        case 'checkpoint_restored': {
+          setRestoredState({
+            checkpointId: msg.checkpointId,
+            taskId: msg.taskId,
+            stepIndex: msg.stepIndex,
+            state: msg.state,
+          })
+          setChatMessages(prev => [...prev, {
+            role: 'boss' as const,
+            content: `[检查点] 已恢复: 任务 ${msg.taskId} 步骤 ${msg.stepIndex}`,
+            timestamp: Date.now(),
+            _msgSubtype: 'feedback',
+          }])
+          break
+        }
+        case 'checkpoints_list': {
+          const cps = msg.checkpoints || []
+          setCheckpoints(cps.map((cp: any) => ({
+            id: cp.id,
+            taskId: cp.taskId,
+            stepIndex: cp.stepIndex,
+            createdAt: cp.createdAt,
+          })))
+          break
+        }
+        case 'checkpoint_deleted': {
+          if (msg.success) {
+            setCheckpoints(prev => prev.filter(cp => cp.id !== msg.checkpointId))
+          }
+          break
+        }
         case 'bridge_agent_registered': {
           // Bridge registration confirmation from Python
           console.log('[Bridge] Agent registered:', msg.tsAgentId, '->', msg.pyAgentId, 'success:', msg.success)
@@ -870,6 +935,42 @@ export default function useMeetingSocket({
     send({ type: 'get_pending_approvals' })
   }, [send])
 
+  // === 检查点函数 ===
+
+  const saveCheckpoint = useCallback((taskId: string, stepIndex: number, state: Record<string, unknown>) => {
+    send({
+      type: 'checkpoint_save',
+      taskId,
+      stepIndex,
+      state,
+    })
+  }, [send])
+
+  const restoreCheckpoint = useCallback((checkpointId: string) => {
+    send({
+      type: 'checkpoint_restore',
+      checkpointId,
+    })
+  }, [send])
+
+  const getCheckpoints = useCallback((taskId?: string) => {
+    send({
+      type: 'get_checkpoints',
+      taskId: taskId || '',
+    })
+  }, [send])
+
+  const deleteCheckpoint = useCallback((checkpointId: string) => {
+    send({
+      type: 'checkpoint_delete',
+      checkpointId,
+    })
+  }, [send])
+
+  const clearRestoredState = useCallback(() => {
+    setRestoredState(null)
+  }, [])
+
   return {
     meetingId,
     agents,
@@ -909,5 +1010,13 @@ export default function useMeetingSocket({
     pendingApprovals,
     sendApprovalResponse,
     getPendingApprovals,
+    // 检查点
+    checkpoints,
+    restoredState,
+    saveCheckpoint,
+    restoreCheckpoint,
+    getCheckpoints,
+    deleteCheckpoint,
+    clearRestoredState,
   }
 }

@@ -45,6 +45,7 @@ class Session:
         self._agenda = None
         self._agent_bridge = None  # AgentBridge 实例
         self._approval_manager = None  # ApprovalManager 实例
+        self._checkpoint_manager = None  # CheckpointManager 实例
 
     def add_to_buffer(self, msg: dict) -> None:
         """添加消息到缓冲区，超出限制时自动移除最旧的消息"""
