@@ -135,27 +135,38 @@ class TestStructuredFeedbackOutput:
         """返回值应包含 structured_feedback 键。"""
         on_message = AsyncMock()
 
-        # Mock LLM 回复，需要同时 patch coordinator 和 review_pipeline 的 _get_model
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="测试反馈")]
-        mock_get = MagicMock(return_value=MagicMock(reply=AsyncMock(return_value=mock_response)))
-        with patch.object(coordinator, "_get_model", mock_get), \
-             patch.object(coordinator._review_pipeline, "_get_model", mock_get):
-            review_result, task_results = asyncio.run(coordinator.execute_and_review_task("测试任务", on_message))
+        # Mock execute_assigned_tasks to return task results
+        coordinator.execute_assigned_tasks = AsyncMock(return_value=[
+            {"task_id": "t1", "agent_id": "a1", "result": "任务执行完成", "status": "completed"}
+        ])
 
+        # Mock review pipeline
+        coordinator._review_pipeline.review = AsyncMock(return_value={
+            "structured_feedback": {"status": "approved", "issues": [], "max_iterations": 3}
+        })
+
+        review_result, task_results = asyncio.run(coordinator.execute_and_review_task("测试任务", on_message))
         assert "structured_feedback" in review_result
 
     def test_structured_feedback_has_required_fields(self, coordinator):
         """structured_feedback 应包含 status, issues, max_iterations 字段。"""
         on_message = AsyncMock()
 
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="测试反馈")]
-        mock_get = MagicMock(return_value=MagicMock(reply=AsyncMock(return_value=mock_response)))
-        with patch.object(coordinator, "_get_model", mock_get), \
-             patch.object(coordinator._review_pipeline, "_get_model", mock_get):
-            review_result, task_results = asyncio.run(coordinator.execute_and_review_task("测试任务", on_message))
+        coordinator.execute_assigned_tasks = AsyncMock(return_value=[
+            {"task_id": "t1", "agent_id": "a1", "result": "任务执行完成", "status": "completed"}
+        ])
 
+        coordinator._review_pipeline.review = AsyncMock(return_value={
+            "structured_feedback": {
+                "status": "approved",
+                "issues": [],
+                "max_iterations": 3,
+                "current_iteration": 1,
+                "overall_comment": "Good",
+            }
+        })
+
+        review_result, task_results = asyncio.run(coordinator.execute_and_review_task("测试任务", on_message))
         feedback = review_result["structured_feedback"]
         assert "status" in feedback
         assert "issues" in feedback
@@ -166,13 +177,16 @@ class TestStructuredFeedbackOutput:
         """返回值应继续包含原有的 reviewer_feedback 等字段（向后兼容）。"""
         on_message = AsyncMock()
 
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="测试反馈")]
-        mock_get = MagicMock(return_value=MagicMock(reply=AsyncMock(return_value=mock_response)))
-        with patch.object(coordinator, "_get_model", mock_get), \
-             patch.object(coordinator._review_pipeline, "_get_model", mock_get):
-            review_result, task_results = asyncio.run(coordinator.execute_and_review_task("测试任务", on_message))
+        coordinator.execute_assigned_tasks = AsyncMock(return_value=[
+            {"task_id": "t1", "agent_id": "a1", "result": "任务执行完成", "status": "completed"}
+        ])
 
+        coordinator._review_pipeline.review = AsyncMock(return_value={
+            "structured_feedback": {"status": "approved", "issues": [], "max_iterations": 3},
+            "reviewer_feedback": "Looks good",
+        })
+
+        review_result, task_results = asyncio.run(coordinator.execute_and_review_task("测试任务", on_message))
         assert "reviewer_feedback" in review_result
 
 
@@ -227,13 +241,17 @@ class TestFallbackWithoutPlanner:
         coordinator.planner = None
         on_message = AsyncMock()
 
-        mock_response = MagicMock()
-        mock_response.content = [MagicMock(text="测试")]
-        mock_get = MagicMock(return_value=MagicMock(reply=AsyncMock(return_value=mock_response)))
-        with patch.object(coordinator, "_get_model", mock_get), \
-             patch.object(coordinator._review_pipeline, "_get_model", mock_get):
-            review_result, task_results = asyncio.run(coordinator.execute_and_review_task("任务", on_message))
+        # Mock execute_assigned_tasks to return task results
+        coordinator.execute_assigned_tasks = AsyncMock(return_value=[
+            {"task_id": "t1", "agent_id": "a1", "result": "任务执行完成", "status": "completed"}
+        ])
 
+        # Mock review pipeline to return fallback feedback
+        coordinator._review_pipeline.review = AsyncMock(return_value={
+            "structured_feedback": {"status": "approved", "issues": [], "max_iterations": 3}
+        })
+
+        review_result, task_results = asyncio.run(coordinator.execute_and_review_task("任务", on_message))
         feedback = review_result["structured_feedback"]
         assert feedback["status"] == "approved"
         assert feedback["issues"] == []

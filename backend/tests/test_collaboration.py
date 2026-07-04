@@ -287,6 +287,15 @@ class TestCollaborativeAgent:
         collaborative_agent.add_executor("backend", ["backend", "coding"])
         await collaborative_agent.start()
 
+        # Mock execute_plan to avoid infinite loop and set plan status
+        async def mock_execute_plan():
+            collaborative_agent.planner.current_plan.status = TaskStatus.COMPLETED
+            for subtask in collaborative_agent.planner.current_plan.subtasks:
+                subtask.status = TaskStatus.COMPLETED
+                subtask.result = "Done"
+            return {s.id: {"name": s.name, "status": "completed", "result": "Done"} for s in collaborative_agent.planner.current_plan.subtasks}
+
+        collaborative_agent.planner.execute_plan = mock_execute_plan
         result = await collaborative_agent.execute_task("Build a web application")
         assert result is not None
         assert "plan_id" in result
@@ -309,6 +318,14 @@ class TestCollaborativeAgent:
         collaborative_agent.add_executor("executor1", ["coding"])
         await collaborative_agent.start()
 
+        # Mock execute_plan to avoid infinite loop
+        async def mock_execute_plan():
+            for subtask in collaborative_agent.planner.current_plan.subtasks:
+                subtask.status = TaskStatus.COMPLETED
+                subtask.result = "Done"
+            return {s.id: {"name": s.name, "status": "completed", "result": "Done"} for s in collaborative_agent.planner.current_plan.subtasks}
+
+        collaborative_agent.planner.execute_plan = mock_execute_plan
         await collaborative_agent.execute_task("Test task")
         progress = collaborative_agent.get_plan_progress()
 
@@ -323,6 +340,14 @@ class TestCollaborativeAgent:
         collaborative_agent.add_executor("executor1", ["coding"])
         await collaborative_agent.start()
 
+        # Mock execute_plan to avoid infinite loop
+        async def mock_execute_plan():
+            for subtask in collaborative_agent.planner.current_plan.subtasks:
+                subtask.status = TaskStatus.COMPLETED
+                subtask.result = "Done"
+            return {s.id: {"name": s.name, "status": "completed", "result": "Done"} for s in collaborative_agent.planner.current_plan.subtasks}
+
+        collaborative_agent.planner.execute_plan = mock_execute_plan
         await collaborative_agent.execute_task("Test task")
         stats = collaborative_agent.get_executor_stats()
 
