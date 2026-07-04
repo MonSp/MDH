@@ -11,6 +11,7 @@ import WorkspacePanel from './office-team/WorkspacePanel'
 import SkillEvolutionPanel from './skill-evolution/SkillEvolutionPanel'
 import VotingPanel from './office-team/VotingPanel'
 import ApprovalPanel from './office-team/ApprovalPanel'
+import CheckpointPanel from './office-team/CheckpointPanel'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 import { useAgentSystem } from '../hooks/useAgentSystem'
 import { AgentRole, AgentCapability } from '../modules/agentTypes'
@@ -64,6 +65,14 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     pendingApprovals,
     sendApprovalResponse,
     getPendingApprovals,
+    // 检查点
+    checkpoints,
+    restoredState,
+    saveCheckpoint,
+    restoreCheckpoint,
+    getCheckpoints,
+    deleteCheckpoint,
+    clearRestoredState,
   } = useMeetingSocket({ wsRef })
 
   // TS 智能体系统
@@ -344,6 +353,15 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                       pendingApprovals={pendingApprovals}
                       onApprove={(id, reason) => sendApprovalResponse(id, true, reason)}
                       onReject={(id, reason) => sendApprovalResponse(id, false, reason)}
+                    />
+                    <CheckpointPanel
+                      checkpoints={checkpoints}
+                      restoredState={restoredState}
+                      onSaveCheckpoint={saveCheckpoint}
+                      onRestoreCheckpoint={restoreCheckpoint}
+                      onDeleteCheckpoint={deleteCheckpoint}
+                      onGetCheckpoints={getCheckpoints}
+                      onClearRestoredState={clearRestoredState}
                     />
                   </div>
                 ) : (
