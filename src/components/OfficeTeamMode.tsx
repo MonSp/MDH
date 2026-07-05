@@ -13,6 +13,7 @@ import VotingPanel from './office-team/VotingPanel'
 import ApprovalPanel from './office-team/ApprovalPanel'
 import CheckpointPanel from './office-team/CheckpointPanel'
 import AuditLogPanel from './office-team/AuditLogPanel'
+import AgentWeightPanel from './office-team/AgentWeightPanel'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 import { useAgentSystem } from '../hooks/useAgentSystem'
 import { AgentRole, AgentCapability } from '../modules/agentTypes'
@@ -80,6 +81,8 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     // 迭代配置
     maxIterations,
     setMaxIterations,
+    // 权重调整
+    adjustAgentWeight,
   } = useMeetingSocket({ wsRef })
 
   // TS 智能体系统
@@ -387,6 +390,10 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                     <AuditLogPanel
                       auditLog={auditLog}
                       onGetAuditLog={getAuditLog}
+                    />
+                    <AgentWeightPanel
+                      agents={agents.map(a => ({ id: a.id, name: a.name || a.id, role: a.role || 'executor' }))}
+                      onAdjustWeight={adjustAgentWeight}
                     />
                   </div>
                 ) : (

@@ -1126,5 +1126,9 @@ export default function useMeetingSocket({
       setMaxIterationsState(n)
       send({ type: 'set_max_iterations', maxIterations: n })
     },
+    // 权重调整
+    adjustAgentWeight: (agentId: string, weight: number) => {
+      send({ type: 'adjust_agent_weight', agentId, weight })
+    },
   }
 }
