@@ -799,6 +799,24 @@ export default function useMeetingSocket({
           }
           break
         }
+        case 'meeting_snapshot_saved': {
+          setChatMessages(prev => [...prev, {
+            role: 'boss' as const,
+            content: `[快照] 会议快照已保存 (${msg.meetingId})`,
+            timestamp: Date.now(),
+            _msgSubtype: 'feedback',
+          }])
+          break
+        }
+        case 'meeting_snapshot_restored': {
+          setChatMessages(prev => [...prev, {
+            role: 'boss' as const,
+            content: `[快照] 已恢复 ${msg.tasksRestored} 个任务, ${msg.messagesRestored} 条消息`,
+            timestamp: Date.now(),
+            _msgSubtype: 'feedback',
+          }])
+          break
+        }
         case 'critical_blocker': {
           // 关键阻塞通知
           setChatMessages(prev => [...prev, {
@@ -1130,5 +1148,8 @@ export default function useMeetingSocket({
     adjustAgentWeight: (agentId: string, weight: number) => {
       send({ type: 'adjust_agent_weight', agentId, weight })
     },
+    // 会议快照（断点续跑）
+    saveMeetingSnapshot: () => send({ type: 'save_meeting_snapshot' }),
+    restoreMeetingSnapshot: (checkpointId: string) => send({ type: 'restore_meeting_snapshot', checkpointId }),
   }
 }

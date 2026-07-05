@@ -1896,6 +1896,68 @@ async def ws_handler(ws: WebSocket):
                 else:
                     await session.send_error("会议协调器未初始化")
 
+            # === 会议快照（断点续跑）===
+            elif msg_type == "save_meeting_snapshot":
+                meeting = session.meeting_session
+                if not meeting or not meeting.is_running():
+                    await session.send_error("没有进行中的会议")
+                    continue
+
+                snapshot = {
+                    "meeting_id": meeting.meeting_id,
+                    "agents": meeting.get_agents_dict(),
+                    "tasks": meeting.get_tasks_dict(),
+                    "messages": meeting.messages[-50:],  # 最近50条消息
+                    "phase": session._agenda.get_phase().value if session._agenda else "idle",
+                }
+                if not session._checkpoint_manager:
+                    from compensation import CheckpointManager
+                    session._checkpoint_manager = CheckpointManager()
+
+                cp = session._checkpoint_manager.save_checkpoint(
+                    f"meeting-{meeting.meeting_id}", 0, snapshot,
+                )
+                await session.send_and_buffer({
+                    "type": "meeting_snapshot_saved",
+                    "checkpointId": cp.id,
+                    "meetingId": meeting.meeting_id,
+                    "sequence_no": session.next_sequence(),
+                })
+
+            elif msg_type == "restore_meeting_snapshot":
+                checkpoint_id = msg.get("checkpointId", "")
+                if not session._checkpoint_manager:
+                    await session.send_error("无检查点")
+                    continue
+
+                state = session._checkpoint_manager.restore_checkpoint(checkpoint_id)
+                if not state:
+                    await session.send_error(f"检查点 {checkpoint_id} 不存在")
+                    continue
+
+                # 恢复会议状态
+                meeting = session.meeting_session
+                if meeting:
+                    # 恢复任务
+                    for task_data in state.get("tasks", []):
+                        try:
+                            task = meeting.add_task(task_data["agent_id"], task_data["description"])
+                            meeting.update_task_status(task.id, task_data["status"])
+                        except Exception:
+                            pass
+
+                    # 恢复消息
+                    meeting.messages = state.get("messages", [])
+
+                await session.send_and_buffer({
+                    "type": "meeting_snapshot_restored",
+                    "checkpointId": checkpoint_id,
+                    "meetingId": state.get("meeting_id", ""),
+                    "tasksRestored": len(state.get("tasks", [])),
+                    "messagesRestored": len(state.get("messages", [])),
+                    "sequence_no": session.next_sequence(),
+                })
+
             # === 关键阻塞 ===
             elif msg_type == "critical_blocker":
                 agent_id = msg.get("agentId", "unknown")
