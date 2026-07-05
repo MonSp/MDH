@@ -1,46 +1,25 @@
 # 大荒界 - Matrix DaHuang (MDH)
 
-基于 React + Python FastAPI + AgentScope 的全领域智能体协作系统，支持多角色AI Agent在虚拟办公室中协作完成复杂任务。
+基于 React + Python FastAPI + AgentScope 的全领域智能体协作系统。多个 AI 智能体在虚拟办公室中协作，完成从需求分析到代码交付的完整流程。
 
-## 功能特性
+## 核心能力
 
-- 🏢 **虚拟办公室** - 3D科技大厦可视化场景
-- 👥 **多角色团队** - 产品经理、架构师、开发、QA、DevOps等角色
-- 🎯 **任务分配** - CEO智能分析需求并组建团队
-- 🔧 **工具执行** - Agent可调用18种工具（文件、Git、搜索、测试等）
-- 📋 **会议协作** - 支持实时讨论和任务协作
-- 📊 **技能进化** - 角色技能可配置和扩展
-- 🤖 **TS-Python 桥接** - 前端自定义智能体与后端 AgentScope 智能体互通
-- 🗳️ **投票决策** - 多智能体提案、投票、共识评估
-- ✅ **人工审批** - 高危操作的人工审批流程
-- 📸 **检查点** - 任务执行状态的保存与恢复
-- 🚨 **关键阻塞** - 紧急阻塞问题的快速响应
-- 📝 **审计日志** - 操作审计追踪
-- ⚙️ **工作流引擎** - REST API 管理工作流生命周期
-
-## 项目结构
-
-```
-├── src/                    # React + TypeScript 前端
-│   ├── components/         # UI组件
-│   │   ├── techtower/      # 3D科技大厦
-│   │   ├── office-team/    # 办公团队
-│   │   └── skill-evolution/ # 技能进化
-│   ├── hooks/              # React Hooks
-│   └── modules/            # 功能模块
-├── backend/                # Python后端
-│   ├── server.py           # WebSocket服务
-│   ├── agent_toolset.py    # Agent工具集
-│   ├── tool_executor.py    # 工具执行器
-│   ├── tool_registry.py    # 工具注册中心
-│   └── roles_config.yaml   # 角色配置
-├── docs/                   # 文档
-└── index.html              # 入口页面
-```
+| 能力 | 说明 |
+|---|---|
+| 🏢 虚拟办公室 | 3D 科技大厦可视化场景，实时展示智能体状态 |
+| 👥 多角色团队 | CEO、架构师、开发、QA、DevOps、项目经理 6 个角色 |
+| 🎯 智能任务分配 | CEO 分析需求 → 讨论 → 投票 → 分派 → 执行 → 审查 |
+| 🔧 18 种工具 | 文件、Git、搜索、测试、文档、Web 等 |
+| 🤖 TS-Python 桥接 | 前端自定义智能体与后端 AgentScope 智能体互通 |
+| 🗳️ 投票决策 | 提案 → 投票 → 共识评估（支持多种策略） |
+| ✅ 人工审批 | 高危操作的人工审批流程 |
+| 📸 检查点 | 任务执行状态的保存与恢复 |
+| 📝 审计日志 | 操作审计追踪 |
+| ⚙️ 工作流引擎 | REST API 管理工作流生命周期 |
 
 ## 快速开始
 
-### 前端
+### 1. 前端
 
 ```bash
 npm install
@@ -49,21 +28,87 @@ npm run dev
 
 访问 `http://localhost:5173`
 
-### 后端
+### 2. 后端
 
 ```bash
+# 安装依赖
 pip install -r backend/requirements.txt
+
+# 配置 API Key
+cp .env.example .env
+# 编辑 .env 填入 DEEPSEEK_API_KEY
+
+# 启动
 python backend/server.py
 ```
 
 后端运行在 `ws://localhost:8765/ws`
 
-## Agent工具系统
+### 3. Docker 部署
 
-系统提供18个内置工具：
+```bash
+docker compose up -d
+```
+
+## 项目结构
+
+```
+├── src/                          # React + TypeScript 前端
+│   ├── components/
+│   │   ├── techtower/            # 3D 科技大厦
+│   │   ├── office-team/          # 办公团队面板
+│   │   │   ├── VotingPanel.tsx   # 投票面板
+│   │   │   ├── ApprovalPanel.tsx # 审批面板
+│   │   │   ├── CheckpointPanel.tsx # 检查点面板
+│   │   │   ├── AuditLogPanel.tsx # 审计日志面板
+│   │   │   ├── AgentWeightPanel.tsx # 权重调整
+│   │   │   ├── RoleEditorPanel.tsx # 角色编辑
+│   │   │   ├── HistoryPanel.tsx  # 历史回放
+│   │   │   └── SkillMarketplace.tsx # 技能市场
+│   │   └── skill-evolution/      # 技能进化
+│   ├── hooks/
+│   │   ├── useMeetingSocket.ts   # WebSocket 会议通信
+│   │   ├── useAgentSystem.ts     # TS 智能体系统
+│   │   ├── useApproval.ts        # 审批队列
+│   │   └── useLocalStorage.ts    # 本地存储
+│   └── modules/
+│       ├── webSocketBridge.ts    # TS-Python 桥接
+│       ├── agentCoordinator.ts   # 智能体协调器
+│       ├── communicationBus.ts   # 消息总线
+│       └── taskAssigner.ts       # 任务分配器
+├── backend/                      # Python 后端
+│   ├── server.py                 # FastAPI + WebSocket 服务
+│   ├── meeting_coordinator.py    # 会议协调器（核心）
+│   ├── agent_bridge.py           # TS-Python 桥接
+│   ├── approval_manager.py       # 审批管理器
+│   ├── llm_cache.py              # LLM 响应缓存
+│   ├── negotiation.py            # 投票决策引擎
+│   ├── agenda.py                 # 议程状态机
+│   ├── workflow_engine.py        # 工作流引擎
+│   ├── task_orchestrator.py      # 任务编排器
+│   ├── dynamic_router.py         # 动态路由器
+│   ├── security.py               # 安全中间件
+│   ├── compensation.py           # 检查点管理
+│   ├── meeting.py                # 会议会话
+│   └── tests/                    # Python 测试
+├── docs/                         # 文档
+└── .env                          # 环境变量（API Key）
+```
+
+## 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 前端 | React 18 + TypeScript + Vite 6 + Three.js |
+| 后端 | Python 3.11 + FastAPI + WebSocket |
+| AI | AgentScope + DeepSeek API |
+| 工具 | 自研工具执行框架 |
+| 测试 | Vitest (TS) + pytest (Python) |
+
+## Agent 工具系统
 
 | 类别 | 工具 |
-|------|------|
+|---|---|
 | 文件 | read_file, write_file, edit_file, list_directory |
 | Git | git_status, git_commit, git_push, git_branch, git_diff, git_log |
 | 搜索 | search_files, grep_content |
@@ -87,28 +132,103 @@ base_roles:
     skills: ["fullstack_dev"]
 ```
 
-支持自定义角色和技能混搭。
+支持自定义角色和技能混搭。可通过前端 `🗳️ 投票` 标签页的角色编辑器管理。
 
-## 技术栈
+## WebSocket 消息协议
 
-- **前端**: React + TypeScript + Vite + Three.js
-- **后端**: Python FastAPI + WebSocket
-- **AI**: AgentScope + DeepSeek API
-- **工具**: 自研工具执行框架
+### 前端 → 后端
 
-## 文档
+| 消息类型 | 说明 |
+|---|---|
+| `start_meeting` | 启动会议（含 provider/model/api_key/max_iterations） |
+| `meeting_message` | 发送会议消息 |
+| `task_assign` | 手动分派任务 |
+| `end_meeting` | 结束会议 |
+| `create_proposal` | 创建提案 |
+| `cast_vote` | 投票 |
+| `evaluate_consensus` | 评估共识 |
+| `request_approval` | 请求人工审批 |
+| `human_approval_response` | 审批响应 |
+| `checkpoint_save` | 保存检查点 |
+| `checkpoint_restore` | 恢复检查点 |
+| `save_meeting_snapshot` | 保存会议快照 |
+| `restore_meeting_snapshot` | 恢复会议快照 |
+| `critical_blocker` | 报告关键阻塞 |
+| `log_audit` | 记录审计日志 |
+| `bridge_register_agent` | 注册 TS 智能体到 Python |
+| `bridge_message` | TS↔Python 智能体消息 |
+| `set_max_iterations` | 设置最大迭代轮次 |
+| `adjust_agent_weight` | 调整智能体投票权重 |
 
-- [Agent工具系统](docs/agent-tools.md)
-- [角色配置](backend/roles_config.yaml)
-- [集成测试报告](docs/integration-test-report.md)
+### 后端 → 前端
+
+| 消息类型 | 说明 |
+|---|---|
+| `meeting_started` | 会议已启动 |
+| `meeting_ended` | 会议已结束 |
+| `agent_message` | 智能体消息（含 delta 流式） |
+| `task_assigned` | 任务已分派 |
+| `task_auto_assigned` | 任务自动分派 |
+| `agenda_update` | 议程状态更新 |
+| `proposal` | 提案推送 |
+| `vote` | 投票推送 |
+| `vote_result` | 投票结果 |
+| `human_approval_request` | 审批请求 |
+| `checkpoint_saved` | 检查点已保存 |
+| `checkpoint_restored` | 检查点已恢复 |
+| `meeting_snapshot_saved` | 快照已保存 |
+| `meeting_snapshot_restored` | 快照已恢复 |
+| `critical_blocker` | 关键阻塞通知 |
+| `audit_log` | 审计日志推送 |
+| `bridge_agent_registered` | TS 智能体注册确认 |
+| `bridge_message` | Python→TS 智能体消息 |
+
+## REST API
+
+### 工作流引擎
+
+| 端点 | 说明 |
+|---|---|
+| `POST /api/workflow/create` | 创建工作流 |
+| `POST /api/workflow/execute/{id}` | 执行工作流 |
+| `POST /api/workflow/pause/{id}` | 暂停工作流 |
+| `POST /api/workflow/resume/{id}` | 恢复工作流 |
+| `POST /api/workflow/cancel/{id}` | 取消工作流 |
+| `POST /api/workflow/retry/{id}/{nodeId}` | 重试节点 |
+| `GET /api/workflow/status/{id}` | 获取状态 |
+| `GET /api/workflow/visualization/{id}` | 获取可视化 |
+
+### 角色管理
+
+| 端点 | 说明 |
+|---|---|
+| `GET /api/roles/config` | 获取角色配置 |
+| `GET /api/roles/{id}` | 获取单个角色 |
+| `POST /api/roles/{id}` | 创建角色 |
+| `PUT /api/roles/{id}` | 更新角色 |
+| `DELETE /api/roles/{id}` | 删除角色 |
+
+### 历史记录
+
+| 端点 | 说明 |
+|---|---|
+| `GET /api/history/sessions` | 列出历史会话 |
+| `GET /api/history/sessions/{id}/messages` | 获取历史消息 |
+
+### 监控
+
+| 端点 | 说明 |
+|---|---|
+| `GET /health` | 健康检查 |
+| `GET /metrics` | Prometheus 指标 |
 
 ## 测试
 
 ```bash
-# TypeScript (865 tests)
+# TypeScript 测试 (865 tests)
 npx vitest run
 
-# Python (532 tests)
+# Python 测试 (532 tests)
 conda activate agentscope
 cd backend && python -m pytest tests/ --timeout=10
 
@@ -116,3 +236,16 @@ cd backend && python -m pytest tests/ --timeout=10
 export $(cat .env | grep -v '^#' | xargs)
 python backend/test_llm_integration.py
 ```
+
+## 覆盖率
+
+| 目录 | Stmts | Branch | Funcs |
+|---|---|---|---|
+| src/modules | 84.39% | 87.85% | 85.02% |
+| src/hooks | 92.86% | 75.36% | 91.66% |
+
+## 文档
+
+- [Agent 工具系统](docs/agent-tools.md)
+- [角色配置](backend/roles_config.yaml)
+- [集成测试报告](docs/integration-test-report.md)
