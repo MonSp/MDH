@@ -175,7 +175,9 @@ class TestMeetingCoordinatorDelegation:
     def test_meeting_coordinator_semantic_analyze_fallback(self):
         """semantic_analyze失败时应抛出异常（无降级方法）"""
         from meeting_coordinator import MeetingCoordinator
-        
+        from llm_cache import llm_cache
+        llm_cache.clear()  # 清除缓存避免干扰
+
         mock_meeting = MagicMock()
         mock_meeting.agents = []
         

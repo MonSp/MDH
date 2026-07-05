@@ -272,8 +272,12 @@ class MeetingCoordinator:
             f"请只返回JSON数组，不要其他内容。"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        response = await planner.reply(msg)
-        text = _extract_text(response)
+        try:
+            response = await planner.reply(msg)
+            text = _extract_text(response)
+        except Exception as e:
+            self.logger.warning("任务分解 LLM 调用失败: %s", e)
+            text = "[]"
 
         try:
             subtasks = json.loads(text)
@@ -639,11 +643,19 @@ class MeetingCoordinator:
         return feedback
 
     async def semantic_analyze(self, user_message: str) -> SemanticAnalysisResult:
-        """语义分析用户消息（委托给SemanticAnalyzer）
+        """语义分析用户消息（委托给SemanticAnalyzer，带缓存）
 
         WhyBuddy化：委托给SemanticAnalyzer。
         """
-        return await self._semantic_analyzer.analyze(user_message)
+        from llm_cache import llm_cache
+        cached = llm_cache.get(user_message, role="semantic_analyze", model=self.model_name)
+        if cached is not None:
+            self.logger.info("语义分析命中缓存: %s", user_message[:50])
+            return cached
+
+        result = await self._semantic_analyzer.analyze(user_message)
+        llm_cache.put(user_message, result, role="semantic_analyze", model=self.model_name)
+        return result
 
     async def auto_assign_task(
         self,
