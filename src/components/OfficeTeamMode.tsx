@@ -77,6 +77,9 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     // 审计日志
     auditLog,
     getAuditLog,
+    // 迭代配置
+    maxIterations,
+    setMaxIterations,
   } = useMeetingSocket({ wsRef })
 
   // TS 智能体系统
@@ -265,7 +268,21 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                   <span>📋 会议进行中</span>
                   <span style={styles.meetingPhase}>{meetingPhase !== 'idle' ? meetingPhase : ''}</span>
                 </div>
-                <button style={styles.closeMeetingBtn} onClick={handleEndMeeting}>×</button>
+                <div style={styles.meetingHeaderRight}>
+                  <label style={styles.iterLabel} title="最大审查迭代轮次">
+                    轮次:
+                    <select
+                      style={styles.iterSelect}
+                      value={maxIterations}
+                      onChange={e => setMaxIterations(Number(e.target.value))}
+                    >
+                      {[1, 2, 3, 5, 10].map(n => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button style={styles.closeMeetingBtn} onClick={handleEndMeeting}>×</button>
+                </div>
               </div>
 
               <div style={styles.meetingTabBar}>
@@ -472,6 +489,27 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  meetingHeaderRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  iterLabel: {
+    fontSize: '11px',
+    color: '#94a3b8',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+  },
+  iterSelect: {
+    padding: '2px 6px',
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '4px',
+    color: '#e2e8f0',
+    fontSize: '11px',
+    outline: 'none',
   },
   meetingTabBar: {
     display: 'flex',

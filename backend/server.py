@@ -1187,6 +1187,7 @@ async def ws_handler(ws: WebSocket):
                     base_url=session.base_url or "",
                     workspace=workspace,
                     agent_pool=agent_pool,
+                    max_iterations=msg.get("max_iterations", 3),
                 )
                 session._meeting_coordinator = coordinator
 
@@ -1880,6 +1881,20 @@ async def ws_handler(ws: WebSocket):
                     "checkpointId": checkpoint_id,
                     "success": deleted,
                 })
+
+            # === 迭代配置 ===
+            elif msg_type == "set_max_iterations":
+                max_iter = msg.get("maxIterations", 3)
+                coordinator = getattr(session, '_meeting_coordinator', None)
+                if coordinator:
+                    coordinator._max_iterations = max(1, min(10, int(max_iter)))
+                    await ws.send_json({
+                        "type": "config_updated",
+                        "key": "max_iterations",
+                        "value": coordinator._max_iterations,
+                    })
+                else:
+                    await session.send_error("会议协调器未初始化")
 
             # === 关键阻塞 ===
             elif msg_type == "critical_blocker":

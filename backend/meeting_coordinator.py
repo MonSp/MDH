@@ -59,7 +59,9 @@ class MeetingCoordinator:
         data_dir: str = "data",
         workspace=None,
         agent_pool: Optional[AgentPool] = None,
+        max_iterations: int = 3,
     ):
+        self._max_iterations = max_iterations
         self.meeting = meeting_session
         self.provider = provider
         self.model_name = model_name
@@ -889,7 +891,7 @@ class MeetingCoordinator:
         self.meeting.add_message("agent", coordinator_review_text, coordinator_id)
         
         # ── 开发循环：执行 → 审查 → 修复 → 再审查 ──
-        max_dev_iterations = 3
+        max_dev_iterations = self._max_iterations
         review_result = {}
         execution_results = []
         all_review_feedback = []

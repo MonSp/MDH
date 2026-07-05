@@ -167,6 +167,9 @@ export default function useMeetingSocket({
   }
   const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([])
 
+  // 迭代配置
+  const [maxIterations, setMaxIterationsState] = useState(3)
+
   const send = useCallback((data: Record<string, unknown>) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       console.log('[MeetingSocket] 发送消息:', data)
@@ -183,8 +186,9 @@ export default function useMeetingSocket({
       model_name: localStorage.getItem('llm_model_name') || undefined,
       api_key: localStorage.getItem('deepseek_api_key') || undefined,
       base_url: localStorage.getItem('deepseek_base_url') || undefined,
+      max_iterations: maxIterations,
     })
-  }, [send])
+  }, [send, maxIterations])
 
   const sendMeetingMessage = useCallback((content: string) => {
     send({ type: 'meeting_message', content })
@@ -1116,5 +1120,11 @@ export default function useMeetingSocket({
     auditLog,
     getAuditLog,
     logAudit,
+    // 迭代配置
+    maxIterations,
+    setMaxIterations: (n: number) => {
+      setMaxIterationsState(n)
+      send({ type: 'set_max_iterations', maxIterations: n })
+    },
   }
 }
