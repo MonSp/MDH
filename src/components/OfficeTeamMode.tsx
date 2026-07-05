@@ -12,6 +12,7 @@ import SkillEvolutionPanel from './skill-evolution/SkillEvolutionPanel'
 import VotingPanel from './office-team/VotingPanel'
 import ApprovalPanel from './office-team/ApprovalPanel'
 import CheckpointPanel from './office-team/CheckpointPanel'
+import AuditLogPanel from './office-team/AuditLogPanel'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 import { useAgentSystem } from '../hooks/useAgentSystem'
 import { AgentRole, AgentCapability } from '../modules/agentTypes'
@@ -73,6 +74,9 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     getCheckpoints,
     deleteCheckpoint,
     clearRestoredState,
+    // 审计日志
+    auditLog,
+    getAuditLog,
   } = useMeetingSocket({ wsRef })
 
   // TS 智能体系统
@@ -362,6 +366,10 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                       onDeleteCheckpoint={deleteCheckpoint}
                       onGetCheckpoints={getCheckpoints}
                       onClearRestoredState={clearRestoredState}
+                    />
+                    <AuditLogPanel
+                      auditLog={auditLog}
+                      onGetAuditLog={getAuditLog}
                     />
                   </div>
                 ) : (
