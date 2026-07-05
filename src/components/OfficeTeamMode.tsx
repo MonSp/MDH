@@ -15,6 +15,8 @@ import CheckpointPanel from './office-team/CheckpointPanel'
 import AuditLogPanel from './office-team/AuditLogPanel'
 import AgentWeightPanel from './office-team/AgentWeightPanel'
 import RoleEditorPanel from './office-team/RoleEditorPanel'
+import HistoryPanel from './office-team/HistoryPanel'
+import SkillMarketplace from './office-team/SkillMarketplace'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 import { useAgentSystem } from '../hooks/useAgentSystem'
 import { AgentRole, AgentCapability } from '../modules/agentTypes'
@@ -397,6 +399,8 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                       onAdjustWeight={adjustAgentWeight}
                     />
                     <RoleEditorPanel wsRef={wsRef} />
+                    <HistoryPanel />
+                    <SkillMarketplace />
                   </div>
                 ) : (
                   <SkillEvolutionPanel />

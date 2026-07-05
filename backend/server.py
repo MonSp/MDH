@@ -2299,6 +2299,47 @@ async def get_session_info(session_id: str):
     raise HTTPException(status_code=404, detail="Session not found")
 
 
+@app.get("/api/history/sessions")
+async def list_history_sessions():
+    """列出历史会话（磁盘上的持久化会话）"""
+    from pathlib import Path
+    sessions_dir = Path("data/sessions")
+    if not sessions_dir.exists():
+        return []
+
+    result = []
+    for f in sessions_dir.glob("*.json"):
+        try:
+            state = json.loads(f.read_text())
+            result.append({
+                "session_id": state.get("session_id", f.stem),
+                "provider": state.get("provider"),
+                "model_name": state.get("model_name"),
+                "message_count": len(state.get("message_buffer", [])),
+                "saved_at": state.get("saved_at"),
+            })
+        except Exception:
+            continue
+    return sorted(result, key=lambda x: x.get("saved_at") or "", reverse=True)
+
+
+@app.get("/api/history/sessions/{session_id}/messages")
+async def get_history_messages(session_id: str):
+    """获取历史会话的消息列表"""
+    from pathlib import Path
+    state_path = Path("data/sessions") / f"{session_id}.json"
+    if not state_path.exists():
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    state = json.loads(state_path.read_text())
+    messages = state.get("message_buffer", [])
+    return {
+        "session_id": session_id,
+        "messages": messages,
+        "count": len(messages),
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     logging.basicConfig(
