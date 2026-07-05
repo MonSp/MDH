@@ -14,6 +14,7 @@ import ApprovalPanel from './office-team/ApprovalPanel'
 import CheckpointPanel from './office-team/CheckpointPanel'
 import AuditLogPanel from './office-team/AuditLogPanel'
 import AgentWeightPanel from './office-team/AgentWeightPanel'
+import RoleEditorPanel from './office-team/RoleEditorPanel'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 import { useAgentSystem } from '../hooks/useAgentSystem'
 import { AgentRole, AgentCapability } from '../modules/agentTypes'
@@ -395,6 +396,7 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                       agents={agents.map(a => ({ id: a.id, name: a.name || a.id, role: a.role || 'executor' }))}
                       onAdjustWeight={adjustAgentWeight}
                     />
+                    <RoleEditorPanel wsRef={wsRef} />
                   </div>
                 ) : (
                   <SkillEvolutionPanel />
