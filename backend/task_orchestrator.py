@@ -154,24 +154,30 @@ class TaskOrchestrator:
         self._tasks = subtasks or self._tasks
         return assignments
     
-    async def execute(self, on_progress: Callable = None) -> List[Dict[str, Any]]:
+    async def execute(self, on_progress: Callable = None, parallel: bool = False) -> List[Dict[str, Any]]:
         """
         执行已分配的任务
         
         Args:
             on_progress: 进度回调函数 (agent_id, message, delta) -> None
+            parallel: 是否并行执行（默认串行）
             
         Returns:
             执行结果
         """
-        results = []
-        total_tasks = len([t for t in self._meeting.tasks if t.status == "assigned"])
-        completed_tasks = 0
+        assigned_tasks = [t for t in self._meeting.tasks if t.status == "assigned"]
         
-        for task in self._meeting.tasks:
-            if task.status != "assigned":
-                continue
-            
+        if parallel and len(assigned_tasks) > 1:
+            return await self._execute_parallel(assigned_tasks, on_progress)
+        return await self._execute_sequential(assigned_tasks, on_progress)
+
+    async def _execute_sequential(self, tasks, on_progress):
+        """串行执行任务"""
+        results = []
+        total_tasks = len(tasks)
+        completed_tasks = 0
+
+        for task in tasks:
             agent_info = self._meeting.get_agent(task.agent_id)
             if agent_info is None:
                 continue
@@ -381,7 +387,67 @@ class TaskOrchestrator:
                 })
         
         return results
-    
+
+    async def _execute_parallel(self, tasks, on_progress):
+        """并行执行任务"""
+        import asyncio
+
+        async def execute_one(task):
+            agent_info = self._meeting.get_agent(task.agent_id)
+            if agent_info is None:
+                return None
+
+            role = AgentRole(agent_info.role.value)
+            model = self._get_model(role)
+
+            agent_toolset = None
+            if self._workspace_root:
+                agent_toolset = AgentToolset(
+                    agent_id=task.agent_id,
+                    agent_role=role.value,
+                    workspace_root=self._workspace_root,
+                )
+
+            prompt = self._build_prompt(task, agent_info, agent_toolset)
+            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+
+            try:
+                response = await model.reply(msg)
+                last_text = _extract_text(response)
+                self._meeting.update_task_status(task.id, "completed")
+                return {
+                    "task_id": task.id,
+                    "agent_id": task.agent_id,
+                    "result": last_text,
+                    "written_files": [],
+                    "code_blocks_count": 0,
+                    "tool_calls": [],
+                    "verification": [],
+                    "agent_role": role.value,
+                }
+            except Exception as e:
+                self._meeting.update_task_status(task.id, "failed")
+                return {
+                    "task_id": task.id,
+                    "agent_id": task.agent_id,
+                    "result": f"任务执行失败: {e}",
+                }
+
+        if on_progress:
+            await on_progress("agent-coordinator", f"项目经理：并行执行 {len(tasks)} 个任务", "")
+
+        coros = [execute_one(t) for t in tasks]
+        raw_results = await asyncio.gather(*coros, return_exceptions=True)
+
+        results = []
+        for r in raw_results:
+            if isinstance(r, Exception):
+                results.append({"result": f"任务执行异常: {r}"})
+            elif r is not None:
+                results.append(r)
+
+        return results
+
     @staticmethod
     def _extract_plan(text: str) -> str:
         """从Agent回复中提取计划说明（代码块/tool_call之前的文字）"""

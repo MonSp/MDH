@@ -2223,6 +2223,48 @@ async def health():
     return {"status": "ok", "sessions": len(sessions)}
 
 
+@app.get("/metrics")
+async def metrics():
+    """Prometheus 格式指标"""
+    from llm_cache import llm_cache
+    from fastapi.responses import PlainTextResponse
+    cache_stats = llm_cache.stats
+
+    lines = [
+        "# HELP mdh_sessions_active Number of active sessions",
+        "# TYPE mdh_sessions_active gauge",
+        f"mdh_sessions_active {len(sessions)}",
+        "",
+        "# HELP mdh_llm_cache_hits LLM cache hit count",
+        "# TYPE mdh_llm_cache_hits counter",
+        f"mdh_llm_cache_hits {cache_stats['hits']}",
+        "",
+        "# HELP mdh_llm_cache_misses LLM cache miss count",
+        "# TYPE mdh_llm_cache_misses counter",
+        f"mdh_llm_cache_misses {cache_stats['misses']}",
+        "",
+        "# HELP mdh_llm_cache_size LLM cache current size",
+        "# TYPE mdh_llm_cache_size gauge",
+        f"mdh_llm_cache_size {cache_stats['size']}",
+        "",
+        "# HELP mdh_llm_cache_hit_rate LLM cache hit rate",
+        "# TYPE mdh_llm_cache_hit_rate gauge",
+        f"mdh_llm_cache_hit_rate {cache_stats['hit_rate']:.4f}",
+    ]
+
+    for sid, session in sessions.items():
+        meeting = getattr(session, 'meeting_session', None)
+        if meeting:
+            lines.extend([
+                "",
+                f'mdh_meeting_agents{{session="{sid}"}} {len(meeting.agents)}',
+                f'mdh_meeting_tasks{{session="{sid}"}} {len(meeting.tasks)}',
+                f'mdh_meeting_messages{{session="{sid}"}} {len(meeting.messages)}',
+            ])
+
+    return PlainTextResponse("\n".join(lines))
+
+
 @app.get("/api/sessions/{session_id}")
 async def get_session_info(session_id: str):
     """查询会话状态（支持持久化会话）"""
