@@ -4,22 +4,24 @@
 Team内部通过Meeting进行讨论和协调。
 """
 
+from __future__ import annotations
+
 import enum
 from dataclasses import dataclass, field
 from typing import Optional
 
 
-class RuntimeType(enum.Enum):
+class RuntimeType(str, enum.Enum):
     LOCAL_DOCKER = "local_docker"
     REMOTE_POD = "remote_pod"
 
 
-class AgentLocation(enum.Enum):
+class AgentLocation(str, enum.Enum):
     LOCAL = "local"
     REMOTE = "remote"
 
 
-class TeamStatus(enum.Enum):
+class TeamStatus(str, enum.Enum):
     CREATED = "created"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -53,8 +55,8 @@ class Team:
     team_id: str
     project_id: str
     runtime: TeamRuntime
-    members: list = field(default_factory=list)  # list[TeamMember]
-    leader: Optional[object] = field(default=None, repr=False)
+    members: list[TeamMember] = field(default_factory=list)
+    leader: Optional[TeamMember] = field(default=None, repr=False)
     status: TeamStatus = TeamStatus.CREATED
 
     def add_member(self, member: TeamMember) -> None:

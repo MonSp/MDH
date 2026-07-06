@@ -117,3 +117,44 @@ def test_team_get_member_by_role():
     assert executor is not None
     assert executor.agent_id == "agent-executor"
     assert team.get_member_by_team_role("Reviewer") is None
+
+
+def test_team_get_member_by_id():
+    runtime = TeamRuntime(
+        runtime_id="rt-1",
+        runtime_type=RuntimeType.LOCAL_DOCKER,
+        root_path="/tmp/workspace",
+    )
+    team = Team(team_id="team-1", project_id="proj-1", runtime=runtime)
+    team.add_member(TeamMember(
+        agent_id="agent-coordinator",
+        role_name="coordinator",
+        team_role="Coordinator",
+        location=AgentLocation.LOCAL,
+    ))
+    team.add_member(TeamMember(
+        agent_id="agent-executor",
+        role_name="executor",
+        team_role="Executor",
+        location=AgentLocation.LOCAL,
+    ))
+    assert team.get_member_by_id("agent-executor") is not None
+    assert team.get_member_by_id("agent-executor").agent_id == "agent-executor"
+    assert team.get_member_by_id("nonexistent") is None
+
+
+def test_team_set_leader_nonexistent_raises():
+    runtime = TeamRuntime(
+        runtime_id="rt-1",
+        runtime_type=RuntimeType.LOCAL_DOCKER,
+        root_path="/tmp/workspace",
+    )
+    team = Team(team_id="team-1", project_id="proj-1", runtime=runtime)
+    team.add_member(TeamMember(
+        agent_id="agent-executor",
+        role_name="executor",
+        team_role="Executor",
+        location=AgentLocation.LOCAL,
+    ))
+    with pytest.raises(ValueError, match="成员不存在"):
+        team.set_leader("nonexistent-agent")
