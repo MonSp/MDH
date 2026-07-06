@@ -1,0 +1,10 @@
+name: 前端开发
+version: "1.0.0"
+description: 组件驱动开发，状态管理，响应式设计，性能优化
+category: dev
+methodology: 组件驱动开发（CDD）— 先写组件接口和Props定义，再实现内部逻辑
+required_tools:
+  - read_file
+  - write_file
+  - edit_file
+  - bash

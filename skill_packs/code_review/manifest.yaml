@@ -1,0 +1,8 @@
+name: 代码审查
+version: "1.0.0"
+description: 代码质量审查，安全漏洞发现，最佳实践检查
+category: testing
+methodology: 导师式审查 — 不只是找bug，而是帮助团队成员成长
+required_tools:
+  - read_file
+  - grep_content

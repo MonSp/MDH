@@ -1,0 +1,7 @@
+name: 任务分解
+version: "1.0.0"
+description: 需求分析，任务拆解，依赖识别，工时估算
+category: general
+methodology: INVEST原则 — Independent、Negotiable、Valuable、Estimable、Small、Testable
+required_tools:
+  - read_file

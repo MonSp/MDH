@@ -1,0 +1,9 @@
+name: 测试
+version: "1.0.0"
+description: 测试驱动开发，单元/集成/E2E测试，测试策略
+category: testing
+methodology: 测试金字塔 — 大量单元测试（70%）+ 适量集成测试（20%）+ 少量E2E测试（10%）
+required_tools:
+  - write_file
+  - bash
+  - run_tests
