@@ -103,18 +103,21 @@ class ProjectManager:
     """
 
     def __init__(self, projects_dir: str, skill_registry: SkillRegistry,
-                 skill_packager: Optional[SkillPackager] = None):
+                 skill_packager: Optional[SkillPackager] = None,
+                 roles_config_path: Optional[str] = None):
         """初始化项目管理器。
 
         Args:
             projects_dir: 项目存储根目录。
             skill_registry: 技能注册中心实例。
             skill_packager: 技能打包器实例（可选），用于归档时触发技能打包。
+            roles_config_path: 角色配置文件路径（可选），传递给 TeamAssembler。
         """
         self._projects_dir = Path(projects_dir)
         self._projects_dir.mkdir(parents=True, exist_ok=True)
         self._skill_registry = skill_registry
         self._skill_packager = skill_packager
+        self._roles_config_path = roles_config_path
         # 内存索引：project_id -> Project
         self._projects: dict[str, Project] = {}
         # 加载已有项目
@@ -349,7 +352,11 @@ class ProjectManager:
                     agent_id = f"agent-{task_id}-{skill_id}"
 
                     skill_clone_dir = str(employees_dir / employee_id / "skill")
-                    base_skill_path = self._skill_registry.clone(skill_id, skill_clone_dir)
+                    try:
+                        base_skill_path = self._skill_registry.clone(skill_id, skill_clone_dir)
+                    except KeyError:
+                        logger.warning("技能包不存在，跳过克隆: %s", skill_id)
+                        base_skill_path = ""
                     incremental_path = os.path.join(skill_clone_dir, "incremental")
 
                     emp = EmployeeInstance(
@@ -370,14 +377,23 @@ class ProjectManager:
                     )
                     employees.append(emp)
 
-                    skill_pkg = self._skill_registry.get_skill(skill_id)
-                    skill_packages.append({
-                        "skill_id": skill_id,
-                        "name": skill_pkg.name,
-                        "version": skill_pkg.version,
-                        "task_id": task_id,
-                        "employee_id": employee_id,
-                    })
+                    try:
+                        skill_pkg = self._skill_registry.get_skill(skill_id)
+                        skill_packages.append({
+                            "skill_id": skill_id,
+                            "name": skill_pkg.name,
+                            "version": skill_pkg.version,
+                            "task_id": task_id,
+                            "employee_id": employee_id,
+                        })
+                    except KeyError:
+                        skill_packages.append({
+                            "skill_id": skill_id,
+                            "name": skill_id,
+                            "version": "0.0.0",
+                            "task_id": task_id,
+                            "employee_id": employee_id,
+                        })
 
                     logger.info(
                         "为任务 %s 创建员工 %s，技能包 %s",
@@ -390,7 +406,7 @@ class ProjectManager:
                 runtime_type=RuntimeType.LOCAL_DOCKER,
                 root_path=str(project_dir),
             )
-            assembler = TeamAssembler()
+            assembler = TeamAssembler(roles_config_path=self._roles_config_path)
             team = assembler.assemble_from_dag(dag, project_id, runtime)
 
             project.employees = employees
