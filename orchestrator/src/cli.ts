@@ -1,8 +1,10 @@
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { startServer } from './server.js';
-import { ExecutorClient } from './executor/client.js';
 import { resolveConfig } from './llm/openai.js';
+import type { IToolkitRouter } from './toolkit/router.js';
+import { RemoteToolkitRouter } from './toolkit/remote.js';
+import { LocalToolkitRouter } from './toolkit/local.js';
 
 // Load .env file from project root
 function loadEnv() {
@@ -47,12 +49,17 @@ async function main() {
   console.log('  MDH Orchestrator');
   console.log('========================================');
 
-  const executor = new ExecutorClient({ baseUrl: executorUrl, token: executorToken });
-  const healthInfo = await executor.health();
-  if (!healthInfo) {
-    console.warn(`[WARN] Executor at ${executorUrl} is not reachable`);
+  const hasExecutorArg = args.some(a => a.startsWith('--executor='));
+  const hasExecutorEnv = !!process.env.EXECUTOR_URL;
+  const useRemote = hasExecutorArg || hasExecutorEnv;
+
+  let toolkitRouter: IToolkitRouter;
+  if (useRemote) {
+    toolkitRouter = new RemoteToolkitRouter({ executorUrl, token: executorToken });
+    console.log(`[OK]   Router: RemoteToolkitRouter → ${executorUrl}`);
   } else {
-    console.log(`[OK]   Executor: ${executorUrl} (storage: ${healthInfo.storage_backend}, auth: ${healthInfo.auth_enabled ? 'on' : 'off'})`);
+    toolkitRouter = new LocalToolkitRouter();
+    console.log(`[OK]   Router: LocalToolkitRouter`);
   }
 
   if (defaultLlmConfig.apiKey) {
@@ -61,7 +68,7 @@ async function main() {
     console.warn('[WARN] No API Key configured. Set DEEPSEEK_API_KEY in .env');
   }
 
-  await startServer(port, executorUrl, workspace, defaultLlmConfig, executorToken);
+  await startServer(port, toolkitRouter, workspace, defaultLlmConfig);
   console.log(`[OK]   http://localhost:${port}`);
   console.log('========================================');
 }

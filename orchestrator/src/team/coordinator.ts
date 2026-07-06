@@ -1,12 +1,12 @@
 import { LLMConfig, Message, ToolDefinition, ToolCall } from '../llm/types.js';
 import { chatStream } from '../llm/openai.js';
-import { ExecutorClient } from '../executor/client.js';
+import type { IToolkitRouter } from '../toolkit/router.js';
 import { getTemplate, formatPrompt, getPromptTemplate } from './templates.js';
 import { Team, TeamMember, ToolResult } from './types.js';
 
 export interface CoordinatorConfig {
   llm: LLMConfig;
-  executor: ExecutorClient;
+  toolkitRouter: IToolkitRouter;
   workspace: string;
   onWorkspaceConfirm?: (request: WorkspaceConfirmRequest) => Promise<WorkspaceConfirmResponse>;
 }
@@ -187,24 +187,22 @@ export class TeamCoordinator {
         const branch = confirmResponse.branch_name || `agent/task-${Date.now().toString(36)}`;
         const worktreePath = `/workspace/worktrees/${branch.replace('/', '-')}`;
 
-        await this.config.executor.execute({
-          tool_name: 'bash',
-          arguments: { command: `mkdir -p /workspace/worktrees && git -C ${confirmResponse.repo_path} worktree add -b ${branch} ${worktreePath} 2>&1 || echo "worktree created"` },
-          call_id: 'ws-create',
-          workspace: '/workspace',
-        });
+        await this.config.toolkitRouter.execute({
+          id: 'ws-create',
+          type: 'function',
+          function: { name: 'bash', arguments: JSON.stringify({ command: `mkdir -p /workspace/worktrees && git -C ${confirmResponse.repo_path} worktree add -b ${branch} ${worktreePath} 2>&1 || echo "worktree created"` }) },
+        }, '/workspace');
 
         workspace = worktreePath;
         onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `已创建 Git Worktree：${worktreePath}（分支：${branch}）` });
       } else {
         // 独立工作区 — 在 /workspace 下创建项目目录
         const projectDir = `/workspace/project-${Date.now().toString(36)}`;
-        await this.config.executor.execute({
-          tool_name: 'bash',
-          arguments: { command: `mkdir -p ${projectDir}` },
-          call_id: 'ws-create',
-          workspace: '/workspace',
-        });
+        await this.config.toolkitRouter.execute({
+          id: 'ws-create',
+          type: 'function',
+          function: { name: 'bash', arguments: JSON.stringify({ command: `mkdir -p ${projectDir}` }) },
+        }, '/workspace');
         workspace = projectDir;
         onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `已创建工作区：${projectDir}` });
       }
@@ -496,22 +494,20 @@ export class TeamCoordinator {
     // 并行读取实际代码文件
     let codeContent = '';
     try {
-      const filesResult = await this.config.executor.execute({
-        tool_name: 'bash',
-        arguments: { command: `find ${this.config.workspace} -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.tsx" 2>/dev/null | head -5` },
-        call_id: 'review-files',
-        workspace: this.config.workspace,
-      });
+      const filesResult = await this.config.toolkitRouter.execute({
+        id: 'review-files',
+        type: 'function',
+        function: { name: 'bash', arguments: JSON.stringify({ command: `find ${this.config.workspace} -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.tsx" 2>/dev/null | head -5` }) },
+      }, this.config.workspace);
       
       if (filesResult.result && typeof filesResult.result === 'string') {
         const files = filesResult.result.trim().split('\n').filter(f => f).slice(0, 3); // 最多 3 个文件
-        const readPromises = files.map(file => 
-          this.config.executor.execute({
-            tool_name: 'read_file',
-            arguments: { path: file.replace(this.config.workspace + '/', '') },
-            call_id: `review-read-${file}`,
-            workspace: this.config.workspace,
-          })
+        const readPromises = files.map(file =>
+          this.config.toolkitRouter.execute({
+            id: `review-read-${file}`,
+            type: 'function',
+            function: { name: 'read_file', arguments: JSON.stringify({ path: file.replace(this.config.workspace + '/', '') }) },
+          }, this.config.workspace)
         );
         const readResults = await Promise.all(readPromises);
         for (let i = 0; i < files.length; i++) {
@@ -654,14 +650,12 @@ export class TeamCoordinator {
       }
     }
 
-    const response = await this.config.executor.execute({
-      tool_name: toolCall.function.name,
-      arguments: args,
-      call_id: toolCall.id,
-      workspace: this.config.workspace,
-    });
+    const normalizedCall: ToolCall = {
+      ...toolCall,
+      function: { ...toolCall.function, arguments: JSON.stringify(args) },
+    };
 
-    return { call_id: response.call_id, tool_name: response.tool_name, result: response.result, error: response.error || undefined };
+    return this.config.toolkitRouter.execute(normalizedCall, this.config.workspace);
   }
 
   // ====== 团队创建 ======

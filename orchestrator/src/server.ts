@@ -3,7 +3,7 @@ import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { readFileSync, existsSync, createReadStream } from 'fs';
 import { resolve, extname, join } from 'path';
 import { TeamCoordinator } from './team/coordinator.js';
-import { ExecutorClient } from './executor/client.js';
+import type { IToolkitRouter } from './toolkit/router.js';
 import { LLMConfig } from './llm/types.js';
 import { resolveConfig } from './llm/openai.js';
 import { getAvailableRoles } from './team/templates.js';
@@ -25,8 +25,7 @@ const CONTENT_TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-export async function startServer(port: number, executorUrl: string, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>, executorToken?: string) {
-  const executor = new ExecutorClient({ baseUrl: executorUrl, token: executorToken });
+export async function startServer(port: number, toolkitRouter: IToolkitRouter, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>) {
   const distDir = process.env.DIST_DIR || resolve(process.cwd(), '../dist');
 
   const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -40,7 +39,7 @@ export async function startServer(port: number, executorUrl: string, defaultWork
     }
     if (url === '/api/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', executor: executorUrl }));
+      res.end(JSON.stringify({ status: 'ok' }));
       return;
     }
 
@@ -92,7 +91,7 @@ export async function startServer(port: number, executorUrl: string, defaultWork
     ws.on('message', async (data: Buffer) => {
       try {
         const msg = JSON.parse(data.toString());
-        await handleMessage(ws, session, msg, executor);
+        await handleMessage(ws, session, msg, toolkitRouter);
       } catch (err: any) {
         ws.send(JSON.stringify({ type: 'error', message: err.message }));
       }
@@ -114,7 +113,7 @@ async function handleMessage(
   ws: WebSocket,
   session: ClientSession,
   msg: Record<string, unknown>,
-  executor: ExecutorClient,
+  toolkitRouter: IToolkitRouter,
 ) {
   switch (msg.type) {
     case 'config': {
@@ -146,7 +145,7 @@ async function handleMessage(
 
       const coordinator = new TeamCoordinator({
         llm: llmConfig,
-        executor,
+        toolkitRouter,
         workspace: session.workspace,
         onWorkspaceConfirm: (request) => {
           return new Promise((resolve) => {
