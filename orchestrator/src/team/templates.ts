@@ -13,6 +13,25 @@ interface RolesConfig {
 
 let _config: RolesConfig | null = null;
 let _templates: Map<string, RoleTemplate> | null = null;
+let _cachedRoles: RolesConfig | null = null;
+
+export async function loadRoles(apiBaseUrl: string = 'http://localhost:8000'): Promise<RolesConfig> {
+  if (_cachedRoles) return _cachedRoles;
+  try {
+    const resp = await fetch(`${apiBaseUrl}/api/roles`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    _cachedRoles = await resp.json();
+    // Also set _config so synchronous callers benefit from the cache
+    _config = _cachedRoles;
+    return _cachedRoles!;
+  } catch (e) {
+    console.warn('Failed to fetch roles from API, falling back to local:', e);
+    const jsonPath = resolve(__dirname, '../../templates/roles.json');
+    _cachedRoles = JSON.parse(readFileSync(jsonPath, 'utf-8'));
+    _config = _cachedRoles;
+    return _cachedRoles!;
+  }
+}
 
 function loadConfig(): RolesConfig {
   if (_config) return _config;
