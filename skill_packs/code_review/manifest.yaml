@@ -1,4 +1,4 @@
-name: 代码审查
+name: code_review
 version: "1.0.0"
 description: 代码质量审查，安全漏洞发现，最佳实践检查
 category: testing

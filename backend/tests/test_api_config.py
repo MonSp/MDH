@@ -18,9 +18,12 @@ def test_get_roles():
     resp = client.get("/api/roles")
     assert resp.status_code == 200
     data = resp.json()
-    # Should contain both base and custom roles
-    assert "executor" in data
-    assert "frontend_specialist" in data
+    # Should return full config structure
+    assert "base_roles" in data
+    assert "custom_roles" in data
+    assert "prompt_templates" in data
+    assert "executor" in data["base_roles"]
+    assert "frontend_specialist" in data["custom_roles"]
 
 
 def test_get_single_role():

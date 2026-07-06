@@ -1,4 +1,4 @@
-name: 任务分解
+name: task_decomposition
 version: "1.0.0"
 description: 需求分析，任务拆解，依赖识别，工时估算
 category: general

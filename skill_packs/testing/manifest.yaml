@@ -1,4 +1,4 @@
-name: 测试
+name: testing
 version: "1.0.0"
 description: 测试驱动开发，单元/集成/E2E测试，测试策略
 category: testing

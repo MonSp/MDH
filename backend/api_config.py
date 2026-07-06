@@ -18,10 +18,13 @@ def _get_config():
 
 @router.get("/roles")
 def get_roles():
+    """Return full roles config structure (base_roles, custom_roles, prompt_templates)."""
     config = _get_config()
-    base = config.get("base_roles", {})
-    custom = config.get("custom_roles", {})
-    return {**base, **custom}
+    return {
+        "base_roles": config.get("base_roles", {}),
+        "custom_roles": config.get("custom_roles", {}),
+        "prompt_templates": config.get("prompt_templates", {}),
+    }
 
 
 @router.get("/roles/{role_name}")
