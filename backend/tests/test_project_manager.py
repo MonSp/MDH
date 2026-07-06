@@ -157,12 +157,15 @@ class TestProjectInstantiation:
 
     def test_instantiate_creates_employees(self, manager, sample_dag):
         """实例化项目应为每个任务的每个技能创建员工实例。"""
+        from team import Team
         project = manager.create_project("实例化测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        team = manager.instantiate_project(project.project_id, sample_dag)
 
+        assert isinstance(team, Team)
+        reloaded = manager.get_project(project.project_id)
         # 2 个任务各 1 个技能 → 2 个员工
-        assert len(employees) == 2
-        for emp in employees:
+        assert len(reloaded.employees) == 2
+        for emp in reloaded.employees:
             assert isinstance(emp, EmployeeInstance)
             assert emp.employee_id
             assert emp.status == EMPLOYEE_STATUS_IDLE
@@ -170,9 +173,10 @@ class TestProjectInstantiation:
     def test_instantiate_clones_skill_packages(self, manager, sample_dag):
         """实例化应克隆技能包到员工目录。"""
         project = manager.create_project("技能克隆测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
 
-        for emp in employees:
+        reloaded = manager.get_project(project.project_id)
+        for emp in reloaded.employees:
             # 基础技能包路径应存在
             assert os.path.isdir(emp.base_skill_path)
             assert os.path.isfile(os.path.join(emp.base_skill_path, "manifest.yaml"))
@@ -194,9 +198,10 @@ class TestProjectInstantiation:
     def test_instantiate_records_task_history(self, manager, sample_dag):
         """实例化后员工应有任务历史记录。"""
         project = manager.create_project("历史测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
 
-        for emp in employees:
+        reloaded = manager.get_project(project.project_id)
+        for emp in reloaded.employees:
             assert len(emp.task_history) == 1
             assert "task_id" in emp.task_history[0]
             assert "assigned_at" in emp.task_history[0]
@@ -232,8 +237,9 @@ class TestProjectInstantiation:
         reg, _ = registry
         manager1 = ProjectManager(projects_dir, reg)
         project = manager1.create_project("持久化实例化测试", {})
-        employees = manager1.instantiate_project(project.project_id, sample_dag)
-        emp_ids = {e.employee_id for e in employees}
+        manager1.instantiate_project(project.project_id, sample_dag)
+        original = manager1.get_project(project.project_id)
+        emp_ids = {e.employee_id for e in original.employees}
 
         # 重新创建管理器（模拟重启）
         manager2 = ProjectManager(projects_dir, reg)
@@ -262,11 +268,12 @@ class TestProjectStatus:
     def test_task_stats(self, manager, sample_dag):
         """任务统计应反映员工状态。"""
         project = manager.create_project("任务统计测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
+        reloaded = manager.get_project(project.project_id)
 
         # 更新一个员工为 done
         manager.update_employee_status(
-            project.project_id, employees[0].employee_id, EMPLOYEE_STATUS_DONE
+            project.project_id, reloaded.employees[0].employee_id, EMPLOYEE_STATUS_DONE
         )
 
         status = manager.get_project_status(project.project_id)
@@ -286,19 +293,20 @@ class TestProjectStatus:
     def test_iteration_stats_with_logs(self, manager, sample_dag):
         """有执行日志时应正确统计迭代次数。"""
         project = manager.create_project("迭代日志测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
+        reloaded = manager.get_project(project.project_id)
 
         # 模拟添加迭代日志
         for _ in range(3):
             manager.add_execution_log(
                 project.project_id,
-                employees[0].employee_id,
+                reloaded.employees[0].employee_id,
                 {"type": "iteration", "task_id": "task-1", "result": "ok"},
             )
         for _ in range(2):
             manager.add_execution_log(
                 project.project_id,
-                employees[1].employee_id,
+                reloaded.employees[1].employee_id,
                 {"type": "iteration", "task_id": "task-2", "result": "ok"},
             )
 
@@ -309,16 +317,17 @@ class TestProjectStatus:
     def test_skill_increment_stats(self, manager, sample_dag):
         """技能增量统计应正确计算。"""
         project = manager.create_project("增量统计测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
+        reloaded = manager.get_project(project.project_id)
 
         manager.add_execution_log(
             project.project_id,
-            employees[0].employee_id,
+            reloaded.employees[0].employee_id,
             {"type": "skill_increment", "rules_count": 5, "approved_count": 3},
         )
         manager.add_execution_log(
             project.project_id,
-            employees[1].employee_id,
+            reloaded.employees[1].employee_id,
             {"type": "skill_increment", "rules_count": 2, "approved_count": 2},
         )
 
@@ -338,7 +347,7 @@ class TestProjectArchive:
     def test_archive_project_success(self, manager, sample_dag):
         """归档项目应成功并返回归档信息。"""
         project = manager.create_project("归档测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
 
         result = manager.archive_project(project.project_id)
 
@@ -372,11 +381,12 @@ class TestProjectArchive:
     def test_archive_preserves_execution_logs(self, manager, sample_dag, projects_dir):
         """归档后执行日志应被保存到 logs 目录。"""
         project = manager.create_project("归档日志测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
+        reloaded = manager.get_project(project.project_id)
 
         manager.add_execution_log(
             project.project_id,
-            employees[0].employee_id,
+            reloaded.employees[0].employee_id,
             {"type": "test", "message": "测试日志"},
         )
 
@@ -464,27 +474,30 @@ class TestEmployeeStatusUpdate:
     def test_update_status_success(self, manager, sample_dag):
         """更新员工状态应成功。"""
         project = manager.create_project("员工状态测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
+        reloaded = manager.get_project(project.project_id)
+        target_id = reloaded.employees[0].employee_id
 
         manager.update_employee_status(
-            project.project_id, employees[0].employee_id, EMPLOYEE_STATUS_WORKING
+            project.project_id, target_id, EMPLOYEE_STATUS_WORKING
         )
 
-        reloaded = manager.get_project(project.project_id)
+        reloaded2 = manager.get_project(project.project_id)
         emp = next(
-            e for e in reloaded.employees
-            if e.employee_id == employees[0].employee_id
+            e for e in reloaded2.employees
+            if e.employee_id == target_id
         )
         assert emp.status == EMPLOYEE_STATUS_WORKING
 
     def test_update_status_invalid_value_raises(self, manager, sample_dag):
         """无效状态值应抛出 ValueError。"""
         project = manager.create_project("无效状态测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
+        reloaded = manager.get_project(project.project_id)
 
         with pytest.raises(ValueError, match="无效的员工状态"):
             manager.update_employee_status(
-                project.project_id, employees[0].employee_id, "invalid_status"
+                project.project_id, reloaded.employees[0].employee_id, "invalid_status"
             )
 
     def test_update_status_nonexistent_employee_raises(self, manager, sample_dag):
@@ -504,58 +517,59 @@ class TestExecutionLog:
     def test_add_execution_log(self, manager, sample_dag):
         """添加执行日志应成功。"""
         project = manager.create_project("日志测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
+        reloaded = manager.get_project(project.project_id)
+        emp_id = reloaded.employees[0].employee_id
 
         log_entry = {"type": "task_result", "result": "success", "output": "完成"}
-        manager.add_execution_log(
-            project.project_id, employees[0].employee_id, log_entry
-        )
+        manager.add_execution_log(project.project_id, emp_id, log_entry)
 
-        reloaded = manager.get_project(project.project_id)
-        assert len(reloaded.execution_logs) == 1
+        reloaded2 = manager.get_project(project.project_id)
+        assert len(reloaded2.execution_logs) == 1
 
-        saved_log = reloaded.execution_logs[0]
+        saved_log = reloaded2.execution_logs[0]
         assert saved_log["type"] == "task_result"
-        assert saved_log["employee_id"] == employees[0].employee_id
+        assert saved_log["employee_id"] == emp_id
         assert saved_log["project_id"] == project.project_id
         assert "timestamp" in saved_log
 
     def test_add_execution_log_updates_task_history(self, manager, sample_dag):
         """添加执行日志应同时更新员工的 task_history。"""
         project = manager.create_project("历史更新测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
+        reloaded = manager.get_project(project.project_id)
+        emp_id = reloaded.employees[0].employee_id
 
         # 实例化时已有 1 条 task_history
-        assert len(employees[0].task_history) == 1
+        assert len(reloaded.employees[0].task_history) == 1
 
         manager.add_execution_log(
             project.project_id,
-            employees[0].employee_id,
+            emp_id,
             {"type": "test", "result": "ok"},
         )
 
-        reloaded = manager.get_project(project.project_id)
-        emp = next(
-            e for e in reloaded.employees
-            if e.employee_id == employees[0].employee_id
-        )
+        reloaded2 = manager.get_project(project.project_id)
+        emp = next(e for e in reloaded2.employees if e.employee_id == emp_id)
         # 现在应有 2 条（1 条初始 + 1 条新日志）
         assert len(emp.task_history) == 2
 
     def test_add_multiple_logs(self, manager, sample_dag):
         """应能添加多条日志。"""
         project = manager.create_project("多日志测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
+        reloaded = manager.get_project(project.project_id)
+        emp_id = reloaded.employees[0].employee_id
 
         for i in range(5):
             manager.add_execution_log(
                 project.project_id,
-                employees[0].employee_id,
+                emp_id,
                 {"type": "iteration", "index": i},
             )
 
-        reloaded = manager.get_project(project.project_id)
-        assert len(reloaded.execution_logs) == 5
+        reloaded2 = manager.get_project(project.project_id)
+        assert len(reloaded2.execution_logs) == 5
 
 
 @pytest.fixture
@@ -593,7 +607,7 @@ class TestArchiveWithSkillPackager:
                                         mock_skill_packager):
         """归档项目应触发 SkillPackager 为每个员工打包。"""
         project = manager_with_packager.create_project("打包测试", {})
-        employees = manager_with_packager.instantiate_project(
+        manager_with_packager.instantiate_project(
             project.project_id, sample_dag
         )
 
@@ -641,7 +655,7 @@ class TestArchiveWithSkillPackager:
         manager = ProjectManager(projects_dir, reg, skill_packager=failing_packager)
 
         project = manager.create_project("失败测试", {})
-        employees = manager.instantiate_project(project.project_id, sample_dag)
+        manager.instantiate_project(project.project_id, sample_dag)
 
         # 归档应成功完成，不抛出异常
         result = manager.archive_project(project.project_id)
@@ -713,6 +727,31 @@ class TestArchiveWithSkillPackager:
         assert len(successes) == 1
         assert len(failures) == 1
         assert "部分打包失败" in failures[0]["error"]
+
+
+class TestTeamIntegration:
+    """测试 instantiate_project 返回 Team 实例。"""
+
+    def test_instantiate_project_returns_team(self, registry, tmp_path):
+        from team import Team, TeamStatus
+        pm = ProjectManager(
+            projects_dir=str(tmp_path / "projects"),
+            skill_registry=registry[0],
+        )
+        project = pm.create_project("test-project", {"source": "test"})
+        dag = {
+            "tasks": [{
+                "task_id": "task-1",
+                "name": "前端开发",
+                "required_skills": [list(registry[1].values())[0]],
+                "description": "开发前端",
+            }]
+        }
+        team = pm.instantiate_project(project.project_id, dag)
+        assert isinstance(team, Team)
+        assert team.project_id == project.project_id
+        assert team.status == TeamStatus.CREATED
+        assert len(team.members) >= 1
 
 
 if __name__ == "__main__":

@@ -17,6 +17,8 @@ from typing import Optional
 
 from skill_registry import SkillRegistry
 from skill_packager import SkillPackager
+from team import Team, TeamRuntime, RuntimeType, TeamStatus
+from team_assembler import TeamAssembler
 
 logger = logging.getLogger(__name__)
 
@@ -291,8 +293,11 @@ class ProjectManager:
         logger.info("已创建轻量项目: %s (%s)", name, project_id)
         return project
 
-    def instantiate_project(self, project_id: str, dag: dict) -> list:
-        """根据 DAG 实例化项目。
+    def instantiate_project(self, project_id: str, dag: dict) -> Team:
+        """根据 DAG 实例化项目，返回 Team 实例。
+
+        同时创建 EmployeeInstance 列表填充 project.employees 以保持向后兼容，
+        并通过 TeamAssembler 组装 Team 实例返回。
 
         Args:
             project_id: 项目 ID。
@@ -309,7 +314,7 @@ class ProjectManager:
                 }
 
         Returns:
-            创建的 EmployeeInstance 列表。
+            组装好的 Team 实例。
 
         Raises:
             KeyError: 项目不存在。
@@ -332,6 +337,7 @@ class ProjectManager:
         skill_packages: list[dict] = []
 
         try:
+            # 为 DAG 中每个任务的每个技能创建 EmployeeInstance（向后兼容）
             for task in tasks:
                 task_id = task.get("task_id", "")
                 task_name = task.get("name", "")
@@ -342,10 +348,7 @@ class ProjectManager:
                     employee_id = str(uuid.uuid4())
                     agent_id = f"agent-{task_id}-{skill_id}"
 
-                    # 为每个员工创建独立的技能克隆目录
                     skill_clone_dir = str(employees_dir / employee_id / "skill")
-
-                    # 通过 SkillRegistry 克隆技能包
                     base_skill_path = self._skill_registry.clone(skill_id, skill_clone_dir)
                     incremental_path = os.path.join(skill_clone_dir, "incremental")
 
@@ -381,16 +384,25 @@ class ProjectManager:
                         task_id, employee_id, skill_id,
                     )
 
+            # 通过 TeamAssembler 组装 Team
+            runtime = TeamRuntime(
+                runtime_id=f"runtime-{project_id}",
+                runtime_type=RuntimeType.LOCAL_DOCKER,
+                root_path=str(project_dir),
+            )
+            assembler = TeamAssembler()
+            team = assembler.assemble_from_dag(dag, project_id, runtime)
+
             project.employees = employees
             project.skill_packages = skill_packages
             project.status = PROJECT_STATUS_RUNNING
             self._save_project(project)
 
             logger.info(
-                "项目 %s 实例化完成，共创建 %d 个员工实例",
-                project_id, len(employees),
+                "项目 %s 实例化完成，Team %s 共 %d 个成员，%d 个员工实例",
+                project_id, team.team_id, len(team.members), len(employees),
             )
-            return employees
+            return team
 
         except Exception as e:
             project.status = PROJECT_STATUS_FAILED
