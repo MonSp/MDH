@@ -3,8 +3,10 @@ import { resolve } from 'path';
 import { startServer } from './server.js';
 import { resolveConfig } from './llm/openai.js';
 import type { IToolkitRouter } from './toolkit/router.js';
+import { RouterFactory } from './toolkit/router.js';
 import { RemoteToolkitRouter } from './toolkit/remote.js';
 import { LocalToolkitRouter } from './toolkit/local.js';
+import { HybridToolkitRouter, createExecutionConfig, type ExecutionProfile } from './toolkit/hybrid.js';
 
 // Load .env file from project root
 function loadEnv() {
@@ -35,6 +37,8 @@ const port = parseInt(getArg('port', '9090'));
 const executorUrl = getArg('executor', process.env.EXECUTOR_URL || 'http://localhost:8767');
 const executorToken = getArg('executor-token', process.env.EXECUTOR_TOKEN || '');
 const workspace = getArg('workspace', process.env.WORKSPACE || '/workspace');
+const profile = getArg('profile', process.env.MDH_PROFILE || '') as ExecutionProfile | '';
+const localWorkspace = getArg('local-workspace', process.env.LOCAL_WORKSPACE || process.cwd());
 
 // Pre-load LLM config from environment
 const defaultLlmConfig = resolveConfig({
@@ -49,17 +53,35 @@ async function main() {
   console.log('  MDH Orchestrator');
   console.log('========================================');
 
-  const hasExecutorArg = args.some(a => a.startsWith('--executor='));
-  const hasExecutorEnv = !!process.env.EXECUTOR_URL;
-  const useRemote = hasExecutorArg || hasExecutorEnv;
+  let defaultRouter: IToolkitRouter;
+  const routerFactory = new RouterFactory();
 
-  let toolkitRouter: IToolkitRouter;
-  if (useRemote) {
-    toolkitRouter = new RemoteToolkitRouter({ executorUrl, token: executorToken });
-    console.log(`[OK]   Router: RemoteToolkitRouter → ${executorUrl}`);
+  if (profile) {
+    // HybridToolkitRouter with profile
+    const config = createExecutionConfig(profile, {
+      localWorkspace,
+      remote: { executorUrl, token: executorToken },
+    });
+    defaultRouter = new HybridToolkitRouter(config);
+    console.log(`[OK]   Profile: ${profile}`);
+    console.log(`[OK]   Files: ${config.files}, Commands: ${config.commands}`);
+    console.log(`[OK]   Local workspace: ${localWorkspace}`);
+    if (config.remote) {
+      console.log(`[OK]   Remote executor: ${executorUrl}`);
+    }
   } else {
-    toolkitRouter = new LocalToolkitRouter();
-    console.log(`[OK]   Router: LocalToolkitRouter`);
+    // Legacy mode: all-or-nothing
+    const hasExecutorArg = args.some(a => a.startsWith('--executor='));
+    const hasExecutorEnv = !!process.env.EXECUTOR_URL;
+    const useRemote = hasExecutorArg || hasExecutorEnv;
+
+    if (useRemote) {
+      defaultRouter = new RemoteToolkitRouter({ executorUrl, token: executorToken });
+      console.log(`[OK]   Router: RemoteToolkitRouter → ${executorUrl}`);
+    } else {
+      defaultRouter = new LocalToolkitRouter();
+      console.log(`[OK]   Router: LocalToolkitRouter`);
+    }
   }
 
   if (defaultLlmConfig.apiKey) {
@@ -68,9 +90,16 @@ async function main() {
     console.warn('[WARN] No API Key configured. Set DEEPSEEK_API_KEY in .env');
   }
 
-  await startServer(port, toolkitRouter, workspace, defaultLlmConfig);
+  await startServer(port, routerFactory, defaultRouter, workspace, defaultLlmConfig);
   console.log(`[OK]   http://localhost:${port}`);
   console.log('========================================');
+  console.log('');
+  console.log('  Profiles:');
+  console.log('    local-full              高配：全部本地');
+  console.log('    remote-full             纯云端：全部远端');
+  console.log('    remote-brain-local-hands  低配：远端推理+本地执行');
+  console.log('    custom                  自定义 (用 --files=local --commands=local)');
+  console.log('');
 }
 
 main().catch(err => {

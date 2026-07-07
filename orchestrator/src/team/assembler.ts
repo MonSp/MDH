@@ -77,6 +77,14 @@ export function assembleTeam(
   const templates = loadRoleTemplates();
   const neededRoles = resolveTeamRoles(dag);
 
+  // 从 DAG 中提取每个 skill 的 location
+  const skillLocations: Record<string, 'local' | 'remote'> = {};
+  for (const task of dag.tasks) {
+    for (const skill of task.requiredSkills) {
+      skillLocations[skill] = (task as any).location || 'local';
+    }
+  }
+
   let team = createTeam(`team-${Date.now()}`, projectId, runtime);
   let coordinatorId: string | undefined;
 
@@ -87,10 +95,19 @@ export function assembleTeam(
     const { roleId, template } = picked;
     const memberId = `member-${roleId}`;
 
+    // 确定该成员的 location
+    const primarySkill = template.skills?.[0] || roleId;
+    const memberLocation = skillLocations[primarySkill] || 'local';
+    const memberRuntime: TeamMemberRuntime = memberLocation === 'remote'
+      ? { type: 'remote', workspace: runtime.workspace, executorUrl: runtime.executorUrl, executorToken: runtime.executorToken }
+      : { type: 'local', workspace: runtime.workspace };
+
     const member: TeamMember = {
       id: memberId,
       roleName: template.name,
       teamRole: template.team_role as TeamMember['teamRole'],
+      location: memberLocation,
+      runtime: memberRuntime,
       tools: [...template.tools],
       dangerousTools: [...template.dangerous_tools],
       skillPackId: roleId,

@@ -4,6 +4,7 @@ import { readFileSync, existsSync, createReadStream } from 'fs';
 import { resolve, extname, join } from 'path';
 import { TeamCoordinator } from './team/coordinator.js';
 import type { IToolkitRouter } from './toolkit/router.js';
+import { RouterFactory } from './toolkit/router.js';
 import { LLMConfig } from './llm/types.js';
 import { resolveConfig } from './llm/openai.js';
 import { getAvailableRoles } from './team/templates.js';
@@ -25,7 +26,7 @@ const CONTENT_TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-export async function startServer(port: number, toolkitRouter: IToolkitRouter, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>) {
+export async function startServer(port: number, routerFactory: RouterFactory, defaultRouter: IToolkitRouter, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>) {
   const distDir = process.env.DIST_DIR || resolve(process.cwd(), '../dist');
 
   const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -91,7 +92,7 @@ export async function startServer(port: number, toolkitRouter: IToolkitRouter, d
     ws.on('message', async (data: Buffer) => {
       try {
         const msg = JSON.parse(data.toString());
-        await handleMessage(ws, session, msg, toolkitRouter);
+        await handleMessage(ws, session, msg, routerFactory, defaultRouter);
       } catch (err: any) {
         ws.send(JSON.stringify({ type: 'error', message: err.message }));
       }
@@ -113,7 +114,8 @@ async function handleMessage(
   ws: WebSocket,
   session: ClientSession,
   msg: Record<string, unknown>,
-  toolkitRouter: IToolkitRouter,
+  routerFactory: RouterFactory,
+  defaultRouter: IToolkitRouter,
 ) {
   switch (msg.type) {
     case 'config': {
@@ -145,7 +147,8 @@ async function handleMessage(
 
       const coordinator = new TeamCoordinator({
         llm: llmConfig,
-        toolkitRouter,
+        routerFactory,
+        defaultRouter,
         workspace: session.workspace,
         onWorkspaceConfirm: (request) => {
           return new Promise((resolve) => {

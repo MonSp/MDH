@@ -119,6 +119,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
   const [isProcessing, setIsProcessing] = useState(false)
   const [projectReady, setProjectReady] = useState<{ projectId: string; meetingId: string } | null>(null)
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
+  const [roleLocations, setRoleLocations] = useState<Record<string, 'local' | 'remote'>>({})
   const [showRoleSelector, setShowRoleSelector] = useState(false)
   const [autoMode, setAutoMode] = useState(true)
   const [workspaceConfirm, setWorkspaceConfirm] = useState<WorkspaceConfirmRequest | null>(null)
@@ -302,6 +303,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
       type: 'unified_message',
       content,
       selected_roles: autoMode ? [] : selectedRoles,
+      role_locations: autoMode ? {} : roleLocations,
       provider: localStorage.getItem('llm_provider') || undefined,
       model_name: localStorage.getItem('llm_model_name') || undefined,
       api_key: localStorage.getItem('deepseek_api_key') || undefined,
@@ -592,9 +594,20 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
                 const role = PRESET_ROLES.find(r => r.id === id)
                 if (!role) return null
                 const color = DEPT_COLORS[role.department || ''] || '#64d2ff'
+                const loc = roleLocations[id] || 'local'
+                const locIcon = loc === 'local' ? '💻' : '☁️'
+                const locLabel = loc === 'local' ? '本地' : '远端'
                 return (
-                  <span key={id} style={{ ...styles.roleTag, borderColor: color + '40', color }}>
-                    {role.name}
+                  <span
+                    key={id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setRoleLocations(prev => ({ ...prev, [id]: prev[id] === 'local' ? 'remote' : 'local' }))
+                    }}
+                    style={{ ...styles.roleTag, borderColor: color + '40', color, cursor: 'pointer' }}
+                    title={`点击切换执行位置 (当前: ${locLabel})`}
+                  >
+                    {locIcon} {role.name}
                   </span>
                 )
               })
@@ -645,28 +658,53 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
                   <div style={styles.deptRoles}>
                     {deptRoles.map(role => {
                       const isSelected = selectedRoles.includes(role.id)
+                      const loc = roleLocations[role.id] || 'local'
                       return (
-                        <div
-                          key={role.id}
-                          onClick={() => {
-                            setAutoMode(false)
-                            setSelectedRoles(prev =>
-                              isSelected
-                                ? prev.filter(id => id !== role.id)
-                                : [...prev, role.id]
-                            )
-                          }}
-                          style={{
-                            ...styles.roleOption,
-                            background: isSelected ? color + '20' : 'rgba(255,255,255,0.03)',
-                            borderColor: isSelected ? color + '60' : 'rgba(255,255,255,0.08)',
-                            opacity: autoMode ? 0.5 : 1,
-                          }}
-                          title={role.description}
-                        >
-                          <div style={{ fontSize: 11, fontWeight: isSelected ? 600 : 400, color: isSelected ? color : '#8b9dc3' }}>
-                            {role.name}
+                        <div key={role.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <div
+                            onClick={() => {
+                              setAutoMode(false)
+                              setSelectedRoles(prev =>
+                                isSelected
+                                  ? prev.filter(id => id !== role.id)
+                                  : [...prev, role.id]
+                              )
+                            }}
+                            style={{
+                              ...styles.roleOption,
+                              flex: 1,
+                              background: isSelected ? color + '20' : 'rgba(255,255,255,0.03)',
+                              borderColor: isSelected ? color + '60' : 'rgba(255,255,255,0.08)',
+                              opacity: autoMode ? 0.5 : 1,
+                            }}
+                            title={role.description}
+                          >
+                            <div style={{ fontSize: 11, fontWeight: isSelected ? 600 : 400, color: isSelected ? color : '#8b9dc3' }}>
+                              {role.name}
+                            </div>
                           </div>
+                          {isSelected && (
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setRoleLocations(prev => ({ ...prev, [role.id]: prev[role.id] === 'local' ? 'remote' : 'local' }))
+                              }}
+                              style={{
+                                fontSize: 9,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                background: loc === 'local' ? '#0a84ff20' : '#ff9f0a20',
+                                color: loc === 'local' ? '#0a84ff' : '#ff9f0a',
+                                border: `1px solid ${loc === 'local' ? '#0a84ff40' : '#ff9f0a40'}`,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap',
+                                userSelect: 'none',
+                              }}
+                              title="点击切换：本地💻 / 远端☁️"
+                            >
+                              {loc === 'local' ? '💻 本地' : '☁️ 远端'}
+                            </div>
+                          )}
                         </div>
                       )
                     })}

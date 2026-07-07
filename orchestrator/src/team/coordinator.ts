@@ -1,12 +1,14 @@
 import { LLMConfig, Message, ToolDefinition, ToolCall } from '../llm/types.js';
 import { chatStream } from '../llm/openai.js';
 import type { IToolkitRouter } from '../toolkit/router.js';
+import { RouterFactory } from '../toolkit/router.js';
 import { getTemplate, formatPrompt, getPromptTemplate } from './templates.js';
 import { Team, TeamMember, ToolResult } from './types.js';
 
 export interface CoordinatorConfig {
   llm: LLMConfig;
-  toolkitRouter: IToolkitRouter;
+  routerFactory: RouterFactory;
+  defaultRouter: IToolkitRouter;  // 用于协调器级别的操作（创建工作区等）
   workspace: string;
   onWorkspaceConfirm?: (request: WorkspaceConfirmRequest) => Promise<WorkspaceConfirmResponse>;
 }
@@ -187,7 +189,7 @@ export class TeamCoordinator {
         const branch = confirmResponse.branch_name || `agent/task-${Date.now().toString(36)}`;
         const worktreePath = `/workspace/worktrees/${branch.replace('/', '-')}`;
 
-        await this.config.toolkitRouter.execute({
+        await this.config.defaultRouter.execute({
           id: 'ws-create',
           type: 'function',
           function: { name: 'bash', arguments: JSON.stringify({ command: `mkdir -p /workspace/worktrees && git -C ${confirmResponse.repo_path} worktree add -b ${branch} ${worktreePath} 2>&1 || echo "worktree created"` }) },
@@ -196,13 +198,24 @@ export class TeamCoordinator {
         workspace = worktreePath;
         onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `已创建 Git Worktree：${worktreePath}（分支：${branch}）` });
       } else {
-        // 独立工作区 — 在 /workspace 下创建项目目录
-        const projectDir = `/workspace/project-${Date.now().toString(36)}`;
-        await this.config.toolkitRouter.execute({
-          id: 'ws-create',
-          type: 'function',
-          function: { name: 'bash', arguments: JSON.stringify({ command: `mkdir -p ${projectDir}` }) },
-        }, '/workspace');
+        // 独立工作区 — 使用配置的 workspace 目录
+        // 如果是本地模式，直接使用本地目录；如果是远端模式，在远端创建
+        const baseWorkspace = this.config.workspace;
+        const projectDir = `${baseWorkspace}/project-${Date.now().toString(36)}`;
+
+        // 尝试创建工作区目录（本地 or 远端，由 router 决定）
+        try {
+          await this.config.defaultRouter.execute({
+            id: 'ws-create',
+            type: 'function',
+            function: { name: 'bash', arguments: JSON.stringify({ command: `mkdir -p ${projectDir}` }) },
+          }, baseWorkspace);
+        } catch {
+          // 如果远端创建失败，尝试本地创建
+          const { mkdirSync } = await import('node:fs');
+          try { mkdirSync(projectDir, { recursive: true }); } catch {}
+        }
+
         workspace = projectDir;
         onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `已创建工作区：${projectDir}` });
       }
@@ -252,36 +265,43 @@ export class TeamCoordinator {
     // ====== 阶段 4: 执行（带审查循环）=====
     onEvent?.({ type: 'phase', phase: 'executing' });
 
-    const executorRole = rolesToUse.find(r => {
+    const executorRoleId = rolesToUse.find(r => {
       const t = getTemplate(r);
       return t?.team_role === 'Executor';
     }) || rolesToUse[rolesToUse.length - 1];
 
-    const reviewerRole = rolesToUse.find(r => {
+    const reviewerRoleId = rolesToUse.find(r => {
       const t = getTemplate(r);
       return t?.team_role === 'Reviewer';
     });
 
-    const maxReviewRounds = reviewerRole ? 2 : 1;
+    // 从 team 中查找对应的 TeamMember（含 location/runtime 信息）
+    const executorMember = this.team?.members.find(m => m.role === executorRoleId)
+      || { id: 'member-executor', name: 'Executor', role: executorRoleId, template: getTemplate(executorRoleId)!, status: 'idle' as const, location: 'local' as const, runtime: { type: 'local' as const, workspace: this.config.workspace } };
+    const reviewerMember = reviewerRoleId
+      ? this.team?.members.find(m => m.role === reviewerRoleId)
+      : undefined;
+
+    const maxReviewRounds = reviewerMember ? 2 : 1;
     let finalResult = '';
 
     for (let round = 0; round < maxReviewRounds; round++) {
       if (round > 0) {
-        onEvent?.({ type: 'assistant_message', agentId: `agent-${reviewerRole}`, content: `审查发现问题，要求修改。第 ${round + 1} 轮执行...` });
+        onEvent?.({ type: 'assistant_message', agentId: `agent-${reviewerRoleId}`, content: `审查发现问题，要求修改。第 ${round + 1} 轮执行...` });
       }
 
-      // 执行任务
+      // 执行任务（传入 TeamMember 以支持 per-agent 路由）
       const executorResult = await this.runAgentTask(
-        executorRole,
+        executorMember,
         userMessage,
         round === 0 ? '请执行以下任务' : '请根据审查反馈修改代码',
         onEvent,
       );
 
       // 审查
-      if (reviewerRole && round < maxReviewRounds - 1) {
+      if (reviewerMember && round < maxReviewRounds - 1) {
         onEvent?.({ type: 'phase', phase: 'reviewing' });
-        const review = await this.runReview(reviewerRole, executorResult, userMessage, onEvent);
+        const review = await this.runReview(reviewerMember, executorResult, userMessage, onEvent);
 
         if (review.approved) {
           onEvent?.({ type: 'assistant_message', agentId: `agent-${reviewerRole}`, content: `审查通过！代码质量良好。` });
@@ -397,11 +417,12 @@ export class TeamCoordinator {
 
   // ====== 单角色执行任务 ======
   private async runAgentTask(
-    role: string,
+    member: TeamMember,
     task: string,
     instruction: string,
     onEvent?: EventHandler,
   ): Promise<string> {
+    const role = member.role;
     const tmpl = getTemplate(role);
     if (!tmpl) throw new Error(`Unknown role: ${role}`);
 
@@ -445,7 +466,7 @@ export class TeamCoordinator {
       for (const tc of response.tool_calls) {
         onEvent?.({ type: 'tool_call', id: tc.id, tool: tc.function.name, args: tc.function.arguments });
 
-        const toolResult = await this.executeToolCall(tc);
+        const toolResult = await this.executeToolCall(tc, member);
         const resultStr = toolResult.error
           ? `Error: ${toolResult.error}`
           : typeof toolResult.result === 'string' ? toolResult.result : JSON.stringify(toolResult.result);
@@ -476,11 +497,12 @@ export class TeamCoordinator {
 
   // ====== 审查 ======
   private async runReview(
-    reviewerRole: string,
+    reviewerMember: TeamMember,
     executionResult: string,
     task: string,
     onEvent?: EventHandler,
   ): Promise<{ approved: boolean; feedback: string }> {
+    const reviewerRole = reviewerMember.role;
     const tmpl = getTemplate(reviewerRole);
     if (!tmpl) return { approved: true, feedback: '' };
 
@@ -491,23 +513,26 @@ export class TeamCoordinator {
     const reviewTmpl = getPromptTemplate('review') || '{prompt}\n\n你正在审查代码质量。检查以下几点：\n1. 功能完整性\n2. 错误处理\n3. 代码结构\n4. 命名规范\n\n返回JSON：{"approved": true/false, "feedback": "审查意见"}';
     const reviewSystem = reviewTmpl.replace(/\{prompt\}/g, prompt);
 
-    // 并行读取实际代码文件
+    // 使用 reviewer 自己的 router 读取代码文件
+    const reviewerRouter = this.config.routerFactory.getRouterForMember(reviewerMember);
+    const reviewerWorkspace = this.config.routerFactory.getWorkspaceForMember(reviewerMember);
+
     let codeContent = '';
     try {
-      const filesResult = await this.config.toolkitRouter.execute({
+      const filesResult = await reviewerRouter.execute({
         id: 'review-files',
         type: 'function',
-        function: { name: 'bash', arguments: JSON.stringify({ command: `find ${this.config.workspace} -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.tsx" 2>/dev/null | head -5` }) },
-      }, this.config.workspace);
+        function: { name: 'bash', arguments: JSON.stringify({ command: `find . -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.tsx" 2>/dev/null | head -5` }) },
+      }, reviewerWorkspace);
       
       if (filesResult.result && typeof filesResult.result === 'string') {
-        const files = filesResult.result.trim().split('\n').filter(f => f).slice(0, 3); // 最多 3 个文件
+        const files = filesResult.result.trim().split('\n').filter(f => f).slice(0, 3);
         const readPromises = files.map(file =>
-          this.config.toolkitRouter.execute({
+          reviewerRouter.execute({
             id: `review-read-${file}`,
             type: 'function',
-            function: { name: 'read_file', arguments: JSON.stringify({ path: file.replace(this.config.workspace + '/', '') }) },
-          }, this.config.workspace)
+            function: { name: 'read_file', arguments: JSON.stringify({ path: file }) },
+          }, reviewerWorkspace)
         );
         const readResults = await Promise.all(readPromises);
         for (let i = 0; i < files.length; i++) {
@@ -632,7 +657,7 @@ export class TeamCoordinator {
   }
 
   // ====== 工具执行 ======
-  private async executeToolCall(toolCall: ToolCall): Promise<ToolResult> {
+  private async executeToolCall(toolCall: ToolCall, member?: TeamMember): Promise<ToolResult> {
     let args: Record<string, unknown>;
     try { args = JSON.parse(toolCall.function.arguments); }
     catch { return { call_id: toolCall.id, tool_name: toolCall.function.name, result: null, error: 'Invalid JSON' }; }
@@ -642,9 +667,7 @@ export class TeamCoordinator {
     for (const key of pathKeys) {
       if (typeof args[key] === 'string') {
         let path = args[key] as string;
-        // 移除 workspace/ 或 /workspace/ 前缀
         path = path.replace(/^\/?workspace\//, '');
-        // 移除开头的 ./
         path = path.replace(/^\.\//, '');
         args[key] = path;
       }
@@ -655,15 +678,32 @@ export class TeamCoordinator {
       function: { ...toolCall.function, arguments: JSON.stringify(args) },
     };
 
-    return this.config.toolkitRouter.execute(normalizedCall, this.config.workspace);
+    // 按智能体实例路由：local → LocalToolkitRouter, remote → RemoteToolkitRouter
+    if (member) {
+      const router = this.config.routerFactory.getRouterForMember(member);
+      const workspace = this.config.routerFactory.getWorkspaceForMember(member);
+      return router.execute(normalizedCall, workspace);
+    }
+
+    return this.config.defaultRouter.execute(normalizedCall, this.config.workspace);
   }
 
   // ====== 团队创建 ======
-  private createTeam(roleIds: string[], task: string): Team {
+  private createTeam(roleIds: string[], task: string, defaultRuntime?: { workspace: string; executorUrl?: string; executorToken?: string }): Team {
     const members: TeamMember[] = roleIds.map((roleId, i) => {
       const template = getTemplate(roleId);
       if (!template) throw new Error(`Unknown role: ${roleId}`);
-      return { id: `member-${i}`, name: template.name, role: roleId, template, status: 'idle' };
+      return {
+        id: `member-${i}`,
+        name: template.name,
+        role: roleId,
+        template,
+        status: 'idle',
+        location: 'local' as const,
+        runtime: defaultRuntime
+          ? { type: 'local' as const, workspace: defaultRuntime.workspace, executorUrl: defaultRuntime.executorUrl, executorToken: defaultRuntime.executorToken }
+          : { type: 'local' as const, workspace: this.config.workspace },
+      };
     });
     return { id: `team-${Date.now()}`, name: `task-${Date.now().toString(36)}`, description: task, members, leader: members[0] };
   }

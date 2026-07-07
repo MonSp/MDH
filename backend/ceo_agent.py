@@ -20,6 +20,7 @@ from agent import PROVIDER_REGISTRY
 from meeting import MeetingSession, PERSONAL_ASSISTANT_TEMPLATE
 from meeting_coordinator import MeetingCoordinator
 from protocol import (
+    AgentRole,
     MeetingAgentStatus,
     meeting_agent_to_dict,
     semantic_analysis_to_dict,
@@ -28,12 +29,79 @@ from project_manager import ProjectManager
 from complexity_classifier import ComplexityClassifier, ComplexityResult
 from simple_executor import SimpleExecutor
 from agenda import AgendaStateMachine
+from team import Team
 
 
 class _VirtualProject:
     """虚拟项目对象，用于会议消息处理"""
     def __init__(self, meeting_id: str = "unknown"):
         self.project_id = meeting_id
+
+
+_TEAM_ROLE_TO_AGENT_ROLE = {
+    "Coordinator": AgentRole.COORDINATOR,
+    "Planner": AgentRole.PLANNER,
+    "Executor": AgentRole.EXECUTOR,
+    "Reviewer": AgentRole.REVIEWER,
+    "Monitor": AgentRole.MONITOR,
+}
+
+
+def team_to_meeting_template(team: Team) -> list[dict]:
+    """将 Team 实例转换为会议模板格式。
+
+    Args:
+        team: Team 实例，包含成员列表。
+
+    Returns:
+        会议模板列表，每项含 id, name, role, capabilities。
+    """
+    template = []
+    for member in team.members:
+        agent_role = _TEAM_ROLE_TO_AGENT_ROLE.get(member.team_role, AgentRole.EXECUTOR)
+        capabilities = [member.skill_pack_id] if member.skill_pack_id else []
+        template.append({
+            "id": member.agent_id,
+            "name": member.role_name,
+            "role": agent_role,
+            "capabilities": capabilities,
+        })
+    return template
+
+
+def _build_dag(selected_roles: list[str], roles_config: dict, task_description: str, role_locations: Optional[Dict[str, str]] = None) -> dict:
+    """从选中角色构建 DAG，供 instantiate_project 使用。
+
+    Args:
+        selected_roles: 用户选中的角色ID列表
+        roles_config: 角色配置
+        task_description: 任务描述
+        role_locations: 每个角色的执行位置 {"executor": "local", "reviewer": "remote"}
+    """
+    if role_locations is None:
+        role_locations = {}
+    all_roles = {**roles_config.get("base_roles", {}), **roles_config.get("custom_roles", {})}
+    tasks = []
+    for role_id in selected_roles:
+        role_cfg = all_roles.get(role_id, {})
+        skills = role_cfg.get("skills", [])
+        tasks.append({
+            "task_id": f"task-{role_id}",
+            "name": role_cfg.get("name", role_id),
+            "required_skills": skills,
+            "description": task_description[:200],
+            "location": role_locations.get(role_id, "local"),
+        })
+    if not tasks:
+        tasks.append({
+            "task_id": "task-default",
+            "name": "默认任务",
+            "required_skills": [],
+            "description": task_description[:200],
+            "location": "local",
+        })
+    return {"tasks": tasks}
+
 
 logger = logging.getLogger("ceo_agent")
 
@@ -129,6 +197,7 @@ class CeoAgent:
         content: str,
         send_message: Callable[[Dict[str, Any]], Awaitable[None]],
         selected_roles: Optional[list] = None,
+        role_locations: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
         CEO处理用户消息的完整流程
@@ -137,6 +206,7 @@ class CeoAgent:
             content: 用户消息内容
             send_message: 发送消息到前端的回调 (msg_dict) -> None
             selected_roles: 用户选中的角色ID列表，如 ["planner", "executor", "reviewer"]
+            role_locations: 每个角色的执行位置，如 {"executor": "local", "reviewer": "remote"}
 
         Returns:
             执行结果
@@ -163,7 +233,7 @@ class CeoAgent:
         if complexity.level == "simple" and complexity.confidence >= 0.7:
             return await self._execute_simple(content, send_message)
         else:
-            return await self._execute_complex(content, send_message, selected_roles)
+            return await self._execute_complex(content, send_message, selected_roles, role_locations)
 
     async def _execute_simple(
         self,
@@ -208,6 +278,7 @@ class CeoAgent:
         content: str,
         send_message: Callable[[Dict[str, Any]], Awaitable[None]],
         selected_roles: Optional[list] = None,
+        role_locations: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """复杂路径：创建项目 → 组建团队 → 启动会议 → 协调器接管"""
         await self._emit(send_message, "CEO：任务复杂，需要组建专业团队。正在创建项目并召集会议。")
@@ -380,20 +451,17 @@ class CeoAgent:
             await send_message({"type": "meeting_error", "message": "会议已在进行中"})
             return {"type": "error", "message": "会议已在进行中"}
 
-        # ④ 创建会议和团队
+        # ④ 创建会议，通过 Team 抽象组建团队
         meeting_id = str(uuid.uuid4())[:8]
         meeting = MeetingSession(meeting_id)
-        
-        # 根据选中的角色创建团队
-        team_template = None
-        if selected_roles:
-            from meeting import create_team_from_roles
-            from agent_toolset import load_roles_config
-            roles_config = load_roles_config()
-            team_template = create_team_from_roles(selected_roles, roles_config)
-            if team_template:
-                await self._emit(send_message, f"CEO：已根据选中角色组建团队：{', '.join(t['name'] for t in team_template)}")
-        
+
+        from agent_toolset import load_roles_config
+        roles_config = load_roles_config()
+        dag = _build_dag(selected_roles or [], roles_config, content, role_locations)
+        team = self._project_manager.instantiate_project(project.project_id, dag)
+        team_template = team_to_meeting_template(team)
+        await self._emit(send_message, f"CEO：团队已组建（{len(team.members)} 人）：{', '.join(m.role_name for m in team.members)}")
+
         meeting.start(team_template=team_template)
         self._session.meeting_session = meeting
         self._session.meeting_mode = True

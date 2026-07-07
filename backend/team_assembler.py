@@ -69,16 +69,26 @@ class TeamAssembler:
             project_id=project_id,
             runtime=runtime,
         )
+        # 从 DAG 中提取每个角色的 location
+        task_locations = {}
+        for task in dag.get("tasks", []):
+            for skill in task.get("required_skills", []):
+                task_locations[skill] = task.get("location", "local")
+
         selected_roles = self._select_roles_for_dag(dag)
         for role_name, team_role in selected_roles:
             agent_id = f"agent-{role_name}-{uuid.uuid4().hex[:6]}"
             role_config = self._resolve_role(role_name)
+            # 从 DAG 任务中获取该角色的 location
+            primary_skill = role_config.get("skills", [""])[0] if role_config.get("skills") else ""
+            loc_str = task_locations.get(primary_skill, "local")
+            location = AgentLocation.REMOTE if loc_str == "remote" else AgentLocation.LOCAL
             member = TeamMember(
                 agent_id=agent_id,
                 role_name=role_name,
                 team_role=team_role,
-                location=AgentLocation.LOCAL,
-                skill_pack_id=role_config.get("skills", [""])[0] if role_config.get("skills") else "",
+                location=location,
+                skill_pack_id=primary_skill,
             )
             team.add_member(member)
             if team_role == "Coordinator" and team.leader is None:

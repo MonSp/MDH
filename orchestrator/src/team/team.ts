@@ -10,6 +10,7 @@ export interface TeamRuntime {
   type: 'local' | 'remote';
   workspace: string;
   executorUrl?: string;
+  executorToken?: string;
 }
 
 export interface SkillPack {
@@ -28,6 +29,8 @@ export interface TeamMember {
   id: string;
   roleName: string;
   teamRole: 'Coordinator' | 'Planner' | 'Executor' | 'Reviewer' | 'Monitor';
+  location: 'local' | 'remote';
+  runtime: TeamRuntime;
   tools: string[];
   dangerousTools: string[];
   skillPackId?: string;
@@ -48,6 +51,7 @@ export interface DagTask {
   name: string;
   requiredSkills: string[];
   description?: string;
+  location?: 'local' | 'remote';
 }
 
 export interface Dag {

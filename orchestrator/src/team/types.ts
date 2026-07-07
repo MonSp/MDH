@@ -10,12 +10,21 @@ export interface RoleTemplate {
   base_role?: string;
 }
 
+export interface TeamMemberRuntime {
+  type: 'local' | 'remote';
+  workspace: string;
+  executorUrl?: string;
+  executorToken?: string;
+}
+
 export interface TeamMember {
   id: string;
   name: string;
   role: string;
   template: RoleTemplate;
   status: 'idle' | 'working' | 'speaking' | 'done';
+  location: 'local' | 'remote';
+  runtime: TeamMemberRuntime;
 }
 
 export interface Team {

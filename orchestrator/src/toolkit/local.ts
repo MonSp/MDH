@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'node:fs';
-import { resolve, relative, join, isAbsolute } from 'node:path';
+import { readFileSync, writeFileSync, readdirSync, existsSync, statSync, mkdirSync } from 'node:fs';
+import { resolve, relative, dirname, isAbsolute } from 'node:path';
 import { execSync } from 'node:child_process';
 import { ToolCall, ToolResult } from '../team/types.js';
 import { IToolkitRouter } from './router.js';
@@ -12,6 +12,11 @@ export class LocalToolkitRouter implements IToolkitRouter {
       args = JSON.parse(rawArgs);
     } catch {
       return this.err(toolCall, 'Invalid JSON arguments');
+    }
+
+    // 确保 workspace 目录存在
+    if (!existsSync(workspace)) {
+      mkdirSync(workspace, { recursive: true });
     }
 
     try {
@@ -64,6 +69,11 @@ export class LocalToolkitRouter implements IToolkitRouter {
 
   private writeFile(args: Record<string, unknown>, workspace: string): string {
     const filePath = this.safePath(String(args.path), workspace);
+    // 自动创建父目录
+    const dir = dirname(filePath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
     writeFileSync(filePath, String(args.content), 'utf-8');
     return `Wrote ${filePath}`;
   }
@@ -88,6 +98,8 @@ export class LocalToolkitRouter implements IToolkitRouter {
   private bash(args: Record<string, unknown>, workspace: string): string {
     const cmd = String(args.command);
     const timeout = Number(args.timeout ?? 30_000);
-    return execSync(cmd, { cwd: workspace, timeout, encoding: 'utf-8', stderr: 'pipe' });
+    // 检测可用 shell
+    const shell = existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh';
+    return execSync(cmd, { cwd: workspace, timeout, encoding: 'utf-8', stderr: 'pipe', shell });
   }
 }

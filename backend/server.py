@@ -1063,6 +1063,7 @@ async def ws_handler(ws: WebSocket):
 
                 # 提取选中的角色（如果有）
                 selected_roles = msg.get("selected_roles", [])
+                role_locations = msg.get("role_locations", {})
 
                 # 委托给CEO Agent处理
                 if session._ceo_agent is None:
@@ -1076,7 +1077,7 @@ async def ws_handler(ws: WebSocket):
                 ceo = session._ceo_agent
                 async def _run_ceo():
                     try:
-                        result = await ceo.process_message(content, ws.send_json, selected_roles=selected_roles)
+                        result = await ceo.process_message(content, ws.send_json, selected_roles=selected_roles, role_locations=role_locations)
                         if result:
                             logger.info("CEO处理完成: type=%s path=%s",
                                        result.get("type"), result.get("path_used"))
