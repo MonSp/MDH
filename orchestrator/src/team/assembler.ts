@@ -27,7 +27,7 @@ export const SKILL_TO_TEAM_ROLE: Record<string, TeamMember['teamRole']> = {
   // Planner skills
   architecture: 'Planner',
   // Coordinator skills
-  task_decomposition: 'Coordinator',
+  task_decomposition: 'Planner',
   progress_tracking: 'Coordinator',
   risk_management: 'Coordinator',
 };
@@ -81,7 +81,7 @@ export function assembleTeam(
   const skillLocations: Record<string, 'local' | 'remote'> = {};
   for (const task of dag.tasks) {
     for (const skill of task.requiredSkills) {
-      skillLocations[skill] = (task as any).location || 'local';
+      skillLocations[skill] = task.location || 'local';
     }
   }
 

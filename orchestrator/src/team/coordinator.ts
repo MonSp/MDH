@@ -304,7 +304,7 @@ export class TeamCoordinator {
         const review = await this.runReview(reviewerMember, executorResult, userMessage, onEvent);
 
         if (review.approved) {
-          onEvent?.({ type: 'assistant_message', agentId: `agent-${reviewerRole}`, content: `审查通过！代码质量良好。` });
+          onEvent?.({ type: 'assistant_message', agentId: `agent-${reviewerRoleId}`, content: `审查通过！代码质量良好。` });
           finalResult = executorResult;
           break;
         }

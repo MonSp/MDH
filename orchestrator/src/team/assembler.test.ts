@@ -108,6 +108,6 @@ describe('SKILL_TO_TEAM_ROLE', () => {
     expect(SKILL_TO_TEAM_ROLE['frontend_dev']).toBe('Executor');
     expect(SKILL_TO_TEAM_ROLE['testing']).toBe('Reviewer');
     expect(SKILL_TO_TEAM_ROLE['architecture']).toBe('Planner');
-    expect(SKILL_TO_TEAM_ROLE['task_decomposition']).toBe('Coordinator');
+    expect(SKILL_TO_TEAM_ROLE['task_decomposition']).toBe('Planner');
   });
 });
