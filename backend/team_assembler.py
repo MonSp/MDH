@@ -45,6 +45,11 @@ class TeamAssembler:
         return self._base_roles.get(role_name, {})
 
     def _select_roles_for_dag(self, dag: dict) -> list[tuple[str, str]]:
+        """根据DAG选择需要的角色，返回 (role_name, team_role) 列表。
+
+        注意：每种 team_role 只选第一个匹配的角色（如多个 Executor 只取一个）。
+        这是有意设计——每个 team_role 一个代表，避免团队臃肿。
+        """
         tasks = dag.get("tasks", [])
         needed_team_roles = set()
         selected_roles = []

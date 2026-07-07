@@ -34,6 +34,7 @@ export class RemoteToolkitRouter implements IToolkitRouter {
         call_id: toolCall.id,
         workspace,
       }),
+      signal: AbortSignal.timeout(60_000),
     });
 
     if (!response.ok) {

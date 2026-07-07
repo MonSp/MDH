@@ -98,7 +98,13 @@ export class LocalToolkitRouter implements IToolkitRouter {
   private bash(args: Record<string, unknown>, workspace: string): string {
     const cmd = String(args.command);
     const timeout = Number(args.timeout ?? 30_000);
-    // 检测可用 shell
+    // 危险命令检测（与 Python executor 保持一致）
+    const dangerous = [/rm\s+-rf\s+\/[^a-z]/i, /mkfs/i, /dd\s+if=/i, /:(){ :|:& };:/i, /chmod\s+-R\s+777\s+\//i];
+    for (const pat of dangerous) {
+      if (pat.test(cmd)) {
+        throw new Error(`Blocked dangerous command: ${cmd}`);
+      }
+    }
     const shell = existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh';
     return execSync(cmd, { cwd: workspace, timeout, encoding: 'utf-8', stderr: 'pipe', shell });
   }

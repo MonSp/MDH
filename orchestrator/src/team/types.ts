@@ -1,3 +1,9 @@
+// Re-export base types from team.ts to avoid duplication
+export type { TeamRuntime, SkillPack, DagTask, Dag } from './team.js';
+
+// TeamMember — coordinator uses this extended version with template info
+import type { TeamMemberRuntime } from './team.js';
+
 export interface RoleTemplate {
   name: string;
   description: string;
@@ -8,13 +14,6 @@ export interface RoleTemplate {
   prompt_template?: string;
   custom_prompt?: string;
   base_role?: string;
-}
-
-export interface TeamMemberRuntime {
-  type: 'local' | 'remote';
-  workspace: string;
-  executorUrl?: string;
-  executorToken?: string;
 }
 
 export interface TeamMember {
