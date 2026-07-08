@@ -215,4 +215,27 @@ describe('RemoteToolkitRouter circuit breaker', () => {
     expect(fallback).toHaveBeenCalled();
     expect(result.error).toContain('Circuit breaker OPEN');
   });
+
+  it('calls onHalfOpen when transitioning from open to half-open', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('ECONNREFUSED'));
+    const onHalfOpen = vi.fn();
+    const router = new RemoteToolkitRouter({
+      executorUrl: 'http://localhost:9999',
+      maxRetries: 0,
+      baseDelayMs: 10,
+      circuitBreaker: { failureThreshold: 2, recoveryMs: 50 },
+      onHalfOpen,
+    });
+
+    // 触发熔断
+    await router.execute(mockToolCall, '/ws');
+    await router.execute(mockToolCall, '/ws');
+    expect(router.getCircuitBreaker().getState()).toBe('open');
+    expect(onHalfOpen).not.toHaveBeenCalled();
+
+    // 等待恢复期 → half-open
+    await new Promise(r => setTimeout(r, 60));
+    router.getCircuitBreaker().getState(); // 触发转换
+    expect(onHalfOpen).toHaveBeenCalledTimes(1);
+  });
 });

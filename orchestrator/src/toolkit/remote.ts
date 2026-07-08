@@ -9,6 +9,8 @@ export interface RemoteToolkitRouterConfig {
   circuitBreaker?: CircuitBreakerConfig;
   /** 熔断时的 fallback：返回 null 则走默认错误，返回 ToolResult 则用 fallback 结果 */
   onCircuitOpen?: (toolCall: ToolCall, workspace: string) => Promise<ToolResult | null>;
+  /** 半开试探前的回调，可用于日志、告警、预热连接 */
+  onHalfOpen?: () => void | Promise<void>;
 }
 
 export interface CircuitBreakerConfig {
@@ -33,18 +35,20 @@ export class CircuitBreaker {
   private lastFailureTime = 0;
   private readonly threshold: number;
   private readonly recoveryMs: number;
+  private onHalfOpen?: () => void | Promise<void>;
 
-  constructor(config?: CircuitBreakerConfig) {
+  constructor(config?: CircuitBreakerConfig, onHalfOpen?: () => void | Promise<void>) {
     this.threshold = config?.failureThreshold ?? DEFAULT_FAILURE_THRESHOLD;
     this.recoveryMs = config?.recoveryMs ?? DEFAULT_RECOVERY_MS;
+    this.onHalfOpen = onHalfOpen;
   }
 
   canExecute(): boolean {
     if (this.state === 'closed') return true;
     if (this.state === 'open') {
-      // 冷却期已过 → 半开，放一个请求试探
       if (Date.now() - this.lastFailureTime >= this.recoveryMs) {
         this.state = 'half-open';
+        this.onHalfOpen?.();
         return true;
       }
       return false;
@@ -67,9 +71,9 @@ export class CircuitBreaker {
   }
 
   getState(): CircuitState {
-    // 自动从 open 转 half-open
     if (this.state === 'open' && Date.now() - this.lastFailureTime >= this.recoveryMs) {
       this.state = 'half-open';
+      this.onHalfOpen?.();
     }
     return this.state;
   }
@@ -96,7 +100,7 @@ export class RemoteToolkitRouter implements IToolkitRouter {
     this.token = config.token ?? '';
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.baseDelayMs = config.baseDelayMs ?? DEFAULT_BASE_DELAY_MS;
-    this.circuit = new CircuitBreaker(config.circuitBreaker);
+    this.circuit = new CircuitBreaker(config.circuitBreaker, config.onHalfOpen);
     this.onCircuitOpen = config.onCircuitOpen;
   }
 
