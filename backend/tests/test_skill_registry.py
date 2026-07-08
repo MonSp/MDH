@@ -344,5 +344,63 @@ class TestSkillRegistryPersistence:
         assert loaded.version == "1.0.0"
 
 
+class TestSkillRegistryLoadFromSkillPacks:
+    """测试从 skill_packs 目录加载技能包。"""
+
+    def test_load_from_skill_packs(self, tmp_path):
+        """从 skill_packs 加载技能包应成功注册。"""
+        skill_dir = tmp_path / "skill_packs" / "test_skill"
+        skill_dir.mkdir(parents=True)
+        manifest = {
+            "name": "test_skill",
+            "version": "1.0.0",
+            "description": "测试技能",
+            "category": "testing",
+            "required_tools": ["read_file"],
+        }
+        (skill_dir / "manifest.yaml").write_text(
+            yaml.dump(manifest, allow_unicode=True), encoding="utf-8"
+        )
+        (skill_dir / "system_prompt.md").write_text("# Test prompt", encoding="utf-8")
+
+        registry = SkillRegistry(str(tmp_path / "base"))
+        registry.load_from_skill_packs(str(tmp_path / "skill_packs"))
+
+        skills = registry.list_skills()
+        assert any(s["name"] == "test_skill" for s in skills)
+
+    def test_load_from_skill_packs_skips_duplicates(self, tmp_path):
+        """已注册的技能包不应重复加载。"""
+        skill_dir = tmp_path / "skill_packs" / "dup_skill"
+        skill_dir.mkdir(parents=True)
+        manifest = {"name": "dup_skill", "version": "1.0.0", "description": "重复"}
+        (skill_dir / "manifest.yaml").write_text(
+            yaml.dump(manifest, allow_unicode=True), encoding="utf-8"
+        )
+
+        registry = SkillRegistry(str(tmp_path / "base"))
+        registry.load_from_skill_packs(str(tmp_path / "skill_packs"))
+        registry.load_from_skill_packs(str(tmp_path / "skill_packs"))
+
+        skills = registry.list_skills()
+        assert len(skills) == 1
+
+    def test_load_from_skill_packs_nonexistent_dir(self, tmp_path):
+        """不存在的 skill_packs 目录应安全跳过。"""
+        registry = SkillRegistry(str(tmp_path / "base"))
+        registry.load_from_skill_packs(str(tmp_path / "nonexistent"))
+        assert registry.list_skills() == []
+
+    def test_load_from_skill_packs_skips_no_manifest(self, tmp_path):
+        """没有 manifest.yaml 的子目录应跳过。"""
+        skill_dir = tmp_path / "skill_packs" / "no_manifest"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "readme.txt").write_text("no manifest here")
+
+        registry = SkillRegistry(str(tmp_path / "base"))
+        registry.load_from_skill_packs(str(tmp_path / "skill_packs"))
+        assert registry.list_skills() == []
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -331,6 +331,51 @@ class SkillRegistry:
 
         return versions
 
+    def load_from_skill_packs(self, skill_packs_dir: str) -> None:
+        """从 skill_packs 目录加载技能包。
+
+        扫描 skill_packs_dir 下的子目录，每个包含 manifest.yaml 的子目录
+        视为一个技能包。使用 manifest.name 作为 skill_id，跳过已注册的技能。
+
+        Args:
+            skill_packs_dir: skill_packs 目录路径。
+        """
+        packs_path = Path(skill_packs_dir)
+        if not packs_path.is_dir():
+            logger.warning("skill_packs 目录不存在: %s", skill_packs_dir)
+            return
+
+        for entry in packs_path.iterdir():
+            if not entry.is_dir():
+                continue
+            manifest_path = entry / "manifest.yaml"
+            if not manifest_path.exists():
+                continue
+            try:
+                manifest = self._read_manifest(manifest_path)
+            except Exception as e:
+                logger.warning("跳过无效技能包 %s: %s", entry.name, e)
+                continue
+
+            skill_id = manifest.get("name", entry.name)
+            if skill_id in self._registry:
+                continue
+
+            now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            pkg = SkillPackage(
+                skill_id=skill_id,
+                name=manifest.get("name", entry.name),
+                version=manifest.get("version", "0.0.0"),
+                description=manifest.get("description", ""),
+                base_path=str(entry),
+                manifest=manifest,
+                created_at=now,
+                required_env=manifest.get("required_env", []),
+                dependencies=manifest.get("dependencies", []),
+            )
+            self._registry[skill_id] = pkg
+            logger.info("已从 skill_packs 加载技能包: %s", skill_id)
+
     def create_incremental_area(self, target_dir: str) -> str:
         """创建增量区目录结构。
 
