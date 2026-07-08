@@ -11,6 +11,8 @@ export interface RemoteToolkitRouterConfig {
   onCircuitOpen?: (toolCall: ToolCall, workspace: string) => Promise<ToolResult | null>;
   /** 半开试探前的回调，可用于日志、告警、预热连接 */
   onHalfOpen?: () => void | Promise<void>;
+  /** 熔断恢复回调：半开试探成功后触发 */
+  onCircuitClose?: () => void | Promise<void>;
 }
 
 export interface CircuitBreakerConfig {
@@ -36,11 +38,13 @@ export class CircuitBreaker {
   private readonly threshold: number;
   private readonly recoveryMs: number;
   private onHalfOpen?: () => void | Promise<void>;
+  private onCircuitClose?: () => void | Promise<void>;
 
-  constructor(config?: CircuitBreakerConfig, onHalfOpen?: () => void | Promise<void>) {
+  constructor(config?: CircuitBreakerConfig, onHalfOpen?: () => void | Promise<void>, onCircuitClose?: () => void | Promise<void>) {
     this.threshold = config?.failureThreshold ?? DEFAULT_FAILURE_THRESHOLD;
     this.recoveryMs = config?.recoveryMs ?? DEFAULT_RECOVERY_MS;
     this.onHalfOpen = onHalfOpen;
+    this.onCircuitClose = onCircuitClose;
   }
 
   canExecute(): boolean {
@@ -58,8 +62,10 @@ export class CircuitBreaker {
   }
 
   recordSuccess(): void {
+    const wasOpen = this.state !== 'closed';
     this.failureCount = 0;
     this.state = 'closed';
+    if (wasOpen) this.onCircuitClose?.();
   }
 
   recordFailure(): void {
@@ -100,7 +106,7 @@ export class RemoteToolkitRouter implements IToolkitRouter {
     this.token = config.token ?? '';
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.baseDelayMs = config.baseDelayMs ?? DEFAULT_BASE_DELAY_MS;
-    this.circuit = new CircuitBreaker(config.circuitBreaker, config.onHalfOpen);
+    this.circuit = new CircuitBreaker(config.circuitBreaker, config.onHalfOpen, config.onCircuitClose);
     this.onCircuitOpen = config.onCircuitOpen;
   }
 
