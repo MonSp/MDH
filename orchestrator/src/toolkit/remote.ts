@@ -7,6 +7,8 @@ export interface RemoteToolkitRouterConfig {
   maxRetries?: number;
   baseDelayMs?: number;
   circuitBreaker?: CircuitBreakerConfig;
+  /** 熔断时的 fallback：返回 null 则走默认错误，返回 ToolResult 则用 fallback 结果 */
+  onCircuitOpen?: (toolCall: ToolCall, workspace: string) => Promise<ToolResult | null>;
 }
 
 export interface CircuitBreakerConfig {
@@ -87,6 +89,7 @@ export class RemoteToolkitRouter implements IToolkitRouter {
   private maxRetries: number;
   private baseDelayMs: number;
   private circuit: CircuitBreaker;
+  private onCircuitOpen?: (toolCall: ToolCall, workspace: string) => Promise<ToolResult | null>;
 
   constructor(config: RemoteToolkitRouterConfig) {
     this.executorUrl = config.executorUrl;
@@ -94,11 +97,17 @@ export class RemoteToolkitRouter implements IToolkitRouter {
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.baseDelayMs = config.baseDelayMs ?? DEFAULT_BASE_DELAY_MS;
     this.circuit = new CircuitBreaker(config.circuitBreaker);
+    this.onCircuitOpen = config.onCircuitOpen;
   }
 
   async execute(toolCall: ToolCall, workspace: string): Promise<ToolResult> {
     // 熔断检查
     if (!this.circuit.canExecute()) {
+      // 尝试 fallback
+      if (this.onCircuitOpen) {
+        const fallback = await this.onCircuitOpen(toolCall, workspace);
+        if (fallback) return fallback;
+      }
       return {
         call_id: toolCall.id,
         tool_name: toolCall.function.name,

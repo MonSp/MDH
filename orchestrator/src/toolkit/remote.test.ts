@@ -173,4 +173,46 @@ describe('RemoteToolkitRouter circuit breaker', () => {
     expect(result.result).toBe('recovered');
     expect(router.getCircuitBreaker().getState()).toBe('closed');
   });
+
+  it('calls onCircuitOpen fallback when circuit is open', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('ECONNREFUSED'));
+    const fallback = vi.fn().mockResolvedValue({
+      call_id: 'test-1', tool_name: 'write_file', result: 'fallback-ok',
+    });
+    const router = new RemoteToolkitRouter({
+      executorUrl: 'http://localhost:9999',
+      maxRetries: 0,
+      baseDelayMs: 10,
+      circuitBreaker: { failureThreshold: 2, recoveryMs: 60_000 },
+      onCircuitOpen: fallback,
+    });
+
+    // 触发熔断
+    await router.execute(mockToolCall, '/ws');
+    await router.execute(mockToolCall, '/ws');
+    expect(router.getCircuitBreaker().getState()).toBe('open');
+
+    // 熔断后调用 fallback
+    const result = await router.execute(mockToolCall, '/ws');
+    expect(fallback).toHaveBeenCalledWith(mockToolCall, '/ws');
+    expect(result.result).toBe('fallback-ok');
+  });
+
+  it('falls back to error when onCircuitOpen returns null', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('ECONNREFUSED'));
+    const fallback = vi.fn().mockResolvedValue(null);
+    const router = new RemoteToolkitRouter({
+      executorUrl: 'http://localhost:9999',
+      maxRetries: 0,
+      baseDelayMs: 10,
+      circuitBreaker: { failureThreshold: 2, recoveryMs: 60_000 },
+      onCircuitOpen: fallback,
+    });
+
+    await router.execute(mockToolCall, '/ws');
+    await router.execute(mockToolCall, '/ws');
+    const result = await router.execute(mockToolCall, '/ws');
+    expect(fallback).toHaveBeenCalled();
+    expect(result.error).toContain('Circuit breaker OPEN');
+  });
 });
