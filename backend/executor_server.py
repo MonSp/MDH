@@ -224,7 +224,7 @@ class HealthResponse(BaseModel):
 
 
 # ====== 危险操作检查 ======
-DANGEROUS_TOOLS = {"bash"}
+DANGEROUS_TOOLS = {"bash", "git_push", "run_tests"}
 DANGEROUS_PATTERNS = [
     "rm -rf", "rm -r /", "mkfs", "dd if=", "> /dev/",
     "chmod 777", "chown -R", "shutdown", "reboot", "halt",
@@ -296,6 +296,18 @@ async def get_token(authorization: str = Header(None)):
     """返回当前 token（仅用于首次配置）"""
     verify_token(authorization)
     return {"token": EXECUTOR_TOKEN}
+
+
+@app.get("/tools")
+async def list_tools():
+    """返回所有可用工具及其危险标记"""
+    return {
+        "tools": [
+            {"name": name, "dangerous": name in DANGEROUS_TOOLS}
+            for name in sorted(TOOL_HANDLERS.keys())
+        ],
+        "total": len(TOOL_HANDLERS),
+    }
 
 
 # ====== 工具处理器 ======
@@ -402,12 +414,107 @@ async def handle_git_diff(workspace: str, args: dict) -> str:
 
 async def handle_git_commit(workspace: str, args: dict) -> str:
     message = args.get("message", "auto commit")
+    # 先 add -A
+    proc = await asyncio.create_subprocess_exec(
+        "git", "add", "-A", cwd=workspace,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    await proc.communicate()
     proc = await asyncio.create_subprocess_exec(
         "git", "commit", "-m", message, cwd=workspace,
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await proc.communicate()
     return (stdout + stderr).decode("utf-8", errors="replace")
+
+
+async def handle_git_push(workspace: str, args: dict) -> str:
+    remote = args.get("remote", "origin")
+    branch = args.get("branch", "")
+    cmd = ["git", "push", remote]
+    if branch:
+        cmd.append(branch)
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, cwd=workspace,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    return (stdout + stderr).decode("utf-8", errors="replace")
+
+
+async def handle_git_branch(workspace: str, args: dict) -> str:
+    branch_name = args.get("branch_name", "")
+    if branch_name:
+        cmd = ["git", "checkout", "-b", branch_name]
+    else:
+        cmd = ["git", "branch"]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, cwd=workspace,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    return (stdout + stderr).decode("utf-8", errors="replace")
+
+
+async def handle_git_log(workspace: str, args: dict) -> str:
+    count = str(args.get("count", 10))
+    proc = await asyncio.create_subprocess_exec(
+        "git", "log", f"-{count}", "--oneline", cwd=workspace,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    return stdout.decode("utf-8", errors="replace")
+
+
+async def handle_run_tests(workspace: str, args: dict) -> str:
+    test_path = args.get("test_path", "")
+    verbose = args.get("verbose", False)
+    cmd = ["python3", "-m", "pytest"]
+    if verbose:
+        cmd.append("-v")
+    if test_path:
+        cmd.append(test_path)
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, cwd=workspace,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+    )
+    stdout, _ = await proc.communicate()
+    return stdout.decode("utf-8", errors="replace")
+
+
+async def handle_run_linter(workspace: str, args: dict) -> str:
+    path = args.get("path", ".")
+    full = _resolve_in_workspace(workspace, path)
+    proc = await asyncio.create_subprocess_exec(
+        "python3", "-m", "pylint", full, cwd=workspace,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+    )
+    stdout, _ = await proc.communicate()
+    return stdout.decode("utf-8", errors="replace")
+
+
+async def handle_create_document(workspace: str, args: dict) -> str:
+    path = args.get("path", "")
+    content = args.get("content", "")
+    full = _resolve_in_workspace(workspace, path)
+    os.makedirs(os.path.dirname(full), exist_ok=True)
+    with open(full, "w", encoding="utf-8") as f:
+        f.write(content)
+    return f"Document created: {path}"
+
+
+async def handle_edit_document(workspace: str, args: dict) -> str:
+    # 与 edit_file 相同逻辑
+    return await handle_edit_file(workspace, args)
+
+
+async def handle_web_fetch(workspace: str, args: dict) -> str:
+    url = args.get("url", "")
+    import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": "MDH-Executor/2.0"})
+    with urllib.request.urlopen(req, timeout=30) as response:
+        content = response.read().decode("utf-8", errors="replace")
+    return content[:10000]
 
 
 TOOL_HANDLERS = {
@@ -421,6 +528,14 @@ TOOL_HANDLERS = {
     "git_status": handle_git_status,
     "git_diff": handle_git_diff,
     "git_commit": handle_git_commit,
+    "git_push": handle_git_push,
+    "git_branch": handle_git_branch,
+    "git_log": handle_git_log,
+    "run_tests": handle_run_tests,
+    "run_linter": handle_run_linter,
+    "create_document": handle_create_document,
+    "edit_document": handle_edit_document,
+    "web_fetch": handle_web_fetch,
 }
 
 
