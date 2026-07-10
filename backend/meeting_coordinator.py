@@ -18,6 +18,7 @@ from dynamic_router import DynamicRouter
 from meeting import MeetingSession
 from negotiation import NegotiationEngine, ConsensusStrategy
 from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict, WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowNodeStatus, LLM_FALLBACK_TEMPLATE
+from team import Team
 from workflow_engine import WorkflowEngine
 
 # WhyBuddy化：导入拆分后的子模块
@@ -25,6 +26,7 @@ from semantic_analyzer import SemanticAnalyzer
 from task_orchestrator import TaskOrchestrator
 from review_pipeline import ReviewPipeline
 from discussion_manager import DiscussionManager
+from mixed_location_discussion import MixedLocationDiscussion
 
 AGENT_ROLE_PROMPTS = {
     AgentRole.CEO: "你是编程团队的CTO（技术总监）。你的职责是分析用户技术需求、判断技术意图、将开发任务自动分配给最合适的团队成员。你熟悉前后端技术栈、系统架构和团队成员能力。请用简洁果断的技术语言发言。",
@@ -127,6 +129,9 @@ class MeetingCoordinator:
             get_model_fn=self._get_model,
             meeting=self.meeting,
         )
+        
+        # 混合位置讨论引擎（支持本地/远端Agent并行讨论）
+        self._mixed_discussion: Optional[MixedLocationDiscussion] = None
 
     @property
     def last_routing_decision(self):
@@ -302,11 +307,31 @@ class MeetingCoordinator:
         topic: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
         max_rounds: int = 2,
+        team: Optional[Team] = None,
     ) -> List[Dict[str, str]]:
-        """运行多角色讨论（委托给DiscussionManager）
-
-        WhyBuddy化：委托给DiscussionManager。
         """
+        运行多角色讨论
+        
+        如果提供了Team实例，使用MixedLocationDiscussion进行并行讨论；
+        否则回退到串行的DiscussionManager。
+        """
+        # 如果有Team实例，使用并行讨论引擎
+        if team and hasattr(team, 'members') and team.members:
+            logger.info("使用并行讨论引擎 (成员数=%d)", len(team.members))
+            try:
+                if self._mixed_discussion is None:
+                    self._mixed_discussion = MixedLocationDiscussion(
+                        team=team,
+                        agenda=self.agenda,
+                        negotiation=self.negotiation,
+                        get_model_fn=self._get_model,
+                    )
+                return await self._mixed_discussion.run(topic, on_message, max_rounds)
+            except Exception as e:
+                logger.warning("并行讨论引擎初始化失败，回退到串行: %s", e)
+        
+        # 回退到串行讨论
+        logger.info("使用串行讨论引擎")
         return await self._discussion_manager.run(topic, on_message, max_rounds)
 
     def _find_agent_id(self, role: AgentRole) -> Optional[str]:
@@ -797,13 +822,15 @@ class MeetingCoordinator:
         # 2. 非工作流模式：串行流程（讨论→分派→审查）
         # COORDINATOR组织讨论
         topic = (analysis.discussion_topic.strip() if analysis.discussion_topic else "") or user_message
-        self.logger.info("串行流程 - 讨论阶段: topic=%s", topic[:50])
+        self.logger.info("讨论阶段: topic=%s", topic[:50])
         
         coordinator_discuss_text = f"项目经理：组织团队讨论「{topic[:30]}...」"
         await self._msg(coordinator_id, coordinator_discuss_text)
         self.meeting.add_message("agent", coordinator_discuss_text, coordinator_id)
         
-        discussion_results = await self.run_discussion(topic, on_message)
+        # 尝试获取Team实例用于并行讨论
+        team = getattr(self, '_team', None)
+        discussion_results = await self.run_discussion(topic, on_message, team=team)
 
         # COORDINATOR整合讨论结果
         original_description = analysis.task_description or user_message

@@ -475,6 +475,8 @@ class CeoAgent:
             base_url=self._session.base_url or "",
             workspace=workspace,
         )
+        # 传递Team实例给协调器，用于并行讨论
+        coordinator._team = team
         self._meeting_coordinator = coordinator
         self._agenda = coordinator.agenda
         self._session._meeting_coordinator = coordinator

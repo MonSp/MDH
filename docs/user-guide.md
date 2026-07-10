@@ -4,14 +4,15 @@
 
 1. [快速入门](#快速入门)
 2. [创建会议](#创建会议)
-3. [智能体协作流程](#智能体协作流程)
-4. [投票决策](#投票决策)
-5. [人工审批](#人工审批)
-6. [检查点与断点续跑](#检查点与断点续跑)
-7. [TS-Python 桥接](#ts-python-桥接)
-8. [角色管理](#角色管理)
-9. [工作流引擎](#工作流引擎)
-10. [历史回放](#历史回放)
+3. [Per-Agent Location 选择](#per-agent-location-选择)
+4. [智能体协作流程](#智能体协作流程)
+5. [投票决策](#投票决策)
+6. [人工审批](#人工审批)
+7. [检查点与断点续跑](#检查点与断点续跑)
+8. [TS-Python 桥接](#ts-python-桥接)
+9. [角色管理](#角色管理)
+10. [工作流引擎](#工作流引擎)
+11. [历史回放](#历史回放)
 
 ---
 
@@ -23,7 +24,22 @@
 - Python 3.11+（推荐 Conda 环境）
 - DeepSeek API Key
 
-### 启动
+### 启动（Docker 方式）
+
+```bash
+# 1. 配置 API Key
+cp .env.example .env
+# 编辑 .env: DEEPSEEK_API_KEY=sk-xxx
+
+# 2. 启动所有服务
+docker compose up -d
+
+# 3. 访问
+# 前端: http://localhost:8080
+# 后端: http://localhost:8765
+```
+
+### 启动（开发模式）
 
 ```bash
 # 1. 安装前端依赖
@@ -34,10 +50,13 @@ cp .env.example .env
 # 编辑 .env: DEEPSEEK_API_KEY=sk-xxx
 
 # 3. 启动后端
-cd backend && python server.py
+python backend/server.py
 
 # 4. 启动前端
 npm run dev
+
+# 5. (可选) 启动 Orchestrator
+cd orchestrator && npm install && npm run dev
 ```
 
 访问 `http://localhost:5173`，点击「多智能体团队」进入虚拟办公室。
@@ -57,6 +76,37 @@ npm run dev
 - **LLM Provider**: deepseek / openai / anthropic
 - **模型名称**: deepseek-chat / gpt-4 / claude-3
 - **最大迭代轮次**: 1-10（默认 3）
+
+---
+
+## Per-Agent Location 选择
+
+MDH 支持每个智能体独立选择工具执行位置：
+
+### 选择方式
+
+1. 在 CEO 对话面板中选择角色
+2. 每个已选角色旁有 💻(本地) / ☁️(远端) 徽章
+3. 点击徽章切换执行位置
+4. 可任意组合 team 成员的执行位置
+
+### 执行位置说明
+
+| 位置 | 执行方式 | 适用场景 |
+|------|----------|----------|
+| 💻 本地 | Node.js child_process | 用户本地文件操作、快速响应 |
+| ☁️ 远端 | HTTP POST → Python Executor | 服务器端操作、复杂计算 |
+
+### 配置
+
+```bash
+# CLI 启动时指定默认路由
+node orchestrator/src/cli.ts --executor=http://localhost:8767
+
+# 环境变量
+EXECUTOR_URL=http://localhost:8767
+EXECUTOR_TOKEN=your_token_here
+```
 
 ---
 
@@ -266,6 +316,8 @@ curl http://localhost:8765/api/workflow/status/wf-1
 | `DEEPSEEK_API_KEY` | DeepSeek API Key | 必填 |
 | `DEEPSEEK_BASE_URL` | API 基础 URL | `https://api.deepseek.com/v1` |
 | `DEEPSEEK_MODEL` | 模型名称 | `deepseek-chat` |
+| `EXECUTOR_URL` | Python Executor URL | `http://localhost:8767` |
+| `EXECUTOR_TOKEN` | Executor API Token | 自动生成 |
 
 ---
 
@@ -285,5 +337,16 @@ curl http://localhost:8765/api/workflow/status/wf-1
 ### Q: 如何查看执行日志？
 
 - 前端: 查看会议面板的聊天记录
-- 后端: 查看 `docker logs mdh-mock-sso-1` 或终端输出
+- 后端: 查看 `docker logs mdh-backend-1` 或终端输出
 - 指标: 访问 `http://localhost:8765/metrics`
+
+### Q: Orchestrator 和 Backend 有什么区别？
+
+- **Backend** (Python): 会议协调、CEO 智能体、投票/审批、技能进化
+- **Orchestrator** (Node.js): 用户本地运行，LLM 调用、团队管理、本地工具执行
+
+两者可以同时运行，Orchestrator 提供本地优先的执行路径。
+
+### Q: 如何选择本地/远端执行？
+
+在 CEO 对话面板中，每个角色旁有 💻/☁️ 徽章，点击即可切换。本地执行适合文件操作，远端执行适合复杂计算。

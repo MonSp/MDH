@@ -7,15 +7,17 @@
 | 能力 | 说明 |
 |---|---|
 | 🏢 虚拟办公室 | 3D 科技大厦可视化场景，实时展示智能体状态 |
-| 👥 多角色团队 | CEO、架构师、开发、QA、DevOps、项目经理 6 个角色 |
+| 👥 多角色团队 | CEO、架构师、开发、QA、DevOps、项目经理 6 个核心角色 + 20+ 扩展角色 |
 | 🎯 智能任务分配 | CEO 分析需求 → 讨论 → 投票 → 分派 → 执行 → 审查 |
 | 🔧 18 种工具 | 文件、Git、搜索、测试、文档、Web 等 |
 | 🤖 TS-Python 桥接 | 前端自定义智能体与后端 AgentScope 智能体互通 |
+| 🖥️ 本地/远端混合执行 | 每个智能体可独立选择在用户浏览器本地(Node.js)或远端(Python Executor)执行工具 |
 | 🗳️ 投票决策 | 提案 → 投票 → 共识评估（支持多种策略） |
 | ✅ 人工审批 | 高危操作的人工审批流程 |
 | 📸 检查点 | 任务执行状态的保存与恢复 |
 | 📝 审计日志 | 操作审计追踪 |
 | ⚙️ 工作流引擎 | REST API 管理工作流生命周期 |
+| 🧠 技能进化 | 项目执行积累经验，生成可复用技能包 |
 
 ## 快速开始
 
@@ -59,38 +61,36 @@ docker compose up -d
 │   │   ├── office-team/          # 办公团队面板
 │   │   │   ├── VotingPanel.tsx   # 投票面板
 │   │   │   ├── ApprovalPanel.tsx # 审批面板
-│   │   │   ├── CheckpointPanel.tsx # 检查点面板
-│   │   │   ├── AuditLogPanel.tsx # 审计日志面板
-│   │   │   ├── AgentWeightPanel.tsx # 权重调整
-│   │   │   ├── RoleEditorPanel.tsx # 角色编辑
-│   │   │   ├── HistoryPanel.tsx  # 历史回放
-│   │   │   └── SkillMarketplace.tsx # 技能市场
-│   │   └── skill-evolution/      # 技能进化
+│   │   │   ├── CeoChatPanel.tsx  # CEO 对话 + Per-Agent Location 选择
+│   │   │   └── ...
+│   │   ├── skill-evolution/      # 技能进化
+│   │   └── cyberpunk/            # 赛博朋克视觉效果
 │   ├── hooks/
 │   │   ├── useMeetingSocket.ts   # WebSocket 会议通信
-│   │   ├── useAgentSystem.ts     # TS 智能体系统
-│   │   ├── useApproval.ts        # 审批队列
-│   │   └── useLocalStorage.ts    # 本地存储
-│   └── modules/
+│   │   ├── useAgentSystem.ts     # TS 智能体系统（含 bridge）
+│   │   └── useApproval.ts        # 审批队列
+│   └── modules/                  # 45+ 核心模块
 │       ├── webSocketBridge.ts    # TS-Python 桥接
 │       ├── agentCoordinator.ts   # 智能体协调器
-│       ├── communicationBus.ts   # 消息总线
-│       └── taskAssigner.ts       # 任务分配器
-├── backend/                      # Python 后端
+│       └── ...
+├── backend/                      # Python 后端（端口 8765）
 │   ├── server.py                 # FastAPI + WebSocket 服务
 │   ├── meeting_coordinator.py    # 会议协调器（核心）
+│   ├── ceo_agent.py              # CEO 智能体
 │   ├── agent_bridge.py           # TS-Python 桥接
-│   ├── approval_manager.py       # 审批管理器
-│   ├── llm_cache.py              # LLM 响应缓存
-│   ├── negotiation.py            # 投票决策引擎
-│   ├── agenda.py                 # 议程状态机
-│   ├── workflow_engine.py        # 工作流引擎
-│   ├── task_orchestrator.py      # 任务编排器
-│   ├── dynamic_router.py         # 动态路由器
-│   ├── security.py               # 安全中间件
-│   ├── compensation.py           # 检查点管理
-│   ├── meeting.py                # 会议会话
-│   └── tests/                    # Python 测试
+│   ├── roles_config.yaml         # 角色配置（25+ 角色）
+│   └── tests/                    # Python 测试（532 tests）
+├── orchestrator/                 # TS 编排器（用户本地 Node.js）
+│   └── src/
+│       ├── cli.ts                # CLI 入口
+│       ├── server.ts             # HTTP + WebSocket 服务
+│       ├── team/                 # 团队管理
+│       ├── llm/                  # LLM 集成
+│       ├── toolkit/              # 工具包路由（local/remote/hybrid）
+│       └── loop/                 # 循环执行引擎
+├── loop-engineering/             # 循环工程优化（独立产品）
+├── skill_packs/                  # 技能包（5 个）
+├── protocol/                     # Bridge 协议文档
 ├── docs/                         # 文档
 └── .env                          # 环境变量（API Key）
 ```
@@ -101,9 +101,38 @@ docker compose up -d
 |---|---|
 | 前端 | React 18 + TypeScript + Vite 6 + Three.js |
 | 后端 | Python 3.11 + FastAPI + WebSocket |
+| 编排器 | Node.js + TypeScript（用户本地运行） |
 | AI | AgentScope + DeepSeek API |
-| 工具 | 自研工具执行框架 |
+| 工具 | 自研工具执行框架（支持本地/远端路由） |
 | 测试 | Vitest (TS) + pytest (Python) |
+
+## 系统架构
+
+```
+用户浏览器 (Chrome Side Panel)
+┌─────────────────────────────────────────────────┐
+│  React 前端 (端口 8080)                          │
+│  3D 虚拟办公室 + WebSocket 客户端                │
+└─────────────────────────────────────────────────┘
+        │ WebSocket                    │ HTTP
+        ▼                              ▼
+┌───────────────────┐        ┌───────────────────┐
+│  TS Orchestrator  │        │  Python Backend   │
+│  (端口 8080)      │        │  (端口 8765)      │
+│  - TeamCoordinator│        │  - CEO Agent      │
+│  - LLM 调用       │        │  - 投票/审批      │
+│  - 本地工具执行    │        │  - 技能进化       │
+│  - 远端工具路由    │        │                   │
+└────────┬──────────┘        └───────────────────┘
+         │ HTTP POST /execute
+         ▼
+┌───────────────────┐
+│  Python Executor  │
+│  (端口 8767)      │
+│  - 18 种内置工具  │
+│  - 工作区隔离     │
+└───────────────────┘
+```
 
 ## Agent 工具系统
 
@@ -116,6 +145,11 @@ docker compose up -d
 | 文档 | create_document, edit_document |
 | Web | web_fetch |
 
+工具执行支持本地/远端路由：
+- **本地执行**: Node.js child_process（适用于用户本地文件操作）
+- **远端执行**: HTTP POST 到 Python Executor（适用于服务器端操作）
+- **Per-Agent 选择**: 每个智能体可独立选择执行位置
+
 详细文档：[docs/agent-tools.md](docs/agent-tools.md)
 
 ## 角色配置
@@ -125,14 +159,26 @@ docker compose up -d
 ```yaml
 base_roles:
   executor:
-    name: "执行者"
+    name: "全栈开发工程师"
     permissions:
-      tools: ["read_file", "write_file", "git_commit", ...]
+      tools: ["read_file", "write_file", "edit_file", "list_directory", "bash", "git_status", "git_commit"]
       dangerous_tools: ["bash"]
-    skills: ["fullstack_dev"]
+    skills: ["frontend_dev", "backend_dev", "fullstack_dev", "testing"]
+    team_role: Executor
 ```
 
-支持自定义角色和技能混搭。可通过前端 `🗳️ 投票` 标签页的角色编辑器管理。
+支持自定义角色和技能混搭：
+
+```yaml
+custom_roles:
+  security_dev:
+    base_role: executor
+    extra_tools: ["grep_content", "run_linter"]
+    extra_skills: ["security_audit"]
+    name: "安全开发工程师"
+```
+
+可通过前端 `🗳️ 投票` 标签页的角色编辑器管理。
 
 ## WebSocket 消息协议
 
@@ -229,8 +275,10 @@ base_roles:
 npx vitest run
 
 # Python 测试 (532 tests)
-conda activate agentscope
 cd backend && python -m pytest tests/ --timeout=10
+
+# Orchestrator 测试
+cd orchestrator && npx vitest run
 
 # LLM 集成测试
 export $(cat .env | grep -v '^#' | xargs)
@@ -246,6 +294,10 @@ python backend/test_llm_integration.py
 
 ## 文档
 
+- [Agent 角色配置](docs/agent-roles.md)
 - [Agent 工具系统](docs/agent-tools.md)
-- [角色配置](backend/roles_config.yaml)
+- [设计文档](docs/design.md)
+- [用户指南](docs/user-guide.md)
 - [集成测试报告](docs/integration-test-report.md)
+- [Docker 部署指南](DOCKER_README.md)
+- [项目规则](project_rules.md)
