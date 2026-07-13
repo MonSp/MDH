@@ -473,3 +473,18 @@
 **验证**: 739 passed (736 old + 3 new), 1 skipped, 3 warnings。新增测试通过。
 
 **影响**: ExecutorServer 测试从 18 个增加到 21 个，覆盖 git 写操作和 token 端点。无运行时行为变更。
+
+---
+
+### [2026-07-13 22:30] 优化 #31：补充 SpecManager 边界测试（353 行，9→13 测试）
+
+**问题**: `spec_manager.py` 有 353 行代码，9 个测试覆盖核心流程，但缺少边界情况测试：最简 brief 生成、空 acceptance 校验失败、traceability matrix 覆盖完整性、无 companion_log 导出。
+
+**根因**: 测试只覆盖了 happy path，未覆盖输入边界和校验边界。
+
+**改动**:
+- `backend/tests/test_spec_manager.py` — 新增 4 个测试：最简 brief 生成树、空 acceptance 节点导致校验失败、traceability matrix 覆盖所有验收标准、无 companion_log 导出正常
+
+**验证**: 743 passed (739 old + 4 new), 1 skipped, 3 warnings。新增测试通过。
+
+**影响**: SpecManager 测试从 9 个增加到 13 个，覆盖输入边界和校验边界。无运行时行为变更。

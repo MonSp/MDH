@@ -170,5 +170,48 @@ class TestSpecManager:
         )
 
 
+    # ============ 边界情况 ============
+
+    def test_generate_from_minimal_brief(self):
+        """最简 brief 应能生成树"""
+        tree = self.manager.generate_spec_tree({
+            "goal": "做一个计算器",
+            "acceptance_criteria": ["能加减乘除"],
+        })
+        assert tree.rootNodeId is not None
+        assert len(tree.nodes) > 0
+
+    def test_validate_tree_with_empty_acceptance(self):
+        """空 acceptance 的节点应导致校验失败"""
+        tree = SpecTree(
+            rootNodeId="n0", version=2,
+            successCriteria=[SuccessCriterion(id="sc1", text="标准")],
+            nodes=[
+                SpecTreeNode(
+                    id="n0", parentId=None, type=SpecTreeNodeType.REQUIREMENT,
+                    title="需求", acceptance="",
+                ),
+            ],
+            provenance=Provenance(generationSource="llm"),
+        )
+        passed, _ = self.manager.validate_and_gate(tree)
+        assert passed is False
+
+    def test_traceability_matrix_has_all_criteria(self):
+        """矩阵应覆盖所有验收标准"""
+        tree = self._create_valid_tree()
+        matrix = self.manager.build_traceability_matrix(tree)
+        criteria_ids = {m["successCriteria"] for m in matrix["mappings"]}
+        expected = {sc.id for sc in tree.successCriteria}
+        assert criteria_ids == expected
+
+    def test_export_handoff_without_companion_log(self):
+        """无 companion_log 时导出应正常"""
+        tree = self._create_valid_tree()
+        docs = self.manager.generate_documents(tree)
+        handoff = self.manager.export_handoff(tree, docs)
+        assert handoff.companion_log == []
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
