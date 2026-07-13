@@ -161,3 +161,53 @@ def test_health():
     resp = client.get("/health")
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
+
+
+# ─── git_diff ───
+
+def test_git_diff(ws):
+    import subprocess
+    subprocess.run(["git", "init"], cwd=ws, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=ws, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=ws, capture_output=True)
+    with open(os.path.join(ws, "hello.txt"), "a") as f:
+        f.write(" modified")
+    resp = client.post("/execute", json={
+        "tool_name": "git_diff", "arguments": {}, "call_id": "t1", "workspace": ws,
+    }, headers=HEADERS)
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
+
+
+# ─── git_commit ───
+
+def test_git_commit(ws):
+    import subprocess
+    subprocess.run(["git", "init"], cwd=ws, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=ws, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=ws, capture_output=True)
+    resp = client.post("/execute", json={
+        "tool_name": "git_commit", "arguments": {"message": "test commit"}, "call_id": "t1", "workspace": ws,
+    }, headers=HEADERS)
+    assert resp.status_code == 200
+
+
+# ─── /token endpoint ───
+
+def test_token_endpoint():
+    resp = client.get("/token", headers=HEADERS)
+    assert resp.status_code == 200
+    assert "token" in resp.json()
+
+
+# ─── workspace validation ───
+
+def test_workspace_escape_blocked():
+    """docker_volume 模式下 workspace 逃逸应被阻止"""
+    from executor_server import STORAGE_BACKEND
+    if STORAGE_BACKEND != "docker_volume":
+        pytest.skip("only applies to docker_volume backend")
+    resp = client.post("/execute", json={
+        "tool_name": "read_file", "arguments": {"path": "test"}, "call_id": "t1", "workspace": "/etc",
+    }, headers=HEADERS)
+    assert resp.status_code == 403

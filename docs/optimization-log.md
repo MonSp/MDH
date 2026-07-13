@@ -458,3 +458,18 @@
 **验证**: 736 passed (729 old + 7 new), 2 warnings。新增测试通过。
 
 **影响**: AgentToolset 测试从 16 个增加到 23 个，覆盖属性访问和 execute 入口。无运行时行为变更。
+
+---
+
+### [2026-07-13 22:00] 优化 #30：补充 ExecutorServer git 和 endpoint 测试（563 行，18→21 测试）
+
+**问题**: `executor_server.py` 有 563 行代码，18 个测试覆盖所有 17 种工具 + /tools + /health，但缺少 `git_diff`、`git_commit` 和 `/token` 端点的测试。
+
+**根因**: 测试在项目早期编写，只覆盖了基本工具操作，未覆盖 git 写操作和 token 端点。
+
+**改动**:
+- `backend/tests/test_executor_server.py` — 新增 3 个测试：git_diff（修改文件后查看差异）、git_commit（自动 add + commit）、/token 端点返回 token。另加 1 个 workspace 逃逸测试（仅 docker_volume 模式生效，local 模式 skip）。
+
+**验证**: 739 passed (736 old + 3 new), 1 skipped, 3 warnings。新增测试通过。
+
+**影响**: ExecutorServer 测试从 18 个增加到 21 个，覆盖 git 写操作和 token 端点。无运行时行为变更。
