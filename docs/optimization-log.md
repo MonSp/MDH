@@ -413,3 +413,18 @@
 **验证**: 880 passed (875 old + 5 new), 0 failed。前端测试全部通过。
 
 **影响**: TaskDecomposer 测试从 5 个增加到 10 个，覆盖空输入、能力标签、复杂度比较。无运行时行为变更。
+
+---
+
+### [2026-07-13 20:30] 优化 #27：补充 DependencyAnalyzer 测试覆盖（627 行 TS，6→11 测试）
+
+**问题**: `src/modules/dependencyAnalyzer.ts` 有 627 行代码实现依赖分析（规则匹配、模式检测、关键路径、并行分组、环检测），但只有 6 个测试覆盖初始化、空列表、单任务、多任务、并行分组和并行化评分。
+
+**根因**: 测试在项目早期编写，只覆盖了最基本的分析场景，未覆盖规则/模式查询、顺序依赖检测和能力标签处理。
+
+**改动**:
+- `src/modules/__tests__/dependencyAnalyzer.test.ts` — 新增 5 个测试：getRules 返回规则列表、getPatterns 返回模式列表、顺序依赖检测（setup→implement→test）、带能力标签的任务处理、warnings 返回
+
+**验证**: 885 passed (880 old + 5 new), 0 failed。前端测试全部通过。
+
+**影响**: DependencyAnalyzer 测试从 6 个增加到 11 个，覆盖规则查询和依赖检测。无运行时行为变更。
