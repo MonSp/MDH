@@ -16,7 +16,7 @@ from agenda import AgendaStateMachine, AgendaPhase
 from collaboration.planner_agent import PlannerAgent, SubTask
 from dynamic_router import DynamicRouter
 from meeting import MeetingSession
-from negotiation import NegotiationEngine, ConsensusStrategy
+from negotiation import NegotiationEngine, ConsensusStrategy, Stance
 from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict, WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowNodeStatus, LLM_FALLBACK_TEMPLATE
 from team import Team
 from workflow_engine import WorkflowEngine
@@ -859,14 +859,42 @@ class MeetingCoordinator:
         )
         await on_message(coordinator_id, f"[提案] {proposal.content}", "")
 
-        # 各智能体投票
+        # 各智能体投票 — 基于讨论阶段的 stance 和 confidence
+        stance_by_agent: dict[str, dict] = {}
+        for dr in discussion_results:
+            aid = dr.get("agentId", "")
+            if aid:
+                stance_by_agent[aid] = dr
+
         for agent in self.meeting.agents:
             if agent.role in (AgentRole.CEO,):
                 continue
-            vote_approve = True
-            vote_reason = f"{agent.role.value}角色认同方案"
+            dr = stance_by_agent.get(agent.id, {})
+            stance = dr.get("parsed_stance", dr.get("stance", "neutral"))
+            confidence = dr.get("confidence", 0.5)
+
+            if stance == "oppose":
+                vote_approve = False
+                vote_reason = f"{agent.role.value}反对方案（置信度{confidence:.0%}）"
+            elif stance == "modify":
+                vote_approve = True
+                vote_reason = f"{agent.role.value}有条件赞成（建议修改，置信度{confidence:.0%}）"
+            elif stance == "support":
+                vote_approve = True
+                vote_reason = f"{agent.role.value}赞成方案（置信度{confidence:.0%}）"
+            else:  # neutral — 按 confidence 阈值决定
+                vote_approve = confidence >= 0.4
+                vote_reason = f"{agent.role.value}{'谨慎赞成' if vote_approve else '保留意见'}（置信度{confidence:.0%}）"
+
             self.negotiation.cast_vote(proposal.id, agent.id, vote_approve, reason=vote_reason)
-            await on_message(agent.id, f"[投票] 赞成 - {vote_reason}", "")
+            # 同时提交论据，激活 argument_based 策略
+            stance_enum = {"support": Stance.SUPPORT, "oppose": Stance.OPPOSE, "modify": Stance.MODIFY}.get(stance, Stance.NEUTRAL)
+            arg_content = dr.get("content", "")[:200]
+            if arg_content:
+                self.negotiation.add_argument(
+                    proposal.id, agent.id, stance_enum, confidence, arg_content,
+                )
+            await on_message(agent.id, f"[投票] {'赞成' if vote_approve else '反对'} - {vote_reason}", "")
 
         # 评估共识
         vote_result = self.negotiation.evaluate_consensus(proposal.id)
