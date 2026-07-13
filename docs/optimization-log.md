@@ -167,3 +167,21 @@
 **验证**: 866 passed, 0 failed。TypeScript 编译无新增错误（coordinator.ts 的 TS2345 为 pre-existing）。
 
 **影响**: 修复后审查解析失败不再自动批准，而是返回 `approved: false` 触发修复迭代。这是更安全的默认行为：宁可多审一轮也不能跳过审查。向后兼容：正常解析路径不受影响。
+
+---
+
+### [2026-07-13 12:30] 优化 #11：为 load_roles_config 添加 mtime 缓存消除重复磁盘读取
+
+**问题**: `agent_toolset.py` 的 `load_roles_config()` 每次调用都读取并解析 `roles_config.yaml`（`open()` + `yaml.safe_load()`），无任何缓存。`meeting_coordinator.py` 的 `_find_best_agent_for_task()` 在 Agent 循环内调用它（每次任务分配 N 次磁盘读取），`_get_agent_tools()` 也调用它。
+
+**根因**: `load_roles_config()` 是无状态函数，每次调用都执行完整的文件 I/O + YAML 解析。在 `_find_best_agent_for_task` 中，它被放在 `for agent in self.meeting.agents` 循环体内（第401行），导致 N 次冗余读取。
+
+**改动**:
+- `backend/agent_toolset.py` — 新增模块级缓存变量（`_roles_config_cache`、`_roles_config_mtime`、`_roles_config_path_cached`），`load_roles_config()` 检查文件 mtime，未变化时直接返回缓存。新增 `invalidate_roles_config_cache()` 清除缓存。
+- `backend/meeting_coordinator.py:_find_best_agent_for_task()` — 将 `load_roles_config()` 调用移到循环外
+- `backend/server.py:_save_roles_config()` — 写入后调用 `invalidate_roles_config_cache()` 清除缓存
+- `backend/tests/test_agent_toolset.py` — 新增 2 个测试：缓存命中验证、缓存清除验证
+
+**验证**: 650 passed (648 old + 2 new), 2 warnings。新增测试通过。
+
+**影响**: 修复后角色配置只在文件变化时重新加载，任务分配时不再重复读取磁盘。向后兼容：返回值语义不变，`invalidate_roles_config_cache()` 确保配置更新后缓存失效。

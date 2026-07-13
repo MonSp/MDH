@@ -622,6 +622,12 @@ def _save_roles_config(config):
     import yaml
     with open(_ROLES_CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+    # 清除 agent_toolset 的缓存，确保下次读取生效
+    try:
+        from agent_toolset import invalidate_roles_config_cache
+        invalidate_roles_config_cache()
+    except ImportError:
+        pass
 
 
 @app.get("/api/roles/config")

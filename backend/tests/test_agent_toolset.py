@@ -134,3 +134,27 @@ def test_custom_prompt_injection(temp_workspace):
     # 应该包含工具说明
     assert "grep_content" in prompt
     assert "run_linter" in prompt
+
+
+def test_load_roles_config_caching():
+    """load_roles_config 应该缓存结果，文件未变化时返回同一对象"""
+    from agent_toolset import load_roles_config, invalidate_roles_config_cache
+    import time
+
+    invalidate_roles_config_cache()
+    config1 = load_roles_config()
+    config2 = load_roles_config()
+    # 同一文件未变化时应返回缓存对象（同一引用）
+    assert config1 is config2, "缓存未生效：两次调用返回不同对象"
+
+
+def test_load_roles_config_cache_invalidation():
+    """invalidate_roles_config_cache 后应重新加载"""
+    from agent_toolset import load_roles_config, invalidate_roles_config_cache
+
+    invalidate_roles_config_cache()
+    config1 = load_roles_config()
+    invalidate_roles_config_cache()
+    config2 = load_roles_config()
+    # invalidate 后应返回新对象
+    assert config1 is not config2, "缓存未被正确清除"

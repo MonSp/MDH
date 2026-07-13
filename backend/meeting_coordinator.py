@@ -392,15 +392,16 @@ class MeetingCoordinator:
             '审查', '审核', '校对', 'review', 'edit', '检查', '质量',
         ])
 
+        # 一次性加载配置（有 mtime 缓存）
+        from agent_toolset import load_roles_config
+        config = load_roles_config()
+        all_roles = {**config.get("base_roles", {}), **config.get("custom_roles", {})}
+
         candidates = []
         for agent in self.meeting.agents:
             if agent.role == AgentRole.CEO:
                 continue
             tools = self._get_agent_tools(agent)
-            # 获取技能
-            from agent_toolset import load_roles_config
-            config = load_roles_config()
-            all_roles = {**config.get("base_roles", {}), **config.get("custom_roles", {})}
             role_config_id = agent.id.replace("agent-", "") if agent.id.startswith("agent-") else agent.id
             role_cfg = all_roles.get(role_config_id, {})
             skills = set(role_cfg.get("skills", []))

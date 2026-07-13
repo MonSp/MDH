@@ -24,23 +24,48 @@ logger = logging.getLogger(__name__)
 # 配置文件路径
 ROLES_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "roles_config.yaml")
 
+# 模块级缓存：避免重复读取磁盘
+_roles_config_cache: Optional[Dict] = None
+_roles_config_mtime: float = 0.0
+_roles_config_path_cached: str = ""
+
 
 def load_roles_config(config_path: str = None) -> Dict:
-    """加载角色配置文件
-    
+    """加载角色配置文件（带 mtime 缓存，文件未变化时直接返回缓存）
+
     Args:
         config_path: 配置文件路径，默认为roles_config.yaml
-        
+
     Returns:
         配置字典
     """
+    global _roles_config_cache, _roles_config_mtime, _roles_config_path_cached
     path = config_path or ROLES_CONFIG_PATH
+
+    # 缓存命中：同一文件且 mtime 未变化
+    if (_roles_config_cache is not None
+            and _roles_config_path_cached == path
+            and os.path.exists(path)
+            and os.path.getmtime(path) == _roles_config_mtime):
+        return _roles_config_cache
+
     if not os.path.exists(path):
         logger.warning("角色配置文件不存在: %s，使用默认配置", path)
         return {}
-    
+
     with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+
+    _roles_config_cache = config
+    _roles_config_mtime = os.path.getmtime(path)
+    _roles_config_path_cached = path
+    return config
+
+
+def invalidate_roles_config_cache() -> None:
+    """清除角色配置缓存（配置文件被写入后调用）"""
+    global _roles_config_cache
+    _roles_config_cache = None
 
 
 class AgentToolset:
