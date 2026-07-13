@@ -7,6 +7,7 @@ interface SettingsConfig {
   apiKey: string;
   baseUrl: string;
   multimodal: boolean;
+  backendToken: string;
 }
 
 interface SettingsPanelProps {
@@ -99,6 +100,16 @@ export default function SettingsPanel({
             <span>模型支持多模态（视觉理解）</span>
           </label>
           <p className="settings-hint">关闭后将禁用截图相关工具，适用于不支持图片输入的模型</p>
+        </div>
+        <div className="settings-group">
+          <label>后端访问令牌</label>
+          <input
+            type="password"
+            value={settingsCfg.backendToken}
+            onChange={e => updateField('backendToken', e.target.value)}
+            placeholder="留空则无认证（自动生成 token 时查看后端日志）"
+          />
+          <p className="settings-hint">后端启动时生成或通过 BACKEND_TOKEN 环境变量配置</p>
         </div>
         <div className="settings-actions">
           <button className="btn-secondary" onClick={onClose}>取消</button>

@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
   MULTIMODAL: 'llm_multimodal',
   CONVERSATIONS: 'agent_conversations',
   THEME: 'app_theme',
+  BACKEND_TOKEN: 'backend_token',
 } as const;
 
 export const SSO_KEYS = {
@@ -29,6 +30,7 @@ export interface SettingsConfig {
   apiKey: string;
   baseUrl: string;
   multimodal: boolean;
+  backendToken: string;
 }
 
 export interface SkillInfo {

@@ -12,6 +12,8 @@ interface UseWebSocketOptions {
   maxRetries?: number;
   /** 会话 ID，用于断线重连时恢复会话状态 */
   sessionId?: string;
+  /** 后端认证 token */
+  backendToken?: string;
 }
 
 export function useWebSocket({
@@ -23,6 +25,7 @@ export function useWebSocket({
   maxReconnectInterval = 30000,
   maxRetries = Infinity,
   sessionId,
+  backendToken,
 }: UseWebSocketOptions) {
   const [status, setStatus] = useState<WsStatus>('disconnected');
   const [retryCount, setRetryCount] = useState(0);
@@ -48,10 +51,11 @@ export function useWebSocket({
 
     setStatus('connecting');
     try {
-      // 重连时带上 sessionId 以恢复会话
-      const connectUrl = sessionIdRef.current
-        ? `${url}?session=${sessionIdRef.current}`
-        : url;
+      // 构建连接 URL：带 sessionId 和 backendToken
+      const params: string[] = [];
+      if (sessionIdRef.current) params.push(`session=${sessionIdRef.current}`);
+      if (backendToken) params.push(`token=${encodeURIComponent(backendToken)}`);
+      const connectUrl = params.length > 0 ? `${url}?${params.join('&')}` : url;
       const ws = new WebSocket(connectUrl);
       wsRef.current = ws;
 

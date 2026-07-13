@@ -22,9 +22,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 app = FastAPI(title="MDH Executor", version="2.0.0")
+_cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:8080,http://localhost:9090").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -142,15 +144,22 @@ class DockerVolumeFileSystem(FileSystemBackend):
     def __init__(self, volume_path: str):
         self.root = volume_path
 
+    def _resolve(self, path: str) -> str:
+        resolved = os.path.join(self.root, path)
+        real = os.path.realpath(resolved)
+        if not real.startswith(os.path.realpath(self.root)):
+            raise ValueError(f"Path traversal detected: {path}")
+        return real
+
     async def read_file(self, path: str) -> str:
-        full = os.path.join(self.root, path)
+        full = self._resolve(path)
         if not os.path.exists(full):
             raise FileNotFoundError(f"Not found: {path}")
         with open(full, "r", encoding="utf-8", errors="replace") as f:
             return f.read()
 
     async def write_file(self, path: str, content: str) -> str:
-        full = os.path.join(self.root, path)
+        full = self._resolve(path)
         os.makedirs(os.path.dirname(full), exist_ok=True)
         with open(full, "w", encoding="utf-8") as f:
             f.write(content)
@@ -165,16 +174,16 @@ class DockerVolumeFileSystem(FileSystemBackend):
         return f"Edited {path}"
 
     async def list_directory(self, path: str) -> list[str]:
-        full = os.path.join(self.root, path)
+        full = self._resolve(path)
         if not os.path.isdir(full):
             raise NotADirectoryError(f"Not a directory: {path}")
         return os.listdir(full)
 
     async def file_exists(self, path: str) -> bool:
-        return os.path.exists(os.path.join(self.root, path))
+        return os.path.exists(self._resolve(path))
 
     async def mkdir(self, path: str) -> None:
-        os.makedirs(os.path.join(self.root, path), exist_ok=True)
+        os.makedirs(self._resolve(path), exist_ok=True)
 
 
 class NfsFileSystem(LocalFileSystem):
@@ -254,6 +263,12 @@ async def execute_tool(
     _: bool = Depends(verify_token),
 ):
     workspace = request.workspace or WORKSPACE_ROOT
+    # docker_volume 模式下防止 workspace 参数逃逸
+    if STORAGE_BACKEND == "docker_volume":
+        ws_real = os.path.realpath(workspace)
+        root_real = os.path.realpath(WORKSPACE_ROOT)
+        if not ws_real.startswith(root_real):
+            raise HTTPException(status_code=403, detail="Workspace outside allowed root")
     check_danger_permission(request.tool_name, request.arguments, request.permission_token)
 
     handler = TOOL_HANDLERS.get(request.tool_name)

@@ -1,14 +1,18 @@
 import asyncio
+import hmac
 import json
 import logging
 import os
+import secrets
 import shutil
 import time
 import uuid
 from dataclasses import asdict
+from urllib.parse import parse_qs
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body, Depends, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import SKILLS_DIR
 from session import Session
@@ -32,14 +36,74 @@ from approval_manager import ApprovalManager
 
 logger = logging.getLogger("server")
 
+# ──────────────────── 认证配置 ────────────────────
+BACKEND_TOKEN = os.environ.get("BACKEND_TOKEN", "")
+if not BACKEND_TOKEN:
+    BACKEND_TOKEN = secrets.token_urlsafe(32)
+    logger.warning("BACKEND_TOKEN not set, generated: %s...", BACKEND_TOKEN[:8])
+
+
+async def verify_backend_token(authorization: str = Header(None)):
+    """REST API 认证依赖 — Bearer token"""
+    if not BACKEND_TOKEN:
+        return True
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    token = authorization.replace("Bearer ", "")
+    if not hmac.compare_digest(token, BACKEND_TOKEN):
+        raise HTTPException(status_code=403, detail="Invalid token")
+    return True
+
+
+def _verify_ws_token(ws: WebSocket) -> bool:
+    """WebSocket 认证 — 从 query string 提取 token"""
+    if not BACKEND_TOKEN:
+        return True
+    qs = ws.scope.get("query_string", b"").decode()
+    params = parse_qs(qs)
+    token = params.get("token", [None])[0]
+    if not token:
+        return False
+    return hmac.compare_digest(token, BACKEND_TOKEN)
+
+
 app = FastAPI()
+_cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:8080,http://localhost:9090").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """REST 请求认证中间件，跳过 /health /metrics /docs /openapi.json 和 OPTIONS 预检"""
+
+    _PUBLIC = {"/health", "/metrics", "/docs", "/openapi.json", "/redoc"}
+
+    async def dispatch(self, request: Request, call_next):
+        if not BACKEND_TOKEN:
+            return await call_next(request)
+        # OPTIONS 预检请求由 CORS 中间件处理，不拦截
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        path = request.url.path
+        if path in self._PUBLIC or path.startswith("/docs"):
+            return await call_next(request)
+        auth = request.headers.get("authorization", "")
+        token = auth.replace("Bearer ", "") if auth else ""
+        if not token:
+            from starlette.responses import JSONResponse
+            return JSONResponse({"detail": "Missing Authorization header"}, status_code=401)
+        if not hmac.compare_digest(token, BACKEND_TOKEN):
+            from starlette.responses import JSONResponse
+            return JSONResponse({"detail": "Invalid token"}, status_code=403)
+        return await call_next(request)
+
+
+app.add_middleware(AuthMiddleware)
 
 sessions: dict[str, Session] = {}
 
@@ -941,10 +1005,16 @@ async def delete_skill(skill_id: str):
 
 @app.websocket("/ws")
 async def ws_handler(ws: WebSocket):
+    # 认证：从 query string 的 token 参数校验
+    if BACKEND_TOKEN and not _verify_ws_token(ws):
+        await ws.close(code=4001, reason="Unauthorized")
+        return
     await ws.accept()
 
     # 尝试从 URL 参数恢复会话
-    restore_id = ws.scope.get("query_string", b"").decode()
+    qs_raw = ws.scope.get("query_string", b"").decode()
+    qs_params = parse_qs(qs_raw)
+    restore_id = qs_params.get("session", [None])[0]
     session = None
     if restore_id:
         session = Session.load_state(restore_id, ws)

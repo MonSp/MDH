@@ -51,6 +51,7 @@ function AppContent() {
     apiKey: '',
     baseUrl: '',
     multimodal: true,
+    backendToken: '',
   });
 
   const activeConvRef = useRef<Conversation | null>(null);
@@ -212,6 +213,7 @@ function AppContent() {
     url: localStorage.getItem(STORAGE_KEYS.AGENT_URL) || AGENT_URL_DEFAULT,
     onMessage: handleWsMessage,
     onOpen: () => send({ type: 'get_skills' }),
+    backendToken: localStorage.getItem(STORAGE_KEYS.BACKEND_TOKEN) || undefined,
   });
 
   useEffect(() => {
@@ -232,6 +234,7 @@ function AppContent() {
       apiKey: localStorage.getItem(STORAGE_KEYS.API_KEY) || '',
       baseUrl: localStorage.getItem(STORAGE_KEYS.BASE_URL) || '',
       multimodal: localStorage.getItem(STORAGE_KEYS.MULTIMODAL) !== 'false',
+      backendToken: localStorage.getItem(STORAGE_KEYS.BACKEND_TOKEN) || '',
     });
 
     const handleBridgeEvent = (event: MessageEvent) => {
@@ -333,6 +336,7 @@ function AppContent() {
     localStorage.setItem(STORAGE_KEYS.API_KEY, settingsCfg.apiKey.trim());
     localStorage.setItem(STORAGE_KEYS.BASE_URL, settingsCfg.baseUrl.trim());
     localStorage.setItem(STORAGE_KEYS.MULTIMODAL, String(settingsCfg.multimodal));
+    localStorage.setItem(STORAGE_KEYS.BACKEND_TOKEN, settingsCfg.backendToken.trim());
     setSettingsOpen(false);
     window.location.reload();
   }, [settingsCfg]);
