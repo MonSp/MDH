@@ -401,5 +401,90 @@ async def test_node_receives_upstream_data_via_edges():
     assert received_inputs["C"].get("output_from") == "B"
 
 
+# ── 混合执行策略 ──
+
+@pytest.mark.asyncio
+async def test_execute_workflow_mixed():
+    """测试混合执行策略（有边的节点顺序，无边的节点并行）"""
+    engine = WorkflowEngine()
+    nodes = [
+        WorkflowNode(node_id="A", task_description="准备", dept_id="dept-frontend",
+                     status=WorkflowNodeStatus.PENDING),
+        WorkflowNode(node_id="B", task_description="并行1", dept_id="dept-backend",
+                     status=WorkflowNodeStatus.PENDING),
+        WorkflowNode(node_id="C", task_description="并行2", dept_id="dept-qa",
+                     status=WorkflowNodeStatus.PENDING),
+        WorkflowNode(node_id="D", task_description="汇总", dept_id="dept-frontend",
+                     status=WorkflowNodeStatus.PENDING),
+    ]
+    edges = [
+        WorkflowEdge(source_node_id="A", target_node_id="D"),
+    ]
+    definition = WorkflowDefinition(
+        workflow_id="mixed-test", name="混合工作流", description="",
+        nodes=nodes, edges=edges, execution_strategy="mixed",
+    )
+
+    executed = []
+
+    async def tracking_executor(node, input_data):
+        executed.append(node.node_id)
+        return {"result": f"完成 {node.node_id}"}
+
+    engine.register_node_executor("dept-frontend", tracking_executor)
+    engine.register_node_executor("dept-backend", tracking_executor)
+    engine.register_node_executor("dept-qa", tracking_executor)
+
+    execution = engine.create_workflow(definition)
+    await engine.execute_workflow(execution.execution_id)
+
+    status = engine.get_workflow_status(execution.execution_id)
+    assert status.status == WorkflowExecutionStatus.COMPLETED
+    assert len(executed) == 4
+
+
+# ── 错误处理 ──
+
+def test_get_status_nonexistent_raises(workflow_engine):
+    """不存在的执行ID应抛异常"""
+    with pytest.raises(KeyError):
+        workflow_engine.get_workflow_status("nonexistent")
+
+
+@pytest.mark.asyncio
+async def test_execute_nonexistent_raises(workflow_engine):
+    """不存在的执行ID应抛异常"""
+    with pytest.raises(KeyError):
+        await workflow_engine.execute_workflow("nonexistent")
+
+
+def test_register_node_executor(workflow_engine):
+    """注册节点执行器应可被查询"""
+    async def my_executor(node, input_data):
+        return {}
+    workflow_engine.register_node_executor("dept-custom", my_executor)
+    assert "dept-custom" in workflow_engine._node_executors
+
+
+@pytest.mark.asyncio
+async def test_status_change_callback_called(workflow_engine, sample_workflow_definition):
+    """状态变化回调应在执行时被调用"""
+    async def mock_executor(node, input_data):
+        return {"result": "ok"}
+
+    workflow_engine.register_node_executor("dept-frontend", mock_executor)
+    workflow_engine.register_node_executor("dept-backend", mock_executor)
+    workflow_engine.register_node_executor("dept-qa", mock_executor)
+
+    callbacks = []
+    async def on_status(e):
+        callbacks.append(e.status.value)
+    workflow_engine.set_status_change_callback(on_status)
+    execution = workflow_engine.create_workflow(sample_workflow_definition)
+    await workflow_engine.execute_workflow(execution.execution_id)
+    assert "running" in callbacks
+    assert "completed" in callbacks
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
