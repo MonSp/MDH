@@ -51,3 +51,37 @@
 **验证**: 638 passed (634 old + 4 new), 2 warnings。新增测试全部通过。
 
 **影响**: 修复后每个新项目启动时都会自动检索过往经验并注入任务描述，执行 Agent 在生成代码/方案时能参考历史成功模式和失败教训。向后兼容：首次运行（无历史规则）时行为不变，异常时静默跳过。
+
+---
+
+### [2026-07-13 10:00] 优化 #4：修复工作流引擎并行/混合策略的依赖失败传播缺失
+
+**问题**: `workflow_engine.py` 的 `_execute_parallel` 和 `_execute_mixed` 策略中，当一个节点失败时，依赖它的下游节点仍会被执行。例如 A→B→C 链中，A 失败后 B 和 C 仍会执行，导致无意义的计算和潜在错误。
+
+**根因**: 两种策略都通过 `in_degree` 计数器判断节点是否就绪，但只在 `_execute_sequential` 中调用了 `_check_dependencies()` 验证依赖是否真正完成。`_execute_parallel` 和 `_execute_mixed` 仅根据 `in_degree == 0` 就执行节点，不检查依赖节点的实际状态（COMPLETED vs FAILED/SKIPPED）。
+
+**改动**:
+- `backend/workflow_engine.py` — 在 `_execute_parallel` 和 `_execute_mixed` 的就绪节点筛选中，增加 `_check_dependencies()` 调用。依赖未满足时，通过新方法 `_propagate_skip()` 递归标记该节点及所有下游节点为 SKIPPED，同时正确递减所有受影响节点的 `in_degree`
+- `backend/workflow_engine.py` — 新增 `_propagate_skip()` 辅助方法，递归传播跳过状态
+- `backend/tests/test_workflow_engine.py` — 新增 `test_parallel_workflow_skips_dependents_on_failure` 测试用例
+
+**验证**: 86 passed (82 old + 4 new), 0 failed。新增测试验证 A→B→C 链中 A 失败后 B 和 C 均被标记为 SKIPPED 且不被执行。
+
+**影响**: 修复后工作流引擎在并行/混合策略下能正确处理依赖失败：失败节点的下游会被跳过而非无意义执行。向后兼容：正常执行（无失败）时行为不变。
+
+---
+
+### [2026-07-13 09:30] 优化 #5：审查流水线整合 LLM 审查意见到结构化验收决策
+
+**问题**: `review_pipeline.py` 的 `_generate_structured_feedback()` 只将 `task_description` 和 `execution_result` 传给 planner 的关键词匹配器，完全忽略刚生成的 `reviewer_feedback` 和 `monitor_feedback`。这意味着审查者通过 LLM 发现的严重问题（如安全漏洞、逻辑错误）不会影响验收决策——planner 的纯关键词匹配可能判定为 "approved"。
+
+**根因**: 结构化反馈生成（第110行）在 reviewer/monitor 反馈生成（第95-102行）之后调用，但没有将这些反馈传入。`generate_review_feedback()` 已有 `context` 参数支持额外信息，但调用时未使用。
+
+**改动**:
+- `backend/review_pipeline.py:_generate_structured_feedback()` — 新增 `reviewer_feedback` 和 `monitor_feedback` 参数，传入 planner 的 `context`。增加关键信号检测：如果 reviewer 反馈包含"严重/致命/critical/fatal/blocker/必须修复/不能发布"等关键词且 planner 判定 approved，则覆盖为 `revision_required`
+- `backend/review_pipeline.py` 第110行 — 更新调用，传入 reviewer_feedback 和 monitor_feedback
+- `backend/tests/test_review_pipeline.py` — 新增 6 个测试：普通审查通过、严重问题覆盖、关键词变体、monitor 不触发覆盖、空反馈保持不变、非严重反馈保持 approved
+
+**验证**: 645 passed (638 old + 7 new), 2 warnings。新增测试全部通过。
+
+**影响**: 修复后审查流水线的验收决策将综合 planner 关键词匹配和 LLM 审查意见。审查者发现的严重问题可以阻止自动批准，触发修复迭代。向后兼容：无严重关键词时行为不变。

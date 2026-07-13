@@ -106,8 +106,10 @@ class ReviewPipeline:
             task_description, execution_result, reviewer_feedback, monitor_feedback, on_message
         )
         
-        # 6. 结构化验收反馈
-        structured_feedback = self._generate_structured_feedback(task_description, execution_result)
+        # 6. 结构化验收反馈（整合 LLM 审查意见）
+        structured_feedback = self._generate_structured_feedback(
+            task_description, execution_result, reviewer_feedback, monitor_feedback,
+        )
         
         return {
             "critic_result": {
@@ -245,13 +247,35 @@ class ReviewPipeline:
         self._meeting.update_agent_status(coordinator_id, MeetingAgentStatus.MEETING)
         return summary
     
-    def _generate_structured_feedback(self, task_description: str, execution_result: str) -> Dict[str, Any]:
-        """生成结构化验收反馈"""
+    def _generate_structured_feedback(
+        self,
+        task_description: str,
+        execution_result: str,
+        reviewer_feedback: str = "",
+        monitor_feedback: str = "",
+    ) -> Dict[str, Any]:
+        """生成结构化验收反馈，整合 LLM 审查意见"""
         if self._planner:
             subtask = SubTask(
                 name=task_description[:100],
                 description=task_description,
             )
-            return self._planner.generate_review_feedback(task=subtask, output=execution_result)
-        
+            result = self._planner.generate_review_feedback(
+                task=subtask,
+                output=execution_result,
+                context={"reviewer_feedback": reviewer_feedback, "monitor_feedback": monitor_feedback},
+            )
+            # 如果 LLM 审查发现了严重问题但 planner 关键词匹配未捕获，降级为 revision_required
+            if result.get("status") == "approved" and reviewer_feedback:
+                critical_signals = ["严重", "致命", "阻塞", "critical", "fatal", "blocker", "必须修复", "不能发布"]
+                if any(sig in reviewer_feedback.lower() for sig in critical_signals):
+                    result["status"] = "revision_required"
+                    result["issues"].append({
+                        "type": "logic_error",
+                        "location": "reviewer",
+                        "detail": "审查者发现严重问题",
+                        "suggestion": reviewer_feedback[:200],
+                    })
+            return result
+
         return {"status": "approved", "issues": [], "max_iterations": 3}
