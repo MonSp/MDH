@@ -579,11 +579,14 @@ export class TeamCoordinator {
         
         return { approved: parsed.approved !== false, feedback };
       }
-    } catch {}
+    } catch (e) {
+      console.error('[review] Failed to parse review result:', e);
+    }
 
     onEvent?.({ type: 'agent_message', agentId: `agent-${reviewerRole}`, content: reviewResult.substring(0, 500), timestamp: Date.now() });
     onEvent?.({ type: 'agent_status_update', agentId: `agent-${reviewerRole}`, status: 'meeting' });
-    return { approved: true, feedback: reviewResult };
+    // 解析失败时不自动批准 — 无法确认审查是否通过
+    return { approved: false, feedback: reviewResult };
   }
 
   // ====== 上下文截断 ======

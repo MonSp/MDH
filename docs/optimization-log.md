@@ -151,3 +151,19 @@
 **验证**: 866 passed, 0 failed。TypeScript 编译零新增错误。
 
 **影响**: 消除 2 处 `as any` 类型逃逸，恢复类型安全。向后兼容：运行时行为不变（`MessageStatus.Pending` 的值就是 `'pending'`）。
+
+---
+
+### [2026-07-13 12:00] 优化 #10：修复 orchestrator 审查解析失败时自动批准
+
+**问题**: `orchestrator/src/team/coordinator.ts:582` 的 `catch {}` 静默吞掉审查结果解析的所有异常。当 LLM 返回非 JSON 格式的审查结果时，JSON 解析失败被 catch 捕获，代码 fall through 到 `return { approved: true }` — 审查解析失败等同于自动批准。
+
+**根因**: `catch {}` 空块不记录错误，且后续代码无条件返回 `approved: true`。这意味着任何解析异常（JSON 格式错误、LLM 返回纯文本、网络中断导致空响应）都会绕过审查门禁。
+
+**改动**:
+- `orchestrator/src/team/coordinator.ts:582` — `catch {}` → `catch (e) { console.error(...) }`，添加错误日志
+- `orchestrator/src/team/coordinator.ts:586` — `return { approved: true }` → `return { approved: false }`，解析失败时不自动批准
+
+**验证**: 866 passed, 0 failed。TypeScript 编译无新增错误（coordinator.ts 的 TS2345 为 pre-existing）。
+
+**影响**: 修复后审查解析失败不再自动批准，而是返回 `approved: false` 触发修复迭代。这是更安全的默认行为：宁可多审一轮也不能跳过审查。向后兼容：正常解析路径不受影响。
