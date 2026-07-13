@@ -257,6 +257,75 @@ class TestAgentBridgeE2E(unittest.TestCase):
         result = self._run(self.bridge.unregister_ts_agent("nonexistent", self._send_fn))
         self.assertFalse(result)
 
+    # ── ID 映射查询方法 ──
+
+    def test_get_ts_id_and_py_id(self):
+        """注册后应能双向查询 ID"""
+        self._run(self.bridge.register_ts_agent(
+            ts_agent_id="ts-001",
+            name="TS Agent",
+            role="executor",
+            capabilities=["code_gen"],
+            send_fn=self._send_fn,
+        ))
+        py_id = self.bridge.get_py_id("ts-001")
+        ts_id = self.bridge.get_ts_id(py_id)
+        self.assertIsNotNone(py_id)
+        self.assertEqual(ts_id, "ts-001")
+
+    def test_get_ts_id_nonexistent(self):
+        """不存在的 py_id 应返回 None"""
+        self.assertIsNone(self.bridge.get_ts_id("nonexistent"))
+
+    def test_get_py_id_nonexistent(self):
+        """不存在的 ts_id 应返回 None"""
+        self.assertIsNone(self.bridge.get_py_id("nonexistent"))
+
+    def test_is_ts_agent(self):
+        """注册的 TS 智能体应返回 True，Python 原生返回 False"""
+        self._run(self.bridge.register_ts_agent(
+            ts_agent_id="ts-002",
+            name="TS Agent",
+            role="executor",
+            capabilities=[],
+            send_fn=self._send_fn,
+        ))
+        py_id = self.bridge.get_py_id("ts-002")
+        self.assertTrue(self.bridge.is_ts_agent(py_id))
+        self.assertFalse(self.bridge.is_ts_agent("agent-executor"))
+
+    def test_get_all_ts_agents(self):
+        """get_all_ts_agents 应返回所有注册的 TS 智能体"""
+        for i in range(3):
+            self._run(self.bridge.register_ts_agent(
+                ts_agent_id=f"ts-{i:03d}",
+                name=f"TS Agent {i}",
+                role="executor",
+                capabilities=[],
+                send_fn=self._send_fn,
+            ))
+        all_ts = self.bridge.get_all_ts_agents()
+        self.assertEqual(len(all_ts), 3)
+        self.assertTrue(all("id" in a for a in all_ts))
+
+    def test_get_py_agent(self):
+        """get_py_agent 应返回 MeetingAgentInfo"""
+        self._run(self.bridge.register_ts_agent(
+            ts_agent_id="ts-003",
+            name="TS Agent",
+            role="executor",
+            capabilities=[],
+            send_fn=self._send_fn,
+        ))
+        py_id = self.bridge.get_py_id("ts-003")
+        agent = self.bridge.get_py_agent(py_id)
+        self.assertIsNotNone(agent)
+        self.assertEqual(agent.id, py_id)
+
+    def test_get_py_agent_nonexistent(self):
+        """不存在的 agent_id 应返回 None"""
+        self.assertIsNone(self.bridge.get_py_agent("nonexistent"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -323,3 +323,18 @@
 **验证**: 707 passed (702 old + 5 new), 2 warnings。新增测试通过。
 
 **影响**: CrossNetworkBridge 测试从 7 个增加到 12 个，覆盖序列化、消息处理和错误路径。无运行时行为变更。
+
+---
+
+### [2026-07-13 17:30] 优化 #21：补充 AgentBridge 测试覆盖（316 行，7→14 测试）
+
+**问题**: `agent_bridge.py` 有 316 行代码实现 TS-Python 智能体桥接，但只有 7 个测试。缺少 `get_ts_id`、`get_py_id`、`is_ts_agent`、`get_all_ts_agents`、`get_py_agent` 等 ID 映射查询方法的测试。
+
+**根因**: 测试在项目早期编写，只覆盖了注册/注销和基本消息流，未覆盖查询方法。
+
+**改动**:
+- `backend/tests/test_agent_bridge.py` — 新增 7 个测试：get_ts_id/get_py_id 双向查询、不存在 ID 返回 None、is_ts_agent 区分 TS/Python 智能体、get_all_ts_agents 返回所有注册智能体、get_py_agent 返回 MeetingAgentInfo、get_py_agent 不存在返回 None
+
+**验证**: 714 passed (707 old + 7 new), 2 warnings。新增测试通过。
+
+**影响**: AgentBridge 测试从 7 个增加到 14 个，覆盖所有公开查询方法。无运行时行为变更。
