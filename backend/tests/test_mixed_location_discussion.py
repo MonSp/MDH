@@ -330,5 +330,70 @@ class TestParseStance:
         assert conf == 0.7
 
 
+# ── _build_previous_context 测试 ──
+
+class TestBuildPreviousContext:
+    def setup_method(self):
+        from mixed_location_discussion import MixedLocationDiscussion
+        from negotiation import NegotiationEngine, ConsensusStrategy
+        from agenda import AgendaStateMachine
+        from unittest.mock import MagicMock
+
+        team = MagicMock()
+        team.members = []
+        self.discussion = MixedLocationDiscussion(
+            team=team,
+            agenda=AgendaStateMachine(),
+            negotiation=NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY),
+            get_model_fn=lambda role: MagicMock(),
+        )
+
+    def test_empty_discussions(self):
+        """无讨论时应返回默认文本"""
+        result = self.discussion._build_previous_context([])
+        assert "暂无讨论" in result
+
+    def test_strips_stance_tags(self):
+        """应去除 STANCE 和 CONFIDENCE 标签"""
+        discussions = [
+            {"agent_name": "开发", "content": "方案可行 [STANCE:support] [CONFIDENCE:0.9]", "round": 1, "location": "local"},
+        ]
+        result = self.discussion._build_previous_context(discussions)
+        assert "[STANCE:" not in result
+        assert "[CONFIDENCE:" not in result
+        assert "方案可行" in result
+
+    def test_location_icons(self):
+        """本地应显示 💻，远端应显示 ☁️"""
+        discussions = [
+            {"agent_name": "开发", "content": "本地任务", "round": 1, "location": "local"},
+            {"agent_name": "审查", "content": "远端审查", "round": 1, "location": "remote"},
+        ]
+        result = self.discussion._build_previous_context(discussions)
+        assert "💻" in result
+        assert "☁️" in result
+
+    def test_truncates_long_content(self):
+        """长内容应被截断到 80 字符"""
+        long_content = "x" * 200
+        discussions = [
+            {"agent_name": "开发", "content": long_content, "round": 1, "location": "local"},
+        ]
+        result = self.discussion._build_previous_context(discussions)
+        assert "..." in result
+        assert len(result) < 200
+
+    def test_limits_to_10_entries(self):
+        """只取最近 10 条讨论"""
+        discussions = [
+            {"agent_name": f"Agent-{i}", "content": f"发言{i}", "round": i, "location": "local"}
+            for i in range(15)
+        ]
+        result = self.discussion._build_previous_context(discussions)
+        # 应该只有 10 条
+        assert "Agent-14" in result
+        assert "Agent-0" not in result  # 最早的应被排除
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

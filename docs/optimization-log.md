@@ -353,3 +353,18 @@
 **验证**: 718 passed (714 old + 4 new), 2 warnings。新增测试通过。
 
 **影响**: ReviewPipeline 测试从 6 个增加到 10 个，覆盖完整 review() 流程和错误路径。无运行时行为变更。
+
+---
+
+### [2026-07-13 18:30] 优化 #23：补充 MixedLocationDiscussion _build_previous_context 测试（432 行，10→15 测试）
+
+**问题**: `mixed_location_discussion.py` 有 432 行代码，10 个测试覆盖基本流程和 stance 解析，但 `_build_previous_context` 方法（构建讨论上下文、去除 STANCE/CONFIDENCE 标签、位置图标渲染、内容截断、条目限制）没有测试。
+
+**根因**: 测试只覆盖了 `run()` 流程和 `_parse_stance()`，未覆盖上下文构建逻辑。
+
+**改动**:
+- `backend/tests/test_mixed_location_discussion.py` — 新增 `TestBuildPreviousContext` 测试类，5 个测试：空讨论默认文本、去除 STANCE/CONFIDENCE 标签、本地💻/远端☁️图标、长内容截断到 80 字符、限制最近 10 条
+
+**验证**: 723 passed (718 old + 5 new), 2 warnings。新增测试通过。
+
+**影响**: MixedLocationDiscussion 测试从 10 个增加到 15 个，覆盖上下文构建逻辑。无运行时行为变更。
