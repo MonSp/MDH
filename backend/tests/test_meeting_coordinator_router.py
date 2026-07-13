@@ -470,5 +470,77 @@ class TestStanceFieldCompatibility:
         assert target == "agent-executor"
 
 
+# ---------------------------------------------------------------------------
+# 项目总结报告生成
+# ---------------------------------------------------------------------------
+
+
+class TestProjectSummary:
+    def test_summary_includes_all_sections(self, coordinator):
+        """总结报告应包含所有标准章节"""
+        analysis = SemanticAnalysisResult(
+            is_task=True, intent="task", task_description="开发登录页面",
+            target_agent_id="agent-executor", reason="测试",
+        )
+        summary = coordinator._generate_project_summary(
+            user_message="开发登录页面",
+            analysis=analysis,
+            discussion_results=[
+                {"agentId": "agent-planner", "content": "使用 React", "stance": "support"},
+            ],
+            assign_result={"task_id": "t1", "agent_id": "agent-executor", "status": "assigned"},
+            review_result={
+                "critic_result": {"severity": "low", "findings": []},
+                "grounding_result": {"grounded": True, "sources": []},
+            },
+            execution_results=[
+                {"agent_id": "agent-executor", "written_files": ["login.tsx"], "code_blocks_count": 3},
+            ],
+        )
+        assert "项目总结报告" in summary
+        assert "团队讨论要点" in summary
+        assert "任务分配" in summary
+        assert "执行结果" in summary
+        assert "质量审查" in summary
+        assert "交付物清单" in summary
+        assert "login.tsx" in summary
+
+    def test_summary_handles_empty_results(self, coordinator):
+        """空结果不应崩溃"""
+        analysis = SemanticAnalysisResult(
+            is_task=True, intent="task", task_description="测试",
+            target_agent_id="", reason="",
+        )
+        summary = coordinator._generate_project_summary(
+            user_message="测试",
+            analysis=analysis,
+            discussion_results=[],
+            assign_result={},
+            review_result={},
+            execution_results=[],
+        )
+        assert "项目总结报告" in summary
+        assert "无文件交付" in summary
+
+    def test_summary_stance_compatibility(self, coordinator):
+        """总结报告应兼容两种 stance 字段名"""
+        analysis = SemanticAnalysisResult(
+            is_task=True, intent="task", task_description="测试",
+            target_agent_id="", reason="",
+        )
+        # mixed_location_discussion 格式
+        summary = coordinator._generate_project_summary(
+            user_message="测试",
+            analysis=analysis,
+            discussion_results=[
+                {"agentId": "agent-planner", "content": "方案A", "stance": "support"},
+            ],
+            assign_result={},
+            review_result={},
+            execution_results=[],
+        )
+        assert "✅" in summary  # support icon
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -217,3 +217,18 @@
 **验证**: 659 passed (654 old + 5 new), 2 warnings。新增测试通过。
 
 **影响**: 修复后并行讨论引擎只接受合法 stance 值，无效值回退为 neutral。confidence 始终在合法范围。向后兼容：合法 stance 值行为不变。
+
+---
+
+### [2026-07-13 14:00] 优化 #14：为项目总结报告和 stance 兼容性补充测试覆盖
+
+**问题**: `_generate_project_summary` 方法（生成项目总结报告，包含讨论要点、任务分配、执行结果、质量审查、交付物清单）没有测试覆盖。该方法读取 discussion_results 的 stance 字段，需要验证与两种字段名格式（`parsed_stance` / `stance`）的兼容性。
+
+**根因**: 项目总结报告是串行流程的关键输出，但从未有专门的测试验证其内容完整性。
+
+**改动**:
+- `backend/tests/test_meeting_coordinator_router.py` — 新增 `TestProjectSummary` 测试类，3 个测试：所有章节完整性验证、空结果处理、stance 字段兼容性
+
+**验证**: 662 passed (659 old + 3 new), 2 warnings。新增测试通过。
+
+**影响**: 测试覆盖保障项目总结报告在各场景下的正确性。无运行时行为变更。
