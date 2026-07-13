@@ -202,10 +202,20 @@ class MeetingCoordinator:
         }
 
     async def _on_workflow_status_change(self, execution):
-        """工作流状态变化回调"""
-        self.logger.info("工作流状态变化: %s -> %s", execution.execution_id, execution.status.value)
-        # 这里可以推送状态更新到前端
-        # 暂时只记录日志
+        """工作流状态变化回调 — 推送到前端"""
+        status_value = execution.status.value if hasattr(execution.status, 'value') else str(execution.status)
+        self.logger.info("工作流状态变化: %s -> %s", execution.execution_id, status_value)
+
+        if self._on_message:
+            ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
+            status_text = f"工作流 {execution.workflow_id} 状态变更: {status_value}"
+            await self._on_message(
+                ceo_id, status_text, "",
+                msg_type="workflow_status_update",
+                workflow_id=execution.workflow_id,
+                execution_id=execution.execution_id,
+                status=status_value,
+            )
 
     async def _on_workflow_node_status_change(self, execution, node_id):
         """工作流节点状态变化回调 — 推送到前端"""

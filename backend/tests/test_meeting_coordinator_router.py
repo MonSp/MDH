@@ -375,5 +375,58 @@ class TestRouterStatsUpdate:
         assert table["dept-software"].successful_tasks == 9
 
 
+# ---------------------------------------------------------------------------
+# 工作流状态变化推送到前端
+# ---------------------------------------------------------------------------
+
+
+class TestWorkflowStatusCallback:
+    @pytest.mark.asyncio
+    async def test_workflow_status_change_pushes_to_frontend(self, coordinator):
+        """工作流状态变化应推送到前端"""
+        messages = []
+
+        async def capture_on_message(agent_id, text, extra, **kwargs):
+            messages.append({"agent_id": agent_id, "text": text, **kwargs})
+
+        coordinator._on_message = capture_on_message
+
+        # 添加一个 CEO agent 用于消息路由
+        from meeting import MeetingAgentInfo
+        ceo = MeetingAgentInfo(
+            id="agent-ceo", name="CEO", role=AgentRole.CEO,
+            status=MeetingAgentStatus.MEETING,
+        )
+        coordinator.meeting.agents.append(ceo)
+
+        # 模拟工作流执行状态变化
+        class FakeExecution:
+            execution_id = "exec-1"
+            workflow_id = "wf-1"
+            status = type("Status", (), {"value": "completed"})()
+
+        await coordinator._on_workflow_status_change(FakeExecution())
+
+        assert len(messages) == 1
+        assert messages[0]["agent_id"] == "agent-ceo"
+        assert "completed" in messages[0]["text"]
+        assert messages[0].get("msg_type") == "workflow_status_update"
+        assert messages[0].get("workflow_id") == "wf-1"
+        assert messages[0].get("execution_id") == "exec-1"
+
+    @pytest.mark.asyncio
+    async def test_workflow_status_no_crash_without_on_message(self, coordinator):
+        """无 on_message 回调时不应崩溃"""
+        coordinator._on_message = None
+
+        class FakeExecution:
+            execution_id = "exec-2"
+            workflow_id = "wf-2"
+            status = type("Status", (), {"value": "failed"})()
+
+        # 不应抛异常
+        await coordinator._on_workflow_status_change(FakeExecution())
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -101,3 +101,19 @@
 **验证**: 646 passed (645 old + 1 new), 2 warnings。新增测试通过。
 
 **影响**: 修复后工作流节点间可以正确传递数据。sequential 策略下每个节点的 `input_data` 将包含上游节点的 `result`。向后兼容：无边定义的工作流行为不变（返回空列表）。
+
+---
+
+### [2026-07-13 10:30] 优化 #7：工作流状态变化推送到前端
+
+**问题**: `meeting_coordinator.py` 的 `_on_workflow_status_change()` 回调（第204行）只记录日志，不推送到前端。用户能看到单个节点的状态更新（`_on_workflow_node_status_change` 已实现推送），但无法跟踪工作流的整体生命周期（RUNNING/COMPLETED/FAILED/PAUSED）。
+
+**根因**: `_on_workflow_node_status_change`（第210行）有完整的前端推送逻辑（通过 `_on_message` 回调发送 `msg_type`、`node_id`、`status`），但 `_on_workflow_status_change` 被标记为"暂时只记录日志"的 stub。
+
+**改动**:
+- `backend/meeting_coordinator.py:_on_workflow_status_change()` — 添加前端推送逻辑，通过 `_on_message` 发送 `msg_type="workflow_status_update"`，包含 `workflow_id`、`execution_id`、`status`。复用已有的 `_find_agent_id(AgentRole.CEO)` 路由消息到 CEO agent。无 `_on_message` 时安全降级为纯日志。
+- `backend/tests/test_meeting_coordinator_router.py` — 新增 `TestWorkflowStatusCallback` 测试类，2 个测试：状态变化推送到前端、无回调时不崩溃
+
+**验证**: 648 passed (646 old + 2 new), 2 warnings。新增测试通过。
+
+**影响**: 修复后前端可以接收工作流整体状态变化事件，配合已有的节点状态更新实现完整的生命周期追踪。向后兼容：无 `_on_message` 时行为不变。
