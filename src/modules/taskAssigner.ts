@@ -40,6 +40,7 @@ export class TaskAssigner {
   private registry: AgentRegistry
   private communicationBus: CommunicationBus
   private assignments: Map<string, TaskAssignment> = new Map()
+  private completedAssignments: Map<string, TaskAssignment> = new Map()
   private strategies: Map<string, AssignmentStrategy> = new Map()
   private defaultStrategy: AssignmentStrategy
 
@@ -287,6 +288,7 @@ export class TaskAssigner {
     if (!assignment) return false
 
     this.registry.completeTaskForInstance(assignment.agentId, true)
+    this.completedAssignments.set(taskId, { ...assignment })
     this.assignments.delete(taskId)
     return true
   }
@@ -326,8 +328,10 @@ export class TaskAssigner {
     completedAssignments: number
     averageSuccessRate: number
   } {
-    const assignments = this.getAllAssignments()
-    const instances = new Set(assignments.map(a => a.agentId))
+    const active = this.getAllAssignments()
+    const completed = Array.from(this.completedAssignments.values())
+    const allAssignments = [...active, ...completed]
+    const instances = new Set(allAssignments.map(a => a.agentId))
 
     let totalSuccessRate = 0
     instances.forEach(instanceId => {
@@ -338,9 +342,9 @@ export class TaskAssigner {
     })
 
     return {
-      totalAssignments: assignments.length,
-      activeAssignments: assignments.length,
-      completedAssignments: 0,
+      totalAssignments: allAssignments.length,
+      activeAssignments: active.length,
+      completedAssignments: completed.length,
       averageSuccessRate: instances.size > 0 ? totalSuccessRate / instances.size : 0,
     }
   }

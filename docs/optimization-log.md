@@ -117,3 +117,21 @@
 **验证**: 648 passed (646 old + 2 new), 2 warnings。新增测试通过。
 
 **影响**: 修复后前端可以接收工作流整体状态变化事件，配合已有的节点状态更新实现完整的生命周期追踪。向后兼容：无 `_on_message` 时行为不变。
+
+---
+
+### [2026-07-13 11:00] 优化 #8：修复 TaskAssigner 统计中活跃/已完成任务数硬编码
+
+**问题**: `src/modules/taskAssigner.ts` 的 `getAssignmentStats()` 返回硬编码的 `completedAssignments: 0` 和 `activeAssignments: assignments.length`。`removeAssignment()` 从 `assignments` Map 中直接删除已完成的任务，导致已完成任务从跟踪中消失，统计永远不准确。
+
+**根因**: `removeAssignment()` 调用 `this.assignments.delete(taskId)` 后任务数据丢失。没有单独的 `completedAssignments` 跟踪，`getAssignmentStats()` 无法区分活跃和已完成的任务。
+
+**改动**:
+- `src/modules/taskAssigner.ts` — 新增 `completedAssignments: Map<string, TaskAssignment>` 字段
+- `removeAssignment()` — 删除前将任务移入 `completedAssignments`
+- `getAssignmentStats()` — 分别统计活跃（`assignments.size`）和已完成（`completedAssignments.size`）
+- `src/modules/__tests__/taskAssigner.test.ts` — 新增 1 个测试：验证 `removeAssignment` 后活跃数降为 0、已完成数升为 1、总数不变
+
+**验证**: 866 passed (865 old + 1 new), 0 failed。TypeScript 编译通过。
+
+**影响**: 修复后 `getAssignmentStats()` 返回准确的活跃/已完成任务数。向后兼容：返回类型不变，只是数值从错误变为正确。

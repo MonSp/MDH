@@ -289,7 +289,27 @@ describe('TaskAssigner', () => {
       const stats = assigner.getAssignmentStats()
       expect(stats.totalAssignments).toBe(1)
       expect(stats.activeAssignments).toBe(1)
+      expect(stats.completedAssignments).toBe(0)
       expect(stats.averageSuccessRate).toBeGreaterThan(0)
+    })
+
+    it('should track completed assignments after removal', async () => {
+      setupRegistry(registry)
+      await assigner.assignTask(makeTask())
+
+      // Before removal
+      let stats = assigner.getAssignmentStats()
+      expect(stats.activeAssignments).toBe(1)
+      expect(stats.completedAssignments).toBe(0)
+
+      // Remove (complete) the assignment
+      assigner.removeAssignment('task-1')
+
+      // After removal
+      stats = assigner.getAssignmentStats()
+      expect(stats.totalAssignments).toBe(1)
+      expect(stats.activeAssignments).toBe(0)
+      expect(stats.completedAssignments).toBe(1)
     })
   })
 
