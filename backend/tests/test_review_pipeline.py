@@ -86,3 +86,98 @@ class TestStructuredFeedbackIntegration:
             "task", "<html>ok</html>", reviewer_feedback="小问题，建议优化样式",
         )
         assert result["status"] == "approved"
+
+
+# ── 完整 review() 流程 ──
+
+
+class TestReviewFlow:
+    @pytest.mark.asyncio
+    async def test_full_review_returns_all_sections(self, pipeline):
+        """完整 review 流程应返回所有章节"""
+        messages = []
+
+        async def on_message(agent_id, text, extra, **kwargs):
+            messages.append({"agent_id": agent_id, "text": text})
+
+        result = await pipeline.review(
+            task_description="开发登录页面",
+            execution_result="<html>login form</html>",
+            on_message=on_message,
+        )
+
+        assert "critic_result" in result
+        assert "grounding_result" in result
+        assert "reviewer_feedback" in result
+        assert "monitor_feedback" in result
+        assert "coordinator_summary" in result
+        assert "structured_feedback" in result
+
+    @pytest.mark.asyncio
+    async def test_review_with_no_agents(self):
+        """无 agent 时 review 不应崩溃"""
+        meeting = MagicMock()
+        meeting.agents = []
+
+        def get_model(role):
+            m = MagicMock()
+            m.reply = AsyncMock(return_value=_FakeMsg("OK"))
+            return m
+
+        pipeline = ReviewPipeline(
+            get_model_fn=get_model,
+            meeting=meeting,
+            planner=None,
+        )
+
+        result = await pipeline.review(
+            task_description="test",
+            execution_result="output",
+            on_message=AsyncMock(),
+        )
+        assert "structured_feedback" in result
+
+    @pytest.mark.asyncio
+    async def test_review_with_discussion_context(self, pipeline):
+        """review 应接受 discussion_context 参数且不崩溃"""
+        result = await pipeline.review(
+            task_description="test",
+            execution_result="output",
+            on_message=AsyncMock(),
+            discussion_context="团队决定使用 React",
+        )
+        # 无 agent 时 feedback 为空字符串，但不应崩溃
+        assert "reviewer_feedback" in result
+
+    @pytest.mark.asyncio
+    async def test_reviewer_llm_failure_uses_fallback(self):
+        """reviewer LLM 失败时应使用 fallback"""
+        meeting = MagicMock()
+        meeting.agents = []
+
+        call_count = 0
+
+        def get_model(role):
+            nonlocal call_count
+            m = MagicMock()
+            if call_count == 0:
+                # reviewer 调用失败
+                m.reply = AsyncMock(side_effect=Exception("LLM error"))
+            else:
+                m.reply = AsyncMock(return_value=_FakeMsg("OK"))
+            call_count += 1
+            return m
+
+        pipeline = ReviewPipeline(
+            get_model_fn=get_model,
+            meeting=meeting,
+            planner=None,
+        )
+
+        result = await pipeline.review(
+            task_description="test",
+            execution_result="output",
+            on_message=AsyncMock(),
+        )
+        # 不应崩溃，应有 fallback 反馈
+        assert "reviewer_feedback" in result

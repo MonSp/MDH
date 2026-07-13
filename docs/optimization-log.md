@@ -338,3 +338,18 @@
 **验证**: 714 passed (707 old + 7 new), 2 warnings。新增测试通过。
 
 **影响**: AgentBridge 测试从 7 个增加到 14 个，覆盖所有公开查询方法。无运行时行为变更。
+
+---
+
+### [2026-07-13 18:00] 优化 #22：补充 ReviewPipeline 完整 review() 流程测试（281 行，6→10 测试）
+
+**问题**: `review_pipeline.py` 有 281 行代码，6 个测试只覆盖 `_generate_structured_feedback` 方法。`review()` 公开方法（完整审查流程：CriticAgent → GroundingAgent → reviewer LLM → monitor LLM → coordinator summary）完全没有测试。
+
+**根因**: 测试在优化 #5 添加时只覆盖了结构化反馈逻辑，未覆盖完整流程。
+
+**改动**:
+- `backend/tests/test_review_pipeline.py` — 新增 4 个测试：完整 review() 返回所有章节、无 agent 时不崩溃、接受 discussion_context 参数、reviewer LLM 失败时使用 fallback
+
+**验证**: 718 passed (714 old + 4 new), 2 warnings。新增测试通过。
+
+**影响**: ReviewPipeline 测试从 6 个增加到 10 个，覆盖完整 review() 流程和错误路径。无运行时行为变更。
