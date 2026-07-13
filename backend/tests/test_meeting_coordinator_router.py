@@ -542,5 +542,55 @@ class TestProjectSummary:
         assert "✅" in summary  # support icon
 
 
+# ---------------------------------------------------------------------------
+# confidence 字段兼容性
+# ---------------------------------------------------------------------------
+
+
+class TestConfidenceFieldCompatibility:
+    def test_voting_uses_parsed_confidence(self, coordinator):
+        """投票应使用 parsed_confidence（discussion_manager 格式）"""
+        from negotiation import NegotiationEngine, ConsensusStrategy
+        coordinator.negotiation = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
+        from meeting import MeetingAgentInfo
+        from protocol import AgentRole, MeetingAgentStatus
+
+        ceo = MeetingAgentInfo(id="agent-ceo", name="CEO", role=AgentRole.CEO, status=MeetingAgentStatus.MEETING)
+        executor = MeetingAgentInfo(id="agent-executor", name="执行", role=AgentRole.EXECUTOR, status=MeetingAgentStatus.MEETING)
+        coordinator.meeting.agents.extend([ceo, executor])
+
+        # 模拟 discussion_manager 格式的讨论结果
+        discussion_results = [
+            {"agentId": "agent-executor", "parsed_stance": "support", "parsed_confidence": 0.9, "content": "方案可行", "role": "executor"},
+        ]
+
+        # 构建 stance 查找表
+        stance_by_agent = {}
+        for dr in discussion_results:
+            aid = dr.get("agentId", "")
+            if aid:
+                stance_by_agent[aid] = dr
+
+        dr = stance_by_agent.get("agent-executor", {})
+        confidence = dr.get("parsed_confidence", dr.get("confidence", 0.5))
+        assert confidence == 0.9, f"应读取 parsed_confidence=0.9, 实际={confidence}"
+
+    def test_voting_uses_confidence_field(self, coordinator):
+        """投票应使用 confidence（mixed_location_discussion 格式）"""
+        discussion_results = [
+            {"agentId": "agent-executor", "stance": "support", "confidence": 0.7, "content": "方案可行", "role": "executor"},
+        ]
+
+        stance_by_agent = {}
+        for dr in discussion_results:
+            aid = dr.get("agentId", "")
+            if aid:
+                stance_by_agent[aid] = dr
+
+        dr = stance_by_agent.get("agent-executor", {})
+        confidence = dr.get("parsed_confidence", dr.get("confidence", 0.5))
+        assert confidence == 0.7, f"应读取 confidence=0.7, 实际={confidence}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

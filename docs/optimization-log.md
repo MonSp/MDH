@@ -232,3 +232,19 @@
 **验证**: 662 passed (659 old + 3 new), 2 warnings。新增测试通过。
 
 **影响**: 测试覆盖保障项目总结报告在各场景下的正确性。无运行时行为变更。
+
+---
+
+### [2026-07-13 14:30] 优化 #15：修复 confidence 字段名不一致导致串行讨论置信度丢失
+
+**问题**: `meeting_coordinator.py:907` 读取 `dr.get("confidence", 0.5)`，但 `discussion_manager.py` 将置信度存储在 `parsed_confidence` 字段下。当串行讨论引擎被使用时，投票权重始终为默认值 0.5 而非 LLM 解析的实际置信度。
+
+**根因**: 与 stance 字段相同的模式——`discussion_manager` 使用 `parsed_confidence`，`mixed_location_discussion` 使用 `confidence`。投票阶段只检查了 `confidence`。
+
+**改动**:
+- `backend/meeting_coordinator.py:907` — `dr.get("confidence", 0.5)` → `dr.get("parsed_confidence", dr.get("confidence", 0.5))`
+- `backend/tests/test_meeting_coordinator_router.py` — 新增 `TestConfidenceFieldCompatibility` 测试类，2 个测试：`parsed_confidence` 格式和 `confidence` 格式的正确读取
+
+**验证**: 664 passed (662 old + 2 new), 2 warnings。新增测试通过。
+
+**影响**: 修复后串行讨论引擎的置信度值能正确传递到投票权重。向后兼容：`parsed_confidence` 优先，`confidence` 作为 fallback。

@@ -904,7 +904,7 @@ class MeetingCoordinator:
                 continue
             dr = stance_by_agent.get(agent.id, {})
             stance = dr.get("parsed_stance", dr.get("stance", "neutral"))
-            confidence = dr.get("confidence", 0.5)
+            confidence = dr.get("parsed_confidence", dr.get("confidence", 0.5))
 
             if stance == "oppose":
                 vote_approve = False
