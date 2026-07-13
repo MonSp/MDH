@@ -263,3 +263,18 @@
 **验证**: 676 passed (664 old + 12 new), 2 warnings。新增测试全部通过。
 
 **影响**: AgentPool 从零覆盖提升到全面覆盖。无运行时行为变更。
+
+---
+
+### [2026-07-13 15:30] 优化 #17：为 LLMCache 添加测试覆盖（79 行缓存模块零测试）
+
+**问题**: `llm_cache.py` 实现了 LLM 响应缓存（MD5 key、TTL 过期、LRU 淘汰、hit/miss 统计），被 `meeting_coordinator.py` 的语义分析缓存使用，但没有专门的测试覆盖。
+
+**根因**: 该模块在项目早期编写，从未被纳入测试套件。
+
+**改动**:
+- `backend/tests/test_llm_cache.py` — 新增 12 个测试，覆盖：CacheEntry 过期判断、put/get 基本操作、miss 返回 None、TTL 过期、hit_count 计数、stats 统计（含零访问边界）、max_size LRU 淘汰、clear 清空、role/model 隔离、过期条目在 get 时自动清除
+
+**验证**: 688 passed (676 old + 12 new), 2 warnings。新增测试全部通过。
+
+**影响**: LLMCache 从零覆盖提升到全面覆盖。无运行时行为变更。
