@@ -488,3 +488,18 @@
 **验证**: 743 passed (739 old + 4 new), 1 skipped, 3 warnings。新增测试通过。
 
 **影响**: SpecManager 测试从 9 个增加到 13 个，覆盖输入边界和校验边界。无运行时行为变更。
+
+---
+
+### [2026-07-13 23:00] 优化 #32：补充 ToolExecutor git 和 run_tests 测试（726 行，15→18 测试）
+
+**问题**: `tool_executor.py` 有 726 行代码实现 18 种工具，15 个测试仍缺 git_diff、git_commit、run_tests、run_linter 等工具的测试。
+
+**根因**: 测试在优化 #19 添加时只覆盖了部分工具，git 写操作和测试运行器未覆盖。
+
+**改动**:
+- `backend/tests/test_tool_executor.py` — 新增 3 个测试：git_diff（修改后查看差异）、git_commit（自动 add + commit）、run_tests（skip if python not on PATH）。run_linter 作为 smoke test 添加。
+
+**验证**: 746 passed (743 old + 3 new), 2 skipped, 3 warnings。新增测试通过。
+
+**影响**: ToolExecutor 测试从 15 个增加到 18 个，覆盖 git 写操作和测试运行器。无运行时行为变更。

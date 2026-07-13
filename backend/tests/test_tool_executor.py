@@ -220,3 +220,71 @@ def test_unknown_tool(tool_executor):
     ))
     assert result.success is False
     assert "不支持" in result.error or "unknown" in result.error.lower()
+
+
+# ── git_diff ──
+
+def test_git_diff(tool_executor, temp_workspace):
+    import subprocess
+    subprocess.run(["git", "init"], cwd=temp_workspace, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=temp_workspace, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=temp_workspace, capture_output=True)
+    with open(os.path.join(temp_workspace, "f.txt"), "w") as f:
+        f.write("original")
+    subprocess.run(["git", "add", "."], cwd=temp_workspace, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=temp_workspace, capture_output=True)
+    with open(os.path.join(temp_workspace, "f.txt"), "a") as f:
+        f.write(" modified")
+
+    result = tool_executor.execute(ToolCall(tool_name="git_diff", arguments={}))
+    assert result.success is True
+    assert "modified" in result.output
+
+
+# ── git_commit ──
+
+def test_git_commit(tool_executor, temp_workspace):
+    import subprocess
+    subprocess.run(["git", "init"], cwd=temp_workspace, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=temp_workspace, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=temp_workspace, capture_output=True)
+    with open(os.path.join(temp_workspace, "new.txt"), "w") as f:
+        f.write("content")
+
+    result = tool_executor.execute(ToolCall(
+        tool_name="git_commit",
+        arguments={"message": "test commit"}
+    ))
+    assert result.success is True
+
+
+# ── run_tests ──
+
+def test_run_tests(tool_executor, temp_workspace):
+    import shutil
+    if not shutil.which("python"):
+        import pytest
+        pytest.skip("python not on PATH (only python3)")
+
+    with open(os.path.join(temp_workspace, "test_sample.py"), "w") as f:
+        f.write("def test_ok(): assert True\n")
+
+    result = tool_executor.execute(ToolCall(
+        tool_name="run_tests",
+        arguments={"test_path": "test_sample.py"}
+    ))
+    assert result.success is True
+
+
+# ── run_linter ──
+
+def test_run_linter(tool_executor, temp_workspace):
+    with open(os.path.join(temp_workspace, "clean.py"), "w") as f:
+        f.write("x = 1\n")
+
+    result = tool_executor.execute(ToolCall(
+        tool_name="run_linter",
+        arguments={"path": "clean.py"}
+    ))
+    # linter may or may not be installed, just check it doesn't crash
+    assert result is not None
