@@ -298,5 +298,108 @@ def test_calculate_in_degree(workflow_engine, sample_workflow_definition):
     assert in_degree["node-3"] == 1
 
 
+@pytest.mark.asyncio
+async def test_parallel_workflow_skips_dependents_on_failure():
+    """并行策略中，依赖节点失败时下游节点应被跳过而非执行"""
+    engine = WorkflowEngine()
+
+    # node-1 → node-2 → node-3（并行策略，但有依赖链）
+    nodes = [
+        WorkflowNode(node_id="node-1", task_description="上游任务", dept_id="dept-frontend",
+                     status=WorkflowNodeStatus.PENDING),
+        WorkflowNode(node_id="node-2", task_description="下游任务", dept_id="dept-backend",
+                     status=WorkflowNodeStatus.PENDING),
+        WorkflowNode(node_id="node-3", task_description="最终任务", dept_id="dept-qa",
+                     status=WorkflowNodeStatus.PENDING),
+    ]
+    edges = [
+        WorkflowEdge(source_node_id="node-1", target_node_id="node-2"),
+        WorkflowEdge(source_node_id="node-2", target_node_id="node-3"),
+    ]
+    definition = WorkflowDefinition(
+        workflow_id="fail-chain", name="失败链测试", description="",
+        nodes=nodes, edges=edges, execution_strategy="parallel",
+    )
+
+    executed_nodes = []
+
+    async def failing_executor(node, input_data):
+        if node.node_id == "node-1":
+            raise RuntimeError("模拟失败")
+        executed_nodes.append(node.node_id)
+        return {"result": "ok"}
+
+    engine.register_node_executor("dept-frontend", failing_executor)
+    engine.register_node_executor("dept-backend", failing_executor)
+    engine.register_node_executor("dept-qa", failing_executor)
+
+    execution = engine.create_workflow(definition)
+    # 执行不应抛出异常（_execute_node 内部捕获）
+    await engine.execute_workflow(execution.execution_id)
+
+    status = engine.get_workflow_status(execution.execution_id)
+    # node-1 失败
+    assert status.node_states["node-1"] == WorkflowNodeStatus.FAILED
+    # node-2 和 node-3 应被跳过，不应被执行
+    assert status.node_states["node-2"] == WorkflowNodeStatus.SKIPPED
+    assert status.node_states["node-3"] == WorkflowNodeStatus.SKIPPED
+    assert "node-2" not in executed_nodes
+    assert "node-3" not in executed_nodes
+
+
+@pytest.mark.asyncio
+async def test_node_receives_upstream_data_via_edges():
+    """验证节点能通过 edges 接收上游节点的输出数据
+
+    A→B→C 链中，B 的 input_data 应包含 A 的输出。
+    此测试验证 _get_incoming_edges 不再返回空列表。
+    """
+    engine = WorkflowEngine()
+
+    nodes = [
+        WorkflowNode(node_id="A", task_description="生产数据", dept_id="dept-frontend",
+                     status=WorkflowNodeStatus.PENDING, input_spec={"role": "producer"}),
+        WorkflowNode(node_id="B", task_description="消费数据", dept_id="dept-backend",
+                     status=WorkflowNodeStatus.PENDING, input_spec={"role": "consumer"}),
+        WorkflowNode(node_id="C", task_description="汇总", dept_id="dept-qa",
+                     status=WorkflowNodeStatus.PENDING),
+    ]
+    edges = [
+        WorkflowEdge(source_node_id="A", target_node_id="B"),
+        WorkflowEdge(source_node_id="B", target_node_id="C"),
+    ]
+    definition = WorkflowDefinition(
+        workflow_id="data-flow-test", name="数据流测试", description="",
+        nodes=nodes, edges=edges, execution_strategy="sequential",
+    )
+
+    received_inputs = {}
+
+    async def tracking_executor(node, input_data):
+        received_inputs[node.node_id] = dict(input_data)
+        return {"output_from": node.node_id, "value": len(node.node_id)}
+
+    engine.register_node_executor("dept-frontend", tracking_executor)
+    engine.register_node_executor("dept-backend", tracking_executor)
+    engine.register_node_executor("dept-qa", tracking_executor)
+
+    execution = engine.create_workflow(definition)
+    await engine.execute_workflow(execution.execution_id)
+
+    status = engine.get_workflow_status(execution.execution_id)
+    assert status.status == WorkflowExecutionStatus.COMPLETED
+
+    # A 的输入只有自身 input_spec
+    assert received_inputs["A"].get("role") == "producer"
+
+    # B 的输入应包含自身 input_spec + A 的输出
+    assert received_inputs["B"].get("role") == "consumer"
+    assert received_inputs["B"].get("output_from") == "A"
+    assert received_inputs["B"].get("value") is not None
+
+    # C 的输入应包含 B 的输出
+    assert received_inputs["C"].get("output_from") == "B"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

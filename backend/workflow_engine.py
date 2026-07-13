@@ -215,7 +215,6 @@ class WorkflowEngine:
             # 更新入度，找出新的就绪节点
             new_ready_nodes = []
             for node in ready_nodes:
-                # 减少依赖此节点的节点的入度
                 for dependent_node_id in dependency_graph[node.node_id]:
                     in_degree[dependent_node_id] -= 1
                     if in_degree[dependent_node_id] == 0:
@@ -223,7 +222,13 @@ class WorkflowEngine:
                             n for n in definition.nodes
                             if n.node_id == dependent_node_id
                         )
-                        new_ready_nodes.append(dependent_node)
+                        if self._check_dependencies(dependent_node, execution, definition):
+                            new_ready_nodes.append(dependent_node)
+                        else:
+                            await self._propagate_skip(
+                                dependent_node_id, execution, definition,
+                                dependency_graph, in_degree, new_ready_nodes,
+                            )
 
             ready_nodes = new_ready_nodes
 
@@ -282,7 +287,6 @@ class WorkflowEngine:
             # 更新入度，找出新的就绪节点
             new_ready_nodes = []
             for node in ready_nodes:
-                # 减少依赖此节点的节点的入度
                 for dependent_node_id in dependency_graph[node.node_id]:
                     in_degree[dependent_node_id] -= 1
                     if in_degree[dependent_node_id] == 0:
@@ -290,9 +294,43 @@ class WorkflowEngine:
                             n for n in definition.nodes
                             if n.node_id == dependent_node_id
                         )
-                        new_ready_nodes.append(dependent_node)
+                        if self._check_dependencies(dependent_node, execution, definition):
+                            new_ready_nodes.append(dependent_node)
+                        else:
+                            await self._propagate_skip(
+                                dependent_node_id, execution, definition,
+                                dependency_graph, in_degree, new_ready_nodes,
+                            )
 
             ready_nodes = new_ready_nodes
+
+    async def _propagate_skip(
+        self,
+        node_id: str,
+        execution: WorkflowExecution,
+        definition: WorkflowDefinition,
+        dependency_graph: Dict[str, List[str]],
+        in_degree: Dict[str, int],
+        new_ready_nodes: list,
+    ):
+        """标记节点为跳过，并传播到所有下游节点"""
+        execution.node_states[node_id] = WorkflowNodeStatus.SKIPPED
+        await self._notify_node_status_change(execution, node_id)
+        logger.warning("节点 %s 被跳过", node_id)
+
+        for dependent_id in dependency_graph.get(node_id, []):
+            in_degree[dependent_id] -= 1
+            if in_degree[dependent_id] == 0:
+                dependent_node = next(
+                    n for n in definition.nodes if n.node_id == dependent_id
+                )
+                if self._check_dependencies(dependent_node, execution, definition):
+                    new_ready_nodes.append(dependent_node)
+                else:
+                    await self._propagate_skip(
+                        dependent_id, execution, definition,
+                        dependency_graph, in_degree, new_ready_nodes,
+                    )
 
     async def _execute_node(self, execution: WorkflowExecution, node: WorkflowNode):
         """执行单个节点
@@ -583,10 +621,10 @@ class WorkflowEngine:
         Returns:
             边列表
         """
-        # 这里需要从定义中获取边，但execution中没有定义
-        # 实际应用中可能需要将定义保存在execution中
-        # 暂时返回空列表
-        return []
+        definition = self._definitions.get(execution.workflow_id)
+        if not definition:
+            return []
+        return [e for e in definition.edges if e.target_node_id == node.node_id]
 
     async def pause_workflow(self, execution_id: str):
         """暂停工作流

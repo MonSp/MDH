@@ -85,3 +85,19 @@
 **验证**: 645 passed (638 old + 7 new), 2 warnings。新增测试全部通过。
 
 **影响**: 修复后审查流水线的验收决策将综合 planner 关键词匹配和 LLM 审查意见。审查者发现的严重问题可以阻止自动批准，触发修复迭代。向后兼容：无严重关键词时行为不变。
+
+---
+
+### [2026-7-13 10:00] 优化 #6：修复工作流引擎节点间数据传递断裂
+
+**问题**: `workflow_engine.py` 的 `_get_incoming_edges()` 方法硬编码返回空列表（第627行），导致 `_get_node_input()` 无法从上游节点收集输出数据。工作流中 A→B→C 的数据流完全断裂——B 无法获得 A 的输出，C 无法获得 B 的输出。
+
+**根因**: 方法内注释"暂时返回空列表"，但 `WorkflowDefinition` 已有 `edges` 属性（存储在 `self._definitions` 中），只是 `_get_incoming_edges()` 没有查询它。`execution.workflow_id` 可以用来查找对应的定义。
+
+**改动**:
+- `backend/workflow_engine.py:_get_incoming_edges()` — 通过 `execution.workflow_id` 从 `self._definitions` 查找定义，过滤 `target_node_id == node.node_id` 的边返回
+- `backend/tests/test_workflow_engine.py` — 新增 `test_node_receives_upstream_data_via_edges` 测试，验证 A→B→C 链中 B 收到 A 的输出、C 收到 B 的输出
+
+**验证**: 646 passed (645 old + 1 new), 2 warnings。新增测试通过。
+
+**影响**: 修复后工作流节点间可以正确传递数据。sequential 策略下每个节点的 `input_data` 将包含上游节点的 `result`。向后兼容：无边定义的工作流行为不变（返回空列表）。
