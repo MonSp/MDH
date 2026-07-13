@@ -35,3 +35,19 @@
 **验证**: 634 passed (619 old + 15 new), 2 warnings。新增测试全部通过。
 
 **影响**: 修复后投票阶段将真实反映各智能体的立场。如果讨论中有 Agent 反对方案，投票结果可能为"未通过"，触发 `vote_rejected` 终止流程并要求用户重新描述需求。这使协作决策从"橡皮图章"变为有意义的集体判断。向后兼容：讨论结果为空时行为不变（所有 Agent 默认 neutral + confidence=0.5 → approve）。
+
+---
+
+### [2026-07-13 09:00] 优化 #3：在会议流程中注入历史经验到任务描述
+
+**问题**: `meeting_coordinator.py` 的串行流程在项目结束时提取经验规则（第1063行），但在项目开始时从不检索和注入过往经验。`ExperienceExtractor` 的 `retrieve_relevant_rules()` 和 `build_experience_context()` 方法只被 `task_orchestrator.py` 调用，而主会议流程（串行路径）完全不使用。经验系统有写入路径但缺少读取路径。
+
+**根因**: 会议流程的任务描述增强（`_enhance_task_description`）只整合了当前讨论结果，没有检索历史经验。`task_orchestrator.py` 有自己的 `_inject_experience_context()` 方法，但串行流程走的是 `meeting_coordinator.process_user_message()` → `auto_assign_task()` → `execute_assigned_tasks()` 路径，不经过 task_orchestrator。
+
+**改动**:
+- `backend/meeting_coordinator.py:840-860` — 在讨论结果整合之后、任务分派之前，新增经验注入逻辑：从 `ExperienceExtractor` 检索与当前任务类型和关键词匹配的已批准规则，构建经验上下文并追加到增强后的任务描述中。同时从讨论结果中提取补充关键词以提高检索精度。异常时静默跳过，不影响主流程。
+- `backend/tests/test_experience_extractor.py` — 新增 `TestExperienceInjection` 测试类，4 个测试用例：检索并注入到任务描述、无规则时跳过注入、只有 approved 状态可被检索、讨论关键词改善检索
+
+**验证**: 638 passed (634 old + 4 new), 2 warnings。新增测试全部通过。
+
+**影响**: 修复后每个新项目启动时都会自动检索过往经验并注入任务描述，执行 Agent 在生成代码/方案时能参考历史成功模式和失败教训。向后兼容：首次运行（无历史规则）时行为不变，异常时静默跳过。

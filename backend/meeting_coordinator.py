@@ -837,7 +837,29 @@ class MeetingCoordinator:
         enhanced_description = self._enhance_task_description(original_description, discussion_results)
         self.logger.info("串行流程 - 任务描述已整合讨论结果: 原始长度=%d, 增强后长度=%d",
                         len(original_description), len(enhanced_description))
-        
+
+        # 注入历史经验：从过往项目中检索相关规则，注入任务描述
+        try:
+            from experience_extractor import ExperienceExtractor
+            import os
+            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
+            task_type = extractor._infer_task_type(original_description)
+            content_kw = extractor._extract_content_keywords(original_description)
+            # 从讨论结果中也提取关键词
+            for dr in discussion_results:
+                content_kw |= extractor._extract_content_keywords(dr.get("content", ""))
+            past_rules = extractor.retrieve_relevant_rules(task_type, sorted(content_kw))
+            if past_rules:
+                exp_context = extractor.build_experience_context(past_rules[:5])
+                enhanced_description = f"{enhanced_description}\n\n{exp_context}"
+                coordinator_exp_text = f"项目经理：已注入 {len(past_rules)} 条历史经验到任务描述。"
+                await self._msg(coordinator_id, coordinator_exp_text)
+                self.meeting.add_message("agent", coordinator_exp_text, coordinator_id)
+                self.logger.info("注入 %d 条历史经验 (task_type=%s)", len(past_rules), task_type)
+        except Exception as e:
+            self.logger.debug("历史经验注入跳过: %s", e)
+
         coordinator_integrate_text = f"项目经理：已整合团队讨论结果，任务描述已更新。"
         await self._msg(coordinator_id, coordinator_integrate_text)
         self.meeting.add_message("agent", coordinator_integrate_text, coordinator_id)

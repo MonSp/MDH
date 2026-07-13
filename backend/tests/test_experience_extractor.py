@@ -390,5 +390,73 @@ class TestQueryMethods:
         assert pending[0].rule_id == rules[1].rule_id
 
 
+# ──────────────────── 经验注入到任务描述 ────────────────────
+
+
+class TestExperienceInjection:
+    """验证经验规则可以被检索并注入到任务描述中"""
+
+    def test_retrieve_and_inject_into_task_description(self, extractor):
+        """模拟 meeting_coordinator 的经验注入流程"""
+        # 1. 提取并批准规则
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        for rule in rules:
+            extractor.submit_for_review(rule)
+            extractor.approve_rule(rule.rule_id)
+
+        # 2. 模拟新任务到来时的检索
+        task_type = "web-dev"
+        content_kw = {"navigate", "click", "button", "web-dev"}
+        past_rules = extractor.retrieve_relevant_rules(task_type, sorted(content_kw))
+        assert len(past_rules) > 0, "应检索到已批准的规则"
+
+        # 3. 构建经验上下文并注入任务描述
+        exp_context = extractor.build_experience_context(past_rules[:5])
+        assert exp_context, "经验上下文不应为空"
+
+        task_desc = "开发一个用户登录页面"
+        enhanced = f"{task_desc}\n\n{exp_context}"
+
+        assert "历史经验参考" in enhanced
+        assert "navigate" in enhanced or "click" in enhanced or "web-dev" in enhanced
+        assert len(enhanced) > len(task_desc)
+
+    def test_injection_skipped_when_no_rules(self, extractor):
+        """无已批准规则时，注入应为空"""
+        task_type = "unknown-type"
+        past_rules = extractor.retrieve_relevant_rules(task_type, ["nonexistent"])
+        assert past_rules == []
+
+    def test_injection_respects_approval_status(self, extractor):
+        """只有 approved 状态的规则才能被检索"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        # 只提交审核，不批准
+        for rule in rules:
+            extractor.submit_for_review(rule)
+
+        past_rules = extractor.retrieve_relevant_rules("web-dev", ["navigate"])
+        assert past_rules == [], "pending_review 状态的规则不应被检索"
+
+    def test_experience_keywords_from_discussion_results(self, extractor):
+        """验证从讨论结果中提取的关键词能改善检索"""
+        # 创建并批准一条规则
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        extractor.submit_for_review(rules[0])
+        extractor.approve_rule(rules[0].rule_id)
+
+        # 用任务描述关键词检索（可能不够精确）
+        basic_results = extractor.retrieve_relevant_rules("web-dev", ["开发"])
+
+        # 用讨论结果中的关键词补充
+        discussion_kw = {"navigate", "click_button", "fill_field"}
+        enriched_results = extractor.retrieve_relevant_rules("web-dev", sorted(discussion_kw | {"开发"}))
+
+        # 补充关键词后应检索到更多或相同的结果
+        assert len(enriched_results) >= len(basic_results)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
