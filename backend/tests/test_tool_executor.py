@@ -98,3 +98,125 @@ def test_edit_file(tool_executor, temp_workspace):
 
     with open(test_file) as f:
         assert "Hello, Python!" == f.read()
+
+
+# ── list_directory ──
+
+def test_list_directory(tool_executor, temp_workspace):
+    os.makedirs(os.path.join(temp_workspace, "sub"))
+    open(os.path.join(temp_workspace, "a.txt"), "w").close()
+    open(os.path.join(temp_workspace, "sub", "b.txt"), "w").close()
+
+    result = tool_executor.execute(ToolCall(
+        tool_name="list_directory",
+        arguments={"path": "."}
+    ))
+    assert result.success is True
+    assert "a.txt" in result.output
+    assert "sub" in result.output
+
+
+def test_list_directory_nonexistent(tool_executor):
+    result = tool_executor.execute(ToolCall(
+        tool_name="list_directory",
+        arguments={"path": "nonexistent"}
+    ))
+    assert result.success is False
+
+
+# ── search_files (glob) ──
+
+def test_search_files(tool_executor, temp_workspace):
+    open(os.path.join(temp_workspace, "test.py"), "w").close()
+    open(os.path.join(temp_workspace, "test.js"), "w").close()
+
+    result = tool_executor.execute(ToolCall(
+        tool_name="search_files",
+        arguments={"pattern": "*.py"}
+    ))
+    assert result.success is True
+    assert "test.py" in result.output
+
+
+# ── grep_content ──
+
+def test_grep_content(tool_executor, temp_workspace):
+    with open(os.path.join(temp_workspace, "code.py"), "w") as f:
+        f.write("def hello():\n    print('hello')\n\ndef world():\n    print('world')\n")
+
+    result = tool_executor.execute(ToolCall(
+        tool_name="grep_content",
+        arguments={"pattern": "def ", "path": "."}
+    ))
+    assert result.success is True
+    assert "hello" in result.output
+    assert "world" in result.output
+
+
+# ── create_document ──
+
+def test_create_document(tool_executor, temp_workspace):
+    result = tool_executor.execute(ToolCall(
+        tool_name="create_document",
+        arguments={"path": "doc.md", "content": "# Hello"}
+    ))
+    assert result.success is True
+    with open(os.path.join(temp_workspace, "doc.md")) as f:
+        assert f.read() == "# Hello"
+
+
+# ── edit_document ──
+
+def test_edit_document(tool_executor, temp_workspace):
+    with open(os.path.join(temp_workspace, "doc.md"), "w") as f:
+        f.write("# Old Title")
+
+    result = tool_executor.execute(ToolCall(
+        tool_name="edit_document",
+        arguments={"path": "doc.md", "old_text": "Old", "new_text": "New"}
+    ))
+    assert result.success is True
+    with open(os.path.join(temp_workspace, "doc.md")) as f:
+        assert "New Title" in f.read()
+
+
+# ── git operations ──
+
+def test_git_status(tool_executor, temp_workspace):
+    import subprocess
+    subprocess.run(["git", "init"], cwd=temp_workspace, capture_output=True)
+
+    result = tool_executor.execute(ToolCall(
+        tool_name="git_status",
+        arguments={}
+    ))
+    assert result.success is True
+
+
+def test_git_log(tool_executor, temp_workspace):
+    import subprocess
+    subprocess.run(["git", "init"], cwd=temp_workspace, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=temp_workspace, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=temp_workspace, capture_output=True)
+    with open(os.path.join(temp_workspace, "f.txt"), "w") as f:
+        f.write("x")
+    subprocess.run(["git", "add", "."], cwd=temp_workspace, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=temp_workspace, capture_output=True)
+
+    result = tool_executor.execute(ToolCall(
+        tool_name="git_log",
+        arguments={"count": 1}
+    ))
+    assert result.success is True
+    assert "init" in result.output
+
+
+# ── unknown tool ──
+
+def test_unknown_tool(tool_executor):
+    result = tool_executor.execute(ToolCall(
+        tool_name="nonexistent_tool",
+        arguments={}
+    ))
+    assert result.success is False
+    assert "不支持" in result.error or "unknown" in result.error.lower()

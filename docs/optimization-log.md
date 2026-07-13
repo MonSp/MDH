@@ -293,3 +293,18 @@
 **验证**: 693 passed (688 old + 5 new), 2 warnings。新增测试通过。
 
 **影响**: WorkflowEngine 测试从 12 个增加到 17 个，覆盖混合策略和错误处理路径。无运行时行为变更。
+
+---
+
+### [2026-07-13 16:30] 优化 #19：补充 ToolExecutor 测试覆盖（726 行代码，18 个工具仅 6 个测试）
+
+**问题**: `tool_executor.py` 有 726 行代码实现 18 种工具，但只有 6 个测试覆盖 read_file、write_file、bash、bash_blocked、path_traversal、edit_file。list_directory、grep_content、search_files、create_document、edit_document、git 操作等常用工具完全没有测试。
+
+**根因**: 测试在项目早期编写，只覆盖了最基本的文件操作和安全检查。
+
+**改动**:
+- `backend/tests/test_tool_executor.py` — 新增 9 个测试：list_directory（含不存在目录）、search_files（glob）、grep_content、create_document、edit_document、git_status、git_log（含 commit 验证）、unknown_tool 错误处理
+
+**验证**: 702 passed (693 old + 9 new), 2 warnings。新增测试通过。
+
+**影响**: ToolExecutor 测试从 6 个增加到 15 个，覆盖 13/18 种工具。无运行时行为变更。
