@@ -308,3 +308,18 @@
 **验证**: 702 passed (693 old + 9 new), 2 warnings。新增测试通过。
 
 **影响**: ToolExecutor 测试从 6 个增加到 15 个，覆盖 13/18 种工具。无运行时行为变更。
+
+---
+
+### [2026-07-13 17:00] 优化 #20：补充 CrossNetworkBridge 测试覆盖（347 行，7→12 测试）
+
+**问题**: `cross_network_bridge.py` 有 347 行代码实现跨网络智能体消息路由，但只有 7 个测试。缺少 `get_endpoint`、`serialize/deserialize` 序列化往返、`register_message_handler` + `handle_incoming_message` 消息处理、以及 `send_message` 错误路径的测试。
+
+**根因**: 测试在项目早期编写，只覆盖了端点注册和基本消息发送。
+
+**改动**:
+- `backend/tests/test_cross_network_bridge.py` — 新增 5 个测试：get_endpoint 查询、serialize/deserialize 序列化往返、register_message_handler + handle_incoming_message 消息处理、无处理器不崩溃、send_message 到不存在端点返回失败
+
+**验证**: 707 passed (702 old + 5 new), 2 warnings。新增测试通过。
+
+**影响**: CrossNetworkBridge 测试从 7 个增加到 12 个，覆盖序列化、消息处理和错误路径。无运行时行为变更。

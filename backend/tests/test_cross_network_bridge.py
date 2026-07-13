@@ -217,5 +217,97 @@ async def test_check_health():
     assert health["offline"] == 1
 
 
+# ── get_endpoint ──
+
+@pytest.mark.asyncio
+async def test_get_endpoint():
+    """get_endpoint 应返回已注册的端点"""
+    bridge = CrossNetworkBridge(local_network_id="test-net")
+    ep = AgentEndpoint(
+        agent_id="a1", name="Agent-1", role="executor",
+        location="local", network_id="test-net", status="online",
+    )
+    bridge.register_endpoint(ep)
+    assert bridge.get_endpoint("a1") is not None
+    assert bridge.get_endpoint("a1").name == "Agent-1"
+    assert bridge.get_endpoint("nonexistent") is None
+
+
+# ── serialize / deserialize ──
+
+def test_serialize_deserialize_roundtrip():
+    """序列化→反序列化应保持数据一致"""
+    bridge = CrossNetworkBridge(local_network_id="test-net")
+    msg = NetworkMessage(
+        message_id="msg-1",
+        from_agent_id="a1",
+        to_agent_id="a2",
+        message_type="task_assign",
+        payload={"task": "build UI"},
+        timestamp=time.time(),
+    )
+    data = bridge.serialize_message(msg)
+    assert isinstance(data, dict)
+    assert data["message_id"] == "msg-1"
+    assert data["from_agent_id"] == "a1"
+
+    restored = bridge.deserialize_message(data)
+    assert restored.message_id == msg.message_id
+    assert restored.from_agent_id == msg.from_agent_id
+    assert restored.payload == msg.payload
+
+
+# ── register_message_handler ──
+
+@pytest.mark.asyncio
+async def test_register_message_handler():
+    """注册消息处理器后应能接收消息"""
+    bridge = CrossNetworkBridge(local_network_id="test-net")
+    received = []
+
+    async def handler(msg):
+        received.append(msg)
+
+    bridge.register_message_handler("task_result", handler)
+
+    ep = AgentEndpoint(
+        agent_id="a1", name="Agent-1", role="executor",
+        location="local", network_id="test-net", status="online",
+    )
+    bridge.register_endpoint(ep)
+
+    msg = NetworkMessage(
+        message_id="msg-2", from_agent_id="a1", to_agent_id="a2",
+        message_type="task_result", payload={"result": "done"},
+        timestamp=time.time(),
+    )
+    await bridge.handle_incoming_message(msg)
+    assert len(received) == 1
+    assert received[0].payload["result"] == "done"
+
+
+@pytest.mark.asyncio
+async def test_handle_incoming_no_handler():
+    """无处理器时不应崩溃"""
+    bridge = CrossNetworkBridge(local_network_id="test-net")
+    msg = NetworkMessage(
+        message_id="msg-3", from_agent_id="a1", to_agent_id="a2",
+        message_type="unknown_type", payload={},
+        timestamp=time.time(),
+    )
+    # 不应抛异常
+    await bridge.handle_incoming_message(msg)
+
+
+# ── send_message error cases ──
+
+@pytest.mark.asyncio
+async def test_send_message_to_nonexistent():
+    """发送消息到不存在的端点应返回失败"""
+    bridge = CrossNetworkBridge(local_network_id="test-net")
+    result = await bridge.send_message("a1", "ghost", "test", {"data": "x"})
+    assert result is False
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
