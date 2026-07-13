@@ -398,3 +398,18 @@
 **验证**: 875 passed (871 old + 4 new), 0 failed。前端测试全部通过。
 
 **影响**: TaskScheduler 测试从 5 个增加到 9 个，覆盖依赖排序和优先级评分。无运行时行为变更。
+
+---
+
+### [2026-07-13 20:00] 优化 #26：补充 TaskDecomposer 测试覆盖（590 行 TS，5→10 测试）
+
+**问题**: `src/modules/taskDecomposer.ts` 有 590 行代码实现任务分解（模板匹配、实体注入、复杂度推断、子任务生成），但只有 5 个测试覆盖初始化、基本分解、实体注入、maxSubTasks 和 metadata。
+
+**根因**: 测试在项目早期编写，只覆盖了最基本的分解场景。
+
+**改动**:
+- `src/modules/__tests__/taskDecomposer.test.ts` — 新增 5 个测试：空描述处理、子任务包含 requiredCapabilities、低复杂度产生更少子任务、自定义 maxSubTasks、metadata 包含正确的 taskCount 和 complexity
+
+**验证**: 880 passed (875 old + 5 new), 0 failed。前端测试全部通过。
+
+**影响**: TaskDecomposer 测试从 5 个增加到 10 个，覆盖空输入、能力标签、复杂度比较。无运行时行为变更。
