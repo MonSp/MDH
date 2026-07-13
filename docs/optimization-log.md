@@ -503,3 +503,18 @@
 **验证**: 746 passed (743 old + 3 new), 2 skipped, 3 warnings。新增测试通过。
 
 **影响**: ToolExecutor 测试从 15 个增加到 18 个，覆盖 git 写操作和测试运行器。无运行时行为变更。
+
+---
+
+### [2026-07-13 23:30] 优化 #33：补充 WorkflowEngine 错误处理和回调测试（788 行，17→21 测试）
+
+**问题**: `workflow_engine.py` 有 788 行代码，17 个测试覆盖基本流程，但缺少错误处理测试：resume 非暂停状态、cancel 已完成状态、retry 不存在节点、节点状态变化回调。
+
+**根因**: 测试只覆盖了 happy path 和基本错误（不存在的执行 ID），未覆盖状态机转换错误和回调机制。
+
+**改动**:
+- `backend/tests/test_workflow_engine.py` — 新增 4 个测试：resume 非暂停状态抛异常、cancel 已完成状态抛异常、retry 不存在节点抛异常、节点状态变化回调被调用（running + completed）
+
+**验证**: 750 passed (746 old + 4 new), 2 skipped, 3 warnings。新增测试通过。
+
+**影响**: WorkflowEngine 测试从 17 个增加到 21 个，覆盖状态机错误和回调机制。无运行时行为变更。

@@ -486,5 +486,71 @@ async def test_status_change_callback_called(workflow_engine, sample_workflow_de
     assert "completed" in callbacks
 
 
+# ── 错误处理 ──
+
+@pytest.mark.asyncio
+async def test_resume_non_paused_raises(workflow_engine, sample_workflow_definition):
+    """恢复非暂停状态的工作流应抛异常"""
+    execution = workflow_engine.create_workflow(sample_workflow_definition)
+    with pytest.raises(ValueError):
+        await workflow_engine.resume_workflow(execution.execution_id)
+
+
+@pytest.mark.asyncio
+async def test_cancel_completed_raises(workflow_engine, sample_workflow_definition):
+    """取消已完成的工作流应抛异常"""
+    async def mock_executor(node, input_data):
+        return {"result": "ok"}
+
+    workflow_engine.register_node_executor("dept-frontend", mock_executor)
+    workflow_engine.register_node_executor("dept-backend", mock_executor)
+    workflow_engine.register_node_executor("dept-qa", mock_executor)
+
+    execution = workflow_engine.create_workflow(sample_workflow_definition)
+    await workflow_engine.execute_workflow(execution.execution_id)
+    with pytest.raises(ValueError):
+        await workflow_engine.cancel_workflow(execution.execution_id)
+
+
+@pytest.mark.asyncio
+async def test_retry_nonexistent_node_raises(workflow_engine, sample_workflow_definition):
+    """重试不存在的节点应抛异常"""
+    execution = workflow_engine.create_workflow(sample_workflow_definition)
+    with pytest.raises((KeyError, ValueError)):
+        await workflow_engine.retry_node(execution.execution_id, "nonexistent-node")
+
+
+@pytest.mark.asyncio
+async def test_node_status_change_callback():
+    """节点状态变化回调应被调用"""
+    engine = WorkflowEngine()
+    nodes = [
+        WorkflowNode(node_id="A", task_description="任务A", dept_id="dept-frontend",
+                     status=WorkflowNodeStatus.PENDING),
+    ]
+    definition = WorkflowDefinition(
+        workflow_id="cb-test", name="回调测试", description="",
+        nodes=nodes, edges=[], execution_strategy="sequential",
+    )
+
+    async def mock_executor(node, input_data):
+        return {"result": "ok"}
+
+    engine.register_node_executor("dept-frontend", mock_executor)
+
+    node_callbacks = []
+    async def on_node_status(execution, node_id):
+        status = execution.node_states.get(node_id)
+        node_callbacks.append((node_id, status.value if status else "unknown"))
+    engine.set_node_status_change_callback(on_node_status)
+
+    execution = engine.create_workflow(definition)
+    await engine.execute_workflow(execution.execution_id)
+
+    assert len(node_callbacks) >= 2  # at least running + completed
+    assert any(cb[0] == "A" and cb[1] == "running" for cb in node_callbacks)
+    assert any(cb[0] == "A" and cb[1] == "completed" for cb in node_callbacks)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
