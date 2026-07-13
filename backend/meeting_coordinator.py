@@ -1155,7 +1155,7 @@ class MeetingCoordinator:
         constraints = []
         for result in discussion_results:
             content = result.get("content", "")
-            stance = result.get("parsed_stance", "neutral")
+            stance = result.get("parsed_stance", result.get("stance", "neutral"))
             role = result.get("role", "")
             if stance in ["support", "modify"] and content:
                 # 截取核心观点，去掉标签
@@ -1195,7 +1195,7 @@ class MeetingCoordinator:
         decisions = []
         for result in discussion_results:
             content = result.get("content", "")
-            stance = result.get("parsed_stance", "neutral")
+            stance = result.get("parsed_stance", result.get("stance", "neutral"))
             role = result.get("role", "")
             if stance in ["support", "modify"] and content:
                 core = re.sub(r'\[STANCE:.*?\]', '', content)
@@ -1225,7 +1225,7 @@ class MeetingCoordinator:
         role_votes = {}
         for result in discussion_results:
             agent_id = result.get("agentId", "")
-            stance = result.get("stance", "neutral")
+            stance = result.get("parsed_stance", result.get("stance", "neutral"))
             if agent_id and stance in ["support", "modify"]:
                 role_votes[agent_id] = role_votes.get(agent_id, 0) + 1
 
@@ -1269,7 +1269,7 @@ class MeetingCoordinator:
             for i, result in enumerate(discussion_results[:3], 1):
                 agent_id = result.get("agentId", "unknown")
                 content = result.get("content", "")[:80]
-                stance = result.get("stance", "neutral")
+                stance = result.get("parsed_stance", result.get("stance", "neutral"))
                 stance_icon = "✅" if stance == "support" else "🔄" if stance == "modify" else "❓"
                 summary_parts.append(f"{i}. {stance_icon} [{agent_id}] {content}")
             summary_parts.append("")

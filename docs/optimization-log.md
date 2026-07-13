@@ -185,3 +185,19 @@
 **验证**: 650 passed (648 old + 2 new), 2 warnings。新增测试通过。
 
 **影响**: 修复后角色配置只在文件变化时重新加载，任务分配时不再重复读取磁盘。向后兼容：返回值语义不变，`invalidate_roles_config_cache()` 确保配置更新后缓存失效。
+
+---
+
+### [2026-07-13 13:00] 优化 #12：修复讨论结果 stance 字段名不一致导致并行讨论决策丢失
+
+**问题**: `meeting_coordinator.py` 的 `_enhance_task_description`、`_extract_discussion_decisions`、`_generate_project_summary` 和 `_infer_target_agent` 四个方法读取 `result.get("parsed_stance", "neutral")`，但 `mixed_location_discussion.py` 将 stance 存储在 `"stance"` 字段下（而非 `"parsed_stance"`）。当并行讨论引擎被使用时（有 Team 时的默认路径），所有讨论结果的 stance 被读为 "neutral"，导致讨论决策无法增强任务描述、投票立场无法正确反映。
+
+**根因**: 字段名不一致——`discussion_manager.py` 使用 `parsed_stance`，`mixed_location_discussion.py` 使用 `stance`。`_enhance_task_description` 等方法只检查 `parsed_stance`，未做兼容。
+
+**改动**:
+- `backend/meeting_coordinator.py` — 4 处 `result.get("parsed_stance", "neutral")` 改为 `result.get("parsed_stance", result.get("stance", "neutral"))`，兼容两种字段名。`_infer_target_agent` 同样修复。
+- `backend/tests/test_meeting_coordinator_router.py` — 新增 `TestStanceFieldCompatibility` 测试类，4 个测试：parsed_stance 格式、stance 格式、oppose 排除、infer_target_agent 兼容
+
+**验证**: 654 passed (650 old + 4 new), 2 warnings。新增测试通过。
+
+**影响**: 修复后并行讨论引擎（mixed_location_discussion）的结果能正确被任务描述增强、决策摘要、项目总结和目标 Agent 推断使用。向后兼容：`parsed_stance` 优先，`stance` 作为 fallback。

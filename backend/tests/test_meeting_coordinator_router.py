@@ -428,5 +428,47 @@ class TestWorkflowStatusCallback:
         await coordinator._on_workflow_status_change(FakeExecution())
 
 
+# ---------------------------------------------------------------------------
+# 讨论结果 stance 字段兼容性
+# ---------------------------------------------------------------------------
+
+
+class TestStanceFieldCompatibility:
+    def test_enhance_task_description_with_parsed_stance(self, coordinator):
+        """discussion_manager 格式：parsed_stance 字段"""
+        results = [
+            {"content": "使用 React 框架", "parsed_stance": "support", "role": "planner"},
+            {"content": "需要添加单元测试", "parsed_stance": "modify", "role": "reviewer"},
+        ]
+        enhanced = coordinator._enhance_task_description("开发登录页面", results)
+        assert "React" in enhanced
+
+    def test_enhance_task_description_with_stance_field(self, coordinator):
+        """mixed_location_discussion 格式：stance 字段"""
+        results = [
+            {"content": "使用 Vue 框架", "stance": "support", "role": "planner"},
+            {"content": "需要添加集成测试", "stance": "modify", "role": "reviewer"},
+        ]
+        enhanced = coordinator._enhance_task_description("开发注册页面", results)
+        assert "Vue" in enhanced
+
+    def test_enhance_task_description_oppose_excluded(self, coordinator):
+        """oppose 立场不应纳入任务描述"""
+        results = [
+            {"content": "不推荐使用 jQuery", "parsed_stance": "oppose", "role": "planner"},
+        ]
+        enhanced = coordinator._enhance_task_description("开发页面", results)
+        assert "jQuery" not in enhanced
+
+    def test_infer_target_agent_with_stance_field(self, coordinator):
+        """_infer_target_agent 应兼容 stance 字段"""
+        results = [
+            {"agentId": "agent-executor", "stance": "support"},
+            {"agentId": "agent-planner", "stance": "oppose"},
+        ]
+        target = coordinator._infer_target_agent(results)
+        assert target == "agent-executor"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
