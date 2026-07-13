@@ -443,3 +443,18 @@
 **验证**: 729 passed (723 old + 6 new), 2 warnings。新增测试通过。
 
 **影响**: AgentPool 测试从 12 个增加到 18 个，覆盖边界情况和错误路径。无运行时行为变更。
+
+---
+
+### [2026-07-13 21:30] 优化 #29：补充 AgentToolset 属性和 execute 测试（482 行，16→23 测试）
+
+**问题**: `agent_toolset.py` 有 482 行代码，16 个测试覆盖角色工具、文件操作和缓存，但缺少属性访问（agent_id、agent_role、tool_descriptions、skill_descriptions）和 execute 方法的测试。
+
+**根因**: 测试只覆盖了直接方法调用，未覆盖属性访问器和统一 execute 入口。
+
+**改动**:
+- `backend/tests/test_agent_toolset.py` — 新增 7 个测试：agent_id/agent_role 属性、tool_descriptions 非空、skill_descriptions 非空、execute read_file、execute write_file、execute 未知工具失败、get_system_prompt 自定义名称
+
+**验证**: 736 passed (729 old + 7 new), 2 warnings。新增测试通过。
+
+**影响**: AgentToolset 测试从 16 个增加到 23 个，覆盖属性访问和 execute 入口。无运行时行为变更。

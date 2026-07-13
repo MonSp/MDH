@@ -158,3 +158,66 @@ def test_load_roles_config_cache_invalidation():
     config2 = load_roles_config()
     # invalidate 后应返回新对象
     assert config1 is not config2, "缓存未被正确清除"
+
+
+# ── 属性访问 ──
+
+def test_agent_id_and_role(temp_workspace):
+    """agent_id 和 agent_role 应返回构造时的值"""
+    toolset = AgentToolset("agent-42", "executor", temp_workspace)
+    assert toolset.agent_id == "agent-42"
+    assert toolset.agent_role == "executor"
+
+
+def test_tool_descriptions_not_empty(temp_workspace):
+    """tool_descriptions 应返回非空字符串"""
+    toolset = AgentToolset("agent-1", "executor", temp_workspace)
+    desc = toolset.tool_descriptions
+    assert isinstance(desc, str)
+    assert len(desc) > 0
+    assert "read_file" in desc
+
+
+def test_skill_descriptions_not_empty(temp_workspace):
+    """skill_descriptions 应返回非空字符串"""
+    toolset = AgentToolset("agent-1", "executor", temp_workspace)
+    desc = toolset.skill_descriptions
+    assert isinstance(desc, str)
+    assert len(desc) > 0
+
+
+# ── execute 方法 ──
+
+def test_execute_read_file(temp_workspace):
+    """execute 应能执行 read_file"""
+    toolset = AgentToolset("agent-1", "executor", temp_workspace)
+    with open(os.path.join(temp_workspace, "test.txt"), "w") as f:
+        f.write("hello")
+    result = toolset.execute("read_file", {"path": "test.txt"})
+    assert result.success is True
+    assert result.output == "hello"
+
+
+def test_execute_write_file(temp_workspace):
+    """execute 应能执行 write_file"""
+    toolset = AgentToolset("agent-1", "executor", temp_workspace)
+    result = toolset.execute("write_file", {"path": "new.txt", "content": "world"})
+    assert result.success is True
+    with open(os.path.join(temp_workspace, "new.txt")) as f:
+        assert f.read() == "world"
+
+
+def test_execute_unknown_tool(temp_workspace):
+    """execute 对未知工具应返回失败"""
+    toolset = AgentToolset("agent-1", "executor", temp_workspace)
+    result = toolset.execute("nonexistent_tool", {})
+    assert result.success is False
+
+
+# ── 系统提示词 ──
+
+def test_get_system_prompt_with_custom_name(temp_workspace):
+    """get_system_prompt 应接受自定义名称"""
+    toolset = AgentToolset("agent-1", "executor", temp_workspace)
+    prompt = toolset.get_system_prompt(name="超级开发")
+    assert "超级开发" in prompt
