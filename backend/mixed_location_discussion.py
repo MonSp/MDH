@@ -279,18 +279,12 @@ class MixedLocationDiscussion:
         """
         从响应中解析立场和置信度
         """
-        stance_match = re.search(r'\[STANCE:(\w+)\]', text)
-        if stance_match:
-            stance = stance_match.group(1).lower()
-        else:
-            stance = "neutral"
-        
+        stance_match = re.search(r'\[STANCE:(support|oppose|modify|neutral)\]', text, re.IGNORECASE)
+        stance = stance_match.group(1).lower() if stance_match else "neutral"
+
         confidence_match = re.search(r'\[CONFIDENCE:([\d.]+)\]', text)
-        if confidence_match:
-            confidence = float(confidence_match.group(1))
-        else:
-            confidence = 0.5
-        
+        confidence = min(1.0, max(0.0, float(confidence_match.group(1)))) if confidence_match else 0.5
+
         return stance, confidence
     
     def _build_previous_context(self, discussions: List[Dict[str, Any]]) -> str:
@@ -426,6 +420,13 @@ class MixedLocationDiscussion:
                 Stance(stance_str),
                 d.get('confidence', 0.5),
                 d['content']
+            )
+            # 根据立场投票：support/modify → 赞成，oppose → 反对
+            approve = stance_str in ('support', 'modify')
+            self._negotiation.cast_vote(
+                proposal.id, d['agent_id'], approve,
+                weight=d.get('confidence', 0.5),
+                reason=f"立场: {stance_str}",
             )
         vote_result = self._negotiation.evaluate_consensus(proposal.id)
         logger.info("Consensus result: %s", vote_result)

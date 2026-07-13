@@ -201,3 +201,19 @@
 **验证**: 654 passed (650 old + 4 new), 2 warnings。新增测试通过。
 
 **影响**: 修复后并行讨论引擎（mixed_location_discussion）的结果能正确被任务描述增强、决策摘要、项目总结和目标 Agent 推断使用。向后兼容：`parsed_stance` 优先，`stance` 作为 fallback。
+
+---
+
+### [2026-07-13 13:30] 优化 #13：修复 mixed_location_discussion stance 解析接受无效值
+
+**问题**: `mixed_location_discussion.py` 的 `_parse_stance()` 使用 `\w+` 正则匹配 stance 值，接受任意单词（如 "yes"、"agreed"、"disagree"）。同时未将 confidence 限制在 [0.0, 1.0]。`discussion_manager.py` 的 `_parse_stance_from_response()` 已正确实现——使用 `(support|oppose|modify|neutral)` 严格匹配和 `min/max` 钳制。
+
+**根因**: `_parse_stance` 的正则 `\[STANCE:(\w+)\]` 比 `_parse_stance_from_response` 的 `\[STANCE:(support|oppose|modify|neutral)\]` 宽松得多，且缺少 confidence 钳制。
+
+**改动**:
+- `backend/mixed_location_discussion.py:_parse_stance()` — 正则改为 `\[STANCE:(support|oppose|modify|neutral)\]` + `re.IGNORECASE`，confidence 添加 `min(1.0, max(0.0, ...))` 钳制
+- `backend/tests/test_mixed_location_discussion.py` — 新增 `TestParseStance` 测试类，5 个测试：有效 stance 解析、无效 stance 默认 neutral、confidence 钳制、缺失标签默认值、大小写不敏感
+
+**验证**: 659 passed (654 old + 5 new), 2 warnings。新增测试通过。
+
+**影响**: 修复后并行讨论引擎只接受合法 stance 值，无效值回退为 neutral。confidence 始终在合法范围。向后兼容：合法 stance 值行为不变。

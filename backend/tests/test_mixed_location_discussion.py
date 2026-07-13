@@ -272,5 +272,63 @@ async def test_coordinator_summary():
     assert len(summary_received) > 0
 
 
+# ── stance 解析测试 ──
+
+class TestParseStance:
+    def setup_method(self):
+        from mixed_location_discussion import MixedLocationDiscussion
+        from negotiation import NegotiationEngine, ConsensusStrategy
+        from agenda import AgendaStateMachine
+        from unittest.mock import MagicMock
+
+        team = MagicMock()
+        team.members = []
+        self.discussion = MixedLocationDiscussion(
+            team=team,
+            agenda=AgendaStateMachine(),
+            negotiation=NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY),
+            get_model_fn=lambda role: MagicMock(),
+        )
+
+    def test_valid_stances(self):
+        for stance_val in ["support", "oppose", "modify", "neutral"]:
+            text = f"我认为方案可行 [STANCE:{stance_val}] [CONFIDENCE:0.8]"
+            stance, conf = self.discussion._parse_stance(text)
+            assert stance == stance_val
+            assert conf == 0.8
+
+    def test_invalid_stance_defaults_to_neutral(self):
+        """无效 stance 值应默认为 neutral"""
+        text = "我同意 [STANCE:agreed] [CONFIDENCE:0.9]"
+        stance, conf = self.discussion._parse_stance(text)
+        assert stance == "neutral"
+        assert conf == 0.9
+
+    def test_confidence_clamped(self):
+        """置信度应被限制在 [0.0, 1.0]"""
+        text = "[STANCE:support] [CONFIDENCE:1.5]"
+        _, conf = self.discussion._parse_stance(text)
+        assert conf == 1.0
+
+        # 负数不会被正则匹配到，走默认值 0.5
+        text = "[STANCE:support] [CONFIDENCE:-0.3]"
+        _, conf = self.discussion._parse_stance(text)
+        assert conf == 0.5
+
+    def test_missing_tags_default(self):
+        """无标签时应返回 neutral + 0.5"""
+        text = "这是一个普通的回复"
+        stance, conf = self.discussion._parse_stance(text)
+        assert stance == "neutral"
+        assert conf == 0.5
+
+    def test_case_insensitive(self):
+        """stance 解析应不区分大小写"""
+        text = "[STANCE:SUPPORT] [CONFIDENCE:0.7]"
+        stance, conf = self.discussion._parse_stance(text)
+        assert stance == "support"
+        assert conf == 0.7
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
