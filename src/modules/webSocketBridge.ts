@@ -1,6 +1,6 @@
 import { AgentRegistry } from './agentRegistry'
 import { CommunicationBus } from './communicationBus'
-import { MessageType, MessagePriority, MessageEnvelope } from './communicationProtocol'
+import { MessageType, MessagePriority, MessageStatus, MessageEnvelope } from './communicationProtocol'
 import { AgentRole, AgentCapability } from './agentTypes'
 
 export interface BridgeRegistration {
@@ -149,7 +149,7 @@ export class WebSocketBridge {
         payload: payload,
         timestamp: Date.now(),
         priority: MessagePriority.Normal,
-        status: 'pending' as any,
+        status: MessageStatus.Pending,
         broadcast: false,
         sessionId: '',
         correlationId: null,

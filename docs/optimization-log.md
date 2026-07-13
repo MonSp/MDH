@@ -135,3 +135,19 @@
 **验证**: 866 passed (865 old + 1 new), 0 failed。TypeScript 编译通过。
 
 **影响**: 修复后 `getAssignmentStats()` 返回准确的活跃/已完成任务数。向后兼容：返回类型不变，只是数值从错误变为正确。
+
+---
+
+### [2026-07-13 11:30] 优化 #9：消除 webSocketBridge 和 agentCoordinator 中的 `as any` 类型逃逸
+
+**问题**: `webSocketBridge.ts:152` 使用 `'pending' as any` 绕过类型检查，`agentCoordinator.ts:524` 使用 `data.registry as any`。两处都是类型系统被绕过，`MessageStatus` 枚举已有 `Pending = 'pending'` 值但未被引用。`importState` 的参数类型使用了错误的 `ReturnType<... extends ... ? never : never>` 条件类型，实际解析为 `never`，迫使调用方用 `as any`。
+
+**根因**: `webSocketBridge.ts` 未导入 `MessageStatus`；`agentCoordinator.ts` 的 `importState` 参数类型应使用 `Parameters<T>[0]` 提取 `importRegistry` 的入参类型，而非错误的 `ReturnType` 条件类型。
+
+**改动**:
+- `src/modules/webSocketBridge.ts` — 新增 `MessageStatus` 到 import，`'pending' as any` → `MessageStatus.Pending`
+- `src/modules/agentCoordinator.ts` — `importState` 参数类型改为 `Parameters<AgentRegistry['importRegistry']>[0]`，移除 `as any`
+
+**验证**: 866 passed, 0 failed。TypeScript 编译零新增错误。
+
+**影响**: 消除 2 处 `as any` 类型逃逸，恢复类型安全。向后兼容：运行时行为不变（`MessageStatus.Pending` 的值就是 `'pending'`）。

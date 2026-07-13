@@ -518,10 +518,10 @@ export class AgentCoordinator {
   }
 
   importState(data: {
-    registry: ReturnType<AgentRegistry['importRegistry'] extends (data: infer T) => void ? never : never>
+    registry: Parameters<AgentRegistry['importRegistry']>[0]
     assignments: TaskAssignment[]
   }): void {
-    this.registry.importRegistry(data.registry as any)
+    this.registry.importRegistry(data.registry)
     data.assignments.forEach(a => {
       this.taskAssigner.getAssignment(a.taskId)
     })
