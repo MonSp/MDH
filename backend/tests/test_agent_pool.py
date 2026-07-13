@@ -231,3 +231,47 @@ class TestAgentPool:
         removed = pool.scale_down("executor", 1)
         assert len(removed) == 1
         assert pool.get_pool_status()["roles"]["executor"]["total"] == 1
+
+    def test_get_agent_by_id_nonexistent(self, pool):
+        """不存在的 ID 应返回 None"""
+        assert pool.get_agent_by_id("nonexistent") is None
+
+    def test_get_all_agents(self, pool):
+        """get_all_agents 应返回所有实例"""
+        template = [
+            {"id": "e1", "name": "Exec-1", "role": "executor"},
+            {"id": "e2", "name": "Rev-1", "role": "reviewer"},
+        ]
+        with patch("agent_pool.PROVIDER_REGISTRY", {"deepseek": {
+            "credential_cls": MagicMock,
+            "credential_kwargs": lambda s: {},
+            "formatter_cls": MagicMock,
+            "model_cls": MagicMock,
+            "default_model": "deepseek-chat",
+        }}):
+            pool.create_team(template)
+
+        all_agents = pool.get_all_agents()
+        assert len(all_agents) == 2
+        assert all(a.id in ("e1", "e2") for a in all_agents)
+
+    def test_update_role_prompt(self, pool):
+        """update_role_prompt 应更新角色提示词"""
+        pool.update_role_prompt("executor", "新的执行者提示词")
+        assert pool._role_prompts["executor"] == "新的执行者提示词"
+
+    def test_scale_down_nonexistent_role(self, pool):
+        """缩容不存在的角色应返回空列表"""
+        removed = pool.scale_down("nonexistent", 1)
+        assert removed == []
+
+    def test_scale_up_nonexistent_role(self, pool):
+        """扩容不存在的角色应返回空列表"""
+        new_ids = pool.scale_up("nonexistent", 1)
+        assert new_ids == []
+
+    @pytest.mark.asyncio
+    async def test_health_check_with_no_agents(self, pool):
+        """无 agent 时健康检查应返回空结果"""
+        results = await pool.health_check()
+        assert results == {}

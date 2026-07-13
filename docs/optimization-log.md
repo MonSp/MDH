@@ -428,3 +428,18 @@
 **验证**: 885 passed (880 old + 5 new), 0 failed。前端测试全部通过。
 
 **影响**: DependencyAnalyzer 测试从 6 个增加到 11 个，覆盖规则查询和依赖检测。无运行时行为变更。
+
+---
+
+### [2026-07-13 21:00] 优化 #28：补充 AgentPool 边界测试（505 行，12→18 测试）
+
+**问题**: `agent_pool.py` 有 505 行代码，12 个测试覆盖核心功能，但缺少边界情况测试：不存在 ID 查询、不存在角色的扩缩容、角色提示词更新、无 agent 时健康检查。
+
+**根因**: 测试在优化 #16 添加时只覆盖了 happy path，未覆盖边界情况。
+
+**改动**:
+- `backend/tests/test_agent_pool.py` — 新增 6 个测试：get_agent_by_id 不存在返回 None、get_all_agents 返回所有实例、update_role_prompt 更新提示词、scale_down 不存在角色返回空、scale_up 不存在角色返回空、无 agent 时健康检查返回空
+
+**验证**: 729 passed (723 old + 6 new), 2 warnings。新增测试通过。
+
+**影响**: AgentPool 测试从 12 个增加到 18 个，覆盖边界情况和错误路径。无运行时行为变更。
