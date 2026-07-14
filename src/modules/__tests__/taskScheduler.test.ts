@@ -95,4 +95,44 @@ describe('TaskScheduler', () => {
     // t2 should end later than t1 due to longer duration
     expect(t2.scheduledEndTime).toBeGreaterThan(t1.scheduledEndTime)
   })
+
+  it('should update config', () => {
+    const scheduler = new TaskScheduler({ maxConcurrentTasks: 2 })
+    expect(scheduler.getConfig().maxConcurrentTasks).toBe(2)
+    scheduler.updateConfig({ maxConcurrentTasks: 5 })
+    expect(scheduler.getConfig().maxConcurrentTasks).toBe(5)
+  })
+
+  it('should return empty queue initially', () => {
+    const scheduler = new TaskScheduler()
+    expect(scheduler.getReadyTasks()).toHaveLength(0)
+    expect(scheduler.getTasksByStatus('pending' as any)).toHaveLength(0)
+    expect(scheduler.getHighestPriorityTask()).toBeNull()
+  })
+
+  it('should schedule tasks with FIFO algorithm', () => {
+    const scheduler = new TaskScheduler({ schedulingAlgorithm: 'fifo' })
+    const tasks = [makeTask('t1'), makeTask('t2'), makeTask('t3')]
+    const result = scheduler.scheduleTasks(tasks, [])
+    expect(result).toHaveLength(3)
+  })
+
+  it('should schedule tasks with shortest-job-first algorithm', () => {
+    const scheduler = new TaskScheduler({ schedulingAlgorithm: 'sjf' })
+    const tasks = [
+      { ...makeTask('t1'), estimatedDuration: 10000 },
+      { ...makeTask('t2'), estimatedDuration: 5000 },
+    ]
+    const result = scheduler.scheduleTasks(tasks, [])
+    expect(result).toHaveLength(2)
+    // t2 (shorter) should come before t1
+    expect(result[0].id).toBe('t2')
+  })
+
+  it('should schedule tasks with hybrid algorithm', () => {
+    const scheduler = new TaskScheduler({ schedulingAlgorithm: 'hybrid' })
+    const tasks = [makeTask('t1', 'high'), makeTask('t2', 'low')]
+    const result = scheduler.scheduleTasks(tasks, [])
+    expect(result).toHaveLength(2)
+  })
 })

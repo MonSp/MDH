@@ -533,3 +533,18 @@
 **验证**: 888 passed (885 old + 3 new), 0 failed。前端测试全部通过。
 
 **影响**: TaskPlanner 测试从 8 个增加到 11 个，覆盖 replan 流程。无运行时行为变更。
+
+---
+
+### [2026-07-14 00:30] 优化 #35：补充 TaskScheduler 算法和配置测试（551 行 TS，9→14 测试）
+
+**问题**: `src/modules/taskScheduler.ts` 有 551 行代码，9 个测试覆盖基本调度，但缺少调度算法变体（FIFO、SJF、hybrid）和配置更新的测试。
+
+**根因**: 测试只覆盖了 priority 算法，未覆盖其他 3 种调度算法和配置动态更新。
+
+**改动**:
+- `src/modules/__tests__/taskScheduler.test.ts` — 新增 5 个测试：updateConfig 动态更新、空队列初始状态、FIFO 算法、shortest-job-first 算法（验证短任务优先）、hybrid 算法
+
+**验证**: 893 passed (888 old + 5 new), 0 failed。前端测试全部通过。
+
+**影响**: TaskScheduler 测试从 9 个增加到 14 个，覆盖所有 4 种调度算法和配置更新。无运行时行为变更。
