@@ -87,6 +87,24 @@
 
 ---
 
+### [2026-07-13 11:00] 优化 #6：修复 _infer_target_agent 和 _generate_project_summary 的同一键名问题
+
+**问题**: 优化 #5 只修复了投票阶段的 `agentId` → `agent_id`，但同一文件中还有两处相同 bug：
+- `_infer_target_agent()` (line 1227)：用 `agentId` 查找讨论结果，永远返回空字符串，导致无法从讨论中推断最佳执行者
+- `_generate_project_summary()` (line 1270)：用 `agentId` 生成项目总结，所有 Agent ID 显示为 "unknown"
+
+**根因**: 同优化 #5 — Python 后端模块返回 snake_case `agent_id`，但部分代码使用 camelCase `agentId`。
+
+**改动**:
+- `backend/meeting_coordinator.py:1227` — `result.get("agentId", "")` → `result.get("agent_id", result.get("agentId", ""))`
+- `backend/meeting_coordinator.py:1270` — `result.get("agentId", "unknown")` → `result.get("agent_id", result.get("agentId", "unknown"))`
+
+**验证**: 99 passed, 0 failed。
+
+**影响**: 修复后 `_infer_target_agent` 能正确从讨论结果中推断最佳执行 Agent（不再总是返回空字符串走默认值），`_generate_project_summary` 能正确显示 Agent ID（不再显示 "unknown"）。
+
+---
+
 ### [2026-07-13 09:30] 优化 #5：审查流水线整合 LLM 审查意见到结构化验收决策
 
 **问题**: `review_pipeline.py` 的 `_generate_structured_feedback()` 只将 `task_description` 和 `execution_result` 传给 planner 的关键词匹配器，完全忽略刚生成的 `reviewer_feedback` 和 `monitor_feedback`。这意味着审查者通过 LLM 发现的严重问题（如安全漏洞、逻辑错误）不会影响验收决策——planner 的纯关键词匹配可能判定为 "approved"。
@@ -624,3 +642,18 @@
 **验证**: 904 passed (901 old + 3 new), 0 failed。前端测试全部通过。
 
 **影响**: TaskDecomposer 测试从 10 个增加到 13 个，覆盖配置查询和更新。无运行时行为变更。
+
+---
+
+### [2026-07-14 03:10] 优化 #40：为 protocol.py 创建独立测试文件（651 行，0→22 测试）
+
+**问题**: `protocol.py` 有 651 行代码定义核心数据结构（15+ 枚举、15+ 数据类、15 个序列化函数、10 个反序列化函数），但没有独立测试文件。虽然被其他测试间接导入，但序列化往返、枚举值完整性、数据类默认值等从未被专门验证。
+
+**根因**: 该模块是纯数据层，早期被认为是"不需要测试"的基础设施。
+
+**改动**:
+- `backend/tests/test_protocol.py` — 新增 22 个测试：5 个枚举测试（WorkflowNodeStatus、WorkflowExecutionStatus、AgentRole、Stance、ConsensusStrategy）、5 个数据类测试（WorkflowNode、WorkflowEdge、MeetingAgentInfo、TraceContext、Vote）、11 个序列化往返测试（meeting_agent、meeting_task、meeting_summary、trace_context、agenda_state、argument_ref、proposal、vote、vote_result、approval_request、checkpoint）、1 个 LLM fallback 模板测试
+
+**验证**: 787 passed (765 old + 22 new), 2 skipped, 3 warnings。新增测试通过。
+
+**影响**: protocol.py 从零测试提升到 22 个测试，覆盖所有枚举、数据类和序列化函数。无运行时行为变更。
