@@ -594,3 +594,18 @@
 **验证**: 901 passed (897 old + 4 new), 0 failed。前端测试全部通过。
 
 **影响**: CommunicationProtocol 测试从 6 个增加到 10 个，覆盖消息过期、优先级和通道创建。无运行时行为变更。
+
+---
+
+### [2026-07-14 02:00] 优化 #38：为 MessageQueue 创建独立测试文件（438 行，0→15 测试）
+
+**问题**: `message_queue.py` 有 438 行代码实现异步消息队列（Message 数据类、优先级队列、SQLite 持久化、重试机制），但没有独立测试文件。仅有 5 个测试分散在 `test_parallel_modules.py` 中，缺少 Message 序列化往返、多主题管理、持久化重载、生命周期管理等覆盖。
+
+**根因**: 该模块在项目早期编写，从未获得独立测试文件。
+
+**改动**:
+- `backend/tests/test_message_queue.py` — 新增 15 个测试：Message 默认创建、to_dict/from_dict 序列化往返、优先级排序、publish 多主题、get_all_queue_sizes、clear_queue、get_pending_messages（内存模式返回空 + SQLite 模式正常）、get_pending 全主题、空队列大小、持久化重载、start/stop 生命周期
+
+**验证**: 765 passed (750 old + 15 new), 2 skipped, 3 warnings。新增测试通过。
+
+**影响**: MessageQueue 从 5 个分散测试提升到 20 个（5 旧 + 15 新），覆盖核心数据结构和持久化逻辑。无运行时行为变更。
