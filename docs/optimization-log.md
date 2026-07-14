@@ -688,3 +688,18 @@
 **验证**: 806 passed (787 old + 19 new), 2 skipped, 3 warnings。新增测试通过。
 
 **影响**: WorkspaceSync 从零测试提升到 19 个测试，覆盖文件锁定、远端同步和生命周期管理。无运行时行为变更。
+
+---
+
+### [2026-07-14 06:55] 优化 #42：补充 DependencyAnalyzer 规则/模式管理测试（627 行 TS，11→15 测试）
+
+**问题**: `src/modules/dependencyAnalyzer.ts` 有 627 行代码，11 个测试覆盖 `analyzeDependencies` 和 `getRules`/`getPatterns`，但 `addRule`、`removeRule`、`addPattern`、`removePattern` 方法完全没有测试。
+
+**根因**: 测试只覆盖了分析逻辑，未覆盖规则/模式的动态管理。
+
+**改动**:
+- `src/modules/__tests__/dependencyAnalyzer.test.ts` — 新增 4 个测试：addRule 添加自定义规则、removeRule 移除规则、addPattern 添加自定义模式、removePattern 移除模式
+
+**验证**: 908 passed (904 old + 4 new), 0 failed。前端测试全部通过。
+
+**影响**: DependencyAnalyzer 测试从 11 个增加到 15 个，覆盖规则/模式 CRUD。无运行时行为变更。

@@ -127,4 +127,48 @@ describe('DependencyAnalyzer', () => {
     const result = await analyzer.analyzeDependencies(tasks)
     expect(Array.isArray(result.warnings)).toBe(true)
   })
+
+  it('should add a custom rule', () => {
+    const analyzer = new DependencyAnalyzer()
+    const initialCount = analyzer.getRules().length
+    analyzer.addRule({
+      id: 'custom-rule',
+      name: 'Custom Rule',
+      description: 'Test rule',
+      detect: (tasks) => [],
+    })
+    expect(analyzer.getRules().length).toBe(initialCount + 1)
+    expect(analyzer.getRules().find(r => r.id === 'custom-rule')).toBeDefined()
+  })
+
+  it('should remove a rule', () => {
+    const analyzer = new DependencyAnalyzer()
+    const rules = analyzer.getRules()
+    const firstRule = rules[0]
+    analyzer.removeRule(firstRule.id)
+    expect(analyzer.getRules().length).toBe(rules.length - 1)
+    expect(analyzer.getRules().find(r => r.id === firstRule.id)).toBeUndefined()
+  })
+
+  it('should add a custom pattern', () => {
+    const analyzer = new DependencyAnalyzer()
+    const initialCount = analyzer.getPatterns().length
+    analyzer.addPattern({
+      id: 'custom-pattern',
+      name: 'Custom Pattern',
+      description: 'Test pattern',
+      detect: (tasks) => [],
+    })
+    expect(analyzer.getPatterns().length).toBe(initialCount + 1)
+  })
+
+  it('should remove a pattern', () => {
+    const analyzer = new DependencyAnalyzer()
+    const patterns = analyzer.getPatterns()
+    if (patterns.length > 0) {
+      const firstPattern = patterns[0]
+      analyzer.removePattern(firstPattern.id)
+      expect(analyzer.getPatterns().length).toBe(patterns.length - 1)
+    }
+  })
 })
