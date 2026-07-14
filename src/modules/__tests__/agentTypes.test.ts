@@ -84,4 +84,37 @@ describe('agentTypes', () => {
     expect(DEFAULT_AGENT_CONFIGS).toBeDefined()
     expect(DEFAULT_AGENT_CONFIGS[AgentRole.Executor]).toBeDefined()
   })
+
+  it('should have role profiles for all roles', () => {
+    const roles = Object.values(AgentRole)
+    for (const role of roles) {
+      expect(DEFAULT_ROLE_PROFILES[role]).toBeDefined()
+    }
+  })
+
+  it('should create instance with default idle status', () => {
+    const config = createAgentConfig({ name: 'Test', role: AgentRole.Executor })
+    const instance = createAgentInstance(config)
+    expect(instance.status).toBe(AgentInstanceStatus.Idle)
+    expect(instance.completedTaskCount).toBe(0)
+    expect(instance.failedTaskCount).toBe(0)
+  })
+
+  it('should have known capability values', () => {
+    expect(AgentCapability.CodeReview).toBe('code_review')
+    expect(AgentCapability.Testing).toBe('testing')
+    expect(AgentCapability.Monitoring).toBe('monitoring')
+  })
+
+  it('should create config with custom capabilities', () => {
+    const config = createAgentConfig(
+      'Specialist',
+      AgentRole.Executor,
+      [AgentCapability.CodeReview, AgentCapability.Testing],
+      { provider: 'deepseek', modelName: 'deepseek-chat' },
+    )
+    expect(config.capabilities).toContain(AgentCapability.CodeReview)
+    expect(config.capabilities).toContain(AgentCapability.Testing)
+    expect(config.name).toBe('Specialist')
+  })
 })

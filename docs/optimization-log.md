@@ -548,3 +548,18 @@
 **验证**: 893 passed (888 old + 5 new), 0 failed。前端测试全部通过。
 
 **影响**: TaskScheduler 测试从 9 个增加到 14 个，覆盖所有 4 种调度算法和配置更新。无运行时行为变更。
+
+---
+
+### [2026-07-14 01:00] 优化 #36：补充 AgentTypes 类型系统测试（418 行 TS，8→12 测试）
+
+**问题**: `src/modules/agentTypes.ts` 有 418 行代码定义核心类型系统（AgentRole、AgentCapability、AgentConfig、AgentInstance、DEFAULT_ROLE_PROFILES），8 个测试只覆盖基本枚举和创建，缺少角色配置完整性、实例默认状态、能力枚举值和自定义能力的测试。
+
+**根因**: 测试只覆盖了类型存在性，未覆盖配置完整性和函数参数变体。
+
+**改动**:
+- `src/modules/__tests__/agentTypes.test.ts` — 新增 4 个测试：所有角色都有配置文件、实例默认 idle 状态和零计数、已知能力枚举值、自定义能力创建配置
+
+**验证**: 897 passed (893 old + 4 new), 0 failed。前端测试全部通过。
+
+**影响**: AgentTypes 测试从 8 个增加到 12 个，覆盖配置完整性和函数变体。无运行时行为变更。
