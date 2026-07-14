@@ -703,3 +703,18 @@
 **验证**: 908 passed (904 old + 4 new), 0 failed。前端测试全部通过。
 
 **影响**: DependencyAnalyzer 测试从 11 个增加到 15 个，覆盖规则/模式 CRUD。无运行时行为变更。
+
+---
+
+### [2026-07-14 07:00] 优化 #43：补充 TaskPlanner getConfig/updateConfig 测试（509 行 TS，11→13 测试）
+
+**问题**: `src/modules/taskPlanner.ts` 有 509 行代码，11 个测试覆盖 `createPlanFromInput` 和 `replan`，但 `getConfig()` 和 `updateConfig()` 方法完全没有测试。
+
+**根因**: 测试只覆盖了核心规划逻辑，未覆盖配置查询和更新。
+
+**改动**:
+- `src/modules/__tests__/taskPlanner.test.ts` — 新增 2 个测试：getConfig 返回配置对象、updateConfig 更新配置值
+
+**验证**: 910 passed (908 old + 2 new), 0 failed。前端测试全部通过。
+
+**影响**: TaskPlanner 测试从 11 个增加到 13 个，覆盖配置管理。无运行时行为变更。

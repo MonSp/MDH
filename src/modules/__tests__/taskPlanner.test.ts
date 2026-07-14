@@ -99,4 +99,18 @@ describe('TaskPlanner', () => {
     })
     expect(replanned.success).toBe(true)
   })
+
+  it('should get config', () => {
+    const planner = new TaskPlanner()
+    const config = planner.getConfig()
+    expect(config).toBeDefined()
+    expect(config.enableDependencyOptimization).toBeDefined()
+  })
+
+  it('should update config', () => {
+    const planner = new TaskPlanner()
+    planner.updateConfig({ enableDependencyOptimization: false })
+    const config = planner.getConfig()
+    expect(config.enableDependencyOptimization).toBe(false)
+  })
 })
