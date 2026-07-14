@@ -135,4 +135,22 @@ describe('TaskScheduler', () => {
     const result = scheduler.scheduleTasks(tasks, [])
     expect(result).toHaveLength(2)
   })
+
+  it('should schedule tasks with critical-path algorithm', () => {
+    const scheduler = new TaskScheduler({ schedulingAlgorithm: 'critical-path' })
+    const tasks = [
+      makeTask('t1', 'high'),
+      makeTask('t2', 'medium'),
+      makeTask('t3', 'low'),
+    ]
+    const deps = [
+      { fromTaskId: 't1', toTaskId: 't3', type: 'finish-to-start' as const },
+    ]
+    const result = scheduler.scheduleTasks(tasks, deps)
+    expect(result).toHaveLength(3)
+    // t1 should come before t3 (dependency)
+    const t1Idx = result.findIndex(t => t.id === 't1')
+    const t3Idx = result.findIndex(t => t.id === 't3')
+    expect(t1Idx).toBeLessThan(t3Idx)
+  })
 })

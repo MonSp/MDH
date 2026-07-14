@@ -733,3 +733,18 @@
 **验证**: 914 passed (910 old + 4 new), 0 failed。前端测试全部通过。
 
 **影响**: CompensationEngine 测试从 9 个增加到 13 个，覆盖失败历史、监听器管理和初始状态。无运行时行为变更。
+
+---
+
+### [2026-07-14 08:00] 优化 #45：补充 TaskScheduler critical-path 算法测试（551 行 TS，14→15 测试）
+
+**问题**: `src/modules/taskScheduler.ts` 有 551 行代码，14 个测试覆盖 priority、FIFO、SJF、hybrid 四种调度算法，但 `critical-path` 算法完全没有测试。
+
+**根因**: 测试在优化 #25 添加时只覆盖了 4 种算法，遗漏了第 5 种 critical-path 算法。
+
+**改动**:
+- `src/modules/__tests__/taskScheduler.test.ts` — 新增 1 个测试：critical-path 算法正确处理依赖关系（验证 t1 在 t3 之前执行）
+
+**验证**: 915 passed (914 old + 1 new), 0 failed。前端测试全部通过。
+
+**影响**: TaskScheduler 测试从 14 个增加到 15 个，覆盖全部 5 种调度算法。无运行时行为变更。
