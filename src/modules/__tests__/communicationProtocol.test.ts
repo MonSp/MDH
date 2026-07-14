@@ -6,6 +6,7 @@ import {
   createMessage,
   createReply,
   isMessageExpired,
+  createCommunicationChannel,
 } from '../communicationProtocol'
 
 describe('communicationProtocol', () => {
@@ -76,5 +77,56 @@ describe('communicationProtocol', () => {
 
     // Message without TTL should not expire
     expect(isMessageExpired(msg)).toBe(false)
+  })
+
+  it('should create message with priority', () => {
+    const msg = createMessage(
+      MessageType.TaskAssignment,
+      'sender-1',
+      'receiver-1',
+      { taskId: 't1' },
+      { priority: MessagePriority.Urgent },
+    )
+    expect(msg.priority).toBe(MessagePriority.Urgent)
+    expect(msg.status).toBe(MessageStatus.Pending)
+  })
+
+  it('should expire message with expiresAt', () => {
+    const now = Date.now()
+    const msg = createMessage(
+      MessageType.Heartbeat,
+      'agent-1',
+      'system',
+      {},
+      { expiresAt: now + 5000 },
+    )
+    expect(isMessageExpired(msg)).toBe(false)
+
+    // Advance time past expiration
+    vi.advanceTimersByTime(6000)
+    expect(isMessageExpired(msg)).toBe(true)
+  })
+
+  it('should create communication channel', () => {
+    const channel = createCommunicationChannel(
+      'dev-team',
+      'direct',
+      ['agent-1', 'agent-2'],
+    )
+    expect(channel.name).toBe('dev-team')
+    expect(channel.type).toBe('direct')
+    expect(channel.participants).toEqual(['agent-1', 'agent-2'])
+    expect(channel.messageHistory).toEqual([])
+    expect(channel.id).toBeTruthy()
+  })
+
+  it('should create broadcast channel', () => {
+    const channel = createCommunicationChannel(
+      'announcements',
+      'broadcast',
+      ['agent-1', 'agent-2', 'agent-3'],
+    )
+    expect(channel.type).toBe('broadcast')
+    expect(channel.participants).toHaveLength(3)
   })
 })

@@ -71,6 +71,22 @@
 
 ---
 
+### [2026-07-13 10:30] 优化 #5：修复投票阶段 stance 查找的键名不匹配
+
+**问题**: `meeting_coordinator.py:898` 用 `dr.get("agentId", "")` 查找讨论结果中的 Agent ID，但 `discussion_manager.py` 和 `mixed_location_discussion.py` 返回的键是 `agent_id`（snake_case）。导致 `stance_by_agent` 字典永远为空，所有 Agent 都走 neutral 默认路径（`confidence >= 0.4 → approve`），讨论阶段产生的反对/修改意见在投票中被完全忽略。
+
+**根因**: Python 后端模块统一使用 snake_case 命名（`agent_id`、`parsed_stance`、`parsed_confidence`），但投票阶段的查找代码使用了 camelCase（`agentId`），可能是前端代码风格混入后端导致。
+
+**改动**:
+- `backend/meeting_coordinator.py:898` — 将 `dr.get("agentId", "")` 改为 `dr.get("agent_id", dr.get("agentId", ""))`，兼容两种格式
+- `backend/test_loop_modules.py` — 新增 `TestStanceLookup` 测试类，3 个用例验证 snake_case、camelCase 兼容和空结果
+
+**验证**: 99 passed, 0 failed。
+
+**影响**: 修复后投票阶段将正确使用讨论阶段的 stance 和 confidence。如果讨论中有 Agent 反对（oppose），投票会反映为反对票，可能导致方案未通过。向后兼容：同时支持 `agent_id` 和 `agentId` 两种格式。
+
+---
+
 ### [2026-07-13 09:30] 优化 #5：审查流水线整合 LLM 审查意见到结构化验收决策
 
 **问题**: `review_pipeline.py` 的 `_generate_structured_feedback()` 只将 `task_description` 和 `execution_result` 传给 planner 的关键词匹配器，完全忽略刚生成的 `reviewer_feedback` 和 `monitor_feedback`。这意味着审查者通过 LLM 发现的严重问题（如安全漏洞、逻辑错误）不会影响验收决策——planner 的纯关键词匹配可能判定为 "approved"。
@@ -563,3 +579,18 @@
 **验证**: 897 passed (893 old + 4 new), 0 failed。前端测试全部通过。
 
 **影响**: AgentTypes 测试从 8 个增加到 12 个，覆盖配置完整性和函数变体。无运行时行为变更。
+
+---
+
+### [2026-07-14 01:30] 优化 #37：补充 CommunicationProtocol 消息过期和通道测试（322 行 TS，6→10 测试）
+
+**问题**: `src/modules/communicationProtocol.ts` 有 322 行代码定义消息协议（MessageType、MessagePriority、MessageStatus、createMessage、createReply、isMessageExpired、createCommunicationChannel），6 个测试只覆盖基本枚举和消息创建/回复，缺少消息过期机制、优先级选项和通信通道创建的测试。
+
+**根因**: 测试只覆盖了 happy path，未覆盖 `expiresAt` 过期逻辑、`createMessage` 的 options 参数和 `createCommunicationChannel` 函数。
+
+**改动**:
+- `src/modules/__tests__/communicationProtocol.test.ts` — 新增 4 个测试：createMessage 带优先级选项、expiresAt 过期机制（fake timers 验证）、createCommunicationChannel direct 通道、createCommunicationChannel broadcast 通道
+
+**验证**: 901 passed (897 old + 4 new), 0 failed。前端测试全部通过。
+
+**影响**: CommunicationProtocol 测试从 6 个增加到 10 个，覆盖消息过期、优先级和通道创建。无运行时行为变更。
