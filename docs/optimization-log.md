@@ -105,6 +105,22 @@
 
 ---
 
+### [2026-07-13 11:30] 优化 #7：修复 MeetingSession 缺少 add_agent 方法 + 集成测试 API 不匹配
+
+**问题**: `tests/test_workflow_integration.py` 全部 6 个测试因 `AttributeError: 'MeetingSession' object has no attribute 'add_agent'` 而 ERROR。WhyBuddy 重构将 `_detect_complex_task` 和 `_generate_workflow_definition` 从 `MeetingCoordinator` 移到了 `SemanticAnalyzer`，但测试未同步更新。
+
+**根因**: 两个问题叠加：(1) `MeetingSession` 从未提供 `add_agent()` 方法，测试使用了不存在的 API；(2) 测试直接调用 `meeting_coordinator._detect_complex_task()`，但该方法已移至 `SemanticAnalyzer`。
+
+**改动**:
+- `backend/meeting.py` — 新增 `MeetingSession.add_agent()` 方法，支持向会议动态添加智能体
+- `backend/tests/test_workflow_integration.py` — 将 `_detect_complex_task` 和 `_generate_workflow_definition` 调用改为通过 `meeting_coordinator._semantic_analyzer` 访问
+
+**验证**: 869 passed, 2 failed (均为预先存在的 agentscope/事件循环问题)，2 skipped。从之前 780 passed 提升到 869 passed。
+
+**影响**: 集成测试恢复正常运行，`MeetingSession` 获得了动态添加智能体的能力。
+
+---
+
 ### [2026-07-13 09:30] 优化 #5：审查流水线整合 LLM 审查意见到结构化验收决策
 
 **问题**: `review_pipeline.py` 的 `_generate_structured_feedback()` 只将 `task_description` 和 `execution_result` 传给 planner 的关键词匹配器，完全忽略刚生成的 `reviewer_feedback` 和 `monitor_feedback`。这意味着审查者通过 LLM 发现的严重问题（如安全漏洞、逻辑错误）不会影响验收决策——planner 的纯关键词匹配可能判定为 "approved"。
@@ -657,3 +673,18 @@
 **验证**: 787 passed (765 old + 22 new), 2 skipped, 3 warnings。新增测试通过。
 
 **影响**: protocol.py 从零测试提升到 22 个测试，覆盖所有枚举、数据类和序列化函数。无运行时行为变更。
+
+---
+
+### [2026-07-14 06:30] 优化 #41：为 WorkspaceSync 创建独立测试文件（323 行，0→19 测试）
+
+**问题**: `workspace_sync.py` 有 323 行代码实现工作区同步器（FileState/WorkspaceState 数据类、文件锁定/解锁、远端状态合并、冲突回调、start/stop 生命周期），但没有测试文件。该模块是多智能体协作的文件级并发控制核心。
+
+**根因**: 该模块在项目中期编写，依赖 asyncio 但无 agentscope 依赖，从未被纳入测试套件。
+
+**改动**:
+- `backend/tests/test_workspace_sync.py` — 新增 19 个测试：FileState/WorkspaceState 数据类默认值、初始化和 get_state、文件锁定（成功/已锁定/解锁成功/未锁定/错误 Agent/更新所有者/新文件）、远端状态合并（新文件/合并锁定/不覆盖现有）、冲突回调设置、start/stop 生命周期（创建任务/取消任务/幂等启动/未启动时停止）
+
+**验证**: 806 passed (787 old + 19 new), 2 skipped, 3 warnings。新增测试通过。
+
+**影响**: WorkspaceSync 从零测试提升到 19 个测试，覆盖文件锁定、远端同步和生命周期管理。无运行时行为变更。
