@@ -718,3 +718,18 @@
 **验证**: 910 passed (908 old + 2 new), 0 failed。前端测试全部通过。
 
 **影响**: TaskPlanner 测试从 11 个增加到 13 个，覆盖配置管理。无运行时行为变更。
+
+---
+
+### [2026-07-14 07:30] 优化 #44：补充 CompensationEngine 失败历史和监听器测试（382 行 TS，9→13 测试）
+
+**问题**: `src/modules/compensationEngine.ts` 有 382 行代码，9 个测试覆盖核心补偿流程，但 `getFailureHistory()`、`removeListener()`、`getCompensationLog()` 初始状态和 `getCompensationStats()` 初始状态完全没有测试。
+
+**根因**: 测试只覆盖了补偿执行流程，未覆盖失败历史查询、监听器管理和初始状态。
+
+**改动**:
+- `src/modules/__tests__/compensationEngine.test.ts` — 新增 4 个测试：getFailureHistory 追踪失败记录、removeListener 移除监听器后不再触发、getCompensationLog 初始为空、getCompensationStats 初始为零
+
+**验证**: 914 passed (910 old + 4 new), 0 failed。前端测试全部通过。
+
+**影响**: CompensationEngine 测试从 9 个增加到 13 个，覆盖失败历史、监听器管理和初始状态。无运行时行为变更。

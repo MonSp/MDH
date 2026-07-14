@@ -187,5 +187,44 @@ describe('CompensationEngine', () => {
       expect(typeof event.timestamp).toBe('number')
       engine.destroy()
     })
+
+    it('should track failure history via getFailureHistory', () => {
+      const engine = new CompensationEngine()
+      engine.recordFailure('t1', 'a1', 'err1', 'local')
+      engine.recordFailure('t2', 'a2', 'err2', 'global')
+      const history = engine.getFailureHistory()
+      expect(history.length).toBe(2)
+      expect(history[0].taskId).toBe('t1')
+      expect(history[1].taskId).toBe('t2')
+      engine.destroy()
+    })
+
+    it('should remove listener', () => {
+      const engine = new CompensationEngine()
+      const listener = vi.fn()
+      engine.addListener(listener)
+      engine.removeListener(listener)
+      engine.recordFailure('t1', 'a1', 'err', 'local')
+      expect(listener).not.toHaveBeenCalled()
+      engine.destroy()
+    })
+  })
+
+  describe('log and stats', () => {
+    it('should return empty compensation log initially', () => {
+      const engine = new CompensationEngine()
+      const log = engine.getCompensationLog()
+      expect(log).toEqual([])
+      engine.destroy()
+    })
+
+    it('should return stats with zero counts initially', () => {
+      const engine = new CompensationEngine()
+      const stats = engine.getCompensationStats()
+      expect(stats.successCount).toBe(0)
+      expect(stats.failureCount).toBe(0)
+      expect(stats.totalCompensations).toBe(0)
+      engine.destroy()
+    })
   })
 })
