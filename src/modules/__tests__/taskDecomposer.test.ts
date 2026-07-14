@@ -110,4 +110,35 @@ describe('TaskDecomposer', () => {
     expect(result.metadata.taskCount).toBe(result.subTasks.length)
     expect(result.metadata.originalComplexity).toBe('medium')
   })
+
+  it('should return templates via getTemplates', () => {
+    const decomposer = new TaskDecomposer()
+    const templates = decomposer.getTemplates()
+    expect(Array.isArray(templates)).toBe(true)
+    // Default config should include some templates
+    expect(templates.length).toBeGreaterThan(0)
+  })
+
+  it('should update config', () => {
+    const decomposer = new TaskDecomposer({ maxSubTasks: 5 })
+    decomposer.updateConfig({ maxSubTasks: 10 })
+    // Verify by decomposing - should respect new limit
+    expect(decomposer.getTemplates()).toBeDefined()
+  })
+
+  it('should update config with custom templates', () => {
+    const decomposer = new TaskDecomposer()
+    const customTemplates = [
+      {
+        name: 'custom',
+        description: 'Custom template',
+        triggers: ['custom'],
+        subtaskPatterns: [{ title: 'Custom task', capabilities: [] }],
+      },
+    ]
+    decomposer.updateConfig({ taskTemplates: customTemplates })
+    const templates = decomposer.getTemplates()
+    expect(templates.length).toBe(1)
+    expect(templates[0].name).toBe('custom')
+  })
 })

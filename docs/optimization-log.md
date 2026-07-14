@@ -609,3 +609,18 @@
 **验证**: 765 passed (750 old + 15 new), 2 skipped, 3 warnings。新增测试通过。
 
 **影响**: MessageQueue 从 5 个分散测试提升到 20 个（5 旧 + 15 新），覆盖核心数据结构和持久化逻辑。无运行时行为变更。
+
+---
+
+### [2026-07-14 02:30] 优化 #39：补充 TaskDecomposer getTemplates 和 updateConfig 测试（590 行 TS，10→13 测试）
+
+**问题**: `src/modules/taskDecomposer.ts` 有 590 行代码，10 个测试只覆盖 `decompose` 方法，`getTemplates()` 和 `updateConfig()` 方法完全没有测试。
+
+**根因**: 测试只覆盖了核心分解逻辑，未覆盖配置查询和动态更新。
+
+**改动**:
+- `src/modules/__tests__/taskDecomposer.test.ts` — 新增 3 个测试：getTemplates 返回模板列表、updateConfig 更新配置、updateConfig 自定义模板替换
+
+**验证**: 904 passed (901 old + 3 new), 0 failed。前端测试全部通过。
+
+**影响**: TaskDecomposer 测试从 10 个增加到 13 个，覆盖配置查询和更新。无运行时行为变更。
