@@ -65,4 +65,38 @@ describe('TaskPlanner', () => {
     expect(result.success).toBe(true)
     expect(result.analysis).toBeDefined()
   })
+
+  it('should replan with completed tasks', async () => {
+    const planner = new TaskPlanner()
+    const initial = await planner.createPlanFromInput('创建登录页面')
+    expect(initial.success).toBe(true)
+
+    const replanned = await planner.replan(initial.plan!, {
+      completedTasks: [initial.plan!.subTasks[0].id],
+    })
+    expect(replanned.success).toBe(true)
+  })
+
+  it('should replan with failed tasks', async () => {
+    const planner = new TaskPlanner()
+    const initial = await planner.createPlanFromInput('构建REST API')
+    expect(initial.success).toBe(true)
+
+    const replanned = await planner.replan(initial.plan!, {
+      failedTasks: [initial.plan!.subTasks[0].id],
+    })
+    expect(replanned.success).toBe(true)
+  })
+
+  it('should handle replan with all tasks completed', async () => {
+    const planner = new TaskPlanner()
+    const initial = await planner.createPlanFromInput('写hello world')
+    expect(initial.success).toBe(true)
+
+    const allIds = initial.plan!.subTasks.map(t => t.id)
+    const replanned = await planner.replan(initial.plan!, {
+      completedTasks: allIds,
+    })
+    expect(replanned.success).toBe(true)
+  })
 })

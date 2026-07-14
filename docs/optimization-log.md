@@ -518,3 +518,18 @@
 **验证**: 750 passed (746 old + 4 new), 2 skipped, 3 warnings。新增测试通过。
 
 **影响**: WorkflowEngine 测试从 17 个增加到 21 个，覆盖状态机错误和回调机制。无运行时行为变更。
+
+---
+
+### [2026-07-14 00:00] 优化 #34：补充 TaskPlanner replan 测试（509 行 TS，8→11 测试）
+
+**问题**: `src/modules/taskPlanner.ts` 有 509 行代码，8 个测试只覆盖 `createPlanFromInput`，`replan` 方法（已完成/失败任务的重新规划）完全没有测试。
+
+**根因**: 测试在优化 #24 添加时只覆盖了初始规划，未覆盖重新规划流程。
+
+**改动**:
+- `src/modules/__tests__/taskPlanner.test.ts` — 新增 3 个测试：replan 已完成任务、replan 失败任务、replan 所有任务完成
+
+**验证**: 888 passed (885 old + 3 new), 0 failed。前端测试全部通过。
+
+**影响**: TaskPlanner 测试从 8 个增加到 11 个，覆盖 replan 流程。无运行时行为变更。
