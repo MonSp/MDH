@@ -1,9 +1,17 @@
 import { app, BrowserWindow, shell, dialog } from 'electron';
-import { join } from 'path';
+import { join, extname } from 'path';
+import { existsSync } from 'fs';
 import { registerIpcHandlers, notifyRenderer } from './ipc-handlers.js';
 
 // ─── 环境检测 ───
 const isDev = !app.isPackaged;
+
+// ─── 平台特定图标 ───
+function getIconPath(): string | undefined {
+  const iconName = process.platform === 'win32' ? 'favicon.ico' : 'favicon.svg';
+  const iconPath = join(__dirname, '../public', iconName);
+  return existsSync(iconPath) ? iconPath : undefined;
+}
 
 // ─── 自动更新 ───
 // electron-updater 在打包后才可用，开发模式下跳过
@@ -79,7 +87,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 768,
     title: 'MDH - 大荒界',
-    icon: join(__dirname, '../public/favicon.svg'),
+    icon: getIconPath(),
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,

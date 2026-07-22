@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, dialog, safeStorage } from 'electron';
+import { app, ipcMain, BrowserWindow, dialog, safeStorage } from 'electron';
 import { join } from 'path';
 import { homedir } from 'os';
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
