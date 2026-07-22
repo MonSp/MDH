@@ -128,8 +128,8 @@ function loadLlmConfig() {
 app.whenReady().then(async () => {
   const llmConfig = loadLlmConfig();
 
-  // 注册 IPC 处理器
-  registerIpcHandlers(llmConfig);
+  // 注册 IPC 处理器（异步加载 orchestrator 模块）
+  await registerIpcHandlers(llmConfig);
 
   // 创建窗口
   createWindow();

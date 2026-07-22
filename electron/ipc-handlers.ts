@@ -2,13 +2,52 @@ import { app, ipcMain, BrowserWindow, dialog, safeStorage } from 'electron';
 import { join } from 'path';
 import { homedir } from 'os';
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
-import type { LLMConfig } from '../orchestrator/src/llm/types.js';
-import { resolveConfig } from '../orchestrator/src/llm/openai.js';
-import { RouterFactory } from '../orchestrator/src/toolkit/router.js';
-import { LocalToolkitRouter } from '../orchestrator/src/toolkit/local.js';
-import { RemoteToolkitRouter } from '../orchestrator/src/toolkit/remote.js';
-import { TeamCoordinator, type WorkspaceConfirmRequest } from '../orchestrator/src/team/coordinator.js';
-import { getAvailableRoles } from '../orchestrator/src/team/templates.js';
+
+// Orchestrator 模块通过动态 import 加载（ESM/CJS 兼容）
+type LLMConfig = {
+  provider: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+};
+
+type WorkspaceConfirmRequest = {
+  taskDescription: string;
+  suggestedType: 'standalone' | 'git_worktree';
+  options: {
+    workspace_types: Array<{ id: string; name: string; desc: string }>;
+  };
+};
+
+// 延迟加载的 orchestrator 模块
+let resolveConfig: ((config: Partial<LLMConfig>) => LLMConfig) | null = null;
+let RouterFactory: any = null;
+let LocalToolkitRouter: any = null;
+let TeamCoordinator: any = null;
+let getAvailableRoles: (() => any[]) | null = null;
+
+async function loadOrchestratorModules() {
+  if (resolveConfig) return; // 已加载
+
+  try {
+    const openai = await import('../orchestrator/src/llm/openai.js');
+    resolveConfig = openai.resolveConfig;
+
+    const router = await import('../orchestrator/src/toolkit/router.js');
+    RouterFactory = router.RouterFactory;
+
+    const local = await import('../orchestrator/src/toolkit/local.js');
+    LocalToolkitRouter = local.LocalToolkitRouter;
+
+    const coordinator = await import('../orchestrator/src/team/coordinator.js');
+    TeamCoordinator = coordinator.TeamCoordinator;
+
+    const templates = await import('../orchestrator/src/team/templates.js');
+    getAvailableRoles = templates.getAvailableRoles;
+  } catch (e) {
+    console.error('Failed to load orchestrator modules:', e);
+  }
+}
 
 // ─── 安全存储 ───
 // 使用 Electron safeStorage + 文件存储 API Key
@@ -82,10 +121,10 @@ function saveSecureConfig(config: Partial<SecureConfig>) {
 interface AppState {
   llmConfig: LLMConfig;
   workspace: string;
-  coordinator: TeamCoordinator | null;
-  routerFactory: RouterFactory;
-  localRouter: LocalToolkitRouter;
-  remoteRouter: RemoteToolkitRouter | null;
+  coordinator: any;
+  routerFactory: any;
+  localRouter: any;
+  remoteRouter: any;
   lastUsedRoles: string[];
 }
 
@@ -93,24 +132,33 @@ const state: AppState = {
   llmConfig: { provider: 'deepseek', apiKey: '', baseUrl: '', model: '' },
   workspace: '',
   coordinator: null,
-  routerFactory: new RouterFactory(),
-  localRouter: new LocalToolkitRouter(),
+  routerFactory: null,
+  localRouter: null,
   remoteRouter: null,
   lastUsedRoles: ['coordinator', 'planner', 'executor', 'reviewer'],
 };
 
 // ─── 初始化 ───
-export function registerIpcHandlers(llmConfig: Partial<LLMConfig>) {
+export async function registerIpcHandlers(llmConfig: Partial<LLMConfig>) {
+  // 加载 orchestrator 模块
+  await loadOrchestratorModules();
+
+  // 初始化 orchestrator 组件
+  if (RouterFactory) state.routerFactory = new RouterFactory();
+  if (LocalToolkitRouter) state.localRouter = new LocalToolkitRouter();
+
   // 从安全存储加载配置
   const savedConfig = loadSecureConfig();
 
   // 合并：环境变量 > 保存的配置 > 传入的默认值
-  state.llmConfig = resolveConfig({
+  const rawConfig = {
     provider: llmConfig.provider || savedConfig.provider || 'deepseek',
     apiKey: llmConfig.apiKey || savedConfig.apiKey || '',
     baseUrl: llmConfig.baseUrl || savedConfig.baseUrl || '',
     model: llmConfig.model || savedConfig.model || '',
-  });
+  };
+
+  state.llmConfig = resolveConfig ? resolveConfig(rawConfig) : rawConfig as LLMConfig;
 
   state.workspace = savedConfig.workspace || getDefaultWorkspace();
   state.lastUsedRoles = savedConfig.lastUsedRoles || state.lastUsedRoles;
@@ -130,7 +178,11 @@ export function registerIpcHandlers(llmConfig: Partial<LLMConfig>) {
   registerRoleHandlers();
 }
 
-function createCoordinator(): TeamCoordinator {
+function createCoordinator(): any {
+  if (!TeamCoordinator) {
+    console.warn('TeamCoordinator not loaded');
+    return null;
+  }
   return new TeamCoordinator({
     llm: state.llmConfig,
     routerFactory: state.routerFactory,
@@ -323,7 +375,10 @@ function registerWorkspaceHandlers() {
 // ─── 角色管理 ───
 function registerRoleHandlers() {
   ipcMain.handle('mdh:getRoles', async () => {
-    return getAvailableRoles();
+    if (getAvailableRoles) {
+      return getAvailableRoles();
+    }
+    return getDefaultRoles();
   });
 
   ipcMain.handle('mdh:getTeamPresets', async () => {
@@ -377,4 +432,15 @@ export function notifyRenderer(channel: string, data: unknown) {
 // ─── 默认工作区 ───
 function getDefaultWorkspace(): string {
   return join(homedir(), '.mdh-workspaces', 'default');
+}
+
+// ─── 默认角色 ───
+function getDefaultRoles() {
+  return [
+    { id: 'planner', name: '架构师', team_role: 'Planner', description: '分析技术任务、设计系统架构、分解子任务' },
+    { id: 'executor', name: '全栈开发', team_role: 'Executor', description: '代码编写和功能实现' },
+    { id: 'reviewer', name: 'QA工程师', team_role: 'Reviewer', description: '代码审查、测试、质量保证' },
+    { id: 'monitor', name: 'DevOps', team_role: 'Monitor', description: '部署、监控、运维' },
+    { id: 'coordinator', name: '项目经理', team_role: 'Coordinator', description: '协调各方、跟踪进度、管理风险' },
+  ];
 }
