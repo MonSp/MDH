@@ -211,3 +211,23 @@ def test_workspace_escape_blocked():
         "tool_name": "read_file", "arguments": {"path": "test"}, "call_id": "t1", "workspace": "/etc",
     }, headers=HEADERS)
     assert resp.status_code == 403
+
+
+# ─── /token endpoint security ───
+
+def test_token_endpoint_requires_auth():
+    """/token 端点应要求正确认证"""
+    # 无凭证应被拒绝
+    resp = client.get("/token")
+    assert resp.status_code == 401
+
+def test_token_endpoint_wrong_token():
+    """/token 端点应拒绝错误凭证"""
+    resp = client.get("/token", headers={"Authorization": "Bearer wrong-token"})
+    assert resp.status_code in (401, 403)
+
+def test_token_endpoint_valid_token():
+    """/token 端点应接受正确凭证"""
+    resp = client.get("/token", headers=HEADERS)
+    assert resp.status_code == 200
+    assert "token" in resp.json()

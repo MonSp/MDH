@@ -154,7 +154,7 @@ class SimpleExecutor:
         # 执行任务
         result_text = ""
         try:
-            await run_agent_stream(session, content)
+            result_text = await run_agent_stream(session, content)
         except Exception as e:
             logger.warning("run_agent_stream 异常: %s", e)
             result_text = f"执行异常: {str(e)}"

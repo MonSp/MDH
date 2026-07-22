@@ -116,7 +116,7 @@ class WorkspaceManager:
                 capture_output=True,
             )
         else:
-            root_path = self.workspaces_dir
+            root_path = os.path.join(self.workspaces_dir, workspace_id)
             # 安全检查：目录已存在且非空
             if os.path.isdir(root_path) and not force:
                 scan = self.scan_directory(root_path)

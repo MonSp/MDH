@@ -895,7 +895,7 @@ class MeetingCoordinator:
         # 各智能体投票 — 基于讨论阶段的 stance 和 confidence
         stance_by_agent: dict[str, dict] = {}
         for dr in discussion_results:
-            aid = dr.get("agentId", "")
+            aid = dr.get("agent_id", dr.get("agentId", ""))
             if aid:
                 stance_by_agent[aid] = dr
 
@@ -1224,7 +1224,7 @@ class MeetingCoordinator:
         # 统计各角色的立场
         role_votes = {}
         for result in discussion_results:
-            agent_id = result.get("agentId", "")
+            agent_id = result.get("agent_id", result.get("agentId", ""))
             stance = result.get("parsed_stance", result.get("stance", "neutral"))
             if agent_id and stance in ["support", "modify"]:
                 role_votes[agent_id] = role_votes.get(agent_id, 0) + 1
@@ -1267,7 +1267,7 @@ class MeetingCoordinator:
             summary_parts.append("💬 团队讨论要点")
             summary_parts.append("-" * 40)
             for i, result in enumerate(discussion_results[:3], 1):
-                agent_id = result.get("agentId", "unknown")
+                agent_id = result.get("agent_id", result.get("agentId", "unknown"))
                 content = result.get("content", "")[:80]
                 stance = result.get("parsed_stance", result.get("stance", "neutral"))
                 stance_icon = "✅" if stance == "support" else "🔄" if stance == "modify" else "❓"

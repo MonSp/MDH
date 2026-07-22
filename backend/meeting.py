@@ -180,6 +180,28 @@ class MeetingSession:
             agent.status = MeetingAgentStatus.IDLE
         self._running = False
 
+    def add_agent(self, agent_id: str, name: str, role: AgentRole, capabilities: list = None) -> MeetingAgentInfo:
+        """向会议中添加一个智能体。
+
+        Args:
+            agent_id: 智能体 ID
+            name: 智能体名称
+            role: 角色
+            capabilities: 能力列表
+
+        Returns:
+            创建的 MeetingAgentInfo
+        """
+        agent = MeetingAgentInfo(
+            id=agent_id,
+            name=name,
+            role=role,
+            status=MeetingAgentStatus.MEETING,
+            capabilities=capabilities or [],
+        )
+        self.agents.append(agent)
+        return agent
+
     def get_agent(self, agent_id: str) -> Optional[MeetingAgentInfo]:
         for agent in self.agents:
             if agent.id == agent_id:

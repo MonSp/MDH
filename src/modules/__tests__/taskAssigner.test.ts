@@ -246,6 +246,17 @@ describe('TaskAssigner', () => {
     it('should return false for non-existent assignment', () => {
       expect(assigner.removeAssignment('bad')).toBe(false)
     })
+
+    it('should not call completeTaskForInstance (caller responsibility)', async () => {
+      setupRegistry(registry)
+      await assigner.assignTask(makeTask())
+
+      const spy = vi.spyOn(registry, 'completeTaskForInstance')
+      assigner.removeAssignment('task-1')
+
+      // removeAssignment 不应调用 completeTaskForInstance，由调用方负责
+      expect(spy).not.toHaveBeenCalled()
+    })
   })
 
   describe('reassignTask', () => {

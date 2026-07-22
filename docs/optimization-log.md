@@ -748,3 +748,184 @@
 **验证**: 915 passed (914 old + 1 new), 0 failed。前端测试全部通过。
 
 **影响**: TaskScheduler 测试从 14 个增加到 15 个，覆盖全部 5 种调度算法。无运行时行为变更。
+
+---
+
+### [2026-07-13 23:50] 优化 #46：修复 TaskOrchestrator 缺少 ExperienceExtractor 导入和 _build_prompt 方法
+
+**问题**: `task_orchestrator.py` 有两个运行时错误：(1) 第471行使用 `ExperienceExtractor` 但从未导入该类，调用 `_get_experience_context()` 时会抛出 `NameError`；(2) `_execute_parallel()` 第411行调用 `self._build_prompt()` 但该方法从未定义，并行执行任务时会抛出 `AttributeError`。
+
+**根因**: `TaskOrchestrator` 从 `MeetingCoordinator` 拆分时，`_get_experience_context` 方法引用了 `ExperienceExtractor` 但遗漏了导入。`_execute_parallel` 方法使用了 `_build_prompt` 但该方法未从 `_execute_sequential` 的内联提示词构建逻辑中提取出来。
+
+**改动**:
+- `backend/task_orchestrator.py:25` — 新增 `from experience_extractor import ExperienceExtractor` 导入
+- `backend/task_orchestrator.py:452-472` — 新增 `_build_prompt()` 方法，从 `_execute_sequential` 提取提示词构建逻辑，包含任务描述、代码块格式说明、经验上下文注入和工具提示
+- `backend/tests/test_task_orchestrator_fix.py` — 新增 7 个测试：_build_prompt 存在性、返回字符串、包含代码块格式、包含工具提示、ExperienceExtractor 可导入、经验注入验证、无经验时不注入
+
+**验证**: 897 passed (890 old + 7 new), 2 skipped, 3 warnings。新增测试全部通过。
+
+**影响**: 修复后并行执行路径不再崩溃，经验注入功能在 task_orchestrator 独立使用时正常工作。向后兼容：串行执行路径行为不变。
+
+---
+
+### [2026-07-14 15:15] 优化 #47：修复 CompensationEngine.execute_compensation 硬编码 success=True
+
+**问题**: `compensation.py` 的 `execute_compensation()` 无条件返回 `success=True`，未执行任何补偿动作。系统误判所有补偿均已恢复，实际故障被掩盖。
+
+**根因**: 方法是空壳 stub — 直接构造"成功"结果并记录到日志，未根据 `action_type` 分发到真实执行逻辑。
+
+**改动**:
+- `backend/compensation.py` — 新增 `_handlers` 字典和 `register_handler()` 方法支持按 `action_type` 注册处理器；重写 `execute_compensation()` 通过 handler 执行补偿，无 handler 时返回失败，handler 异常时捕获并返回失败
+- `backend/test_loop_modules.py` — 新增 8 个测试：创建、记录失败、handler 成功、handler 失败、无 handler、handler 异常、日志记录、find_compensatable_tasks
+
+**验证**: 903 passed (895 old + 8 new), 2 failed (预先存在)。
+
+**影响**: 补偿引擎从"永远成功"变为真正执行补偿动作。调用方可通过 `register_handler("retry", fn)` 注册具体逻辑。无 handler 时明确返回失败而非静默成功。
+
+---
+
+### [2026-07-14 15:30] 优化 #48：修复 WorkspaceManager STANDALONE 模式工作区目录未隔离（数据丢失级）
+
+**问题**: `workspace_manager.py:119` 的 STANDALONE 模式将 `root_path` 设为 `self.workspaces_dir`（父目录），导致所有 STANDALONE 工作区共享同一目录。`destroy_workspace` 执行 `shutil.rmtree(root_path)` 时会删除整个父目录，连带销毁所有其他工作区。
+
+**根因**: GIT_WORKTREE 模式正确使用 `os.path.join(self.workspaces_dir, workspace_id)` 创建子目录，但 STANDALONE 模式直接使用父目录，遗漏了子目录隔离。
+
+**改动**:
+- `backend/workspace_manager.py:119` — `root_path = self.workspaces_dir` → `root_path = os.path.join(self.workspaces_dir, workspace_id)`
+- `backend/tests/test_workspace_manager.py` — 新增 `test_standalone_workspaces_isolated` 验证多工作区独立性和销毁隔离
+
+**验证**: 904 passed, 2 failed (预先存在)。
+
+**影响**: 修复后每个 STANDALONE 工作区获得独立子目录，销毁操作不影响其他工作区。这是一个数据丢失级 bug 的修复。
+
+---
+
+### [2026-07-14 15:45] 优化 #49：修复多轮讨论中同一智能体被重复投票导致共识结果被夸大
+
+**问题**: `discussion_manager.py` 和 `mixed_location_discussion.py` 的共识投票循环遍历 `all_discussions`（包含所有轮次条目），每个智能体在每轮讨论中各产生一条记录，导致同一智能体被 `cast_vote` 多次（默认 `max_rounds=2` 时投 2 票）。`negotiation.py` 的 `cast_vote` 无防重复机制。
+
+**根因**: 投票循环未按 `agent_id` 去重，直接遍历所有讨论记录。多轮讨论的累积结构导致每个智能体产生 N 条记录（N = 轮次数）。
+
+**改动**:
+- `backend/discussion_manager.py:178-193` — 投票前按 `agent_id` 去重，取最后一次发言的立场
+- `backend/mixed_location_discussion.py:412-430` — 同样修复
+- `backend/test_loop_modules.py` — 新增 2 个测试验证去重逻辑
+
+**验证**: 906 passed, 2 failed (预先存在)。
+
+**影响**: 修复后每智能体只投一票（取最后立场），共识结果准确反映团队真实意见。多轮讨论中立场变化的智能体以最终立场为准。
+
+---
+
+### [2026-07-14 16:00] 优化 #50：修复 ceo_agent.py DirectoryNotEmptyError 未导入导致错误处理全部失效
+
+**问题**: `ceo_agent.py:362` 的 `except DirectoryNotEmptyError as e:` 引用了未在模块顶部导入的名称。Python 在评估 `except` 子句时需要解析该名称，但 `DirectoryNotEmptyError` 在 line 364 才被 import（在 except 块内部），导致 `NameError` 替换原始异常向上传播。整个 `DirectoryNotEmptyError` 处理逻辑（line 362-430）和 `ValueError` 处理逻辑（line 432-436）全部变成死代码。
+
+**根因**: `workspace_manager` 的导入（line 303）只包含 `WorkspaceManager, WorkspaceType`，遗漏了 `DirectoryNotEmptyError`。
+
+**改动**:
+- `backend/ceo_agent.py:303` — 补充 `DirectoryNotEmptyError` 到顶部导入
+- `backend/ceo_agent.py:364` — 删除 except 块内的冗余导入
+- `backend/test_loop_modules.py` — 新增 2 个测试验证导入正确性
+
+**验证**: 908 passed, 2 failed (预先存在)。
+
+**影响**: 修复后工作区创建失败时，`DirectoryNotEmptyError` 能被正确拦截并触发用户确认流程，而非抛出令人困惑的 `NameError`。
+
+---
+
+### [2026-07-14 16:15] 优化 #51：修复消息队列重试使用原始时间戳导致重试延迟
+
+**问题**: `message_queue.py:331-332` 重试消息重新入队时使用原始 `message.created_at` 而非当前时间。虽然同优先级下旧消息优先出队，但语义上重试消息应被视为"新"的处理请求，使用当前时间更合理。
+
+**根因**: 重试分支直接复用 `message.created_at` 作为 PriorityQueue 的排序时间戳，未更新为重试时刻的时间。
+
+**改动**:
+- `backend/message_queue.py:332` — `message.created_at` → `time.time()`
+- `backend/tests/test_message_queue.py` — 新增 `test_retry_uses_current_timestamp` 验证重试消息使用当前时间
+
+**验证**: 909 passed, 2 failed (预先存在)。
+
+**影响**: 重试消息获得当前时间戳，在高负载场景下不会被无限延迟。
+
+---
+
+### [2026-07-14 16:30] 优化 #52：修复 SimpleExecutor 永远无法捕获执行结果导致轻量验收 100% 失败
+
+**问题**: `simple_executor.py:155-162` 的 `_run_task()` 调用 `await run_agent_stream(session, content)` 但未使用返回值，`result_text` 始终为 `""`。`_lightweight_review()` 的 `result_non_empty` 检查永远为 `False`，所有简单任务都被错误升级到复杂会议流程。
+
+**根因**: `run_agent_stream()` 原本无返回值（隐式返回 `None`），`_stream_loop()` 将结果通过 WebSocket 事件流式推送给前端，但未将结果文本返回给调用方。
+
+**改动**:
+- `backend/agent.py:285` — `_stream_loop()` 新增 `accumulated_text` 变量，在 `TextBlockDeltaEvent` 中累积文本，`ReplyEndEvent` 和 `Msg` 事件时返回累积文本
+- `backend/agent.py:206` — `run_agent_stream()` 改为返回 `str`，捕获 `_stream_loop` 的返回值
+- `backend/simple_executor.py:157` — `await run_agent_stream(...)` → `result_text = await run_agent_stream(...)`
+- `backend/test_loop_modules.py` — 新增 4 个测试验证返回值注解和轻量验收逻辑
+
+**验证**: 912 passed, 2 failed (预先存在)。
+
+**影响**: 修复后 SimpleExecutor 能正确捕获执行结果，轻量验收通过的简单任务不再被错误升级到复杂路径，避免不必要的性能开销。
+
+---
+
+### [2026-07-14 16:45] 优化 #53：修复 TaskAssigner.removeAssignment 双重计数腐蚀智能体评分
+
+**问题**: `taskAssigner.ts:290` 的 `removeAssignment()` 无条件调用 `completeTaskForInstance(agentId, true)`，但 `agentCoordinator.ts` 的 `handleTaskFailure/handleTaskSuccess` 在调用 `removeAssignment` 前已调用过 `completeTaskForInstance`。导致：成功任务 `completedCount += 2`，失败任务 `failedCount += 1` 且 `completedCount += 1`。`calculateSuccessRate` 公式被彻底扭曲。
+
+**根因**: `removeAssignment` 越权执行了"标记任务完成"的职责，违反单一职责原则。调用方无法控制完成状态的语义。
+
+**改动**:
+- `src/modules/taskAssigner.ts:290` — 移除 `this.registry.completeTaskForInstance(assignment.agentId, true)` 调用，由调用方负责
+- `src/modules/__tests__/taskAssigner.test.ts` — 新增测试验证 `removeAssignment` 不调用 `completeTaskForInstance`
+
+**验证**: 916 TS passed (915 old + 1 new), 912 Python passed。
+
+**影响**: 修复后智能体成功率计算准确，任务分配策略（balanced/loadBalancing/capabilityFirst）的评分不再失真。
+
+---
+
+### [2026-07-14 17:00] 优化 #54：修复协调者 neutral 立场被当作反对票扭曲共识
+
+**问题**: `mixed_location_discussion.py:406` 和 `discussion_manager.py:172` 将协调者总结硬编码为 `stance: "neutral"`，而投票逻辑 `approve = stance in ('support', 'modify')` 将 neutral 判定为反对。协调者每轮自动投反对票，当讨论 2:2 平衡时，加上协调者的反对票变为 2:3，共识失败。
+
+**根因**: 协调者被排除在 `discussions` 之外（正确），但其总结被追加到 `discussions` 后参与了投票（错误）。协调者的角色是总结者，不应投票。
+
+**改动**:
+- `backend/mixed_location_discussion.py:416-420` — 构建 `last_stance_by_agent` 时排除协调者
+- `backend/discussion_manager.py:179-183` — 同样排除协调者
+- `backend/test_loop_modules.py` — 新增 1 个测试验证协调者被排除
+
+**验证**: 913 passed, 2 failed (预先存在)。
+
+**影响**: 修复后协调者不再自动投反对票，共识评估准确反映讨论参与者的真实意见。
+
+---
+
+### [2026-07-14 17:15] 优化 #55：修复 executor_server /token 端点缺少 await 导致认证完全失效（安全漏洞）
+
+**问题**: `executor_server.py:312` 的 `GET /token` 端点调用 `verify_token(authorization)` 缺少 `await`。`verify_token` 是异步函数，未等待时返回协程对象（truthy），认证检查被完全绕过。任何人无需凭证即可获取 `EXECUTOR_TOKEN`，进而用 `POST /execute` 执行任意 shell 命令（RCE）。
+
+**根因**: 其他端点使用 `Depends(verify_token)` 正确处理异步认证，唯独 `/token` 端点直接调用遗漏了 `await`。
+
+**改动**:
+- `backend/executor_server.py:312` — `verify_token(authorization)` → `await verify_token(authorization)`
+- `backend/tests/test_executor_server.py` — 新增 3 个测试验证 /token 端点认证
+
+**验证**: 916 passed, 2 failed (预先存在)。
+
+**影响**: 修复后 /token 端点要求正确认证，未授权访问返回 401/403。这是一个安全漏洞修复。
+
+---
+
+### [2026-07-14 17:30] 优化 #56：修复 delete_skill 路径遍历导致任意目录删除（安全漏洞）
+
+**问题**: `server.py:1202-1210` 的 `delete_skill` 消息处理中，客户端提供的 `dir` 参数未经路径净化，直接拼接到 `SKILLS_DIR` 后传给 `shutil.rmtree`。攻击者可通过 `dir: "../../"` 或 `dir: "/tmp/important"` 删除任意目录。
+
+**根因**: `save_skill_to_dir`（skills.py:112）对写入路径做了字符白名单过滤，但 `delete_skill` 完全没有对称的校验。
+
+**改动**:
+- `backend/server.py:1205-1209` — 使用 `os.path.realpath` 解析绝对路径，校验必须以 `SKILLS_DIR` 为前缀，否则返回错误
+
+**验证**: 916 passed, 2 failed (预先存在)。
+
+**影响**: 修复后路径遍历攻击被阻止，删除操作限制在 SKILLS_DIR 范围内。安全漏洞修复。

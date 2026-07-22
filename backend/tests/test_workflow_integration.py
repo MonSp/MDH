@@ -55,22 +55,24 @@ def meeting_coordinator(meeting_session):
 @pytest.mark.asyncio
 async def test_detect_complex_task(meeting_coordinator):
     """测试复杂任务检测"""
+    analyzer = meeting_coordinator._semantic_analyzer
     # 测试多步骤任务
-    assert meeting_coordinator._detect_complex_task("首先设计数据库，然后实现API，最后测试") == True
+    assert analyzer._detect_complex_task("首先设计数据库，然后实现API，最后测试") == True
 
     # 测试多部门协作
-    assert meeting_coordinator._detect_complex_task("前端和后端和测试一起做") == True
+    assert analyzer._detect_complex_task("前端和后端和测试一起做") == True
 
     # 测试依赖关系
-    assert meeting_coordinator._detect_complex_task("完成后开始下一步") == True
+    assert analyzer._detect_complex_task("完成后开始下一步") == True
 
     # 测试简单任务
-    assert meeting_coordinator._detect_complex_task("帮我写一个函数") == False
+    assert analyzer._detect_complex_task("帮我写一个函数") == False
 
 
 @pytest.mark.asyncio
 async def test_generate_workflow_definition(meeting_coordinator):
     """测试工作流定义生成"""
+    analyzer = meeting_coordinator._semantic_analyzer
     # 模拟路由决策
     class MockRoutingDecision:
         selected_dept = "dept-frontend"
@@ -80,7 +82,7 @@ async def test_generate_workflow_definition(meeting_coordinator):
     routing_decision = MockRoutingDecision()
 
     # 测试生成工作流定义
-    workflow_def = meeting_coordinator._generate_workflow_definition(
+    workflow_def = analyzer._generate_workflow_definition(
         "前端和后端一起开发",
         routing_decision,
     )

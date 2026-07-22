@@ -409,22 +409,28 @@ class MixedLocationDiscussion:
             "duration_ms": 0,
         })
         
-        # 协商共识
+        # 协商共识：按 agent_id 去重（取最后一次发言的立场），避免多轮讨论重复投票
+        # 排除协调者——其角色是总结者，不应投票
         proposal = self._negotiation.create_proposal(
             coordinator_member.agent_id, discussion_summary
         )
+        last_stance_by_agent = {}
         for d in discussions:
+            aid = d.get('agent_id', '')
+            if aid and aid != coordinator_member.agent_id:
+                last_stance_by_agent[aid] = d
+
+        for agent_id, d in last_stance_by_agent.items():
             stance_str = d.get('stance', 'neutral')
             self._negotiation.add_argument(
-                proposal.id, d['agent_id'],
+                proposal.id, agent_id,
                 Stance(stance_str),
                 d.get('confidence', 0.5),
                 d['content']
             )
-            # 根据立场投票：support/modify → 赞成，oppose → 反对
             approve = stance_str in ('support', 'modify')
             self._negotiation.cast_vote(
-                proposal.id, d['agent_id'], approve,
+                proposal.id, agent_id, approve,
                 weight=d.get('confidence', 0.5),
                 reason=f"立场: {stance_str}",
             )

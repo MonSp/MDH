@@ -1202,8 +1202,11 @@ async def ws_handler(ws: WebSocket):
             elif msg_type == "delete_skill":
                 skill_dir_name = msg.get("dir", "")
                 if skill_dir_name:
-                    target = os.path.join(SKILLS_DIR, skill_dir_name)
-                    if os.path.isdir(target):
+                    target = os.path.realpath(os.path.join(SKILLS_DIR, skill_dir_name))
+                    skills_real = os.path.realpath(SKILLS_DIR)
+                    if not target.startswith(skills_real + os.sep):
+                        await session.send_error("非法路径：禁止目录遍历")
+                    elif os.path.isdir(target):
                         shutil.rmtree(target)
                         session.agent = None
                         logger.info("技能已删除: dir=%s", skill_dir_name)

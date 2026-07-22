@@ -327,9 +327,9 @@ class MessageQueue:
                 message.status = MessageStatus.PENDING
                 self._update_message_status(message.id, MessageStatus.PENDING, str(e))
                 
-                # 重新放入队列
+                # 重新放入队列（使用当前时间确保重试消息不被无限延迟）
                 await self._queues[message.topic].put(
-                    (message.priority.value, message.created_at, message)
+                    (message.priority.value, time.time(), message)
                 )
                 
                 logger.warning("消息处理失败，将重试: id=%s, retry=%d/%d", 

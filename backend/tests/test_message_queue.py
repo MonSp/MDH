@@ -152,4 +152,25 @@ class TestLifecycle:
         mq.start()
         assert mq._running is True
         mq.stop()
+
+    @pytest.mark.asyncio
+    async def test_retry_uses_current_timestamp(self, mq):
+        """重试消息应使用当前时间戳而非原始 created_at"""
+        import time
+
+        old_time = 1000.0
+        msg = Message(topic="retry-test", payload={"data": "test"})
+        msg.created_at = old_time
+
+        # 模拟重试：消息入队后应使用新时间戳
+        mq.start()
+        await mq.publish("retry-test", msg.to_dict())
+
+        # 检查队列中的消息时间戳
+        queue = mq._queues.get("retry-test")
+        assert queue is not None
+        _, timestamp, queued_msg = await asyncio.wait_for(queue.get(), timeout=1.0)
+        # 重试消息的时间戳应接近当前时间，而非旧的 1000.0
+        assert timestamp > old_time
+        mq.stop()
         assert mq._running is False

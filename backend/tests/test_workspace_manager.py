@@ -99,3 +99,22 @@ def test_get_workspace(workspace_manager):
     retrieved = workspace_manager.get_workspace(workspace.workspace_id)
     assert retrieved is not None
     assert retrieved.task_id == "task-5"
+
+def test_standalone_workspaces_isolated(workspace_manager):
+    """多个 STANDALONE 工作区应有独立目录，互不干扰"""
+    ws1 = workspace_manager.create_workspace(task_id="t1", workspace_type=WorkspaceType.STANDALONE)
+    ws2 = workspace_manager.create_workspace(task_id="t2", workspace_type=WorkspaceType.STANDALONE)
+
+    # 不同工作区应有不同 root_path
+    assert ws1.root_path != ws2.root_path
+    assert ws1.root_path != workspace_manager.workspaces_dir
+    assert ws2.root_path != workspace_manager.workspaces_dir
+
+    # 在 ws1 中写入文件
+    with open(os.path.join(ws1.root_path, "test.txt"), "w") as f:
+        f.write("workspace 1")
+
+    # 销毁 ws2 不应影响 ws1
+    workspace_manager.destroy_workspace(ws2.workspace_id)
+    assert os.path.exists(os.path.join(ws1.root_path, "test.txt"))
+    assert workspace_manager.get_workspace(ws1.workspace_id) is not None

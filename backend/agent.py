@@ -203,8 +203,9 @@ def _extract_text(msg: Msg) -> str:
     return ""
 
 
-async def run_agent_stream(session: Session, content: str):
+async def run_agent_stream(session: Session, content: str) -> str:
     token = _current_session.set(session)
+    result_text = ""
     try:
         agent = _get_or_create_agent(session)
         logger.info("Agent 开始处理: session=%s provider=%s model=%s", session.session_id, session.provider, session.model_name or "(默认)")
@@ -214,7 +215,7 @@ async def run_agent_stream(session: Session, content: str):
             content=[{"type": "text", "text": content}],
         )
 
-        await _stream_loop(agent, user_msg)
+        result_text = await _stream_loop(agent, user_msg) or ""
         logger.info("Agent 处理完成: session=%s", session.session_id)
 
     except Exception:
@@ -223,6 +224,7 @@ async def run_agent_stream(session: Session, content: str):
         await _send_event_async("error", message="Agent 内部错误，请检查后端日志")
     finally:
         _current_session.reset(token)
+    return result_text
 
 
 def _get_or_create_agent(session: Session) -> Agent:
@@ -284,6 +286,7 @@ def _get_or_create_agent(session: Session) -> Agent:
 
 async def _stream_loop(agent: Agent, first_input):
     inputs = first_input
+    accumulated_text = ""
 
     while True:
         exc_event: RequireExternalExecutionEvent | None = None
@@ -304,6 +307,7 @@ async def _stream_loop(agent: Agent, first_input):
 
             elif isinstance(event, TextBlockDeltaEvent):
                 logger.debug("  TextBlockDelta: block_id=%s delta=%r", event.block_id, event.delta)
+                accumulated_text += event.delta
                 await _send_event_async(
                     "reply_text", block_id=event.block_id, delta=event.delta
                 )
@@ -328,7 +332,7 @@ async def _stream_loop(agent: Agent, first_input):
             elif isinstance(event, ReplyEndEvent):
                 logger.debug("  ReplyEnd")
                 await _send_event_async("done")
-                return
+                return accumulated_text
 
             elif isinstance(event, ExceedMaxItersEvent):
                 logger.debug("  ExceedMaxIters")
@@ -339,7 +343,7 @@ async def _stream_loop(agent: Agent, first_input):
                 logger.debug("  Msg: %r", _extract_text(event)[:200])
                 text = _extract_text(event)
                 await _send_event_async("done", message=text)
-                return
+                return text
 
             elif isinstance(event, (
                 ReplyStartEvent,

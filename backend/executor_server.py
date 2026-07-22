@@ -309,7 +309,7 @@ async def health():
 @app.get("/token")
 async def get_token(authorization: str = Header(None)):
     """返回当前 token（仅用于首次配置）"""
-    verify_token(authorization)
+    await verify_token(authorization)
     return {"token": EXECUTOR_TOKEN}
 
 

@@ -287,7 +287,7 @@ export class TaskAssigner {
     const assignment = this.assignments.get(taskId)
     if (!assignment) return false
 
-    this.registry.completeTaskForInstance(assignment.agentId, true)
+    // 由调用方（agentCoordinator）负责 completeTaskForInstance
     this.completedAssignments.set(taskId, { ...assignment })
     this.assignments.delete(taskId)
     return true

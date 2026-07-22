@@ -300,7 +300,7 @@ class CeoAgent:
         await self._emit(send_message, f"CEO：任务已创建（{task_id}），准备启动会议。")
 
         # ② 创建工作区（先询问用户确认）
-        from workspace_manager import WorkspaceManager, WorkspaceType
+        from workspace_manager import WorkspaceManager, WorkspaceType, DirectoryNotEmptyError
         workspaces_base = os.environ.get(
             "AGENT_WORKSPACES_DIR",
             os.path.join(os.path.expanduser("~"), ".agent-workspaces")
@@ -361,7 +361,6 @@ class CeoAgent:
             )
         except DirectoryNotEmptyError as e:
             # 目录非空，需要用户确认
-            from workspace_manager import DirectoryNotEmptyError
             scan = e.scan
             await self._emit(send_message, f"CEO：检测到目标目录已有内容，需要您确认。")
 

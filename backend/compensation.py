@@ -44,6 +44,7 @@ class CompensationEngine:
         self._compensation_log: List[CompensationResult] = []
         self._failure_history: List[FailureEvent] = []
         self._listeners: List[Callable[[FailureEvent], None]] = []
+        self._handlers: Dict[str, Callable] = {}
 
     def record_failure(
         self, task_id: str, agent_id: str, error: str, impact: str
@@ -102,14 +103,42 @@ class CompensationEngine:
         walk(failed_task_id)
         return compensatable
 
+    def register_handler(self, action_type: str, handler: Callable) -> None:
+        """注册补偿动作处理器。
+
+        Args:
+            action_type: 动作类型（如 retry、rollback、skip）
+            handler: 处理函数，签名 handler(params) -> bool，返回是否成功
+        """
+        self._handlers[action_type] = handler
+
     def execute_compensation(
         self, task_id: str, action: CompensateAction
     ) -> CompensationResult:
+        """执行补偿动作。
+
+        按 action_type 查找注册的处理器并执行。
+        无处理器时记录警告并返回失败。
+        """
+        handler = self._handlers.get(action.action_type)
+        success = False
+        details = ""
+
+        if handler:
+            try:
+                success = bool(handler(action.params))
+                details = f"补偿 '{action.action_type}' 执行{'成功' if success else '失败'}: {action.description}"
+            except Exception as e:
+                success = False
+                details = f"补偿 '{action.action_type}' 执行异常: {e}"
+        else:
+            details = f"未注册的补偿类型 '{action.action_type}': {action.description}"
+
         result = CompensationResult(
             task_id=task_id,
-            success=True,
+            success=success,
             action=action.action_type,
-            details=f"Executed compensation: {action.description}",
+            details=details,
             timestamp=time.time(),
         )
         self._compensation_log.append(result)

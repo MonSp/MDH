@@ -22,6 +22,7 @@ from dynamic_router import DynamicRouter
 from spec_manager import SpecManager
 from evidence_chain import EvidenceChain, Evidence
 from fallback_chain import FallbackChain, FallbackExecutor, RoutingFallbackBuilder
+from experience_extractor import ExperienceExtractor
 
 logger = logging.getLogger("task_orchestrator")
 
@@ -447,6 +448,27 @@ class TaskOrchestrator:
                 results.append(r)
 
         return results
+
+    def _build_prompt(self, task, agent_info, agent_toolset=None) -> str:
+        """构建包含工具说明和经验上下文的提示词"""
+        tool_prompt = ""
+        if agent_toolset:
+            tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}"
+
+        experience_context = self._get_experience_context(task.description)
+
+        return (
+            f"请执行以下任务：\n{task.description}\n\n"
+            f"重要：直接使用代码块写入文件，格式为：\n"
+            f"```文件路径.扩展名\n文件内容\n```\n"
+            f"例如：\n```backend/app/main.py\nfrom fastapi import FastAPI\n...\n```\n"
+            f"注意：\n"
+            f"- 不要使用bash/mkdir创建目录，write_file会自动创建父目录\n"
+            f"- 每个文件单独一个代码块\n"
+            f"- 不要使用tool_call格式\n"
+            f"- 代码必须完整可运行，不要省略"
+            f"{experience_context}{tool_prompt}"
+        )
 
     @staticmethod
     def _extract_plan(text: str) -> str:

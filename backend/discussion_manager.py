@@ -174,15 +174,28 @@ class DiscussionManager:
             "round": 0,
         })
         
-        # 协商共识
+        # 协商共识：按 agent_id 去重（取最后一次发言的立场），避免多轮讨论重复投票
+        # 排除协调者——其角色是总结者，不应投票
         proposal = self._negotiation.create_proposal(coordinator_id, discussion_summary)
+        last_stance_by_agent = {}
         for r in all_discussions:
+            aid = r.get('agent_id', '')
+            if aid and aid != coordinator_id:
+                last_stance_by_agent[aid] = r
+
+        for agent_id, r in last_stance_by_agent.items():
             stance_str = r.get('parsed_stance', 'neutral')
             self._negotiation.add_argument(
-                proposal.id, r['agent_id'],
+                proposal.id, agent_id,
                 Stance(stance_str),
                 r.get('parsed_confidence', 0.5),
                 r['content']
+            )
+            approve = stance_str in ('support', 'modify')
+            self._negotiation.cast_vote(
+                proposal.id, agent_id, approve,
+                weight=r.get('parsed_confidence', 0.5),
+                reason=f"立场: {stance_str}",
             )
         vote_result = self._negotiation.evaluate_consensus(proposal.id)
         logger.info(f"Consensus result: {vote_result}")
