@@ -1,0 +1,54 @@
+appId: com.mdh.desktop
+productName: MDH
+copyright: Copyright © 2026 MDH Team
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - package.json
+  - "!node_modules/**/{test,tests,__tests__}/**"
+  - "!node_modules/**/*.{md,ts,map}"
+  - "!**/.git/**"
+
+extraResources:
+  - from: "public/"
+    to: "public/"
+    filter: ["**/*"]
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: public/favicon.svg
+  artifactName: "${productName}-${version}-Setup.${ext}"
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  icon: public/favicon.svg
+  artifactName: "${productName}-${version}.${ext}"
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  icon: public/favicon.svg
+  artifactName: "${productName}-${version}.${ext}"
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+
+publish:
+  provider: github
+  owner: mdh-team
+  repo: mdh-desktop

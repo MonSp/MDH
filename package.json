@@ -3,11 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "dist-electron/main/main.js",
   "scripts": {
     "dev": "vite",
     "dev:backend": "python3 backend/server.py",
+    "dev:electron": "concurrently \"vite --port 8080\" \"wait-on http://localhost:8080 && tsc -p electron/tsconfig.json && electron .\"",
     "build": "vite build && node esbuild.config.mjs && node copy-shell.mjs",
+    "build:electron": "vite build && tsc -p electron/tsconfig.json",
     "build:shell": "node esbuild.config.mjs",
+    "package": "npm run build:electron && electron-builder --config electron-builder.yml",
+    "package:win": "npm run build:electron && electron-builder --win --config electron-builder.yml",
+    "package:mac": "npm run build:electron && electron-builder --mac --config electron-builder.yml",
+    "package:linux": "npm run build:electron && electron-builder --linux --config electron-builder.yml",
     "preview": "vite preview",
     "start": "npm run build && vite preview",
     "test": "vitest run",
@@ -38,10 +45,14 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
     "@vitest/coverage-v8": "^3.2.0",
+    "concurrently": "^9.1.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.0",
     "esbuild": "^0.28.0",
     "jsdom": "^29.1.1",
     "typescript": "^5.6.0",
     "vite": "^6.3.0",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "wait-on": "^8.0.0"
   }
 }

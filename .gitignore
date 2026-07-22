@@ -44,3 +44,13 @@ loop-engineering/dist/
 loop-engineering/data/metrics.db
 loop-engineering/data/metrics.db-wal
 loop-engineering/data/metrics.db-shm
+
+# Electron
+dist-electron/
+release/
+out/
+*.dmg
+*.exe
+*.AppImage
+*.deb
+*.snap
