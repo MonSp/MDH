@@ -252,3 +252,59 @@ export function useWorkspace() {
 
   return { getWorkspace, setWorkspace, selectWorkspace };
 }
+
+// ─── 自动更新 Hook ───
+export interface UpdateStatus {
+  status: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+  version?: string;
+  releaseDate?: string;
+  releaseNotes?: string;
+  percent?: number;
+  bytesPerSecond?: number;
+  message?: string;
+}
+
+export function useAutoUpdate() {
+  const { invoke, on, off, isElectron: isElect } = useIpcBridge();
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+
+  useEffect(() => {
+    if (!isElect) return;
+
+    const handleUpdate = (...args: unknown[]) => {
+      const status = args[0] as UpdateStatus;
+      setUpdateStatus(status);
+    };
+
+    on('mdh:onUpdateStatus', handleUpdate);
+    return () => off('mdh:onUpdateStatus', handleUpdate);
+  }, [isElect, on, off]);
+
+  const checkForUpdate = useCallback(async () => {
+    if (!isElect) return null;
+    return invoke('mdh:checkForUpdate');
+  }, [isElect, invoke]);
+
+  const downloadUpdate = useCallback(async () => {
+    if (!isElect) return null;
+    return invoke('mdh:downloadUpdate');
+  }, [isElect, invoke]);
+
+  const installUpdate = useCallback(async () => {
+    if (!isElect) return null;
+    return invoke('mdh:installUpdate');
+  }, [isElect, invoke]);
+
+  const getAppVersion = useCallback(async () => {
+    if (!isElect) return null;
+    return invoke('mdh:getAppVersion');
+  }, [isElect, invoke]);
+
+  return {
+    updateStatus,
+    checkForUpdate,
+    downloadUpdate,
+    installUpdate,
+    getAppVersion,
+  };
+}

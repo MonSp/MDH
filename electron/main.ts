@@ -1,9 +1,73 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, shell, dialog } from 'electron';
 import { join } from 'path';
-import { registerIpcHandlers } from './ipc-handlers.js';
+import { registerIpcHandlers, notifyRenderer } from './ipc-handlers.js';
 
 // ─── 环境检测 ───
 const isDev = !app.isPackaged;
+
+// ─── 自动更新 ───
+// electron-updater 在打包后才可用，开发模式下跳过
+let autoUpdater: any = null;
+
+async function setupAutoUpdater() {
+  if (isDev) return;
+
+  try {
+    const { autoUpdater: updater } = await import('electron-updater');
+    autoUpdater = updater;
+
+    // 配置更新源
+    autoUpdater.autoDownload = false; // 手动确认下载
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    // 检查更新
+    autoUpdater.on('checking-for-update', () => {
+      notifyRenderer('mdh:onUpdateStatus', { status: 'checking' });
+    });
+
+    autoUpdater.on('update-available', (info: any) => {
+      notifyRenderer('mdh:onUpdateStatus', {
+        status: 'available',
+        version: info.version,
+        releaseDate: info.releaseDate,
+        releaseNotes: info.releaseNotes,
+      });
+    });
+
+    autoUpdater.on('update-not-available', () => {
+      notifyRenderer('mdh:onUpdateStatus', { status: 'not-available' });
+    });
+
+    autoUpdater.on('download-progress', (progress: any) => {
+      notifyRenderer('mdh:onUpdateStatus', {
+        status: 'downloading',
+        percent: progress.percent,
+        bytesPerSecond: progress.bytesPerSecond,
+      });
+    });
+
+    autoUpdater.on('update-downloaded', (info: any) => {
+      notifyRenderer('mdh:onUpdateStatus', {
+        status: 'downloaded',
+        version: info.version,
+      });
+    });
+
+    autoUpdater.on('error', (err: Error) => {
+      notifyRenderer('mdh:onUpdateStatus', {
+        status: 'error',
+        message: err.message,
+      });
+    });
+
+    // 启动后延迟检查更新（不阻塞启动）
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(() => {});
+    }, 5000);
+  } catch {
+    // electron-updater 未安装（开发模式），忽略
+  }
+}
 
 // ─── 窗口创建 ───
 let mainWindow: BrowserWindow | null = null;
@@ -20,7 +84,7 @@ function createWindow() {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false, // 需要 child_process 执行本地工具
+      sandbox: false,
     },
   });
 
@@ -36,7 +100,6 @@ function createWindow() {
     mainWindow = null;
   });
 
-  // 外部链接用默认浏览器打开
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -45,7 +108,6 @@ function createWindow() {
 
 // ─── 加载 LLM 配置 ───
 function loadLlmConfig() {
-  // 优先从环境变量读取
   return {
     provider: process.env.LLM_PROVIDER || process.env.DEEPSEEK_PROVIDER || 'deepseek',
     apiKey: process.env.DEEPSEEK_API_KEY || process.env.LLM_API_KEY || '',
@@ -58,11 +120,14 @@ function loadLlmConfig() {
 app.whenReady().then(async () => {
   const llmConfig = loadLlmConfig();
 
-  // 注册 IPC 处理器（桥接前端 ↔ Orchestrator）
+  // 注册 IPC 处理器
   registerIpcHandlers(llmConfig);
 
   // 创建窗口
   createWindow();
+
+  // 设置自动更新
+  await setupAutoUpdater();
 
   // macOS: 点击 dock 图标时重新创建窗口
   app.on('activate', () => {

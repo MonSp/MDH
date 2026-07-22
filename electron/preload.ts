@@ -31,6 +31,11 @@ const VALID_INVOKE_CHANNELS = [
   // 角色
   'mdh:getRoles',
   'mdh:getTeamPresets',
+  // 更新
+  'mdh:checkForUpdate',
+  'mdh:downloadUpdate',
+  'mdh:installUpdate',
+  'mdh:getAppVersion',
 ];
 
 const VALID_RECEIVE_CHANNELS = [
@@ -41,6 +46,7 @@ const VALID_RECEIVE_CHANNELS = [
   'mdh:onWorkspaceConfirm',
   'mdh:onProgress',
   'mdh:onError',
+  'mdh:onUpdateStatus',
 ];
 
 const mdhApi: MdhApi = {

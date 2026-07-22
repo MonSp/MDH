@@ -356,8 +356,18 @@ function registerRoleHandlers() {
   });
 }
 
+// ─── 自动更新 ───
+// 注意：更新相关 IPC 由 main.ts 中的 autoUpdater 直接处理
+// 这里注册应用版本查询
+ipcMain.handle('mdh:getAppVersion', async () => {
+  return {
+    version: app.getVersion(),
+    name: app.getName(),
+  };
+});
+
 // ─── 向渲染进程推送消息 ───
-function notifyRenderer(channel: string, data: unknown) {
+export function notifyRenderer(channel: string, data: unknown) {
   const win = BrowserWindow.getAllWindows()[0];
   if (win && !win.isDestroyed()) {
     win.webContents.send(channel, data);

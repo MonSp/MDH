@@ -21,6 +21,7 @@ extraResources:
 
 asar: true
 
+# ─── Windows ───
 win:
   target:
     - target: nsis
@@ -28,27 +29,64 @@ win:
   icon: public/favicon.svg
   artifactName: "${productName}-${version}-Setup.${ext}"
 
-mac:
-  target:
-    - target: dmg
-      arch: [x64, arm64]
-  icon: public/favicon.svg
-  artifactName: "${productName}-${version}.${ext}"
-
-linux:
-  target:
-    - target: AppImage
-      arch: [x64]
-  icon: public/favicon.svg
-  artifactName: "${productName}-${version}.${ext}"
-
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "MDH - 大荒界"
 
+# ─── macOS ───
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  icon: public/favicon.svg
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+  category: public.app-category.developer-tools
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# ─── Linux ───
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  icon: public/favicon.svg
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+  category: Development
+  synopsis: "Multi-Agent Collaboration Desktop App"
+  description: "MDH - 大荒界：多智能体协作桌面应用，一键创建本地智能体团队"
+
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+
+# ─── 自动更新 ───
 publish:
   provider: github
   owner: mdh-team
   repo: mdh-desktop
+  releaseType: release
+
+# ─── 性能优化 ───
+compression: maximum
+removePackageScripts: true
