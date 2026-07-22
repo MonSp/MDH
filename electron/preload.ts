@@ -22,6 +22,7 @@ const VALID_INVOKE_CHANNELS = [
   // 配置
   'mdh:getLlmConfig',
   'mdh:setLlmConfig',
+  'mdh:getFullConfig',
   'mdh:getHealth',
   // 工作区
   'mdh:getWorkspace',

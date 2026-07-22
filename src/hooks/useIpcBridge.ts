@@ -223,7 +223,12 @@ export function useConfig() {
     return invoke('mdh:getTeamPresets');
   }, [isElect, invoke]);
 
-  return { getLlmConfig, setLlmConfig, getHealth, getRoles, getTeamPresets };
+  const getFullConfig = useCallback(async () => {
+    if (!isElect) return null;
+    return invoke('mdh:getFullConfig');
+  }, [isElect, invoke]);
+
+  return { getLlmConfig, setLlmConfig, getFullConfig, getHealth, getRoles, getTeamPresets };
 }
 
 // ─── 工作区管理 Hook ───

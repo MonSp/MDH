@@ -1,7 +1,7 @@
-import { ipcMain, BrowserWindow, dialog } from 'electron';
+import { ipcMain, BrowserWindow, dialog, safeStorage } from 'electron';
 import { join } from 'path';
 import { homedir } from 'os';
-import { mkdirSync, existsSync } from 'fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import type { LLMConfig } from '../orchestrator/src/llm/types.js';
 import { resolveConfig } from '../orchestrator/src/llm/openai.js';
 import { RouterFactory } from '../orchestrator/src/toolkit/router.js';
@@ -9,6 +9,74 @@ import { LocalToolkitRouter } from '../orchestrator/src/toolkit/local.js';
 import { RemoteToolkitRouter } from '../orchestrator/src/toolkit/remote.js';
 import { TeamCoordinator, type WorkspaceConfirmRequest } from '../orchestrator/src/team/coordinator.js';
 import { getAvailableRoles } from '../orchestrator/src/team/templates.js';
+
+// ─── 安全存储 ───
+// 使用 Electron safeStorage + 文件存储 API Key
+// 比 electron-store 更轻量，无需额外依赖
+
+interface SecureConfig {
+  apiKey: string;
+  provider: string;
+  baseUrl: string;
+  model: string;
+  workspace: string;
+  lastUsedRoles: string[];
+}
+
+const CONFIG_DIR = join(homedir(), '.mdh');
+const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
+const ENCRYPTED_FILE = join(CONFIG_DIR, 'credentials.enc');
+
+function ensureConfigDir() {
+  if (!existsSync(CONFIG_DIR)) {
+    mkdirSync(CONFIG_DIR, { recursive: true });
+  }
+}
+
+function loadSecureConfig(): Partial<SecureConfig> {
+  ensureConfigDir();
+  const result: Partial<SecureConfig> = {};
+
+  // 加载非敏感配置
+  if (existsSync(CONFIG_FILE)) {
+    try {
+      const raw = readFileSync(CONFIG_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      result.provider = parsed.provider;
+      result.baseUrl = parsed.baseUrl;
+      result.model = parsed.model;
+      result.workspace = parsed.workspace;
+      result.lastUsedRoles = parsed.lastUsedRoles;
+    } catch {}
+  }
+
+  // 加载加密的 API Key
+  if (existsSync(ENCRYPTED_FILE) && safeStorage.isEncryptionAvailable()) {
+    try {
+      const encrypted = readFileSync(ENCRYPTED_FILE);
+      result.apiKey = safeStorage.decryptString(encrypted);
+    } catch {}
+  }
+
+  return result;
+}
+
+function saveSecureConfig(config: Partial<SecureConfig>) {
+  ensureConfigDir();
+
+  // 保存非敏感配置
+  const existing = loadSecureConfig();
+  const merged = { ...existing, ...config };
+
+  const { apiKey, ...nonSensitive } = merged;
+  writeFileSync(CONFIG_FILE, JSON.stringify(nonSensitive, null, 2));
+
+  // 加密保存 API Key
+  if (apiKey !== undefined && safeStorage.isEncryptionAvailable()) {
+    const encrypted = safeStorage.encryptString(apiKey);
+    writeFileSync(ENCRYPTED_FILE, encrypted);
+  }
+}
 
 // ─── 状态 ───
 interface AppState {
@@ -18,6 +86,7 @@ interface AppState {
   routerFactory: RouterFactory;
   localRouter: LocalToolkitRouter;
   remoteRouter: RemoteToolkitRouter | null;
+  lastUsedRoles: string[];
 }
 
 const state: AppState = {
@@ -27,12 +96,24 @@ const state: AppState = {
   routerFactory: new RouterFactory(),
   localRouter: new LocalToolkitRouter(),
   remoteRouter: null,
+  lastUsedRoles: ['coordinator', 'planner', 'executor', 'reviewer'],
 };
 
 // ─── 初始化 ───
 export function registerIpcHandlers(llmConfig: Partial<LLMConfig>) {
-  state.llmConfig = resolveConfig(llmConfig);
-  state.workspace = getDefaultWorkspace();
+  // 从安全存储加载配置
+  const savedConfig = loadSecureConfig();
+
+  // 合并：环境变量 > 保存的配置 > 传入的默认值
+  state.llmConfig = resolveConfig({
+    provider: llmConfig.provider || savedConfig.provider || 'deepseek',
+    apiKey: llmConfig.apiKey || savedConfig.apiKey || '',
+    baseUrl: llmConfig.baseUrl || savedConfig.baseUrl || '',
+    model: llmConfig.model || savedConfig.model || '',
+  });
+
+  state.workspace = savedConfig.workspace || getDefaultWorkspace();
+  state.lastUsedRoles = savedConfig.lastUsedRoles || state.lastUsedRoles;
 
   // 确保工作区目录存在
   if (!existsSync(state.workspace)) {
@@ -42,7 +123,7 @@ export function registerIpcHandlers(llmConfig: Partial<LLMConfig>) {
   // 创建 Coordinator 实例
   state.coordinator = createCoordinator();
 
-  // ─── 注册所有 IPC 处理器 ───
+  // 注册所有 IPC 处理器
   registerMeetingHandlers();
   registerConfigHandlers();
   registerWorkspaceHandlers();
@@ -59,17 +140,15 @@ function createCoordinator(): TeamCoordinator {
   });
 }
 
-// ─── 工作区确认（弹对话框让用户选择）───
+// ─── 工作区确认 ───
 async function handleWorkspaceConfirm(request: WorkspaceConfirmRequest) {
   const win = BrowserWindow.getAllWindows()[0];
   if (!win) {
     return { workspace_type: 'standalone' as const };
   }
 
-  // 通知前端弹出确认对话框
   notifyRenderer('mdh:onWorkspaceConfirm', request);
 
-  // 等待前端响应（通过 IPC 返回）
   return new Promise((resolve) => {
     ipcMain.once('mdh:workspaceConfirmResponse', (_event, response) => {
       resolve(response);
@@ -79,7 +158,6 @@ async function handleWorkspaceConfirm(request: WorkspaceConfirmRequest) {
 
 // ─── 会议控制 ───
 function registerMeetingHandlers() {
-  // 启动会议
   ipcMain.handle('mdh:startMeeting', async (_event, data: {
     task: string;
     roles: string[];
@@ -89,94 +167,72 @@ function registerMeetingHandlers() {
       return { error: 'Coordinator 未初始化' };
     }
 
-    const { task, roles, roleLocations } = data;
+    if (!state.llmConfig.apiKey) {
+      return { error: '未配置 API Key，请在设置中配置' };
+    }
 
-    // 异步执行（不阻塞 IPC 返回）
+    const { task, roles } = data;
+    state.lastUsedRoles = roles;
+    saveSecureConfig({ lastUsedRoles: roles });
+
     state.coordinator.execute(task, roles, (event) => {
-      // 将 Orchestrator 事件推送到前端
       notifyRenderer('mdh:onAgentMessage', event);
     }).then((result) => {
-      notifyRenderer('mdh:onAgentMessage', {
-        type: 'meeting_ended',
-        result,
-      });
+      notifyRenderer('mdh:onAgentMessage', { type: 'meeting_ended', result });
     }).catch((err) => {
-      notifyRenderer('mdh:onError', {
-        type: 'error',
-        message: String(err),
-      });
+      notifyRenderer('mdh:onError', { type: 'error', message: String(err) });
     });
 
     return { status: 'started', meetingId: `meeting-${Date.now().toString(36)}` };
   });
 
-  // 发送用户消息（追加到当前会议）
   ipcMain.handle('mdh:sendMessage', async (_event, data: {
     content: string;
     roles?: string[];
   }) => {
-    if (!state.coordinator) {
-      return { error: 'Coordinator 未初始化' };
-    }
+    if (!state.coordinator) return { error: 'Coordinator 未初始化' };
+    if (!state.llmConfig.apiKey) return { error: '未配置 API Key' };
 
-    // 如果有活跃会议，追加消息；否则启动新会议
     const { content, roles } = data;
-    const selectedRoles = roles || ['coordinator', 'planner', 'executor', 'reviewer'];
+    const selectedRoles = roles || state.lastUsedRoles;
 
     state.coordinator.execute(content, selectedRoles, (event) => {
       notifyRenderer('mdh:onAgentMessage', event);
     }).then((result) => {
-      notifyRenderer('mdh:onAgentMessage', {
-        type: 'meeting_ended',
-        result,
-      });
+      notifyRenderer('mdh:onAgentMessage', { type: 'meeting_ended', result });
     }).catch((err) => {
-      notifyRenderer('mdh:onError', {
-        type: 'error',
-        message: String(err),
-      });
+      notifyRenderer('mdh:onError', { type: 'error', message: String(err) });
     });
 
     return { status: 'sent' };
   });
 
-  // 投票
   ipcMain.handle('mdh:castVote', async (_event, data: {
     proposalId: string;
     approve: boolean;
     reason?: string;
   }) => {
-    // TODO: 集成协商引擎
-    notifyRenderer('mdh:onAgentMessage', {
-      type: 'vote_cast',
-      ...data,
-    });
+    notifyRenderer('mdh:onAgentMessage', { type: 'vote_cast', ...data });
     return { status: 'voted' };
   });
 
-  // 审批响应
   ipcMain.handle('mdh:approval', async (_event, data: {
     requestId: string;
     approved: boolean;
     reason?: string;
   }) => {
-    notifyRenderer('mdh:onAgentMessage', {
-      type: 'approval_response',
-      ...data,
-    });
+    notifyRenderer('mdh:onAgentMessage', { type: 'approval_response', ...data });
     return { status: 'processed' };
   });
 
-  // 停止当前会议
   ipcMain.handle('mdh:stopMeeting', async () => {
-    // 重建 Coordinator（停止当前执行）
     state.coordinator = createCoordinator();
     notifyRenderer('mdh:onStatusChange', { type: 'meeting_stopped' });
     return { status: 'stopped' };
   });
 }
 
-// ─── 配置管理 ───
+// ─── 配置管理（集成安全存储）───
 function registerConfigHandlers() {
   ipcMain.handle('mdh:getLlmConfig', async () => {
     return {
@@ -189,7 +245,16 @@ function registerConfigHandlers() {
 
   ipcMain.handle('mdh:setLlmConfig', async (_event, config: Partial<LLMConfig>) => {
     state.llmConfig = resolveConfig({ ...state.llmConfig, ...config });
-    // 重建 Coordinator 以使用新配置
+
+    // 持久化到安全存储
+    saveSecureConfig({
+      apiKey: state.llmConfig.apiKey,
+      provider: state.llmConfig.provider,
+      baseUrl: state.llmConfig.baseUrl,
+      model: state.llmConfig.model,
+    });
+
+    // 重建 Coordinator
     state.coordinator = createCoordinator();
     notifyRenderer('mdh:onStatusChange', { type: 'config_updated' });
     return { status: 'updated' };
@@ -202,6 +267,19 @@ function registerConfigHandlers() {
       hasApiKey: !!state.llmConfig.apiKey,
       workspace: state.workspace,
       platform: process.platform,
+      encryptionAvailable: safeStorage.isEncryptionAvailable(),
+    };
+  });
+
+  // 获取完整配置（含解密的 API Key，仅供设置页面显示）
+  ipcMain.handle('mdh:getFullConfig', async () => {
+    return {
+      provider: state.llmConfig.provider,
+      apiKey: state.llmConfig.apiKey,
+      baseUrl: state.llmConfig.baseUrl,
+      model: state.llmConfig.model,
+      workspace: state.workspace,
+      lastUsedRoles: state.lastUsedRoles,
     };
   });
 }
@@ -217,7 +295,7 @@ function registerWorkspaceHandlers() {
     if (!existsSync(state.workspace)) {
       mkdirSync(state.workspace, { recursive: true });
     }
-    // 重建 Coordinator
+    saveSecureConfig({ workspace: state.workspace });
     state.coordinator = createCoordinator();
     return { status: 'updated', path: state.workspace };
   });
@@ -234,6 +312,7 @@ function registerWorkspaceHandlers() {
 
     if (!result.canceled && result.filePaths.length > 0) {
       state.workspace = result.filePaths[0];
+      saveSecureConfig({ workspace: state.workspace });
       state.coordinator = createCoordinator();
       return { canceled: false, path: state.workspace };
     }
