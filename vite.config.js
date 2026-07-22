@@ -4,6 +4,7 @@ import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  base: './',  // 使用相对路径，兼容 Electron 打包
   build: {
     rollupOptions: {
       input: {

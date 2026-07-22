@@ -81,6 +81,9 @@ async function setupAutoUpdater() {
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
+  console.log('[MDH] createWindow called');
+  console.log('[MDH] __dirname:', __dirname);
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -89,7 +92,7 @@ function createWindow() {
     title: 'MDH - 大荒界',
     icon: getIconPath(),
     webPreferences: {
-      preload: join(__dirname, 'preload.js'),
+      preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -101,11 +104,22 @@ function createWindow() {
     mainWindow.loadURL(`http://localhost:${port}`);
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(join(__dirname, '../dist/index.html'));
+    const indexPath = join(__dirname, '../dist/index.html');
+    console.log('[MDH] Loading index.html from:', indexPath);
+    mainWindow.loadFile(indexPath);
   }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+
+  // 监听页面加载错误
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    console.error('[MDH] Failed to load:', errorCode, errorDescription);
+  });
+
+  mainWindow.webContents.on('crashed', () => {
+    console.error('[MDH] Renderer process crashed');
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -126,16 +140,34 @@ function loadLlmConfig() {
 
 // ─── 应用生命周期 ───
 app.whenReady().then(async () => {
-  const llmConfig = loadLlmConfig();
+  console.log('[MDH] App starting...');
+  console.log('[MDH] isDev:', isDev);
+  console.log('[MDH] __dirname:', __dirname);
+  console.log('[MDH] process.platform:', process.platform);
 
-  // 注册 IPC 处理器（异步加载 orchestrator 模块）
-  await registerIpcHandlers(llmConfig);
+  try {
+    const llmConfig = loadLlmConfig();
+    console.log('[MDH] LLM config loaded, provider:', llmConfig.provider);
 
-  // 创建窗口
-  createWindow();
+    // 注册 IPC 处理器（异步加载 orchestrator 模块）
+    console.log('[MDH] Registering IPC handlers...');
+    await registerIpcHandlers(llmConfig);
+    console.log('[MDH] IPC handlers registered');
 
-  // 设置自动更新
-  await setupAutoUpdater();
+    // 创建窗口
+    console.log('[MDH] Creating window...');
+    createWindow();
+    console.log('[MDH] Window created');
+
+    // 设置自动更新
+    await setupAutoUpdater();
+  } catch (err) {
+    console.error('[MDH] Fatal error during startup:', err);
+    // 即使出错也尝试创建窗口
+    if (!mainWindow) {
+      createWindow();
+    }
+  }
 
   // macOS: 点击 dock 图标时重新创建窗口
   app.on('activate', () => {

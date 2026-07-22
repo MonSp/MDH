@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Sender } from '@agentscope-ai/chat';
 import { getFriendlyName } from './modules/commands';
 import { retryWithBackoff } from './modules/retry';
@@ -480,9 +480,13 @@ function AppContent() {
 }
 
 export default function App() {
+  // Electron 环境使用 HashRouter（file:// 协议不支持 History API）
+  const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true;
+  const Router = isElectron ? HashRouter : BrowserRouter;
+
   return (
-    <BrowserRouter>
+    <Router>
       <AppContent />
-    </BrowserRouter>
+    </Router>
   );
 }

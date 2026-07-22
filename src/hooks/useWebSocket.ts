@@ -43,6 +43,11 @@ export function useWebSocket({
   }, [initialReconnectInterval, maxReconnectInterval]);
 
   const connect = useCallback(() => {
+    // Electron 模式下不连接 WebSocket
+    if (!url) {
+      setStatus('disconnected');
+      return;
+    }
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
     if (retryCountRef.current >= maxRetries) {
       console.warn(`[WebSocket] Max retries (${maxRetries}) reached`);

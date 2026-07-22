@@ -16,11 +16,19 @@ import './styles/Conversation.css';
 const SSO_TOKEN_KEY = 'sso_auth_token';
 const SSO_USERNAME_KEY = 'sso_auth_username';
 
+// 检测是否在 Electron 环境
+const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true;
+
 function getSSOUrl() {
   return `${window.location.origin}/sso/login`;
 }
 
 function checkSSOAuth(): boolean {
+  // Electron 环境跳过 SSO 检查
+  if (isElectron) {
+    return true;
+  }
+
   const params = new URLSearchParams(window.location.search);
   const token = params.get('token');
   const username = params.get('username');

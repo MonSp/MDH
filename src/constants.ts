@@ -1,4 +1,6 @@
-export const AGENT_URL_DEFAULT = `ws://${window.location.host}/ws/`;
+// Electron 环境下不使用 WebSocket
+const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true;
+export const AGENT_URL_DEFAULT = isElectron ? '' : `ws://${window.location.host}/ws/`;
 
 export const STORAGE_KEYS = {
   AGENT_URL: 'agentscope_url',

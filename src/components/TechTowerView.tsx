@@ -43,6 +43,8 @@ interface TechTowerViewProps {
 export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBackToSingle, onEnterProject, refreshKey }: TechTowerViewProps) {
   void onSendTask
 
+  const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true
+
   const {
     isReady,
     isSupported,
@@ -222,7 +224,7 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
     input.click()
   }, [importData])
 
-  const [skipSetup, setSkipSetup] = useState(false)
+  const [skipSetup, setSkipSetup] = useState(isElectron) // Electron 模式自动跳过文件系统设置
 
   // 如果需要授权访问已保存的目录
   if (isSupported && needPermission && !skipSetup) {

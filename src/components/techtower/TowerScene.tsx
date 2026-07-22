@@ -272,7 +272,7 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       <color attach="background" args={[isDayMode ? '#87ceeb' : '#0a0a1a']} />
 
       {/* 本地HDR环境反射（不从CDN下载） */}
-      <Environment files="/dikhololo_night_1k.hdr" background={false} />
+      <Environment files="./dikhololo_night_1k.hdr" background={false} />
 
       <Ground showNeonLines={showNeonLines} />
       

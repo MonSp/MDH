@@ -1,9 +1,11 @@
 import { RoleTemplate } from './types';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+// 兼容 ESM 和 CJS 环境
+// __dirname 在 CJS 环境中全局可用
+// 在 ESM 环境中需要从 import.meta.url 推导，但 Electron 打包后使用 CJS
+const _dirname = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 
 interface RolesConfig {
   base_roles: Record<string, RoleTemplate>;
@@ -16,7 +18,7 @@ let _templates: Map<string, RoleTemplate> | null = null;
 
 function loadConfig(): RolesConfig {
   if (_config) return _config;
-  const jsonPath = resolve(__dirname, '../../templates/roles.json');
+  const jsonPath = resolve(_dirname, '../../templates/roles.json');
   _config = JSON.parse(readFileSync(jsonPath, 'utf-8'));
   return _config;
 }
