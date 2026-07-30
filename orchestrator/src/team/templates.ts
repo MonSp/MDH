@@ -18,8 +18,15 @@ let _templates: Map<string, RoleTemplate> | null = null;
 
 function loadConfig(): RolesConfig {
   if (_config) return _config;
-  const jsonPath = resolve(_dirname, '../../templates/roles.json');
-  _config = JSON.parse(readFileSync(jsonPath, 'utf-8'));
+  // Electron 打包后 __dirname 指向 dist-electron，需要向上两级到项目根目录
+  const jsonPath = resolve(_dirname, '../../orchestrator/templates/roles.json');
+  try {
+    _config = JSON.parse(readFileSync(jsonPath, 'utf-8'));
+  } catch {
+    // 回退：尝试原始路径（开发环境）
+    const fallbackPath = resolve(_dirname, '../../templates/roles.json');
+    _config = JSON.parse(readFileSync(fallbackPath, 'utf-8'));
+  }
   return _config;
 }
 
