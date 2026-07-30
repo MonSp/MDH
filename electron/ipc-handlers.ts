@@ -372,6 +372,68 @@ function registerWorkspaceHandlers() {
   });
 }
 
+// ─── YAML 简单解析工具 ───
+// 只解析顶级 key-value 和二级缩进块，足够提取 tools/skills 定义
+function parseYamlSection(yamlContent: string, sectionName: string): Record<string, any> {
+  const result: Record<string, any> = {};
+  const lines = yamlContent.split('\n');
+  let inSection = false;
+  let currentKey = '';
+  let currentBlock: string[] = [];
+
+  for (const line of lines) {
+    // 检测顶级 section 开始（如 "tools:" 或 "skills:"）
+    if (line.match(new RegExp(`^${sectionName}:\\s*$`))) {
+      inSection = true;
+      continue;
+    }
+    // 遇到下一个顶级 key，结束
+    if (inSection && line.match(/^[a-zA-Z_]/) && !line.startsWith(' ')) {
+      if (currentKey && currentBlock.length) {
+        result[currentKey] = parseYamlBlock(currentBlock);
+      }
+      break;
+    }
+    if (!inSection) continue;
+
+    // 二级 key（如 "bash:"）
+    const keyMatch = line.match(/^  ([a-zA-Z_][a-zA-Z0-9_]*):/);
+    if (keyMatch) {
+      if (currentKey && currentBlock.length) {
+        result[currentKey] = parseYamlBlock(currentBlock);
+      }
+      currentKey = keyMatch[1];
+      currentBlock = [];
+      // 检查是否有同行值
+      const inlineMatch = line.match(/^  [a-zA-Z_][a-zA-Z0-9_]*:\s*(.+)$/);
+      if (inlineMatch) {
+        currentBlock.push(inlineMatch[1]);
+      }
+      continue;
+    }
+    // 三级缩进内容追加到当前 block
+    if (inSection && currentKey && line.match(/^    /)) {
+      currentBlock.push(line.trim());
+    }
+  }
+  // 处理最后一个
+  if (currentKey && currentBlock.length) {
+    result[currentKey] = parseYamlBlock(currentBlock);
+  }
+  return result;
+}
+
+function parseYamlBlock(lines: string[]): Record<string, string> {
+  const obj: Record<string, string> = {};
+  for (const line of lines) {
+    const m = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.+)$/);
+    if (m) {
+      obj[m[1]] = m[2].replace(/^["']|["']$/g, '').trim();
+    }
+  }
+  return obj;
+}
+
 // ─── 角色管理 ───
 function registerRoleHandlers() {
   ipcMain.handle('mdh:getRoles', async () => {
@@ -414,16 +476,29 @@ function registerRoleHandlers() {
   // 返回格式与 Python 后端一致：{ success: true, data: { base_roles, custom_roles, prompt_templates, tools, skills } }
   ipcMain.handle('mdh:getRolesConfig', async () => {
     try {
-      // 优先使用 orchestrator 的 roles.json（已是 JSON，无需 YAML 解析）
+      const result: any = { base_roles: {}, custom_roles: {}, prompt_templates: {}, tools: {}, skills: {} };
+
+      // 1. 加载 orchestrator 的 roles.json（角色和提示词模板）
       const jsonPath = join(__dirname, '../orchestrator/templates/roles.json');
       if (existsSync(jsonPath)) {
         const data = JSON.parse(readFileSync(jsonPath, 'utf-8'));
-        console.log('[IPC] Loaded roles.json:', Object.keys(data.base_roles || {}).length, 'base roles');
-        // 包装成与 Python 后端一致的格式
-        return { success: true, data, error: null };
+        result.base_roles = data.base_roles || {};
+        result.custom_roles = data.custom_roles || {};
+        result.prompt_templates = data.prompt_templates || {};
+        console.log('[IPC] Loaded roles.json:', Object.keys(result.base_roles).length, 'base roles');
       }
-      console.warn('[IPC] roles.json not found at:', jsonPath);
-      return { success: false, data: null, error: 'roles.json not found' };
+
+      // 2. 加载 backend/roles_config.yaml（工具和技能定义）
+      const yamlPath = join(__dirname, '../backend/roles_config.yaml');
+      if (existsSync(yamlPath)) {
+        const yamlContent = readFileSync(yamlPath, 'utf-8');
+        // 简单解析 YAML 的 tools 和 skills 顶级段
+        result.tools = parseYamlSection(yamlContent, 'tools');
+        result.skills = parseYamlSection(yamlContent, 'skills');
+        console.log('[IPC] Loaded tools:', Object.keys(result.tools).length, 'skills:', Object.keys(result.skills).length);
+      }
+
+      return { success: true, data: result, error: null };
     } catch (e) {
       console.error('[IPC] Failed to load roles config:', e);
       return { success: false, data: null, error: String(e) };
