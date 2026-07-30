@@ -337,6 +337,22 @@ function AppContent() {
     localStorage.setItem(STORAGE_KEYS.BASE_URL, settingsCfg.baseUrl.trim());
     localStorage.setItem(STORAGE_KEYS.MULTIMODAL, String(settingsCfg.multimodal));
     localStorage.setItem(STORAGE_KEYS.BACKEND_TOKEN, settingsCfg.backendToken.trim());
+
+    // Electron 模式：同步配置到主进程
+    const mdh = (window as any).mdh;
+    if (mdh?.isElectron) {
+      mdh.invoke('mdh:setLlmConfig', {
+        provider: settingsCfg.provider,
+        apiKey: settingsCfg.apiKey.trim(),
+        baseUrl: settingsCfg.baseUrl.trim(),
+        model: settingsCfg.modelName.trim(),
+      }).then(() => {
+        console.log('[Electron] LLM config synced to main process');
+      }).catch((e: any) => {
+        console.warn('[Electron] Failed to sync config:', e);
+      });
+    }
+
     setSettingsOpen(false);
     window.location.reload();
   }, [settingsCfg]);
