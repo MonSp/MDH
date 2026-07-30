@@ -1,7 +1,8 @@
 import { app, ipcMain, BrowserWindow, dialog, safeStorage } from 'electron';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { homedir } from 'os';
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
+import { execSync } from 'child_process';
 
 // ─── 内联 LLM 调用（不依赖 orchestrator ESM 模块）───
 const PROVIDER_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
@@ -38,8 +39,111 @@ async function chatCompletion(config: LLMConfig, messages: Array<{role: string; 
   return data.choices?.[0]?.message?.content || '';
 }
 
+// ─── 工具执行器 ───
+// 在本地工作区执行文件操作和 shell 命令
+
+function executeTool(toolName: string, args: Record<string, any>, workspace: string): { success: boolean; output: string } {
+  try {
+    switch (toolName) {
+      case 'write_file': {
+        const filePath = join(workspace, args.path);
+        mkdirSync(dirname(filePath), { recursive: true });
+        writeFileSync(filePath, args.content || '', 'utf-8');
+        return { success: true, output: `已写入 ${args.path}` };
+      }
+      case 'read_file': {
+        const filePath = join(workspace, args.path);
+        if (!existsSync(filePath)) return { success: false, output: `文件不存在: ${args.path}` };
+        return { success: true, output: readFileSync(filePath, 'utf-8') };
+      }
+      case 'edit_file': {
+        const filePath = join(workspace, args.path);
+        if (!existsSync(filePath)) return { success: false, output: `文件不存在: ${args.path}` };
+        const content = readFileSync(filePath, 'utf-8');
+        const newContent = content.replace(args.old_string, args.new_string);
+        writeFileSync(filePath, newContent, 'utf-8');
+        return { success: true, output: `已编辑 ${args.path}` };
+      }
+      case 'list_directory': {
+        const dirPath = join(workspace, args.path || '.');
+        if (!existsSync(dirPath)) return { success: false, output: `目录不存在: ${args.path}` };
+        const entries = readdirSync(dirPath, { withFileTypes: true });
+        const listing = entries.map(e => `${e.isDirectory() ? '📁' : '📄'} ${e.name}`).join('\n');
+        return { success: true, output: listing };
+      }
+      case 'bash': {
+        const result = execSync(args.command, {
+          cwd: workspace,
+          timeout: (args.timeout || 30) * 1000,
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        return { success: true, output: result };
+      }
+      case 'grep_content': {
+        const pattern = args.pattern;
+        const searchPath = join(workspace, args.path || '.');
+        try {
+          const result = execSync(`grep -r "${pattern}" "${searchPath}" --include="*" 2>/dev/null || echo "无匹配结果"`, {
+            cwd: workspace,
+            timeout: 10000,
+            encoding: 'utf-8',
+          });
+          return { success: true, output: result };
+        } catch {
+          return { success: true, output: '无匹配结果' };
+        }
+      }
+      case 'git_status': {
+        try {
+          const result = execSync('git status --short', { cwd: workspace, encoding: 'utf-8', timeout: 10000 });
+          return { success: true, output: result || '(无变更)' };
+        } catch {
+          return { success: false, output: '不是 git 仓库' };
+        }
+      }
+      case 'git_commit': {
+        try {
+          execSync('git add -A', { cwd: workspace, encoding: 'utf-8', timeout: 10000 });
+          const result = execSync(`git commit -m "${args.message || 'auto commit'}"`, { cwd: workspace, encoding: 'utf-8', timeout: 10000 });
+          return { success: true, output: result };
+        } catch (e: any) {
+          return { success: false, output: `git commit 失败: ${e.message}` };
+        }
+      }
+      default:
+        return { success: false, output: `未知工具: ${toolName}` };
+    }
+  } catch (e: any) {
+    return { success: false, output: `执行失败: ${e.message}` };
+  }
+}
+
+// ─── 解析 LLM 回复中的代码块和工具调用 ───
+function extractCodeBlocks(text: string): Array<{ filename: string; content: string }> {
+  const blocks: Array<{ filename: string; content: string }> = [];
+  const regex = /```(\S+\.\w+)\s*\n([\s\S]*?)```/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    blocks.push({ filename: match[1], content: match[2].trim() });
+  }
+  return blocks;
+}
+
+function extractToolCalls(text: string): Array<{ tool: string; args: Record<string, any> }> {
+  const calls: Array<{ tool: string; args: Record<string, any> }> = [];
+  const regex = /```tool_call\s*\n([\s\S]*?)```/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    try {
+      calls.push(JSON.parse(match[1].trim()));
+    } catch {}
+  }
+  return calls;
+}
+
 // ─── 内联 TeamCoordinator ───
-// 简化版：分析 → 讨论 → 执行，不依赖 orchestrator ESM 模块
+// 支持工具执行、多轮对话、代码块解析
 
 type EventHandler = (event: Record<string, unknown>) => void;
 
@@ -117,13 +221,13 @@ class SimpleTeamCoordinator {
     onEvent?.({ type: 'meeting_started', meetingId, agents });
     onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `团队已组建：${agents.map(a => a.name).join('、')}` });
 
-    // 阶段 2: 讨论（复杂任务）
+    // 阶段 2: 讨论（复杂任务，多角色）
     if (complexity.level !== 'simple' && roles.length > 1) {
       onEvent?.({ type: 'phase', phase: 'discussing' });
       for (const role of roles) {
         if (role === 'ceo') continue;
         try {
-          const prompt = `你是${getRoleName(role)}。任务：${userMessage}\n\n请从你的专业角度给出2-3句话的建议。用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注立场。`;
+          const prompt = `你是${getRoleName(role)}。任务：${userMessage}\n\n请从你的专业角度给出具体建议（2-3句话）。用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注立场。`;
           const reply = await chatCompletion(this.config.llm, [{ role: 'user', content: prompt }]);
           onEvent?.({ type: 'assistant_message', agentId: `agent-${role}`, content: reply });
         } catch (e) {
@@ -132,22 +236,81 @@ class SimpleTeamCoordinator {
       }
     }
 
-    // 阶段 3: 执行
+    // 阶段 3: 执行（带工具调用循环）
     onEvent?.({ type: 'phase', phase: 'executing' });
     const executorRole = roles.find(r => r === 'executor') || roles[roles.length - 1];
-    try {
-      const execPrompt = `你是${getRoleName(executorRole)}。请执行以下任务：\n${userMessage}\n\n工作区：${workspace}\n\n请直接输出执行结果。`;
-      const result = await chatCompletion(this.config.llm, [{ role: 'user', content: execPrompt }]);
-      onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: result });
-    } catch (e) {
-      onEvent?.({ type: 'error', message: `执行失败: ${e}` });
+    const toolPrefix = `你是${getRoleName(executorRole)}。你的工作区是：${workspace}
+
+可用工具（用代码块格式调用）：
+- 创建/写入文件：\`\`\`path/to/file.ext\\n内容\\n\`\`\`
+- 执行命令：\`\`\`tool_call\\n{"tool":"bash","args":{"command":"..."}}\\n\`\`\`
+- 读取文件：\`\`\`tool_call\\n{"tool":"read_file","args":{"path":"..."}}\\n\`\`\`
+
+重要规则：
+1. 创建代码文件时，用 \`\`\`文件路径\`\`\` 格式（如 \`\`\`app.py\`\`\`）
+2. 文件路径相对于工作区根目录
+3. 每次创建一个文件
+4. 创建完文件后运行测试验证`;
+
+    const messages: Array<{role: string; content: string}> = [
+      { role: 'system', content: toolPrefix },
+      { role: 'user', content: `请执行以下任务：\n${userMessage}` },
+    ];
+
+    let totalFilesWritten = 0;
+    const maxToolRounds = 8;
+
+    for (let round = 0; round < maxToolRounds; round++) {
+      try {
+        const response = await chatCompletion(this.config.llm, messages);
+        onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: response });
+
+        // 解析代码块并写入文件
+        const codeBlocks = extractCodeBlocks(response);
+        const toolCalls = extractToolCalls(response);
+        let toolResults: string[] = [];
+
+        for (const block of codeBlocks) {
+          const result = executeTool('write_file', { path: block.filename, content: block.content }, workspace);
+          if (result.success) {
+            totalFilesWritten++;
+            onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: `✅ 已写入 ${block.filename}` });
+          } else {
+            onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: `❌ 写入失败 ${block.filename}: ${result.output}` });
+          }
+          toolResults.push(`[write_file ${block.filename}] ${result.output}`);
+        }
+
+        // 执行工具调用
+        for (const call of toolCalls) {
+          const result = executeTool(call.tool, call.args || {}, workspace);
+          onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: `[${call.tool}] ${result.output.substring(0, 500)}` });
+          toolResults.push(`[${call.tool}] ${result.output}`);
+        }
+
+        // 如果没有工具调用，任务完成
+        if (codeBlocks.length === 0 && toolCalls.length === 0) {
+          break;
+        }
+
+        // 将工具结果反馈给 LLM
+        if (toolResults.length > 0) {
+          messages.push({ role: 'assistant', content: response });
+          messages.push({ role: 'user', content: `工具执行结果：\n${toolResults.join('\n')}\n\n请继续执行任务。如果没有更多文件需要创建，回复"任务完成"。` });
+        }
+      } catch (e) {
+        onEvent?.({ type: 'error', message: `执行轮次 ${round + 1} 失败: ${e}` });
+        break;
+      }
     }
+
+    onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: `执行完成，共写入 ${totalFilesWritten} 个文件到 ${workspace}` });
 
     // 阶段 4: 总结
     onEvent?.({ type: 'phase', phase: 'summarizing' });
-    onEvent?.({ type: 'assistant_message', agentId: 'agent-coordinator', content: `任务执行完成。工作区：${workspace}` });
+    onEvent?.({ type: 'assistant_message', agentId: 'agent-coordinator', content: `任务执行完成。\n工作区：${workspace}\n写入文件数：${totalFilesWritten}` });
 
-    return `任务完成，工作区：${workspace}`;
+    return `任务完成，工作区：${workspace}，文件数：${totalFilesWritten}`;
   }
 }
 
