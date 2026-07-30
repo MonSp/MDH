@@ -165,16 +165,26 @@ class SimpleTeamCoordinator {
     onEvent?.({ type: 'phase', phase: 'analyzing' });
     onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `收到任务：${userMessage}\n\n正在分析任务并组建团队...` });
 
+    // 动态加载所有可用角色
+    const allRoles = getAllRoleDescriptions();
+
     let complexity: { level: string; reason: string; suggested_roles?: string[] };
     try {
       const analysisPrompt = `分析以下任务，返回JSON：
 {
   "level": "simple 或 complex",
   "reason": "原因",
-  "suggested_roles": ["从以下选择需要的角色：coordinator(项目经理), planner(架构师), executor(全栈开发), reviewer(QA工程师), monitor(DevOps)"]
+  "suggested_roles": ["从可用角色中选择最适合的"]
 }
 
-简单任务只需 executor，复杂任务需要多角色协作。
+可用角色：
+${allRoles}
+
+选择规则：
+- 简单任务只需 1 个执行者
+- 复杂任务需要多角色协作
+- 根据任务类型选择专业角色（如PPT选ppt_lead、content_architect、animation_engineer）
+- 每个任务必须有至少1个executor角色来执行
 
 任务：${userMessage}`;
       const analysisText = await chatCompletion(this.config.llm, [{ role: 'user', content: analysisPrompt }]);
@@ -745,4 +755,46 @@ function getDefaultRoles() {
     { id: 'monitor', name: 'DevOps', team_role: 'Monitor', description: '部署、监控、运维' },
     { id: 'coordinator', name: '项目经理', team_role: 'Coordinator', description: '协调各方、跟踪进度、管理风险' },
   ];
+}
+
+// ─── 获取所有角色描述（供 CEO 分析用）───
+function getAllRoleDescriptions(): string {
+  const lines: string[] = [];
+
+  // 从 roles_config.yaml 解析 base_roles
+  try {
+    const yamlPath = join(__dirname, '../backend/roles_config.yaml');
+    if (existsSync(yamlPath)) {
+      const content = readFileSync(yamlPath, 'utf-8');
+      // 提取 base_roles 段下的角色名和描述
+      const baseRolesMatch = content.match(/^base_roles:\s*\n([\s\S]*?)(?=\ncustom_roles:|\ntools:|\nskills:|\nprompt_templates:|$)/m);
+      if (baseRolesMatch) {
+        const block = baseRolesMatch[1];
+        let currentRole = '';
+        let currentDesc = '';
+        for (const line of block.split('\n')) {
+          const roleMatch = line.match(/^  ([a-z_]+):\s*$/);
+          if (roleMatch) {
+            if (currentRole && currentDesc) lines.push(`- ${currentRole}: ${currentDesc}`);
+            currentRole = roleMatch[1];
+            currentDesc = '';
+          }
+          const descMatch = line.match(/^    description:\s*(.+)$/);
+          if (descMatch) currentDesc = descMatch[1].trim();
+        }
+        if (currentRole && currentDesc) lines.push(`- ${currentRole}: ${currentDesc}`);
+      }
+    }
+  } catch {}
+
+  // 回退：如果解析失败，用默认角色
+  if (lines.length === 0) {
+    return `- coordinator(项目经理): 协调各方、跟踪进度、管理风险
+- planner(架构师): 分析技术任务、设计系统架构、分解子任务
+- executor(全栈开发): 代码编写和功能实现
+- reviewer(QA工程师): 代码审查、测试、质量保证
+- monitor(DevOps): 部署、监控、运维`;
+  }
+
+  return lines.join('\n');
 }
