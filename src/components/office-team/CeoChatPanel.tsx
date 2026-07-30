@@ -221,16 +221,27 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
           setIsProcessing(false)
         } else {
           addMsg('system', '任务已发送，等待团队响应...')
+
+          // 监听工作区确认请求
+          const wsConfirmHandler = (req: any) => {
+            addMsg('system', '📁 正在创建工作区...')
+            // 自动确认为 standalone 模式
+            mdh.invoke('mdh:workspaceConfirmResponse', { workspace_type: 'standalone' })
+          }
+          mdh.on('mdh:onWorkspaceConfirm', wsConfirmHandler)
+
           // 监听 IPC 推送的消息
           const handler = (event: any) => {
             if (event.type === 'meeting_ended') {
               setIsProcessing(false)
               addMsg('ceo', '任务已完成。')
               mdh.off('mdh:onAgentMessage', handler)
+              mdh.off('mdh:onWorkspaceConfirm', wsConfirmHandler)
             } else if (event.type === 'error') {
               setIsProcessing(false)
               addMsg('system', `❌ ${event.message}`)
               mdh.off('mdh:onAgentMessage', handler)
+              mdh.off('mdh:onWorkspaceConfirm', wsConfirmHandler)
             } else if (event.type === 'assistant_message' && event.content) {
               // 根据 agentId 判断角色
               const agentId = event.agentId || ''
