@@ -411,33 +411,32 @@ function registerRoleHandlers() {
   });
 
   // ─── 角色配置完整数据（替代 /api/roles/config）───
+  // 返回格式必须与 Python 后端一致：{ base_roles: {...}, custom_roles: {...}, prompt_templates: {...} }
   ipcMain.handle('mdh:getRolesConfig', async () => {
     try {
-      const configPath = join(__dirname, '../backend/roles_config.yaml');
-      if (existsSync(configPath)) {
-        const yaml = readFileSync(configPath, 'utf-8');
-        // 简单解析 YAML（不依赖 yaml 库）
-        // 返回原始 YAML 文本，前端自行解析
-        return { success: true, yaml, path: configPath };
-      }
-      // 回退：使用 orchestrator 的 roles.json
+      // 优先使用 orchestrator 的 roles.json（已是 JSON，无需 YAML 解析）
       const jsonPath = join(__dirname, '../orchestrator/templates/roles.json');
       if (existsSync(jsonPath)) {
         const data = JSON.parse(readFileSync(jsonPath, 'utf-8'));
-        return { success: true, data };
+        console.log('[IPC] Loaded roles.json:', Object.keys(data.base_roles || {}).length, 'base roles');
+        return data; // 直接返回 { base_roles, custom_roles, prompt_templates }
       }
-      return { success: false, error: 'Config files not found' };
+      console.warn('[IPC] roles.json not found at:', jsonPath);
+      return { base_roles: {}, custom_roles: {}, prompt_templates: {} };
     } catch (e) {
-      return { success: false, error: String(e) };
+      console.error('[IPC] Failed to load roles config:', e);
+      return { base_roles: {}, custom_roles: {}, prompt_templates: {} };
     }
   });
 
   // ─── 技能包列表（替代 /api/skills/list）───
+  // 返回格式：{ skills: [{ name, description, ... }] }
   ipcMain.handle('mdh:getSkillsList', async () => {
     try {
       const skillsDir = join(__dirname, '../skill_packs');
       if (!existsSync(skillsDir)) {
-        return { success: true, skills: [] };
+        console.warn('[IPC] skill_packs dir not found at:', skillsDir);
+        return { skills: [] };
       }
       const skills = [];
       for (const name of readdirSync(skillsDir)) {
@@ -445,13 +444,22 @@ function registerRoleHandlers() {
         if (!statSync(skillDir).isDirectory()) continue;
         const manifestPath = join(skillDir, 'manifest.yaml');
         if (existsSync(manifestPath)) {
-          const yaml = readFileSync(manifestPath, 'utf-8');
-          skills.push({ name, yaml, path: skillDir });
+          const content = readFileSync(manifestPath, 'utf-8');
+          // 简单解析 YAML 的 name 和 description 字段
+          const nameMatch = content.match(/^name:\s*(.+)$/m);
+          const descMatch = content.match(/^description:\s*(.+)$/m);
+          skills.push({
+            name: nameMatch?.[1]?.trim() || name,
+            description: descMatch?.[1]?.trim() || '',
+            dir: name,
+          });
         }
       }
-      return { success: true, skills };
+      console.log('[IPC] Loaded', skills.length, 'skill packs');
+      return { skills };
     } catch (e) {
-      return { success: false, error: String(e) };
+      console.error('[IPC] Failed to load skills list:', e);
+      return { skills: [] };
     }
   });
 }
