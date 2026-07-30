@@ -306,12 +306,44 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
     )
   }
 
+  // 3D Canvas 错误回退
+  const [canvasError, setCanvasError] = useState(false)
+
+  // 2D 回退视图
+  if (canvasError) {
+    return (
+      <div style={{ width: '100%', height: '100%', background: '#080818', display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(139, 92, 246, 0.2)', background: 'rgba(139, 92, 246, 0.05)' }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span>⚡</span> MDH 科技大厦
+          </div>
+          <div style={{ fontSize: 12, color: '#8899b4', marginTop: 4 }}>3D 渲染不可用，使用简化视图</div>
+        </div>
+        <div style={{ flex: 1, padding: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, alignContent: 'start' }}>
+          {projects.map(project => (
+            <div key={project.id} onClick={() => onEnterProject?.(project.id, project.name)} style={{ padding: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(139, 92, 246, 0.2)', borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.5)'; e.currentTarget.style.background = 'rgba(139, 92, 246, 0.08)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.2)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: '#e2e8f0', marginBottom: 8 }}>{project.name}</div>
+              <div style={{ fontSize: 12, color: '#8899b4' }}>{project.description}</div>
+              <div style={{ fontSize: 11, color: '#6b7280', marginTop: 8 }}>{project.status === 'active' ? '🟢 进行中' : project.status === 'completed' ? '✅ 已完成' : '⏳ 规划中'}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <button onClick={onBackToSingle} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#9ca3af', cursor: 'pointer', fontSize: 12 }}>← 返回单智能体</button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', background: '#080818', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       <Canvas
         shadows
         camera={{ position: [30, 55, 45], fov: 45 }}
         onCreated={({ gl }) => { gl.shadowMap.type = 2 /* PCFSoftShadowMap */ }}
+        onError={() => setCanvasError(true)}
         style={{ width: '100%', height: isMobile ? '60%' : '100%' }}
       >
         <TowerScene
