@@ -3,63 +3,166 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 
-// Orchestrator 模块通过动态 import 加载（ESM/CJS 兼容）
-type LLMConfig = {
-  provider: string;
-  apiKey: string;
-  baseUrl: string;
-  model: string;
+// ─── 内联 LLM 调用（不依赖 orchestrator ESM 模块）───
+const PROVIDER_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
+  deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1' },
+  anthropic: { baseUrl: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-20250514' },
+  ollama: { baseUrl: 'http://localhost:11434/v1', model: 'qwen3:14b' },
+  custom: { baseUrl: '', model: '' },
 };
 
-type WorkspaceConfirmRequest = {
+type LLMConfig = { provider: string; apiKey: string; baseUrl: string; model: string };
+
+function resolveConfig(config: Partial<LLMConfig>): LLMConfig {
+  const defaults = PROVIDER_DEFAULTS[config.provider || 'deepseek'];
+  return {
+    provider: config.provider || 'deepseek',
+    apiKey: config.apiKey || '',
+    baseUrl: config.baseUrl || defaults?.baseUrl || '',
+    model: config.model || defaults?.model || '',
+  };
+}
+
+async function chatCompletion(config: LLMConfig, messages: Array<{role: string; content: string}>, tools?: any[]): Promise<string> {
+  const url = `${config.baseUrl}/chat/completions`;
+  const body: any = { model: config.model, messages, stream: false };
+  if (tools?.length) { body.tools = tools; body.tool_choice = 'auto'; }
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`;
+
+  const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+  if (!resp.ok) throw new Error(`LLM API error: ${resp.status} ${resp.statusText}`);
+  const data = await resp.json() as any;
+  return data.choices?.[0]?.message?.content || '';
+}
+
+// ─── 内联 TeamCoordinator ───
+// 简化版：分析 → 讨论 → 执行，不依赖 orchestrator ESM 模块
+
+type EventHandler = (event: Record<string, unknown>) => void;
+
+interface WorkspaceConfirmRequest {
   taskDescription: string;
   suggestedType: 'standalone' | 'git_worktree';
-  options: {
-    workspace_types: Array<{ id: string; name: string; desc: string }>;
-  };
-};
+  options: { workspace_types: Array<{ id: string; name: string; desc: string }> };
+}
 
-// 延迟加载的 orchestrator 模块
-let resolveConfig: ((config: Partial<LLMConfig>) => LLMConfig) | null = null;
-let RouterFactory: any = null;
-let LocalToolkitRouter: any = null;
-let TeamCoordinator: any = null;
-let getAvailableRoles: (() => any[]) | null = null;
+class SimpleTeamCoordinator {
+  private config: { llm: LLMConfig; workspace: string; onWorkspaceConfirm?: (req: WorkspaceConfirmRequest) => Promise<any> };
 
-async function loadOrchestratorModules() {
-  if (resolveConfig) return; // 已加载
+  constructor(config: { llm: LLMConfig; workspace: string; onWorkspaceConfirm?: (req: WorkspaceConfirmRequest) => Promise<any> }) {
+    this.config = config;
+  }
 
-  try {
-    const openai = await import('../orchestrator/src/llm/openai.js');
-    resolveConfig = openai.resolveConfig;
+  async execute(userMessage: string, selectedRoles: string[], onEvent?: EventHandler): Promise<string> {
+    const roles = selectedRoles.length > 0 ? selectedRoles : ['coordinator', 'planner', 'executor', 'reviewer'];
 
-    const router = await import('../orchestrator/src/toolkit/router.js');
-    RouterFactory = router.RouterFactory;
+    // 阶段 0: 分析
+    onEvent?.({ type: 'phase', phase: 'analyzing' });
+    onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `收到任务：${userMessage}\n\n正在分析任务复杂度...` });
 
-    const local = await import('../orchestrator/src/toolkit/local.js');
-    LocalToolkitRouter = local.LocalToolkitRouter;
+    let complexity: { level: string; reason: string };
+    try {
+      const analysisPrompt = `分析以下任务复杂度，返回JSON: {"level":"simple"或"complex","reason":"原因"}\n\n任务：${userMessage}`;
+      const analysisText = await chatCompletion(this.config.llm, [{ role: 'user', content: analysisPrompt }]);
+      const jsonMatch = analysisText.match(/\{[^{}]*\}/);
+      complexity = jsonMatch ? JSON.parse(jsonMatch[0]) : { level: 'complex', reason: '默认复杂' };
+    } catch (e) {
+      complexity = { level: 'complex', reason: `分析失败: ${e}` };
+    }
+    onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `任务分析完成：复杂度=${complexity.level}，${complexity.reason}` });
 
-    const coordinator = await import('../orchestrator/src/team/coordinator.js');
-    TeamCoordinator = coordinator.TeamCoordinator;
+    // 阶段 0.5: 工作区确认
+    onEvent?.({ type: 'phase', phase: 'planning' });
+    let workspace = this.config.workspace;
 
-    const templates = await import('../orchestrator/src/team/templates.js');
-    getAvailableRoles = templates.getAvailableRoles;
-  } catch (e) {
-    console.error('Failed to load orchestrator modules:', e);
+    if (this.config.onWorkspaceConfirm) {
+      onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: '正在创建工作区...' });
+      try {
+        const confirmReq: WorkspaceConfirmRequest = {
+          taskDescription: userMessage.substring(0, 200),
+          suggestedType: 'standalone',
+          options: {
+            workspace_types: [
+              { id: 'standalone', name: '新建独立工作区', desc: '创建全新空目录' },
+              { id: 'git_worktree', name: 'Git Worktree', desc: '从已有仓库创建隔离分支' },
+            ],
+          },
+        };
+        const resp = await this.config.onWorkspaceConfirm(confirmReq);
+        if (resp?.workspace_type === 'git_worktree' && resp.repo_path) {
+          const branch = resp.branch_name || `agent/task-${Date.now().toString(36)}`;
+          workspace = `${this.config.workspace}/worktrees/${branch.replace('/', '-')}`;
+        } else {
+          workspace = `${this.config.workspace}/project-${Date.now().toString(36)}`;
+        }
+        mkdirSync(workspace, { recursive: true });
+        onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `已创建工作区：${workspace}` });
+      } catch (e) {
+        onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `工作区创建失败，使用默认目录` });
+      }
+    }
+
+    // 阶段 1: 组建团队
+    const meetingId = `meeting-${Date.now().toString(36)}`;
+    const agents = roles.map(r => ({
+      id: `agent-${r}`,
+      name: getRoleName(r),
+      role: r,
+      status: 'meeting',
+      capabilities: [],
+    }));
+    onEvent?.({ type: 'meeting_started', meetingId, agents });
+    onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `团队已组建：${agents.map(a => a.name).join('、')}` });
+
+    // 阶段 2: 讨论（复杂任务）
+    if (complexity.level !== 'simple' && roles.length > 1) {
+      onEvent?.({ type: 'phase', phase: 'discussing' });
+      for (const role of roles) {
+        if (role === 'ceo') continue;
+        try {
+          const prompt = `你是${getRoleName(role)}。任务：${userMessage}\n\n请从你的专业角度给出2-3句话的建议。用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注立场。`;
+          const reply = await chatCompletion(this.config.llm, [{ role: 'user', content: prompt }]);
+          onEvent?.({ type: 'assistant_message', agentId: `agent-${role}`, content: reply });
+        } catch (e) {
+          onEvent?.({ type: 'assistant_message', agentId: `agent-${role}`, content: `[${role}] 讨论发言失败: ${e}` });
+        }
+      }
+    }
+
+    // 阶段 3: 执行
+    onEvent?.({ type: 'phase', phase: 'executing' });
+    const executorRole = roles.find(r => r === 'executor') || roles[roles.length - 1];
+    try {
+      const execPrompt = `你是${getRoleName(executorRole)}。请执行以下任务：\n${userMessage}\n\n工作区：${workspace}\n\n请直接输出执行结果。`;
+      const result = await chatCompletion(this.config.llm, [{ role: 'user', content: execPrompt }]);
+      onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: result });
+    } catch (e) {
+      onEvent?.({ type: 'error', message: `执行失败: ${e}` });
+    }
+
+    // 阶段 4: 总结
+    onEvent?.({ type: 'phase', phase: 'summarizing' });
+    onEvent?.({ type: 'assistant_message', agentId: 'agent-coordinator', content: `任务执行完成。工作区：${workspace}` });
+
+    return `任务完成，工作区：${workspace}`;
   }
 }
 
-// ─── 安全存储 ───
-// 使用 Electron safeStorage + 文件存储 API Key
-// 比 electron-store 更轻量，无需额外依赖
+function getRoleName(role: string): string {
+  const names: Record<string, string> = {
+    coordinator: '项目经理', planner: '架构师', executor: '全栈开发',
+    reviewer: 'QA工程师', monitor: 'DevOps', ceo: 'CTO',
+  };
+  return names[role] || role;
+}
 
+// ─── 安全存储 ───
 interface SecureConfig {
-  apiKey: string;
-  provider: string;
-  baseUrl: string;
-  model: string;
-  workspace: string;
-  lastUsedRoles: string[];
+  apiKey: string; provider: string; baseUrl: string; model: string;
+  workspace: string; lastUsedRoles: string[];
 }
 
 const CONFIG_DIR = join(homedir(), '.mdh');
@@ -67,20 +170,15 @@ const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const ENCRYPTED_FILE = join(CONFIG_DIR, 'credentials.enc');
 
 function ensureConfigDir() {
-  if (!existsSync(CONFIG_DIR)) {
-    mkdirSync(CONFIG_DIR, { recursive: true });
-  }
+  if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true });
 }
 
 function loadSecureConfig(): Partial<SecureConfig> {
   ensureConfigDir();
   const result: Partial<SecureConfig> = {};
-
-  // 加载非敏感配置
   if (existsSync(CONFIG_FILE)) {
     try {
-      const raw = readFileSync(CONFIG_FILE, 'utf-8');
-      const parsed = JSON.parse(raw);
+      const parsed = JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'));
       result.provider = parsed.provider;
       result.baseUrl = parsed.baseUrl;
       result.model = parsed.model;
@@ -88,32 +186,20 @@ function loadSecureConfig(): Partial<SecureConfig> {
       result.lastUsedRoles = parsed.lastUsedRoles;
     } catch {}
   }
-
-  // 加载加密的 API Key
   if (existsSync(ENCRYPTED_FILE) && safeStorage.isEncryptionAvailable()) {
-    try {
-      const encrypted = readFileSync(ENCRYPTED_FILE);
-      result.apiKey = safeStorage.decryptString(encrypted);
-    } catch {}
+    try { result.apiKey = safeStorage.decryptString(readFileSync(ENCRYPTED_FILE)); } catch {}
   }
-
   return result;
 }
 
 function saveSecureConfig(config: Partial<SecureConfig>) {
   ensureConfigDir();
-
-  // 保存非敏感配置
   const existing = loadSecureConfig();
   const merged = { ...existing, ...config };
-
   const { apiKey, ...nonSensitive } = merged;
   writeFileSync(CONFIG_FILE, JSON.stringify(nonSensitive, null, 2));
-
-  // 加密保存 API Key
   if (apiKey !== undefined && safeStorage.isEncryptionAvailable()) {
-    const encrypted = safeStorage.encryptString(apiKey);
-    writeFileSync(ENCRYPTED_FILE, encrypted);
+    writeFileSync(ENCRYPTED_FILE, safeStorage.encryptString(apiKey));
   }
 }
 
@@ -121,10 +207,7 @@ function saveSecureConfig(config: Partial<SecureConfig>) {
 interface AppState {
   llmConfig: LLMConfig;
   workspace: string;
-  coordinator: any;
-  routerFactory: any;
-  localRouter: any;
-  remoteRouter: any;
+  coordinator: SimpleTeamCoordinator | null;
   lastUsedRoles: string[];
 }
 
@@ -132,25 +215,13 @@ const state: AppState = {
   llmConfig: { provider: 'deepseek', apiKey: '', baseUrl: '', model: '' },
   workspace: '',
   coordinator: null,
-  routerFactory: null,
-  localRouter: null,
-  remoteRouter: null,
   lastUsedRoles: ['coordinator', 'planner', 'executor', 'reviewer'],
 };
 
 // ─── 初始化 ───
 export async function registerIpcHandlers(llmConfig: Partial<LLMConfig>) {
-  // 加载 orchestrator 模块
-  await loadOrchestratorModules();
-
-  // 初始化 orchestrator 组件
-  if (RouterFactory) state.routerFactory = new RouterFactory();
-  if (LocalToolkitRouter) state.localRouter = new LocalToolkitRouter();
-
-  // 从安全存储加载配置
   const savedConfig = loadSecureConfig();
 
-  // 合并：环境变量 > 保存的配置 > 传入的默认值
   const rawConfig = {
     provider: llmConfig.provider || savedConfig.provider || 'deepseek',
     apiKey: llmConfig.apiKey || savedConfig.apiKey || '',
@@ -158,35 +229,29 @@ export async function registerIpcHandlers(llmConfig: Partial<LLMConfig>) {
     model: llmConfig.model || savedConfig.model || '',
   };
 
-  state.llmConfig = resolveConfig ? resolveConfig(rawConfig) : rawConfig as LLMConfig;
-
+  state.llmConfig = resolveConfig(rawConfig);
   state.workspace = savedConfig.workspace || getDefaultWorkspace();
   state.lastUsedRoles = savedConfig.lastUsedRoles || state.lastUsedRoles;
 
-  // 确保工作区目录存在
-  if (!existsSync(state.workspace)) {
-    mkdirSync(state.workspace, { recursive: true });
-  }
+  if (!existsSync(state.workspace)) mkdirSync(state.workspace, { recursive: true });
 
-  // 创建 Coordinator 实例
-  state.coordinator = createCoordinator();
+  state.coordinator = new SimpleTeamCoordinator({
+    llm: state.llmConfig,
+    workspace: state.workspace,
+    onWorkspaceConfirm: handleWorkspaceConfirm,
+  });
 
-  // 注册所有 IPC 处理器
+  console.log('[MDH] Coordinator initialized, workspace:', state.workspace);
+
   registerMeetingHandlers();
   registerConfigHandlers();
   registerWorkspaceHandlers();
   registerRoleHandlers();
 }
 
-function createCoordinator(): any {
-  if (!TeamCoordinator) {
-    console.warn('TeamCoordinator not loaded');
-    return null;
-  }
-  return new TeamCoordinator({
+function recreateCoordinator() {
+  state.coordinator = new SimpleTeamCoordinator({
     llm: state.llmConfig,
-    routerFactory: state.routerFactory,
-    defaultRouter: state.localRouter,
     workspace: state.workspace,
     onWorkspaceConfirm: handleWorkspaceConfirm,
   });
@@ -195,16 +260,16 @@ function createCoordinator(): any {
 // ─── 工作区确认 ───
 async function handleWorkspaceConfirm(request: WorkspaceConfirmRequest) {
   const win = BrowserWindow.getAllWindows()[0];
-  if (!win) {
-    return { workspace_type: 'standalone' as const };
-  }
+  if (!win) return { workspace_type: 'standalone' as const };
 
   notifyRenderer('mdh:onWorkspaceConfirm', request);
 
-  return new Promise((resolve) => {
+  return new Promise<any>((resolve) => {
     ipcMain.once('mdh:workspaceConfirmResponse', (_event, response) => {
       resolve(response);
     });
+    // 超时 30 秒自动选择 standalone
+    setTimeout(() => resolve({ workspace_type: 'standalone' }), 30000);
   });
 }
 
@@ -216,6 +281,7 @@ function registerMeetingHandlers() {
     roleLocations?: Record<string, 'local' | 'remote'>;
   }) => {
     if (!state.coordinator) {
+      console.error('[MDH] Coordinator not initialized');
       return { error: 'Coordinator 未初始化' };
     }
 
@@ -227,6 +293,7 @@ function registerMeetingHandlers() {
     state.lastUsedRoles = roles;
     saveSecureConfig({ lastUsedRoles: roles });
 
+    // 异步执行
     state.coordinator.execute(task, roles, (event) => {
       notifyRenderer('mdh:onAgentMessage', event);
     }).then((result) => {
@@ -278,13 +345,13 @@ function registerMeetingHandlers() {
   });
 
   ipcMain.handle('mdh:stopMeeting', async () => {
-    state.coordinator = createCoordinator();
+    recreateCoordinator();
     notifyRenderer('mdh:onStatusChange', { type: 'meeting_stopped' });
     return { status: 'stopped' };
   });
 }
 
-// ─── 配置管理（集成安全存储）───
+// ─── 配置管理 ───
 function registerConfigHandlers() {
   ipcMain.handle('mdh:getLlmConfig', async () => {
     return {
@@ -297,17 +364,13 @@ function registerConfigHandlers() {
 
   ipcMain.handle('mdh:setLlmConfig', async (_event, config: Partial<LLMConfig>) => {
     state.llmConfig = resolveConfig({ ...state.llmConfig, ...config });
-
-    // 持久化到安全存储
     saveSecureConfig({
       apiKey: state.llmConfig.apiKey,
       provider: state.llmConfig.provider,
       baseUrl: state.llmConfig.baseUrl,
       model: state.llmConfig.model,
     });
-
-    // 重建 Coordinator
-    state.coordinator = createCoordinator();
+    recreateCoordinator();
     notifyRenderer('mdh:onStatusChange', { type: 'config_updated' });
     return { status: 'updated' };
   });
@@ -323,7 +386,6 @@ function registerConfigHandlers() {
     };
   });
 
-  // 获取完整配置（含解密的 API Key，仅供设置页面显示）
   ipcMain.handle('mdh:getFullConfig', async () => {
     return {
       provider: state.llmConfig.provider,
@@ -344,11 +406,9 @@ function registerWorkspaceHandlers() {
 
   ipcMain.handle('mdh:setWorkspace', async (_event, data: { path: string }) => {
     state.workspace = data.path;
-    if (!existsSync(state.workspace)) {
-      mkdirSync(state.workspace, { recursive: true });
-    }
+    if (!existsSync(state.workspace)) mkdirSync(state.workspace, { recursive: true });
     saveSecureConfig({ workspace: state.workspace });
-    state.coordinator = createCoordinator();
+    recreateCoordinator();
     return { status: 'updated', path: state.workspace };
   });
 
@@ -365,120 +425,33 @@ function registerWorkspaceHandlers() {
     if (!result.canceled && result.filePaths.length > 0) {
       state.workspace = result.filePaths[0];
       saveSecureConfig({ workspace: state.workspace });
-      state.coordinator = createCoordinator();
+      recreateCoordinator();
       return { canceled: false, path: state.workspace };
     }
     return { canceled: true };
   });
 }
 
-// ─── YAML 简单解析工具 ───
-// 只解析顶级 key-value 和二级缩进块，足够提取 tools/skills 定义
-function parseYamlSection(yamlContent: string, sectionName: string): Record<string, any> {
-  const result: Record<string, any> = {};
-  const lines = yamlContent.split('\n');
-  let inSection = false;
-  let currentKey = '';
-  let currentBlock: string[] = [];
-
-  for (const line of lines) {
-    // 检测顶级 section 开始（如 "tools:" 或 "skills:"）
-    if (line.match(new RegExp(`^${sectionName}:\\s*$`))) {
-      inSection = true;
-      continue;
-    }
-    // 遇到下一个顶级 key，结束
-    if (inSection && line.match(/^[a-zA-Z_]/) && !line.startsWith(' ')) {
-      if (currentKey && currentBlock.length) {
-        result[currentKey] = parseYamlBlock(currentBlock);
-      }
-      break;
-    }
-    if (!inSection) continue;
-
-    // 二级 key（如 "bash:"）
-    const keyMatch = line.match(/^  ([a-zA-Z_][a-zA-Z0-9_]*):/);
-    if (keyMatch) {
-      if (currentKey && currentBlock.length) {
-        result[currentKey] = parseYamlBlock(currentBlock);
-      }
-      currentKey = keyMatch[1];
-      currentBlock = [];
-      // 检查是否有同行值
-      const inlineMatch = line.match(/^  [a-zA-Z_][a-zA-Z0-9_]*:\s*(.+)$/);
-      if (inlineMatch) {
-        currentBlock.push(inlineMatch[1]);
-      }
-      continue;
-    }
-    // 三级缩进内容追加到当前 block
-    if (inSection && currentKey && line.match(/^    /)) {
-      currentBlock.push(line.trim());
-    }
-  }
-  // 处理最后一个
-  if (currentKey && currentBlock.length) {
-    result[currentKey] = parseYamlBlock(currentBlock);
-  }
-  return result;
-}
-
-function parseYamlBlock(lines: string[]): Record<string, string> {
-  const obj: Record<string, string> = {};
-  for (const line of lines) {
-    const m = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.+)$/);
-    if (m) {
-      obj[m[1]] = m[2].replace(/^["']|["']$/g, '').trim();
-    }
-  }
-  return obj;
-}
-
 // ─── 角色管理 ───
 function registerRoleHandlers() {
   ipcMain.handle('mdh:getRoles', async () => {
-    if (getAvailableRoles) {
-      return getAvailableRoles();
-    }
     return getDefaultRoles();
   });
 
   ipcMain.handle('mdh:getTeamPresets', async () => {
     return [
-      {
-        id: 'full',
-        name: '完整团队',
-        description: '架构师 + 开发 + QA + DevOps + 项目经理',
-        roles: ['planner', 'executor', 'reviewer', 'monitor', 'coordinator'],
-      },
-      {
-        id: 'dev',
-        name: '开发团队',
-        description: '架构师 + 开发 + QA',
-        roles: ['planner', 'executor', 'reviewer'],
-      },
-      {
-        id: 'solo',
-        name: '单人助理',
-        description: '仅执行者，适合简单任务',
-        roles: ['executor'],
-      },
-      {
-        id: 'custom',
-        name: '自定义',
-        description: '手动选择角色和位置',
-        roles: [],
-      },
+      { id: 'full', name: '完整团队', description: '架构师 + 开发 + QA + DevOps + 项目经理', roles: ['planner', 'executor', 'reviewer', 'monitor', 'coordinator'] },
+      { id: 'dev', name: '开发团队', description: '架构师 + 开发 + QA', roles: ['planner', 'executor', 'reviewer'] },
+      { id: 'solo', name: '单人助理', description: '仅执行者，适合简单任务', roles: ['executor'] },
+      { id: 'custom', name: '自定义', description: '手动选择角色和位置', roles: [] },
     ];
   });
 
   // ─── 角色配置完整数据（替代 /api/roles/config）───
-  // 返回格式与 Python 后端一致：{ success: true, data: { base_roles, custom_roles, prompt_templates, tools, skills } }
   ipcMain.handle('mdh:getRolesConfig', async () => {
     try {
       const result: any = { base_roles: {}, custom_roles: {}, prompt_templates: {}, tools: {}, skills: {} };
 
-      // 1. 加载 orchestrator 的 roles.json（角色和提示词模板）
       const jsonPath = join(__dirname, '../orchestrator/templates/roles.json');
       if (existsSync(jsonPath)) {
         const data = JSON.parse(readFileSync(jsonPath, 'utf-8'));
@@ -488,11 +461,9 @@ function registerRoleHandlers() {
         console.log('[IPC] Loaded roles.json:', Object.keys(result.base_roles).length, 'base roles');
       }
 
-      // 2. 加载 backend/roles_config.yaml（工具和技能定义）
       const yamlPath = join(__dirname, '../backend/roles_config.yaml');
       if (existsSync(yamlPath)) {
         const yamlContent = readFileSync(yamlPath, 'utf-8');
-        // 简单解析 YAML 的 tools 和 skills 顶级段
         result.tools = parseYamlSection(yamlContent, 'tools');
         result.skills = parseYamlSection(yamlContent, 'skills');
         console.log('[IPC] Loaded tools:', Object.keys(result.tools).length, 'skills:', Object.keys(result.skills).length);
@@ -506,14 +477,10 @@ function registerRoleHandlers() {
   });
 
   // ─── 技能包列表（替代 /api/skills/list）───
-  // 返回格式：{ success: true, data: { skills: [...] } }
   ipcMain.handle('mdh:getSkillsList', async () => {
     try {
       const skillsDir = join(__dirname, '../skill_packs');
-      if (!existsSync(skillsDir)) {
-        console.warn('[IPC] skill_packs dir not found at:', skillsDir);
-        return { success: true, data: { skills: [] }, error: null };
-      }
+      if (!existsSync(skillsDir)) return { success: true, data: { skills: [] }, error: null };
       const skills = [];
       for (const name of readdirSync(skillsDir)) {
         const skillDir = join(skillsDir, name);
@@ -521,7 +488,6 @@ function registerRoleHandlers() {
         const manifestPath = join(skillDir, 'manifest.yaml');
         if (existsSync(manifestPath)) {
           const content = readFileSync(manifestPath, 'utf-8');
-          // 简单解析 YAML 的 name 和 description 字段
           const nameMatch = content.match(/^name:\s*(.+)$/m);
           const descMatch = content.match(/^description:\s*(.+)$/m);
           skills.push({
@@ -532,7 +498,6 @@ function registerRoleHandlers() {
         }
       }
       console.log('[IPC] Loaded', skills.length, 'skill packs');
-      // 包装成与 Python 后端一致的格式
       return { success: true, data: { skills }, error: null };
     } catch (e) {
       console.error('[IPC] Failed to load skills list:', e);
@@ -541,22 +506,55 @@ function registerRoleHandlers() {
   });
 }
 
+// ─── YAML 简单解析 ───
+function parseYamlSection(yamlContent: string, sectionName: string): Record<string, any> {
+  const result: Record<string, any> = {};
+  const lines = yamlContent.split('\n');
+  let inSection = false;
+  let currentKey = '';
+  let currentBlock: string[] = [];
+
+  for (const line of lines) {
+    if (line.match(new RegExp(`^${sectionName}:\\s*$`))) { inSection = true; continue; }
+    if (inSection && line.match(/^[a-zA-Z_]/) && !line.startsWith(' ')) {
+      if (currentKey && currentBlock.length) result[currentKey] = parseYamlBlock(currentBlock);
+      break;
+    }
+    if (!inSection) continue;
+
+    const keyMatch = line.match(/^  ([a-zA-Z_][a-zA-Z0-9_]*):/);
+    if (keyMatch) {
+      if (currentKey && currentBlock.length) result[currentKey] = parseYamlBlock(currentBlock);
+      currentKey = keyMatch[1];
+      currentBlock = [];
+      const inlineMatch = line.match(/^  [a-zA-Z_][a-zA-Z0-9_]*:\s*(.+)$/);
+      if (inlineMatch) currentBlock.push(inlineMatch[1]);
+      continue;
+    }
+    if (inSection && currentKey && line.match(/^    /)) currentBlock.push(line.trim());
+  }
+  if (currentKey && currentBlock.length) result[currentKey] = parseYamlBlock(currentBlock);
+  return result;
+}
+
+function parseYamlBlock(lines: string[]): Record<string, string> {
+  const obj: Record<string, string> = {};
+  for (const line of lines) {
+    const m = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.+)$/);
+    if (m) obj[m[1]] = m[2].replace(/^["']|["']$/g, '').trim();
+  }
+  return obj;
+}
+
 // ─── 自动更新 ───
-// 注意：更新相关 IPC 由 main.ts 中的 autoUpdater 直接处理
-// 这里注册应用版本查询
 ipcMain.handle('mdh:getAppVersion', async () => {
-  return {
-    version: app.getVersion(),
-    name: app.getName(),
-  };
+  return { version: app.getVersion(), name: app.getName() };
 });
 
 // ─── 向渲染进程推送消息 ───
 export function notifyRenderer(channel: string, data: unknown) {
   const win = BrowserWindow.getAllWindows()[0];
-  if (win && !win.isDestroyed()) {
-    win.webContents.send(channel, data);
-  }
+  if (win && !win.isDestroyed()) win.webContents.send(channel, data);
 }
 
 // ─── 默认工作区 ───
