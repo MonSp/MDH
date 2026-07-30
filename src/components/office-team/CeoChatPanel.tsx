@@ -214,7 +214,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
       const mdh = (window as any).mdh
       mdh.invoke('mdh:sendMessage', {
         content,
-        roles: autoMode ? ['coordinator', 'planner', 'executor', 'reviewer'] : selectedRoles,
+        roles: autoMode ? [] : selectedRoles,
       }).then((result: any) => {
         if (result?.error) {
           addMsg('system', `❌ ${result.error}`)

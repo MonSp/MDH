@@ -161,22 +161,33 @@ class SimpleTeamCoordinator {
   }
 
   async execute(userMessage: string, selectedRoles: string[], onEvent?: EventHandler): Promise<string> {
-    const roles = selectedRoles.length > 0 ? selectedRoles : ['coordinator', 'planner', 'executor', 'reviewer'];
-
-    // 阶段 0: 分析
+    // 阶段 0: 分析（复杂度 + 角色推荐）
     onEvent?.({ type: 'phase', phase: 'analyzing' });
-    onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `收到任务：${userMessage}\n\n正在分析任务复杂度...` });
+    onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `收到任务：${userMessage}\n\n正在分析任务并组建团队...` });
 
-    let complexity: { level: string; reason: string };
+    let complexity: { level: string; reason: string; suggested_roles?: string[] };
     try {
-      const analysisPrompt = `分析以下任务复杂度，返回JSON: {"level":"simple"或"complex","reason":"原因"}\n\n任务：${userMessage}`;
+      const analysisPrompt = `分析以下任务，返回JSON：
+{
+  "level": "simple 或 complex",
+  "reason": "原因",
+  "suggested_roles": ["从以下选择需要的角色：coordinator(项目经理), planner(架构师), executor(全栈开发), reviewer(QA工程师), monitor(DevOps)"]
+}
+
+简单任务只需 executor，复杂任务需要多角色协作。
+
+任务：${userMessage}`;
       const analysisText = await chatCompletion(this.config.llm, [{ role: 'user', content: analysisPrompt }]);
       const jsonMatch = analysisText.match(/\{[^{}]*\}/);
-      complexity = jsonMatch ? JSON.parse(jsonMatch[0]) : { level: 'complex', reason: '默认复杂' };
+      complexity = jsonMatch ? JSON.parse(jsonMatch[0]) : { level: 'complex', reason: '默认复杂', suggested_roles: selectedRoles };
     } catch (e) {
-      complexity = { level: 'complex', reason: `分析失败: ${e}` };
+      complexity = { level: 'complex', reason: `分析失败: ${e}`, suggested_roles: selectedRoles };
     }
-    onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `任务分析完成：复杂度=${complexity.level}，${complexity.reason}` });
+
+    // 使用推荐角色（如果用户未指定）
+    const roles = selectedRoles.length > 0 ? selectedRoles : (complexity.suggested_roles?.length ? complexity.suggested_roles : ['executor']);
+
+    onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `任务分析完成：复杂度=${complexity.level}，${complexity.reason}\n推荐团队：${roles.map(r => getRoleName(r)).join('、')}` });
 
     // 阶段 0.5: 工作区确认
     onEvent?.({ type: 'phase', phase: 'planning' });
