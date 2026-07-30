@@ -2,10 +2,30 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 
 const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true
 
+const AGENT_NAMES: Record<string, string> = {
+  'agent-ceo': 'CTO',
+  'agent-coordinator': '项目经理',
+  'agent-planner': '架构师',
+  'agent-executor': '全栈开发',
+  'agent-reviewer': 'QA工程师',
+  'agent-monitor': 'DevOps',
+}
+
+const AGENT_COLORS: Record<string, string> = {
+  'agent-ceo': '#8b5cf6',
+  'agent-coordinator': '#3b82f6',
+  'agent-planner': '#10b981',
+  'agent-executor': '#f59e0b',
+  'agent-reviewer': '#ef4444',
+  'agent-monitor': '#06b6d4',
+}
+
 interface CeoMessage {
-  role: 'user' | 'ceo' | 'system'
+  role: 'user' | 'ceo' | 'system' | 'agent'
   content: string
   timestamp: number
+  agentId?: string
+  agentName?: string
   _workspaceConfirm?: WorkspaceConfirmRequest
 }
 
@@ -181,8 +201,8 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
     }
   }, [])
 
-  const addMsg = useCallback((role: CeoMessage['role'], content: string) => {
-    setMessages(prev => [...prev, { role, content, timestamp: Date.now() }])
+  const addMsg = useCallback((role: CeoMessage['role'], content: string, agentId?: string, agentName?: string) => {
+    setMessages(prev => [...prev, { role, content, timestamp: Date.now(), agentId, agentName }])
   }, [])
 
   const sendToBackend = useCallback((content: string) => {
@@ -212,7 +232,19 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
               addMsg('system', `❌ ${event.message}`)
               mdh.off('mdh:onAgentMessage', handler)
             } else if (event.type === 'assistant_message' && event.content) {
-              addMsg('ceo', event.content)
+              // 根据 agentId 判断角色
+              const agentId = event.agentId || ''
+              const agentName = AGENT_NAMES[agentId] || agentId.replace('agent-', '')
+              if (agentId === 'agent-ceo') {
+                addMsg('ceo', event.content)
+              } else if (agentId.startsWith('agent-')) {
+                addMsg('agent', event.content, agentId, agentName)
+              } else {
+                addMsg('ceo', event.content)
+              }
+            } else if (event.type === 'phase') {
+              // 阶段变化
+              setMeetingPhase?.(event.phase || 'idle')
             }
           }
           mdh.on('mdh:onAgentMessage', handler)
@@ -461,12 +493,23 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
               justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
             }}>
               {msg.role !== 'user' && (
-                <span style={styles.msgAvatar}>{msg.role === 'ceo' ? '🧠' : '📋'}</span>
+                <span style={{
+                  ...styles.msgAvatar,
+                  ...(msg.role === 'agent' && msg.agentId ? {
+                    background: `${AGENT_COLORS[msg.agentId] || '#6b7280'}30`,
+                    border: `1px solid ${AGENT_COLORS[msg.agentId] || '#6b7280'}50`,
+                  } : {}),
+                }}>
+                  {msg.role === 'ceo' ? '🧠' : msg.role === 'agent' ? '👤' : '📋'}
+                </span>
               )}
               <div style={{
                 ...styles.msgBubble,
                 ...(msg.role === 'user' ? styles.userBubble : {}),
                 ...(msg.role === 'system' ? styles.systemBubble : {}),
+                ...(msg.role === 'agent' && msg.agentId ? {
+                  borderLeft: `3px solid ${AGENT_COLORS[msg.agentId] || '#6b7280'}`,
+                } : {}),
               }}>
                 {isMeetingReady ? (
                   <div>
@@ -593,7 +636,19 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
                     </button>
                   </div>
                 ) : (
-                  msg.content
+                  <>
+                    {msg.role === 'agent' && msg.agentName && (
+                      <div style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: AGENT_COLORS[msg.agentId || ''] || '#8b9dc3',
+                        marginBottom: 4,
+                      }}>
+                        {msg.agentName}
+                      </div>
+                    )}
+                    <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{msg.content}</div>
+                  </>
                 )}
               </div>
               {msg.role === 'user' && (
