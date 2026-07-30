@@ -411,7 +411,7 @@ function registerRoleHandlers() {
   });
 
   // ─── 角色配置完整数据（替代 /api/roles/config）───
-  // 返回格式必须与 Python 后端一致：{ base_roles: {...}, custom_roles: {...}, prompt_templates: {...} }
+  // 返回格式与 Python 后端一致：{ success: true, data: { base_roles, custom_roles, prompt_templates, tools, skills } }
   ipcMain.handle('mdh:getRolesConfig', async () => {
     try {
       // 优先使用 orchestrator 的 roles.json（已是 JSON，无需 YAML 解析）
@@ -419,24 +419,25 @@ function registerRoleHandlers() {
       if (existsSync(jsonPath)) {
         const data = JSON.parse(readFileSync(jsonPath, 'utf-8'));
         console.log('[IPC] Loaded roles.json:', Object.keys(data.base_roles || {}).length, 'base roles');
-        return data; // 直接返回 { base_roles, custom_roles, prompt_templates }
+        // 包装成与 Python 后端一致的格式
+        return { success: true, data, error: null };
       }
       console.warn('[IPC] roles.json not found at:', jsonPath);
-      return { base_roles: {}, custom_roles: {}, prompt_templates: {} };
+      return { success: false, data: null, error: 'roles.json not found' };
     } catch (e) {
       console.error('[IPC] Failed to load roles config:', e);
-      return { base_roles: {}, custom_roles: {}, prompt_templates: {} };
+      return { success: false, data: null, error: String(e) };
     }
   });
 
   // ─── 技能包列表（替代 /api/skills/list）───
-  // 返回格式：{ skills: [{ name, description, ... }] }
+  // 返回格式：{ success: true, data: { skills: [...] } }
   ipcMain.handle('mdh:getSkillsList', async () => {
     try {
       const skillsDir = join(__dirname, '../skill_packs');
       if (!existsSync(skillsDir)) {
         console.warn('[IPC] skill_packs dir not found at:', skillsDir);
-        return { skills: [] };
+        return { success: true, data: { skills: [] }, error: null };
       }
       const skills = [];
       for (const name of readdirSync(skillsDir)) {
@@ -456,10 +457,11 @@ function registerRoleHandlers() {
         }
       }
       console.log('[IPC] Loaded', skills.length, 'skill packs');
-      return { skills };
+      // 包装成与 Python 后端一致的格式
+      return { success: true, data: { skills }, error: null };
     } catch (e) {
       console.error('[IPC] Failed to load skills list:', e);
-      return { skills: [] };
+      return { success: false, data: null, error: String(e) };
     }
   });
 }
