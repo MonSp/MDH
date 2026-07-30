@@ -26,7 +26,8 @@ interface CeoMessage {
   timestamp: number
   agentId?: string
   agentName?: string
-  _workspaceConfirm?: WorkspaceConfirmRequest
+  _workspaceConfirm?: boolean
+  _workspaceReq?: any
 }
 
 interface WorkspaceConfirmRequest {
@@ -222,25 +223,15 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
         } else {
           addMsg('system', '任务已发送，等待团队响应...')
 
-          // 监听工作区确认请求 — 弹出目录选择
+          // 监听工作区确认请求 — 在对话中显示选项
           const wsConfirmHandler = (req: any) => {
-            addMsg('ceo', '📁 请选择项目工作区目录...')
-            // 调用原生目录选择器
-            mdh.invoke('mdh:selectWorkspace').then((result: any) => {
-              if (result && !result.canceled && result.path) {
-                addMsg('system', `✅ 已选择工作区：${result.path}`)
-                mdh.invoke('mdh:workspaceConfirmResponse', {
-                  workspace_type: 'standalone',
-                  output_dir: result.path,
-                })
-              } else {
-                // 用户取消选择，使用默认工作区
-                addMsg('system', '使用默认工作区')
-                mdh.invoke('mdh:workspaceConfirmResponse', { workspace_type: 'standalone' })
-              }
-            }).catch(() => {
-              mdh.invoke('mdh:workspaceConfirmResponse', { workspace_type: 'standalone' })
-            })
+            setMessages(prev => [...prev, {
+              role: 'ceo',
+              content: '请选择项目工作区：',
+              timestamp: Date.now(),
+              _workspaceConfirm: true,
+              _workspaceReq: req,
+            }])
           }
           mdh.on('mdh:onWorkspaceConfirm', wsConfirmHandler)
 
@@ -659,6 +650,45 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
                     >
                       ✅ 确认配置并继续
                     </button>
+                  </div>
+                ) : msg._workspaceConfirm ? (
+                  // 工作区选择 UI
+                  <div>
+                    <div style={{ marginBottom: 12, fontWeight: 600, fontSize: 14 }}>
+                      📁 选择项目工作区
+                    </div>
+                    <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 12 }}>
+                      项目文件将存放在你选择的目录中
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <button
+                        style={styles.wsConfirmBtn}
+                        onClick={() => {
+                          addMsg('system', '✅ 使用默认工作区')
+                          mdh.invoke('mdh:workspaceConfirmResponse', { workspace_type: 'standalone' })
+                        }}
+                      >
+                        📂 使用默认工作区
+                      </button>
+                      <button
+                        style={{ ...styles.wsConfirmBtn, background: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.3)' }}
+                        onClick={() => {
+                          mdh.invoke('mdh:selectWorkspace').then((result: any) => {
+                            if (result && !result.canceled && result.path) {
+                              addMsg('system', `✅ 已选择工作区：${result.path}`)
+                              mdh.invoke('mdh:workspaceConfirmResponse', {
+                                workspace_type: 'standalone',
+                                output_dir: result.path,
+                              })
+                            } else {
+                              addMsg('system', '取消选择，等待重新选择...')
+                            }
+                          })
+                        }}
+                      >
+                        📁 选择其他目录...
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <>
