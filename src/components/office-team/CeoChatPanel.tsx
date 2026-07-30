@@ -222,11 +222,25 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
         } else {
           addMsg('system', '任务已发送，等待团队响应...')
 
-          // 监听工作区确认请求
+          // 监听工作区确认请求 — 弹出目录选择
           const wsConfirmHandler = (req: any) => {
-            addMsg('system', '📁 正在创建工作区...')
-            // 自动确认为 standalone 模式
-            mdh.invoke('mdh:workspaceConfirmResponse', { workspace_type: 'standalone' })
+            addMsg('ceo', '📁 请选择项目工作区目录...')
+            // 调用原生目录选择器
+            mdh.invoke('mdh:selectWorkspace').then((result: any) => {
+              if (result && !result.canceled && result.path) {
+                addMsg('system', `✅ 已选择工作区：${result.path}`)
+                mdh.invoke('mdh:workspaceConfirmResponse', {
+                  workspace_type: 'standalone',
+                  output_dir: result.path,
+                })
+              } else {
+                // 用户取消选择，使用默认工作区
+                addMsg('system', '使用默认工作区')
+                mdh.invoke('mdh:workspaceConfirmResponse', { workspace_type: 'standalone' })
+              }
+            }).catch(() => {
+              mdh.invoke('mdh:workspaceConfirmResponse', { workspace_type: 'standalone' })
+            })
           }
           mdh.on('mdh:onWorkspaceConfirm', wsConfirmHandler)
 

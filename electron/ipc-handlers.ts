@@ -224,7 +224,11 @@ ${allRoles}
           },
         };
         const resp = await this.config.onWorkspaceConfirm(confirmReq);
-        if (resp?.workspace_type === 'git_worktree' && resp.repo_path) {
+
+        // 使用用户选择的目录，或默认创建子目录
+        if (resp?.output_dir) {
+          workspace = resp.output_dir;
+        } else if (resp?.workspace_type === 'git_worktree' && resp.repo_path) {
           const branch = resp.branch_name || `agent/task-${Date.now().toString(36)}`;
           workspace = `${this.config.workspace}/worktrees/${branch.replace('/', '-')}`;
         } else {
