@@ -765,25 +765,38 @@ function getAllRoleDescriptions(): string {
   try {
     const yamlPath = join(__dirname, '../backend/roles_config.yaml');
     if (existsSync(yamlPath)) {
-      const content = readFileSync(yamlPath, 'utf-8');
-      // 提取 base_roles 段下的角色名和描述
-      const baseRolesMatch = content.match(/^base_roles:\s*\n([\s\S]*?)(?=\ncustom_roles:|\ntools:|\nskills:|\nprompt_templates:|$)/m);
-      if (baseRolesMatch) {
-        const block = baseRolesMatch[1];
-        let currentRole = '';
-        let currentDesc = '';
-        for (const line of block.split('\n')) {
-          const roleMatch = line.match(/^  ([a-z_]+):\s*$/);
-          if (roleMatch) {
-            if (currentRole && currentDesc) lines.push(`- ${currentRole}: ${currentDesc}`);
-            currentRole = roleMatch[1];
-            currentDesc = '';
-          }
-          const descMatch = line.match(/^    description:\s*(.+)$/);
-          if (descMatch) currentDesc = descMatch[1].trim();
+      // 统一换行符，去掉 \r
+      const content = readFileSync(yamlPath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+      // 简单逐行解析：找 "  xxx:" 开头的角色名，和 "    description:" 的值
+      let inBaseRoles = false;
+      let currentRole = '';
+      let currentDesc = '';
+
+      for (const line of content.split('\n')) {
+        const trimmed = line.trimEnd();
+
+        // 检测 base_roles 段开始
+        if (trimmed === 'base_roles:') { inBaseRoles = true; continue; }
+        // 检测其他顶级段结束
+        if (inBaseRoles && /^[a-z_]+:$/.test(trimmed)) break;
+
+        if (!inBaseRoles) continue;
+
+        // 匹配角色名（2空格缩进）
+        const roleMatch = trimmed.match(/^  ([a-z_][a-z0-9_]*):$/);
+        if (roleMatch) {
+          if (currentRole && currentDesc) lines.push(`- ${currentRole}: ${currentDesc}`);
+          currentRole = roleMatch[1];
+          currentDesc = '';
+          continue;
         }
-        if (currentRole && currentDesc) lines.push(`- ${currentRole}: ${currentDesc}`);
+
+        // 匹配 description（4空格缩进）
+        const descMatch = trimmed.match(/^    description:\s*(.+)$/);
+        if (descMatch) currentDesc = descMatch[1].trim();
       }
+      if (currentRole && currentDesc) lines.push(`- ${currentRole}: ${currentDesc}`);
     }
   } catch {}
 
