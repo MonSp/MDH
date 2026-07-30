@@ -10,7 +10,10 @@ files:
   - dist/**/*
   - dist-electron/**/*
   - orchestrator/src/**/*.js
+  - orchestrator/templates/**/*
   - orchestrator/package.json
+  - backend/roles_config.yaml
+  - skill_packs/**/*
   - package.json
   - "!node_modules/**/{test,tests,__tests__}/**"
   - "!node_modules/**/*.{md,ts,map}"
