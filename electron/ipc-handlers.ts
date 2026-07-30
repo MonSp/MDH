@@ -462,15 +462,9 @@ async function handleWorkspaceConfirm(request: WorkspaceConfirmRequest) {
 
   notifyRenderer('mdh:onWorkspaceConfirm', request);
 
+  // 必须等用户确认，无超时
   return new Promise<any>((resolve) => {
     workspaceConfirmResolver = resolve;
-    // 超时 15 秒自动选择 standalone
-    setTimeout(() => {
-      if (workspaceConfirmResolver) {
-        workspaceConfirmResolver = null;
-        resolve({ workspace_type: 'standalone' });
-      }
-    }, 15000);
   });
 }
 
