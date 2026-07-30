@@ -161,6 +161,13 @@ class SimpleTeamCoordinator {
   }
 
   async execute(userMessage: string, selectedRoles: string[], onEvent?: EventHandler): Promise<string> {
+    // 使用最新的 LLM 配置（用户可能在设置中更新了 API Key）
+    const currentLlm = state.llmConfig;
+    if (!currentLlm.apiKey) {
+      onEvent?.({ type: 'error', message: '未配置 API Key，请在设置中配置' });
+      return '未配置 API Key';
+    }
+
     // 阶段 0: 分析（复杂度 + 角色推荐）
     onEvent?.({ type: 'phase', phase: 'analyzing' });
     onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `收到任务：${userMessage}\n\n正在分析任务并组建团队...` });
@@ -187,7 +194,7 @@ ${allRoles}
 - 每个任务必须有至少1个executor角色来执行
 
 任务：${userMessage}`;
-      const analysisText = await chatCompletion(this.config.llm, [{ role: 'user', content: analysisPrompt }]);
+      const analysisText = await chatCompletion(currentLlm, [{ role: 'user', content: analysisPrompt }]);
       const jsonMatch = analysisText.match(/\{[^{}]*\}/);
       complexity = jsonMatch ? JSON.parse(jsonMatch[0]) : { level: 'complex', reason: '默认复杂', suggested_roles: selectedRoles };
     } catch (e) {
@@ -249,7 +256,7 @@ ${allRoles}
         if (role === 'ceo') continue;
         try {
           const prompt = `你是${getRoleName(role)}。任务：${userMessage}\n\n请从你的专业角度给出具体建议（2-3句话）。用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注立场。`;
-          const reply = await chatCompletion(this.config.llm, [{ role: 'user', content: prompt }]);
+          const reply = await chatCompletion(currentLlm, [{ role: 'user', content: prompt }]);
           onEvent?.({ type: 'assistant_message', agentId: `agent-${role}`, content: reply });
         } catch (e) {
           onEvent?.({ type: 'assistant_message', agentId: `agent-${role}`, content: `[${role}] 讨论发言失败: ${e}` });
@@ -283,7 +290,7 @@ ${allRoles}
 
     for (let round = 0; round < maxToolRounds; round++) {
       try {
-        const response = await chatCompletion(this.config.llm, messages);
+        const response = await chatCompletion(currentLlm, messages);
         onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: response });
 
         // 解析代码块并写入文件
@@ -442,6 +449,9 @@ function recreateCoordinator() {
 }
 
 // ─── 工作区确认 ───
+// 用于存储待确认的 Promise resolve 函数
+let workspaceConfirmResolver: ((value: any) => void) | null = null;
+
 async function handleWorkspaceConfirm(request: WorkspaceConfirmRequest) {
   const win = BrowserWindow.getAllWindows()[0];
   if (!win) return { workspace_type: 'standalone' as const };
@@ -449,16 +459,28 @@ async function handleWorkspaceConfirm(request: WorkspaceConfirmRequest) {
   notifyRenderer('mdh:onWorkspaceConfirm', request);
 
   return new Promise<any>((resolve) => {
-    ipcMain.once('mdh:workspaceConfirmResponse', (_event, response) => {
-      resolve(response);
-    });
-    // 超时 30 秒自动选择 standalone
-    setTimeout(() => resolve({ workspace_type: 'standalone' }), 30000);
+    workspaceConfirmResolver = resolve;
+    // 超时 15 秒自动选择 standalone
+    setTimeout(() => {
+      if (workspaceConfirmResolver) {
+        workspaceConfirmResolver = null;
+        resolve({ workspace_type: 'standalone' });
+      }
+    }, 15000);
   });
 }
 
 // ─── 会议控制 ───
 function registerMeetingHandlers() {
+  // 工作区确认响应（前端 invoke 此通道）
+  ipcMain.handle('mdh:workspaceConfirmResponse', async (_event, response: any) => {
+    if (workspaceConfirmResolver) {
+      workspaceConfirmResolver(response);
+      workspaceConfirmResolver = null;
+    }
+    return { status: 'ok' };
+  });
+
   ipcMain.handle('mdh:startMeeting', async (_event, data: {
     task: string;
     roles: string[];
