@@ -1,7 +1,7 @@
 import { app, ipcMain, BrowserWindow, dialog, safeStorage } from 'electron';
 import { join } from 'path';
 import { homedir } from 'os';
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 
 // Orchestrator 模块通过动态 import 加载（ESM/CJS 兼容）
 type LLMConfig = {
@@ -408,6 +408,51 @@ function registerRoleHandlers() {
         roles: [],
       },
     ];
+  });
+
+  // ─── 角色配置完整数据（替代 /api/roles/config）───
+  ipcMain.handle('mdh:getRolesConfig', async () => {
+    try {
+      const configPath = join(__dirname, '../backend/roles_config.yaml');
+      if (existsSync(configPath)) {
+        const yaml = readFileSync(configPath, 'utf-8');
+        // 简单解析 YAML（不依赖 yaml 库）
+        // 返回原始 YAML 文本，前端自行解析
+        return { success: true, yaml, path: configPath };
+      }
+      // 回退：使用 orchestrator 的 roles.json
+      const jsonPath = join(__dirname, '../orchestrator/templates/roles.json');
+      if (existsSync(jsonPath)) {
+        const data = JSON.parse(readFileSync(jsonPath, 'utf-8'));
+        return { success: true, data };
+      }
+      return { success: false, error: 'Config files not found' };
+    } catch (e) {
+      return { success: false, error: String(e) };
+    }
+  });
+
+  // ─── 技能包列表（替代 /api/skills/list）───
+  ipcMain.handle('mdh:getSkillsList', async () => {
+    try {
+      const skillsDir = join(__dirname, '../skill_packs');
+      if (!existsSync(skillsDir)) {
+        return { success: true, skills: [] };
+      }
+      const skills = [];
+      for (const name of readdirSync(skillsDir)) {
+        const skillDir = join(skillsDir, name);
+        if (!statSync(skillDir).isDirectory()) continue;
+        const manifestPath = join(skillDir, 'manifest.yaml');
+        if (existsSync(manifestPath)) {
+          const yaml = readFileSync(manifestPath, 'utf-8');
+          skills.push({ name, yaml, path: skillDir });
+        }
+      }
+      return { success: true, skills };
+    } catch (e) {
+      return { success: false, error: String(e) };
+    }
   });
 }
 

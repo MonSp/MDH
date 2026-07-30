@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ConfigProvider, carbonTheme } from '@agentscope-ai/design';
 import App from './App';
+import { installElectronApiInterceptor } from './utils/electronApiInterceptor';
 
 import './theme-dark.css';
 import './theme-light.css';
@@ -12,6 +13,9 @@ import './styles/App.css';
 import './styles/Header.css';
 import './styles/Settings.css';
 import './styles/Conversation.css';
+
+// 安装 Electron API 拦截器（必须在应用启动前）
+installElectronApiInterceptor();
 
 const SSO_TOKEN_KEY = 'sso_auth_token';
 const SSO_USERNAME_KEY = 'sso_auth_username';

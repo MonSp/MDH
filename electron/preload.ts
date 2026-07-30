@@ -31,6 +31,9 @@ const VALID_INVOKE_CHANNELS = [
   // 角色
   'mdh:getRoles',
   'mdh:getTeamPresets',
+  'mdh:getRolesConfig',
+  // 技能
+  'mdh:getSkillsList',
   // 更新
   'mdh:checkForUpdate',
   'mdh:downloadUpdate',
