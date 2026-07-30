@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 
+const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true
+
 interface CeoMessage {
   role: 'user' | 'ceo' | 'system'
   content: string
@@ -184,11 +186,50 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
   }, [])
 
   const sendToBackend = useCallback((content: string) => {
-    const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) return
-
     setIsProcessing(true)
     addMsg('user', content)
+
+    // Electron 模式：通过 IPC 发送
+    if (isElectron) {
+      const mdh = (window as any).mdh
+      mdh.invoke('mdh:sendMessage', {
+        content,
+        roles: autoMode ? ['coordinator', 'planner', 'executor', 'reviewer'] : selectedRoles,
+      }).then((result: any) => {
+        if (result?.error) {
+          addMsg('system', `❌ ${result.error}`)
+          setIsProcessing(false)
+        } else {
+          addMsg('system', '任务已发送，等待团队响应...')
+          // 监听 IPC 推送的消息
+          const handler = (event: any) => {
+            if (event.type === 'meeting_ended') {
+              setIsProcessing(false)
+              addMsg('ceo', '任务已完成。')
+              mdh.off('mdh:onAgentMessage', handler)
+            } else if (event.type === 'error') {
+              setIsProcessing(false)
+              addMsg('system', `❌ ${event.message}`)
+              mdh.off('mdh:onAgentMessage', handler)
+            } else if (event.type === 'assistant_message' && event.content) {
+              addMsg('ceo', event.content)
+            }
+          }
+          mdh.on('mdh:onAgentMessage', handler)
+        }
+      }).catch((err: any) => {
+        addMsg('system', `❌ ${String(err)}`)
+        setIsProcessing(false)
+      })
+      return
+    }
+
+    // WebSocket 模式（浏览器）
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      setIsProcessing(false)
+      return
+    }
 
     let currentProjectId = ''
     let currentMeetingId = ''
@@ -332,21 +373,33 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
   }, [projectReady, onEnterProject])
 
   const handleWorkspaceConfirm = useCallback(() => {
-    const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) return
-
     const isExistingProject = !!workspaceConfirm?.existing_project
+    const confirmData = isExistingProject
+      ? {
+          action: wsType,
+          workspace_type: wsType === 'continue' ? 'standalone' : wsType,
+          repo_path: wsType === 'git_worktree' ? wsRepoPath : '',
+          branch_name: wsType === 'git_worktree' ? wsBranchName : '',
+          output_dir: wsOutputDir,
+        }
+      : {
+          workspace_type: wsType,
+          repo_path: wsType === 'git_worktree' ? wsRepoPath : '',
+          branch_name: wsType === 'git_worktree' ? wsBranchName : '',
+          output_dir: wsOutputDir,
+        }
+
+    // Electron 模式：通过 IPC 发送
+    if (isElectron) {
+      (window as any).mdh.invoke('mdh:workspaceConfirmResponse', confirmData)
+    } else {
+      // WebSocket 模式
+      const ws = wsRef.current
+      if (!ws || ws.readyState !== WebSocket.OPEN) return
+      ws.send(JSON.stringify({ type: 'workspace_confirm_response', ...confirmData }))
+    }
 
     if (isExistingProject) {
-      // 目录非空确认：发送 action 字段
-      ws.send(JSON.stringify({
-        type: 'workspace_confirm_response',
-        action: wsType,  // 'continue' | 'git_worktree' | 'new_dir'
-        workspace_type: wsType === 'continue' ? 'standalone' : wsType,
-        repo_path: wsType === 'git_worktree' ? wsRepoPath : '',
-        branch_name: wsType === 'git_worktree' ? wsBranchName : '',
-        output_dir: wsOutputDir,
-      }))
       const actionLabels: Record<string, string> = {
         continue: '继续在此目录',
         git_worktree: 'Git Worktree模式',
@@ -354,14 +407,6 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
       }
       addMsg('system', `✅ 已确认：${actionLabels[wsType] || wsType}`)
     } else {
-      // 正常工作区配置
-      ws.send(JSON.stringify({
-        type: 'workspace_confirm_response',
-        workspace_type: wsType,
-        repo_path: wsType === 'git_worktree' ? wsRepoPath : '',
-        branch_name: wsType === 'git_worktree' ? wsBranchName : '',
-        output_dir: wsOutputDir,
-      }))
       addMsg('system', `✅ 工作区配置已确认：${wsType === 'git_worktree' ? 'Git Worktree' : '独立工作区'}`)
     }
     setWorkspaceConfirm(null)
