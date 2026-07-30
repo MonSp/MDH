@@ -82,16 +82,38 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
     ...DEFAULT_PROJECTS,
   ]
 
-  // 获取分类
-  const categories = getCategories()
+  // 获取分类（合并存储项目和默认项目）
+  const storedCategories = getCategories()
   const categoriesForDisplay: Record<string, Array<{ project_id: string; name: string; status: string; created_at: string }>> = {}
-  for (const [cat, projs] of Object.entries(categories)) {
+
+  // 先添加存储的项目分类
+  for (const [cat, projs] of Object.entries(storedCategories)) {
     categoriesForDisplay[cat] = projs.map(p => ({
       project_id: p.project_id,
       name: p.name,
       status: p.status,
       created_at: p.created_at,
     }))
+  }
+
+  // 将默认项目按 description 分类添加
+  for (const p of DEFAULT_PROJECTS) {
+    const cat = p.description?.includes('LLM') ? '软件开发' :
+                p.description?.includes('AI') ? 'AI影视' :
+                p.description?.includes('数据') ? '数据分析' :
+                p.description?.includes('博客') || p.description?.includes('内容') ? '内容创作' :
+                p.description?.includes('PPT') || p.description?.includes('路演') ? 'PPT设计' :
+                '其他'
+    if (!categoriesForDisplay[cat]) categoriesForDisplay[cat] = []
+    // 避免重复添加
+    if (!categoriesForDisplay[cat].some(ep => ep.project_id === p.id)) {
+      categoriesForDisplay[cat].push({
+        project_id: p.id,
+        name: p.name,
+        status: p.status,
+        created_at: new Date(p.createdAt).toISOString(),
+      })
+    }
   }
 
   const [selectedFloor, setSelectedFloor] = useState<string | null>(null)
