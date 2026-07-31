@@ -55,11 +55,20 @@ export default function OfficeHeader({
 
   const isActive = meetingPhase !== 'idle' && meetingPhase !== 'done'
 
+  const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true
+
   return (
     <div style={styles.header}>
-      <button style={styles.backButton} onClick={viewState === 'meeting' ? onBackToTower : onBackToSingle}>
-        {viewState === 'meeting' ? '← 返回对话' : '← 返回'}
-      </button>
+      {!isElectron && (
+        <button style={styles.backButton} onClick={viewState === 'meeting' ? onBackToTower : onBackToSingle}>
+          {viewState === 'meeting' ? '← 返回对话' : '← 返回'}
+        </button>
+      )}
+      {isElectron && viewState === 'meeting' && (
+        <button style={styles.backButton} onClick={onBackToTower}>
+          ← 返回大厦
+        </button>
+      )}
       <div style={styles.headerCenter}>
         <h2 style={styles.title}>🏢 {projectName || '多智能体团队协作'}</h2>
         {isActive && (
