@@ -929,3 +929,18 @@
 **验证**: 916 passed, 2 failed (预先存在)。
 
 **影响**: 修复后路径遍历攻击被阻止，删除操作限制在 SKILLS_DIR 范围内。安全漏洞修复。
+
+---
+
+### [2026-07-31 16:45] 优化 #57：修复 run_tests 工具在 python 缺 pytest 模块时失败
+
+**问题**: `tool_executor.py` 的 `run_tests` 工具只调用 `python -m pytest`，当 `python` 指向的解释器未安装 pytest 模块（如本机 miniconda）时，即使 PATH 上有独立 `pytest` 命令也会失败，`test_tool_executor.py::test_run_tests` 报 "No module named pytest"。
+
+**根因**: `_exec_run_tests` 硬编码 `["python", "-m", "pytest"]`，没有探测 python 环境是否具备 pytest，也没有回退到 PATH 上的 `pytest` 可执行文件。
+
+**改动**:
+- `backend/tool_executor.py:_exec_run_tests` — 当 `python -m pytest` 返回非零且 stderr 含 "No module named pytest" 时，回退执行 PATH 上的 `pytest` 命令（保留 verbose/test_path 参数）
+
+**验证**: 824 passed, 1 failed（预存的性能时序测试，单独运行通过）。修复前 823 passed + 1 failed（test_run_tests）。
+
+**影响**: run_tests 工具在多种 Python 环境中都能正常工作，不再依赖特定解释器安装 pytest。
