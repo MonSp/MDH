@@ -11,12 +11,14 @@ beforeEach(() => {
 describe('loadSkillPacks', () => {
   it('loads all packs from the skill_packs directory', async () => {
     const packs = await loadSkillPacks(PACKS_DIR);
-    expect(packs.size).toBe(5);
+    expect(packs.size).toBeGreaterThanOrEqual(42);
     expect(packs.has('frontend_dev')).toBe(true);
     expect(packs.has('backend_dev')).toBe(true);
     expect(packs.has('code_review')).toBe(true);
     expect(packs.has('task_decomposition')).toBe(true);
     expect(packs.has('testing')).toBe(true);
+    expect(packs.has('architecture')).toBe(true);
+    expect(packs.has('security_audit')).toBe(true);
   });
 
   it('populates SkillPack fields correctly', async () => {
