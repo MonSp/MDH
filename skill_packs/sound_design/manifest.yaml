@@ -1,0 +1,8 @@
+name: sound_design
+version: "1.0.0"
+description: 音效制作，配乐选择，音频后期
+category: design
+methodology: 分层音效 — 环境音+效果音+配乐三层叠加
+required_tools:
+  - read_file
+  - write_file

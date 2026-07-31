@@ -1,0 +1,8 @@
+name: sales_enablement
+version: "1.0.0"
+description: 销售工具，客户案例，竞争情报
+category: sales
+methodology: MEDDIC方法论 — 经济买家、决策流程、决策标准、决策人、痛点、冠军
+required_tools:
+  - read_file
+  - write_file

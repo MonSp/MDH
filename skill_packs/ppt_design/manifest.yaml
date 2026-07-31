@@ -1,0 +1,8 @@
+name: ppt_design
+version: "1.0.0"
+description: 演示文稿设计，信息架构，视觉叙事
+category: design
+methodology: 10-20-30法则 — 10页、20分钟、30号字体
+required_tools:
+  - read_file
+  - write_file

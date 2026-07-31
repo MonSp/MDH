@@ -1,0 +1,8 @@
+name: progress_tracking
+version: "1.0.0"
+description: 项目进度，风险管理，状态报告
+category: product
+methodology: 看板方法 — 可视化工作流，限制在制品，管理流动
+required_tools:
+  - read_file
+  - write_file

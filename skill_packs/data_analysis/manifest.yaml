@@ -1,0 +1,9 @@
+name: data_analysis
+version: "1.0.0"
+description: 统计分析，假设检验，A/B测试，业务洞察
+category: data
+methodology: CRISP-DM方法论 — 业务理解→数据理解→数据准备→建模→评估→部署
+required_tools:
+  - read_file
+  - write_file
+  - bash

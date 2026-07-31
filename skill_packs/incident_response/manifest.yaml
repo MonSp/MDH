@@ -1,0 +1,8 @@
+name: incident_response
+version: "1.0.0"
+description: 故障排查，根因分析，事后复盘
+category: ops
+methodology: 五个为什么 — 连续追问为什么直到找到根因
+required_tools:
+  - read_file
+  - bash

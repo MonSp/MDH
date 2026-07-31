@@ -1,0 +1,8 @@
+name: competitive_analysis
+version: "1.0.0"
+description: 竞品分析，市场定位，差异化策略
+category: sales
+methodology: 波特五力 — 供应商议价、买方议价、新进入者、替代品、竞争强度
+required_tools:
+  - read_file
+  - write_file

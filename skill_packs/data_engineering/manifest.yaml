@@ -1,0 +1,9 @@
+name: data_engineering
+version: "1.0.0"
+description: 数据管道设计，ETL/ELT，数据质量保障
+category: data
+methodology: 数据契约优先 — 先定义Schema和SLA，再构建管道
+required_tools:
+  - read_file
+  - write_file
+  - bash

@@ -1,0 +1,8 @@
+name: persona_development
+version: "1.0.0"
+description: 用户画像构建，行为分析，场景建模
+category: data
+methodology: Jobs-to-be-Done — 用户不是买产品，而是雇佣产品完成任务
+required_tools:
+  - read_file
+  - write_file

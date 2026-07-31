@@ -1,0 +1,8 @@
+name: image_generation
+version: "1.0.0"
+description: AI图像生成，提示词工程，风格控制
+category: design
+methodology: 提示词工程 — 主体+风格+构图+光照+质量的结构化描述
+required_tools:
+  - read_file
+  - write_file

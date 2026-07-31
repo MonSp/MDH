@@ -1,0 +1,8 @@
+name: brand_identity
+version: "1.0.0"
+description: 品牌标识，视觉规范，品牌应用
+category: brand
+methodology: 品牌金字塔 — 使命→价值观→个性→表达→视觉
+required_tools:
+  - read_file
+  - write_file

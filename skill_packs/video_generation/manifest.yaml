@@ -1,0 +1,8 @@
+name: video_generation
+version: "1.0.0"
+description: AI视频生成，脚本到视频，动画制作
+category: design
+methodology: 分镜脚本法 — 先文字脚本，再分镜，最后生成
+required_tools:
+  - read_file
+  - write_file
