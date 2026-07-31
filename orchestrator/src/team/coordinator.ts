@@ -1,9 +1,10 @@
-import { LLMConfig, Message, ToolDefinition, ToolCall } from '../llm/types.js';
+import { LLMConfig, Message } from '../llm/types.js';
 import { chatStream } from '../llm/openai.js';
 import type { IToolkitRouter } from '../toolkit/router.js';
 import { RouterFactory } from '../toolkit/router.js';
-import { getTemplate, formatPrompt, getPromptTemplate } from './templates.js';
-import { Team, TeamMember, ToolResult } from './types.js';
+import { getTemplate, getPromptTemplate } from './templates.js';
+import { Team, TeamMember } from './types.js';
+import { RoleAgent, buildSystemPrompt, getToolsForRole } from '../agent/index.js';
 
 export interface CoordinatorConfig {
   llm: LLMConfig;
@@ -28,121 +29,6 @@ export interface WorkspaceConfirmResponse {
 }
 
 export type EventHandler = (event: Record<string, unknown>) => void;
-
-const TOOL_DEFINITIONS: ToolDefinition[] = [
-  {
-    type: 'function',
-    function: {
-      name: 'write_file',
-      description: '创建或覆盖文件。用这个工具创建代码文件，不要用bash的echo/cat/heredoc。',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', description: '文件路径（相对于workspace）' },
-          content: { type: 'string', description: '完整的文件内容' },
-        },
-        required: ['path', 'content'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'read_file',
-      description: '读取文件内容。修改文件前必须先读取。',
-      parameters: {
-        type: 'object',
-        properties: { path: { type: 'string', description: '文件路径' } },
-        required: ['path'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'edit_file',
-      description: '编辑文件的特定部分。用 old_string 定位，new_string 替换。',
-      parameters: {
-        type: 'object',
-        properties: {
-          path: { type: 'string', description: '文件路径' },
-          old_string: { type: 'string', description: '要替换的原文' },
-          new_string: { type: 'string', description: '替换后的内容' },
-        },
-        required: ['path', 'old_string', 'new_string'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'list_directory',
-      description: '列出目录内容。开始任务前先用这个了解环境。',
-      parameters: {
-        type: 'object',
-        properties: { path: { type: 'string', description: '目录路径', default: '.' } },
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'bash',
-      description: '执行Shell命令。只用于运行测试、安装依赖、git操作等，不要用来创建文件。',
-      parameters: {
-        type: 'object',
-        properties: {
-          command: { type: 'string', description: '要执行的命令' },
-          timeout: { type: 'number', description: '超时秒数', default: 30 },
-        },
-        required: ['command'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'grep_content',
-      description: '搜索文件内容',
-      parameters: {
-        type: 'object',
-        properties: {
-          pattern: { type: 'string', description: '搜索模式' },
-          path: { type: 'string', default: '.' },
-        },
-        required: ['pattern'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'git_status',
-      description: '查看 git 状态。提交前必须先检查。',
-      parameters: { type: 'object', properties: {} },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'git_diff',
-      description: '查看代码变更',
-      parameters: { type: 'object', properties: {} },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'git_commit',
-      description: '提交代码',
-      parameters: {
-        type: 'object',
-        properties: { message: { type: 'string', description: '提交信息' } },
-        required: ['message'],
-      },
-    },
-  },
-];
 
 export class TeamCoordinator {
   private config: CoordinatorConfig;
@@ -250,12 +136,15 @@ export class TeamCoordinator {
 
     onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `团队已组建：${this.team.members.map(m => m.name).join('、')}` });
 
+    // 为每个角色创建独立 RoleAgent 实例（独立上下文 + system prompt + 工具集）
+    const agents = this.createAgents(rolesToUse, workspace);
+
     // ====== 阶段 2: 项目经理协调讨论 ======
     if ((complexity.level !== 'simple' || forceComplex) && rolesToUse.length > 1) {
       onEvent?.({ type: 'phase', phase: 'discussing' });
 
       const coordinatorRole = rolesToUse.find(r => r === 'coordinator') || rolesToUse[0];
-      const discussion = await this.runDiscussion(userMessage, rolesToUse, coordinatorRole, onEvent);
+      const discussion = await this.runDiscussion(userMessage, agents, coordinatorRole, onEvent);
 
       // ====== 阶段 3: 任务分配 ======
       onEvent?.({ type: 'phase', phase: 'assigning' });
@@ -265,46 +154,37 @@ export class TeamCoordinator {
     // ====== 阶段 4: 执行（带审查循环）=====
     onEvent?.({ type: 'phase', phase: 'executing' });
 
-    const executorRoleId = rolesToUse.find(r => {
-      const t = getTemplate(r);
+    const executorAgent = agents.find(a => {
+      const t = getTemplate(a.roleId);
       return t?.team_role === 'Executor';
-    }) || rolesToUse[rolesToUse.length - 1];
+    }) || agents[agents.length - 1];
 
-    const reviewerRoleId = rolesToUse.find(r => {
-      const t = getTemplate(r);
+    const reviewerAgent = agents.find(a => {
+      const t = getTemplate(a.roleId);
       return t?.team_role === 'Reviewer';
     });
 
-    // 从 team 中查找对应的 TeamMember（含 location/runtime 信息）
-    const executorMember = this.team?.members.find(m => m.role === executorRoleId)
-      || { id: 'member-executor', name: 'Executor', role: executorRoleId, template: getTemplate(executorRoleId)!, status: 'idle' as const, location: 'local' as const, runtime: { type: 'local' as const, workspace: this.config.workspace } };
-    const reviewerMember = reviewerRoleId
-      ? this.team?.members.find(m => m.role === reviewerRoleId)
-      : undefined;
-
-    const maxReviewRounds = reviewerMember ? 2 : 1;
+    const maxReviewRounds = reviewerAgent ? 2 : 1;
     let finalResult = '';
 
     for (let round = 0; round < maxReviewRounds; round++) {
       if (round > 0) {
-        onEvent?.({ type: 'assistant_message', agentId: `agent-${reviewerRoleId}`, content: `审查发现问题，要求修改。第 ${round + 1} 轮执行...` });
+        onEvent?.({ type: 'assistant_message', agentId: reviewerAgent!.id, content: `审查发现问题，要求修改。第 ${round + 1} 轮执行...` });
       }
 
-      // 执行任务（传入 TeamMember 以支持 per-agent 路由）
-      const executorResult = await this.runAgentTask(
-        executorMember,
-        userMessage,
-        round === 0 ? '请执行以下任务' : '请根据审查反馈修改代码',
+      // 执行任务 — RoleAgent 带独立上下文和工具循环
+      const executorResult = await executorAgent.chatWithTools(
+        round === 0 ? `请执行以下任务：\n${userMessage}` : `请根据审查反馈修改代码：\n${userMessage}`,
         onEvent,
       );
 
       // 审查
-      if (reviewerMember && round < maxReviewRounds - 1) {
+      if (reviewerAgent && round < maxReviewRounds - 1) {
         onEvent?.({ type: 'phase', phase: 'reviewing' });
-        const review = await this.runReview(reviewerMember, executorResult, userMessage, onEvent);
+        const review = await this.runReview(reviewerAgent, executorResult, userMessage, onEvent);
 
         if (review.approved) {
-          onEvent?.({ type: 'assistant_message', agentId: `agent-${reviewerRoleId}`, content: `审查通过！代码质量良好。` });
+          onEvent?.({ type: 'assistant_message', agentId: reviewerAgent.id, content: `审查通过！代码质量良好。` });
           finalResult = executorResult;
           break;
         }
@@ -358,202 +238,117 @@ export class TeamCoordinator {
     return { level: 'complex', reason: '无法判断，默认按复杂任务处理' };
   }
 
-  // ====== 团队讨论 ======
+  // ====== 团队讨论（并发，使用 RoleAgent 独立上下文）=====
   private async runDiscussion(
     task: string,
-    roles: string[],
+    agents: RoleAgent[],
     coordinatorRole: string,
     onEvent?: EventHandler,
   ): Promise<string> {
     const discussions: string[] = [];
 
-    // 每个角色发表意见（排除 coordinator，它是主持人），最多 2 个，并行执行
-    const discussRoles = roles.filter(r => r !== coordinatorRole).slice(0, 2);
+    // 每个角色发表意见（排除 coordinator，它是主持人），并行执行
+    const discussAgents = agents.filter(a => a.roleId !== coordinatorRole).slice(0, 2);
 
-    const discussionTmpl = getPromptTemplate('discussion') || '你是{name}。{member_description}\n\n你正在参加团队会议讨论一个技术任务。从你的专业角度给出具体建议，包括：1)你认为应该怎么实现 2)需要注意什么风险 3)你建议用什么技术方案。用2-3句话回答。';
+    const opinions = await Promise.all(discussAgents.map(async (agent) => {
+      onEvent?.({ type: 'agent_status_update', agentId: agent.id, status: 'speaking' });
 
-    const opinions = await Promise.all(discussRoles.map(async (role) => {
-      const tmpl = getTemplate(role);
-      if (!tmpl) return null;
-
-      onEvent?.({ type: 'agent_status_update', agentId: `agent-${role}`, status: 'speaking' });
-
-      const discussionSystem = formatPrompt(
-        { ...tmpl, custom_prompt: discussionTmpl },
-        { name: tmpl.name, description: tmpl.description },
+      const opinion = await agent.chat(
+        `任务：${task.substring(0, 200)}\n\n请从你的专业角度发表意见：1)应该怎么实现 2)有什么风险 3)建议什么技术方案。用2-3句话回答。`,
       );
 
-      const opinion = await this.callLLMOnce([
-        { role: 'system', content: discussionSystem },
-        { role: 'user', content: `任务：${task.substring(0, 200)}\n\n请从你的专业角度发表意见。` },
-      ]);
+      onEvent?.({ type: 'agent_message', agentId: agent.id, content: opinion, timestamp: Date.now() });
+      onEvent?.({ type: 'agent_status_update', agentId: agent.id, status: 'meeting' });
 
-      onEvent?.({ type: 'agent_message', agentId: `agent-${role}`, content: opinion, timestamp: Date.now() });
-      onEvent?.({ type: 'agent_status_update', agentId: `agent-${role}`, status: 'meeting' });
-
-      return { name: tmpl.name, opinion };
+      return { name: agent.roleName, opinion };
     }));
 
     for (const op of opinions) {
       if (op) discussions.push(`${op.name}：${op.opinion}`);
     }
 
-    // coordinator 总结讨论
-    const coordTmpl = getTemplate(coordinatorRole);
-    const coordSummaryTmpl = getPromptTemplate('coordinator_summary') || '你是{name}。根据团队讨论，给出明确的执行方案：1)具体分工 2)技术方案选择 3)验收标准。简洁明了。';
-    const coordSummarySystem = coordTmpl
-      ? formatPrompt({ ...coordTmpl, custom_prompt: coordSummaryTmpl }, { name: coordTmpl.name, description: coordTmpl.description })
-      : '项目经理。根据团队讨论，给出明确的执行方案。';
+    // coordinator 总结讨论（注入团队讨论上下文）
+    const coordAgent = agents.find(a => a.roleId === coordinatorRole);
+    if (!coordAgent) return discussions.join('\n');
 
-    const coordSummary = await this.callLLMOnce([
-      { role: 'system', content: coordSummarySystem },
-      { role: 'user', content: `任务：${task.substring(0, 200)}\n\n讨论记录：\n${discussions.join('\n').substring(0, 800)}\n\n请给出执行方案。` },
-    ]);
+    coordAgent.injectContext(`团队讨论记录：\n${discussions.join('\n').substring(0, 800)}`);
+    const coordSummary = await coordAgent.chat(
+      `任务：${task.substring(0, 200)}\n\n请给出明确的执行方案：1)具体分工 2)技术方案选择 3)验收标准。简洁明了。`,
+    );
 
-    onEvent?.({ type: 'agent_message', agentId: `agent-${coordinatorRole}`, content: coordSummary, timestamp: Date.now() });
+    onEvent?.({ type: 'agent_message', agentId: coordAgent.id, content: coordSummary, timestamp: Date.now() });
 
     return coordSummary;
   }
 
-  // ====== 单角色执行任务 ======
-  private async runAgentTask(
-    member: TeamMember,
-    task: string,
-    instruction: string,
-    onEvent?: EventHandler,
-  ): Promise<string> {
-    const role = member.role;
-    const tmpl = getTemplate(role);
-    if (!tmpl) throw new Error(`Unknown role: ${role}`);
-
-    onEvent?.({ type: 'agent_status_update', agentId: `agent-${role}`, status: 'working' });
-
-    const systemPrompt = formatPrompt(tmpl, { name: tmpl.name, description: tmpl.description });
-    const toolGuide = getPromptTemplate('tool_guide') || '工具：write_file(创建文件) | edit_file(修改文件) | read_file(读取) | list_directory(列目录) | bash(运行命令) | git_*。流程：1.list_directory 2.write_file 3.bash测试 4.git_commit。不要用bash创建文件。';
-
-    const messages: Message[] = [
-      { role: 'system', content: `${systemPrompt}\n\n${toolGuide}\n\n${instruction}` },
-      { role: 'user', content: task },
-    ];
-
-    let result = '';
-    const maxIter = 15; // 增加最大迭代次数
-    const MAX_CONTEXT_CHARS = 600000; // 约 150k tokens（4 chars ≈ 1 token）
-
-    for (let i = 0; i < maxIter; i++) {
-      // 监控上下文大小
-      const totalChars = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
-      if (totalChars > MAX_CONTEXT_CHARS * 0.8) {
-        console.log(`[context] Warning: ${totalChars} chars (${Math.round(totalChars/4)} tokens)`);
-      }
-
-      // 截断过长的上下文
-      this.truncateMessages(messages, MAX_CONTEXT_CHARS);
-
-      const response = await this.callLLMWithTools(messages);
-
-      if (response.content) {
-        onEvent?.({ type: 'agent_message', agentId: `agent-${role}`, content: response.content, timestamp: Date.now() });
-      }
-
-      if (response.tool_calls.length === 0) {
-        result = response.content || '';
-        break;
-      }
-
-      messages.push({ role: 'assistant', content: response.content || '', tool_calls: response.tool_calls });
-
-      for (const tc of response.tool_calls) {
-        onEvent?.({ type: 'tool_call', id: tc.id, tool: tc.function.name, args: tc.function.arguments });
-
-        const toolResult = await this.executeToolCall(tc, member);
-        const resultStr = toolResult.error
-          ? `Error: ${toolResult.error}`
-          : typeof toolResult.result === 'string' ? toolResult.result : JSON.stringify(toolResult.result);
-
-        onEvent?.({
-          type: 'tool_result',
-          id: tc.id,
-          tool_name: tc.function.name,
-          tool: tc.function.name,
-          result: resultStr,
-          success: !toolResult.error,
-          output: resultStr,
-          timestamp: new Date().toISOString(),
-        });
-
-        // 限制工具结果大小，防止上下文膨胀
-        const MAX_TOOL_RESULT = 1500;
-        const truncatedResult = resultStr.length > MAX_TOOL_RESULT
-          ? resultStr.substring(0, 1500) + '\n... [已截断]'
-          : resultStr;
-        messages.push({ role: 'tool', content: truncatedResult, tool_call_id: tc.id });
-      }
-    }
-
-    onEvent?.({ type: 'agent_status_update', agentId: `agent-${role}`, status: 'meeting' });
-    return result;
-  }
-
-  // ====== 审查 ======
+  // ====== 审查（reviewer RoleAgent 读取代码 + 审查）=====
   private async runReview(
-    reviewerMember: TeamMember,
+    reviewerAgent: RoleAgent,
     executionResult: string,
     task: string,
     onEvent?: EventHandler,
   ): Promise<{ approved: boolean; feedback: string }> {
-    const reviewerRole = reviewerMember.role;
+    const reviewerRole = reviewerAgent.roleId;
     const tmpl = getTemplate(reviewerRole);
     if (!tmpl) return { approved: true, feedback: '' };
 
-    onEvent?.({ type: 'agent_status_update', agentId: `agent-${reviewerRole}`, status: 'working' });
-
-    const prompt = formatPrompt(tmpl, { name: tmpl.name, description: tmpl.description });
+    onEvent?.({ type: 'agent_status_update', agentId: reviewerAgent.id, status: 'working' });
 
     const reviewTmpl = getPromptTemplate('review') || '{prompt}\n\n你正在审查代码质量。检查以下几点：\n1. 功能完整性\n2. 错误处理\n3. 代码结构\n4. 命名规范\n\n返回JSON：{"approved": true/false, "feedback": "审查意见"}';
-    const reviewSystem = reviewTmpl.replace(/\{prompt\}/g, prompt);
 
-    // 使用 reviewer 自己的 router 读取代码文件
-    const reviewerRouter = this.config.routerFactory.getRouterForMember(reviewerMember);
-    const reviewerWorkspace = this.config.routerFactory.getWorkspaceForMember(reviewerMember);
-
+    // 使用 reviewer 的 team member 路由读取代码文件
+    const reviewerMember = this.team?.members.find(m => m.role === reviewerRole);
     let codeContent = '';
-    try {
-      const filesResult = await reviewerRouter.execute({
-        id: 'review-files',
-        type: 'function',
-        function: { name: 'bash', arguments: JSON.stringify({ command: `find . -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.tsx" 2>/dev/null | head -5` }) },
-      }, reviewerWorkspace);
-      
-      if (filesResult.result && typeof filesResult.result === 'string') {
-        const files = filesResult.result.trim().split('\n').filter(f => f).slice(0, 3);
-        const readPromises = files.map(file =>
-          reviewerRouter.execute({
-            id: `review-read-${file}`,
-            type: 'function',
-            function: { name: 'read_file', arguments: JSON.stringify({ path: file }) },
-          }, reviewerWorkspace)
-        );
-        const readResults = await Promise.all(readPromises);
-        for (let i = 0; i < files.length; i++) {
-          const result = readResults[i].result;
-          if (result && typeof result === 'string') {
-            codeContent += `\n--- ${files[i]} ---\n${result.substring(0, 1000)}\n`;
+    if (reviewerMember) {
+      const routerMember = {
+        id: reviewerMember.id,
+        roleName: reviewerMember.name,
+        teamRole: (reviewerMember.template.team_role || 'Reviewer') as 'Coordinator' | 'Planner' | 'Executor' | 'Reviewer' | 'Monitor',
+        location: reviewerMember.location,
+        runtime: reviewerMember.runtime,
+        tools: reviewerMember.template.tools,
+        dangerousTools: reviewerMember.template.dangerous_tools,
+        status: 'idle' as const,
+      };
+      const reviewerRouter = this.config.routerFactory.getRouterForMember(routerMember);
+      const reviewerWorkspace = this.config.routerFactory.getWorkspaceForMember(routerMember);
+
+      try {
+        const filesResult = await reviewerRouter.execute({
+          id: 'review-files',
+          type: 'function',
+          function: { name: 'bash', arguments: JSON.stringify({ command: `find . -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.tsx" 2>/dev/null | head -5` }) },
+        }, reviewerWorkspace);
+
+        if (filesResult.result && typeof filesResult.result === 'string') {
+          const files = filesResult.result.trim().split('\n').filter(f => f).slice(0, 3);
+          const readPromises = files.map(file =>
+            reviewerRouter.execute({
+              id: `review-read-${file}`,
+              type: 'function',
+              function: { name: 'read_file', arguments: JSON.stringify({ path: file }) },
+            }, reviewerWorkspace)
+          );
+          const readResults = await Promise.all(readPromises);
+          for (let i = 0; i < files.length; i++) {
+            const result = readResults[i].result;
+            if (result && typeof result === 'string') {
+              codeContent += `\n--- ${files[i]} ---\n${result.substring(0, 1000)}\n`;
+            }
           }
         }
+      } catch (e) {
+        console.error('[review] Failed to read code files:', e);
       }
-    } catch (e) {
-      console.error('[review] Failed to read code files:', e);
     }
 
     const reviewContent = codeContent
       ? `任务：${task}\n\n代码文件：\n${codeContent.substring(0, 3000)}\n\n执行摘要：\n${executionResult.substring(0, 500)}`
       : `任务：${task}\n\n执行结果：\n${executionResult.substring(0, 2000)}`;
 
-    const reviewResult = await this.callLLMOnce([
-      { role: 'system', content: reviewSystem },
-      { role: 'user', content: reviewContent },
-    ]);
+    const reviewResult = await reviewerAgent.chat(
+      `${reviewTmpl}\n\n${reviewContent}`,
+    );
 
     // 将审查结果发给前端
     try {
@@ -561,8 +356,8 @@ export class TeamCoordinator {
       if (match) {
         const parsed = JSON.parse(match[0]);
         const feedback = parsed.feedback || '审查完成';
-        onEvent?.({ type: 'agent_message', agentId: `agent-${reviewerRole}`, content: feedback, timestamp: Date.now() });
-        onEvent?.({ type: 'agent_status_update', agentId: `agent-${reviewerRole}`, status: 'meeting' });
+        onEvent?.({ type: 'agent_message', agentId: reviewerAgent.id, content: feedback, timestamp: Date.now() });
+        onEvent?.({ type: 'agent_status_update', agentId: reviewerAgent.id, status: 'meeting' });
         
         // 如果有详细评分，输出评分信息
         if (parsed.details) {
@@ -571,7 +366,7 @@ export class TeamCoordinator {
             .join(', ');
           onEvent?.({ 
             type: 'agent_message', 
-            agentId: `agent-${reviewerRole}`, 
+            agentId: reviewerAgent.id, 
             content: `评分详情：${detailsStr}，总分：${parsed.score || 'N/A'}`, 
             timestamp: Date.now() 
           });
@@ -589,68 +384,7 @@ export class TeamCoordinator {
     return { approved: false, feedback: reviewResult };
   }
 
-  // ====== 上下文截断 ======
-  private truncateMessages(messages: Message[], maxChars: number): void {
-    let totalChars = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
-    if (totalChars <= maxChars) return;
-
-    console.log(`[truncate] Context: ${totalChars} chars, target: ${maxChars}`);
-
-    // 第一轮：截断过长的工具结果（保留关键信息）
-    for (let i = 1; i < messages.length - 2 && totalChars > maxChars; i++) {
-      const msg = messages[i];
-      if (msg.role === 'tool' && msg.content && msg.content.length > 500) {
-        // 保留前 200 字符和后 100 字符，中间用摘要替代
-        const keepStart = 200;
-        const keepEnd = 100;
-        const truncated = msg.content.substring(0, keepStart) + 
-          '\n... [中间省略 ' + (msg.content.length - keepStart - keepEnd) + ' 字符] ...\n' + 
-          msg.content.substring(msg.content.length - keepEnd);
-        totalChars -= (msg.content.length - truncated.length);
-        messages[i] = { ...msg, content: truncated };
-      }
-    }
-
-    // 第二轮：如果仍然超限，截断 assistant 消息
-    for (let i = 1; i < messages.length - 2 && totalChars > maxChars; i++) {
-      const msg = messages[i];
-      if (msg.role === 'assistant' && msg.content && msg.content.length > 1000) {
-        const truncated = msg.content.substring(0, 1000) + '\n... [截断]';
-        totalChars -= (msg.content.length - truncated.length);
-        messages[i] = { ...msg, content: truncated };
-      }
-    }
-
-    // 第三轮：如果仍然超限，删除最早的消息（保留 system 和最近 6 条）
-    const keepRecent = 6;
-    while (messages.length > keepRecent + 1 && totalChars > maxChars) {
-      const removed = messages.splice(1, 1)[0];
-      totalChars -= (removed.content?.length || 0);
-    }
-
-    console.log(`[truncate] Result: ${totalChars} chars, ${messages.length} messages`);
-  }
-
-  // ====== LLM 调用工具版本 ======
-  private async callLLMWithTools(messages: Message[]): Promise<{ content: string | null; tool_calls: ToolCall[] }> {
-    const contentParts: string[] = [];
-    const toolCalls: ToolCall[] = [];
-
-    for await (const chunk of chatStream(this.config.llm, messages, TOOL_DEFINITIONS)) {
-      if (chunk.delta) contentParts.push(chunk.delta);
-      for (const tc of chunk.tool_calls) {
-        if (tc.id) {
-          toolCalls.push({ id: tc.id, type: 'function', function: { name: tc.function!.name, arguments: tc.function!.arguments || '' } });
-        } else if (toolCalls.length > 0) {
-          toolCalls[toolCalls.length - 1].function.arguments += tc.function?.arguments || '';
-        }
-      }
-    }
-
-    return { content: contentParts.join('') || null, tool_calls: toolCalls };
-  }
-
-  // ====== LLM 纯文本调用 ======
+  // ====== LLM 纯文本调用（CEO 分析和总结使用）=====
   private async callLLMOnce(messages: Message[]): Promise<string> {
     let content = '';
     for await (const chunk of chatStream(this.config.llm, messages)) {
@@ -659,39 +393,7 @@ export class TeamCoordinator {
     return content;
   }
 
-  // ====== 工具执行 ======
-  private async executeToolCall(toolCall: ToolCall, member?: TeamMember): Promise<ToolResult> {
-    let args: Record<string, unknown>;
-    try { args = JSON.parse(toolCall.function.arguments); }
-    catch { return { call_id: toolCall.id, tool_name: toolCall.function.name, result: null, error: 'Invalid JSON' }; }
-
-    // 规范化路径参数：移除 workspace/ 前缀，防止双重嵌套
-    const pathKeys = ['path', 'directory'];
-    for (const key of pathKeys) {
-      if (typeof args[key] === 'string') {
-        let path = args[key] as string;
-        path = path.replace(/^\/?workspace\//, '');
-        path = path.replace(/^\.\//, '');
-        args[key] = path;
-      }
-    }
-
-    const normalizedCall: ToolCall = {
-      ...toolCall,
-      function: { ...toolCall.function, arguments: JSON.stringify(args) },
-    };
-
-    // 按智能体实例路由：local → LocalToolkitRouter, remote → RemoteToolkitRouter
-    if (member) {
-      const router = this.config.routerFactory.getRouterForMember(member);
-      const workspace = this.config.routerFactory.getWorkspaceForMember(member);
-      return router.execute(normalizedCall, workspace);
-    }
-
-    return this.config.defaultRouter.execute(normalizedCall, this.config.workspace);
-  }
-
-  // ====== 团队创建 ======
+  // ====== 团队创建（保留 meeting_started 事件和路由信息）=====
   private createTeam(roleIds: string[], task: string, defaultRuntime?: { workspace: string; executorUrl?: string; executorToken?: string }): Team {
     const members: TeamMember[] = roleIds.map((roleId, i) => {
       const template = getTemplate(roleId);
@@ -709,5 +411,35 @@ export class TeamCoordinator {
       };
     });
     return { id: `team-${Date.now()}`, name: `task-${Date.now().toString(36)}`, description: task, members, leader: members[0] };
+  }
+
+  // ====== 为每个角色创建独立 RoleAgent 实例 ======
+  private createAgents(roleIds: string[], workspace: string): RoleAgent[] {
+    return roleIds.map(roleId => {
+      const template = getTemplate(roleId);
+      // 从 team 中查找该角色的 member（含 location/runtime 信息），找不到则默认 local
+      const member = this.team?.members.find(m => m.role === roleId);
+      const router = this.config.routerFactory.getRouterForMember({
+        id: member?.id || `member-${roleId}`,
+        roleName: template?.name || roleId,
+        teamRole: (template?.team_role || 'Executor') as 'Coordinator' | 'Planner' | 'Executor' | 'Reviewer' | 'Monitor',
+        location: member?.location || 'local',
+        runtime: member?.runtime || { type: 'local', workspace },
+        tools: template?.tools || [],
+        dangerousTools: template?.dangerous_tools || [],
+        status: 'idle',
+      });
+
+      return new RoleAgent({
+        id: `agent-${roleId}`,
+        roleId,
+        roleName: template?.name || roleId,
+        systemPrompt: buildSystemPrompt(roleId),
+        tools: getToolsForRole(roleId),
+        router,
+        workspace,
+        llm: this.config.llm,
+      });
+    });
   }
 }
