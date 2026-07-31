@@ -681,18 +681,37 @@ function registerRoleHandlers() {
   });
 
   // ─── 技能包列表（替代 /api/skills/list）───
+  // 合并 roles_config.yaml 的完整技能列表 + skill_packs/*/manifest.yaml 的详细信息
   ipcMain.handle('mdh:getSkillsList', async () => {
     try {
+      const skillsMap: Record<string, any> = {};
+
+      // 1. 从 roles_config.yaml 加载完整技能列表
+      const yamlPath = join(__dirname, '../backend/roles_config.yaml');
+      if (existsSync(yamlPath)) {
+        const yamlContent = readFileSync(yamlPath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        const yamlSkills = parseYamlSection(yamlContent, 'skills');
+        for (const [name, info] of Object.entries(yamlSkills)) {
+          skillsMap[name] = {
+            name,
+            description: typeof info === 'object' && info !== null ? (info as any).description || '' : String(info || ''),
+            version: '',
+            category: '',
+            methodology: '',
+            tools: [],
+          };
+        }
+      }
+
+      // 2. 从 skill_packs/*/manifest.yaml 补充详细信息
       const skillsDir = join(__dirname, '../skill_packs');
-      if (!existsSync(skillsDir)) return { success: true, data: { skills: [] }, error: null };
-      const skills = [];
-      for (const name of readdirSync(skillsDir)) {
-        const skillDir = join(skillsDir, name);
-        if (!statSync(skillDir).isDirectory()) continue;
-        const manifestPath = join(skillDir, 'manifest.yaml');
-        if (existsSync(manifestPath)) {
+      if (existsSync(skillsDir)) {
+        for (const name of readdirSync(skillsDir)) {
+          const skillDir = join(skillsDir, name);
+          if (!statSync(skillDir).isDirectory()) continue;
+          const manifestPath = join(skillDir, 'manifest.yaml');
+          if (!existsSync(manifestPath)) continue;
           const content = readFileSync(manifestPath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-          const nameMatch = content.match(/^name:\s*(.+)$/m);
           const descMatch = content.match(/^description:\s*(.+)$/m);
           const versionMatch = content.match(/^version:\s*(.+)$/m);
           const categoryMatch = content.match(/^category:\s*(.+)$/m);
@@ -701,18 +720,20 @@ function registerRoleHandlers() {
           const tools = toolsMatch
             ? toolsMatch[1].split('\n').map(l => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean)
             : [];
-          skills.push({
-            name: nameMatch?.[1]?.trim() || name,
-            description: descMatch?.[1]?.trim() || '',
+          // 覆盖或新增
+          skillsMap[name] = {
+            name,
+            description: descMatch?.[1]?.trim() || skillsMap[name]?.description || '',
             version: versionMatch?.[1]?.trim() || '',
             category: categoryMatch?.[1]?.trim() || '',
             methodology: methodologyMatch?.[1]?.trim() || '',
             tools,
-            dir: name,
-          });
+          };
         }
       }
-      console.log('[IPC] Loaded', skills.length, 'skill packs');
+
+      const skills = Object.values(skillsMap);
+      console.log('[IPC] Loaded', skills.length, 'skills');
       return { success: true, data: { skills }, error: null };
     } catch (e) {
       console.error('[IPC] Failed to load skills list:', e);
