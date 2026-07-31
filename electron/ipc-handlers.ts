@@ -142,6 +142,88 @@ function extractToolCalls(text: string): Array<{ tool: string; args: Record<stri
   return calls;
 }
 
+// ─── 内联 RoleAgent（Electron 独立上下文，CJS 无法 import orchestrator ESM）───
+// 每个角色一个实例，拥有独立消息上下文，讨论阶段可并发执行
+
+class ElectronRoleAgent {
+  readonly id: string;
+  readonly roleId: string;
+  readonly roleName: string;
+
+  private llm: LLMConfig;
+  private workspace: string;
+  private messages: Array<{ role: string; content: string }>;
+
+  constructor(cfg: { id: string; roleId: string; roleName: string; systemPrompt: string; llm: LLMConfig; workspace: string }) {
+    this.id = cfg.id;
+    this.roleId = cfg.roleId;
+    this.roleName = cfg.roleName;
+    this.llm = cfg.llm;
+    this.workspace = cfg.workspace;
+    this.messages = [{ role: 'system', content: cfg.systemPrompt }];
+  }
+
+  /** 纯文本对话（讨论阶段），独立上下文 */
+  async chat(userMessage: string): Promise<string> {
+    this.messages.push({ role: 'user', content: userMessage });
+    const reply = await chatCompletion(this.llm, this.messages);
+    this.messages.push({ role: 'assistant', content: reply });
+    return reply;
+  }
+
+  /** 注入团队上下文（如其他角色的讨论结果） */
+  injectContext(context: string): void {
+    this.messages.push({ role: 'user', content: `[团队上下文]\n${context}` });
+  }
+
+  /** 带工具循环的执行（代码块写入 + tool_call 解析） */
+  async chatWithTools(
+    userMessage: string,
+    onEvent?: EventHandler,
+    maxRounds = 8,
+  ): Promise<{ result: string; filesWritten: number }> {
+    this.messages.push({ role: 'user', content: userMessage });
+    let totalFilesWritten = 0;
+
+    for (let round = 0; round < maxRounds; round++) {
+      const response = await chatCompletion(this.llm, this.messages);
+      onEvent?.({ type: 'assistant_message', agentId: this.id, content: response });
+
+      const codeBlocks = extractCodeBlocks(response);
+      const toolCalls = extractToolCalls(response);
+      const toolResults: string[] = [];
+
+      for (const block of codeBlocks) {
+        const result = executeTool('write_file', { path: block.filename, content: block.content }, this.workspace);
+        if (result.success) {
+          totalFilesWritten++;
+          onEvent?.({ type: 'assistant_message', agentId: this.id, content: `✅ 已写入 ${block.filename}` });
+        } else {
+          onEvent?.({ type: 'assistant_message', agentId: this.id, content: `❌ 写入失败 ${block.filename}: ${result.output}` });
+        }
+        toolResults.push(`[write_file ${block.filename}] ${result.output}`);
+      }
+
+      for (const call of toolCalls) {
+        const result = executeTool(call.tool, call.args || {}, this.workspace);
+        onEvent?.({ type: 'assistant_message', agentId: this.id, content: `[${call.tool}] ${result.output.substring(0, 500)}` });
+        toolResults.push(`[${call.tool}] ${result.output}`);
+      }
+
+      if (codeBlocks.length === 0 && toolCalls.length === 0) {
+        return { result: response, filesWritten: totalFilesWritten };
+      }
+
+      if (toolResults.length > 0) {
+        this.messages.push({ role: 'assistant', content: response });
+        this.messages.push({ role: 'user', content: `工具执行结果：\n${toolResults.join('\n')}\n\n请继续执行任务。如果没有更多文件需要创建，回复"任务完成"。` });
+      }
+    }
+
+    return { result: '', filesWritten: totalFilesWritten };
+  }
+}
+
 // ─── 内联 TeamCoordinator ───
 // 支持工具执行、多轮对话、代码块解析
 
@@ -241,39 +323,101 @@ ${allRoles}
       }
     }
 
-    // 阶段 1: 组建团队
+    // 阶段 1: 组建团队 — 每个角色创建独立 ElectronRoleAgent（独立上下文 + system prompt）
     const meetingId = `meeting-${Date.now().toString(36)}`;
-    const agents = roles.map(r => ({
+    const agentsMeta = roles.map(r => ({
       id: `agent-${r}`,
       name: getRoleName(r),
       role: r,
-      status: 'meeting',
+      status: 'meeting' as const,
       capabilities: [],
     }));
-    onEvent?.({ type: 'meeting_started', meetingId, agents });
-    onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `团队已组建：${agents.map(a => a.name).join('、')}` });
+    onEvent?.({ type: 'meeting_started', meetingId, agents: agentsMeta });
+    onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `团队已组建：${agentsMeta.map(a => a.name).join('、')}` });
 
-    // 阶段 2: 讨论（复杂任务，多角色）
+    const roleAgents = roles.map(r => new ElectronRoleAgent({
+      id: `agent-${r}`,
+      roleId: r,
+      roleName: getRoleName(r),
+      systemPrompt: buildElectronSystemPrompt(r, workspace),
+      llm: currentLlm,
+      workspace,
+    }));
+
+    // 阶段 2: 讨论（复杂任务，多角色，并发执行）
     if (complexity.level !== 'simple' && roles.length > 1) {
       onEvent?.({ type: 'phase', phase: 'discussing' });
-      for (const role of roles) {
-        if (role === 'ceo') continue;
+      const discussAgents = roleAgents.filter(a => a.roleId !== 'ceo');
+      const opinions = await Promise.all(discussAgents.map(async (agent) => {
         try {
-          const prompt = `你是${getRoleName(role)}。任务：${userMessage}\n\n请从你的专业角度给出具体建议（2-3句话）。用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注立场。`;
-          const reply = await chatCompletion(currentLlm, [{ role: 'user', content: prompt }]);
-          onEvent?.({ type: 'assistant_message', agentId: `agent-${role}`, content: reply });
+          const reply = await agent.chat(
+            `任务：${userMessage}\n\n请从你的专业角度给出具体建议（2-3句话）。用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注立场。`,
+          );
+          onEvent?.({ type: 'assistant_message', agentId: agent.id, content: reply });
+          return reply;
         } catch (e) {
-          onEvent?.({ type: 'assistant_message', agentId: `agent-${role}`, content: `[${role}] 讨论发言失败: ${e}` });
+          const err = `[${agent.roleId}] 讨论发言失败: ${e}`;
+          onEvent?.({ type: 'assistant_message', agentId: agent.id, content: err });
+          return err;
         }
+      }));
+      // 讨论结果注入 coordinator agent 的上下文
+      const coordAgent = roleAgents.find(a => a.roleId === 'coordinator');
+      if (coordAgent && opinions.length > 0) {
+        coordAgent.injectContext(`团队讨论记录：\n${opinions.join('\n---\n')}`);
       }
     }
 
-    // 阶段 3: 执行（带工具调用循环）
+    // 阶段 3: 执行（executor RoleAgent 带工具循环）
     onEvent?.({ type: 'phase', phase: 'executing' });
     const executorRole = roles.find(r => r === 'executor') || roles[roles.length - 1];
-    const toolPrefix = `你是${getRoleName(executorRole)}。你的工作区是：${workspace}
+    const executorAgent = roleAgents.find(a => a.roleId === executorRole) || roleAgents[roleAgents.length - 1];
 
-可用工具（用代码块格式调用）：
+    let totalFilesWritten = 0;
+    let finalResult = '';
+    try {
+      const execResult = await executorAgent.chatWithTools(`请执行以下任务：\n${userMessage}`, onEvent, 8);
+      totalFilesWritten = execResult.filesWritten;
+      finalResult = execResult.result;
+    } catch (e) {
+      onEvent?.({ type: 'error', message: `执行失败: ${e}` });
+    }
+
+    onEvent?.({ type: 'assistant_message', agentId: executorAgent.id, content: `执行完成，共写入 ${totalFilesWritten} 个文件到 ${workspace}` });
+
+    // 阶段 4: 总结（coordinator agent 独立上下文，含讨论记录）
+    onEvent?.({ type: 'phase', phase: 'summarizing' });
+    const coordinatorAgent = roleAgents.find(a => a.roleId === 'coordinator');
+    let summary = `任务执行完成。\n工作区：${workspace}\n写入文件数：${totalFilesWritten}`;
+    if (coordinatorAgent) {
+      try {
+        summary = await coordinatorAgent.chat(`任务：${userMessage}\n\n执行结果：\n${finalResult.substring(0, 2000)}\n\n请生成一份简洁的项目总结报告。`);
+      } catch (e) {
+        summary = `任务执行完成。\n工作区：${workspace}\n写入文件数：${totalFilesWritten}\n(总结失败: ${e})`;
+      }
+    }
+    onEvent?.({ type: 'assistant_message', agentId: 'agent-coordinator', content: summary });
+
+    return `任务完成，工作区：${workspace}，文件数：${totalFilesWritten}`;
+  }
+}
+
+// ─── 内联 system prompt 组装（Electron 侧，对应 orchestrator 的 buildSystemPrompt）───
+function buildElectronSystemPrompt(roleId: string, workspace: string): string {
+  const roleNames: Record<string, { name: string; desc: string }> = {
+    coordinator: { name: '项目经理', desc: '协调各方、跟踪进度、管理风险' },
+    planner: { name: '架构师', desc: '分析技术任务、设计系统架构、分解子任务' },
+    executor: { name: '全栈开发', desc: '代码编写和功能实现' },
+    reviewer: { name: 'QA工程师', desc: '代码审查、测试、质量保证' },
+    monitor: { name: 'DevOps', desc: '部署、监控、运维' },
+    ceo: { name: 'CTO', desc: '技术决策、团队协调' },
+  };
+  const role = roleNames[roleId] || { name: roleId, desc: '' };
+
+  const parts: string[] = [`你是${role.name}。${role.desc}。你的工作区是：${workspace}`];
+
+  if (roleId === 'executor') {
+    parts.push(`可用工具（用代码块格式调用）：
 - 创建/写入文件：\`\`\`path/to/file.ext\\n内容\\n\`\`\`
 - 执行命令：\`\`\`tool_call\\n{"tool":"bash","args":{"command":"..."}}\\n\`\`\`
 - 读取文件：\`\`\`tool_call\\n{"tool":"read_file","args":{"path":"..."}}\\n\`\`\`
@@ -282,68 +426,26 @@ ${allRoles}
 1. 创建代码文件时，用 \`\`\`文件路径\`\`\` 格式（如 \`\`\`app.py\`\`\`）
 2. 文件路径相对于工作区根目录
 3. 每次创建一个文件
-4. 创建完文件后运行测试验证`;
+4. 创建完文件后运行测试验证`);
+  }
 
-    const messages: Array<{role: string; content: string}> = [
-      { role: 'system', content: toolPrefix },
-      { role: 'user', content: `请执行以下任务：\n${userMessage}` },
-    ];
-
-    let totalFilesWritten = 0;
-    const maxToolRounds = 8;
-
-    for (let round = 0; round < maxToolRounds; round++) {
-      try {
-        const response = await chatCompletion(currentLlm, messages);
-        onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: response });
-
-        // 解析代码块并写入文件
-        const codeBlocks = extractCodeBlocks(response);
-        const toolCalls = extractToolCalls(response);
-        let toolResults: string[] = [];
-
-        for (const block of codeBlocks) {
-          const result = executeTool('write_file', { path: block.filename, content: block.content }, workspace);
-          if (result.success) {
-            totalFilesWritten++;
-            onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: `✅ 已写入 ${block.filename}` });
-          } else {
-            onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: `❌ 写入失败 ${block.filename}: ${result.output}` });
-          }
-          toolResults.push(`[write_file ${block.filename}] ${result.output}`);
-        }
-
-        // 执行工具调用
-        for (const call of toolCalls) {
-          const result = executeTool(call.tool, call.args || {}, workspace);
-          onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: `[${call.tool}] ${result.output.substring(0, 500)}` });
-          toolResults.push(`[${call.tool}] ${result.output}`);
-        }
-
-        // 如果没有工具调用，任务完成
-        if (codeBlocks.length === 0 && toolCalls.length === 0) {
-          break;
-        }
-
-        // 将工具结果反馈给 LLM
-        if (toolResults.length > 0) {
-          messages.push({ role: 'assistant', content: response });
-          messages.push({ role: 'user', content: `工具执行结果：\n${toolResults.join('\n')}\n\n请继续执行任务。如果没有更多文件需要创建，回复"任务完成"。` });
-        }
-      } catch (e) {
-        onEvent?.({ type: 'error', message: `执行轮次 ${round + 1} 失败: ${e}` });
-        break;
+  // 尝试从 skill_packs 加载角色主技能的 system_prompt
+  try {
+    const skillMap: Record<string, string> = {
+      coordinator: 'task_decomposition', planner: 'architecture', executor: 'frontend_dev',
+      reviewer: 'code_review', monitor: 'devops',
+    };
+    const skillName = skillMap[roleId];
+    if (skillName) {
+      const promptPath = join(__dirname, '../skill_packs', skillName, 'system_prompt.md');
+      if (existsSync(promptPath)) {
+        const skillPrompt = readFileSync(promptPath, 'utf-8');
+        parts.push(`## 专业技能\n\n${skillPrompt}`);
       }
     }
+  } catch {}
 
-    onEvent?.({ type: 'assistant_message', agentId: `agent-${executorRole}`, content: `执行完成，共写入 ${totalFilesWritten} 个文件到 ${workspace}` });
-
-    // 阶段 4: 总结
-    onEvent?.({ type: 'phase', phase: 'summarizing' });
-    onEvent?.({ type: 'assistant_message', agentId: 'agent-coordinator', content: `任务执行完成。\n工作区：${workspace}\n写入文件数：${totalFilesWritten}` });
-
-    return `任务完成，工作区：${workspace}，文件数：${totalFilesWritten}`;
-  }
+  return parts.join('\n\n');
 }
 
 function getRoleName(role: string): string {
