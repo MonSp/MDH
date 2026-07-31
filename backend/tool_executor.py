@@ -638,6 +638,20 @@ class ToolExecutor:
                 text=True,
                 timeout=300,
             )
+            # 回退：python 解释器未安装 pytest 模块时，尝试 PATH 上的 pytest 命令
+            if result.returncode != 0 and "No module named pytest" in result.stderr:
+                fallback = ["pytest"]
+                if verbose:
+                    fallback.append("-v")
+                if test_path:
+                    fallback.append(test_path)
+                result = subprocess.run(
+                    fallback,
+                    cwd=self.workspace_root,
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                )
             return ToolResult(
                 success=result.returncode == 0,
                 output=result.stdout,
