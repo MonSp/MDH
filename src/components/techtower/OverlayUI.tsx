@@ -35,25 +35,30 @@ export function ViewBookmarks({ onNavigate }: { onNavigate: (pos: [number, numbe
 export function OverlayButtons({ onStartMeeting, onBackToSingle }: {
   onStartMeeting: () => void; onBackToSingle: () => void
 }) {
+  // Electron 模式是独立应用，无"返回单智能体"入口，隐藏返回按钮
+  const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true
+
   return (
     <div style={{
       position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
       display: 'flex', gap: 12, zIndex: 10,
     }}>
-      <button onClick={onBackToSingle} style={{
-        padding: '10px 20px',
-        background: 'rgba(0,0,0,0.7)',
-        border: '1px solid rgba(191,90,242,0.4)',
-        borderRadius: 10,
-        color: '#8899b4',
-        fontSize: 13,
-        cursor: 'pointer',
-        fontFamily: 'inherit',
-        backdropFilter: 'blur(10px)',
-        transition: 'all 0.2s',
-      }}>
-        ← 返回
-      </button>
+      {!isElectron && (
+        <button onClick={onBackToSingle} style={{
+          padding: '10px 20px',
+          background: 'rgba(0,0,0,0.7)',
+          border: '1px solid rgba(191,90,242,0.4)',
+          borderRadius: 10,
+          color: '#8899b4',
+          fontSize: 13,
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          backdropFilter: 'blur(10px)',
+          transition: 'all 0.2s',
+        }}>
+          ← 返回
+        </button>
+      )}
       <button onClick={onStartMeeting} style={{
         padding: '10px 24px',
         background: 'linear-gradient(135deg, rgba(191,90,242,0.8), rgba(94,92,230,0.8))',
