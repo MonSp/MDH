@@ -691,12 +691,23 @@ function registerRoleHandlers() {
         if (!statSync(skillDir).isDirectory()) continue;
         const manifestPath = join(skillDir, 'manifest.yaml');
         if (existsSync(manifestPath)) {
-          const content = readFileSync(manifestPath, 'utf-8');
+          const content = readFileSync(manifestPath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
           const nameMatch = content.match(/^name:\s*(.+)$/m);
           const descMatch = content.match(/^description:\s*(.+)$/m);
+          const versionMatch = content.match(/^version:\s*(.+)$/m);
+          const categoryMatch = content.match(/^category:\s*(.+)$/m);
+          const methodologyMatch = content.match(/^methodology:\s*(.+)$/m);
+          const toolsMatch = content.match(/^required_tools:\s*\n((?:\s+-\s+.+\n?)*)/m);
+          const tools = toolsMatch
+            ? toolsMatch[1].split('\n').map(l => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean)
+            : [];
           skills.push({
             name: nameMatch?.[1]?.trim() || name,
             description: descMatch?.[1]?.trim() || '',
+            version: versionMatch?.[1]?.trim() || '',
+            category: categoryMatch?.[1]?.trim() || '',
+            methodology: methodologyMatch?.[1]?.trim() || '',
+            tools,
             dir: name,
           });
         }
