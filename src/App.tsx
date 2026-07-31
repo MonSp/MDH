@@ -32,7 +32,11 @@ import {
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
-  const isTeamMode = location.pathname.startsWith('/team');
+  // Electron 模式默认进入团队视图，浏览器模式保留单智能体
+  const isElectronMode = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true;
+  const isTeamMode = isElectronMode
+    ? !location.pathname.startsWith('/single')  // Electron: 默认团队，/single 才切回单智能体
+    : location.pathname.startsWith('/team');     // 浏览器: /team 切团队
   const [chatText, setChatText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -441,11 +445,11 @@ function AppContent() {
                 submitType="enter"
               />
               <div className="mode-switcher">
-                <button className={`mode-btn ${!isTeamMode ? 'active' : ''}`} onClick={() => navigate('/')}>
+                <button className={`mode-btn ${!isTeamMode ? 'active' : ''}`} onClick={() => navigate(isElectronMode ? '/single' : '/')}>
                   <span className="mode-icon">🤖</span>
                   <span className="mode-label">单智能体</span>
                 </button>
-                <button className={`mode-btn ${isTeamMode ? 'active' : ''}`} onClick={() => navigate('/team')}>
+                <button className={`mode-btn ${isTeamMode ? 'active' : ''}`} onClick={() => navigate(isElectronMode ? '/' : '/team')}>
                   <span className="mode-icon">👥</span>
                   <span className="mode-label">多智能体团队</span>
                 </button>
