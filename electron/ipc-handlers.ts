@@ -667,7 +667,7 @@ function registerRoleHandlers() {
 
       const yamlPath = join(__dirname, '../backend/roles_config.yaml');
       if (existsSync(yamlPath)) {
-        const yamlContent = readFileSync(yamlPath, 'utf-8');
+        const yamlContent = readFileSync(yamlPath, 'utf-8').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
         result.tools = parseYamlSection(yamlContent, 'tools');
         result.skills = parseYamlSection(yamlContent, 'skills');
         console.log('[IPC] Loaded tools:', Object.keys(result.tools).length, 'skills:', Object.keys(result.skills).length);

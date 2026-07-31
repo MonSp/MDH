@@ -79,6 +79,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
   const loadRolesConfig = async () => {
     setLoadingRoles(true)
     try {
+      // 加载角色和工具配置
       const res = await fetch('/api/roles/config')
       if (!res.ok) {
         console.error('API请求失败:', res.status, res.statusText)
@@ -89,8 +90,27 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
         setRoles(data.data.base_roles || {})
         setCustomRoles(data.data.custom_roles || {})
         setTools(data.data.tools || {})
-        setSkills(data.data.skills || {})
       }
+
+      // 加载技能包完整数据（含 methodology、category 等）
+      try {
+        const skillsRes = await fetch('/api/skills/list')
+        if (skillsRes.ok) {
+          const skillsData = await skillsRes.json()
+          const packs = skillsData?.data?.skills || skillsData?.skills || []
+          const skillsMap: Record<string, any> = {}
+          for (const pack of packs) {
+            skillsMap[pack.name] = {
+              name: pack.name,
+              description: pack.description || '',
+              methodology: pack.methodology || '',
+              category: pack.category || '',
+              required_tools: pack.tools || [],
+            }
+          }
+          setSkills(skillsMap)
+        }
+      } catch (e) { console.error('加载技能包失败:', e) }
     } catch (e) { console.error('加载配置失败:', e) }
     finally { setLoadingRoles(false) }
   }
