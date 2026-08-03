@@ -1,14 +1,27 @@
 ---
 feature: electron-project-storage
-status: designed
+status: delivered
 updated: 2026-07-31
-branch: main
-commits:
+branch: feat/electron-project-storage
+commits: 7941452..52aa78d
 ---
 
 # Electron 项目持久化存储
 
 ## Report
+
+**What was built** — Electron 模式下 3D 科技大厦的项目管理（创建、历史项目、任务/子任务）现在通过主进程 IPC 持久化到 `app.getPath('userData')/projects.json`。新增 4 个 IPC 通道（`mdh:projectList/Save/Delete/Get`），主进程以原子写入（`.tmp` + `renameSync`）维护单一 JSON 数组文件。前端 `fileSystemStorage.ts` 每个导出函数在 Electron 环境下自动切换到新 `electronStorage.ts` 适配层走 IPC，浏览器行为完全不变。
+
+**Verification** —
+- PASS: `npx vitest run src/services/__tests__/` — 18/18 (electronStorage 7 + fileSystemStorage.electron 11)
+- PASS: `npx vitest run` — 983/983 全量前端测试
+- PASS: `npm run build:electron` — main.cjs + preload.cjs 构建成功，产物含 4 个新通道和 renameSync
+- PASS: `npx tsc --noEmit` — 修改文件无类型错误
+
+**Journey log** —
+- [lesson] `.tmp` 临时文件只有配合 `renameSync` 才是真正的原子写入；直接写正式文件会让临时文件形同虚设，中断会损坏数据（审查发现并修复）。
+- [lesson] 改动落错仓库：编辑时用了主仓库绝对路径，改动写到了 main working tree 而非 worktree——需检查编辑路径始终指向 worktree。
+
 
 ## [S1] Problem
 
@@ -75,7 +88,7 @@ const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElect
 
 ## Tasks
 
-- [ ] T1: 主进程项目 IPC 处理器 — acceptance: `ipc-handlers.ts` 实现 `mdh:projectList/Save/Delete/Get`，读写 `userData/projects.json`，preload 白名单加入 4 个通道 (covers: S2)
-- [ ] T2: fileSystemStorage Electron 分支 — acceptance: `fileSystemStorage.ts` 在 Electron 环境下走 IPC，`getProjects/saveProject/deleteProject/renameProject/addTask/deleteTask/addSubtask/updateSubtaskStatus` 全部映射，浏览器环境行为不变 (covers: S2; depends: T1)
-- [ ] T3: 测试 — acceptance: 新增 `electron-project-storage` 相关测试（前端 fileSystemStorage 分支 + Electron IPC 处理器单元测试），运行通过 (covers: S2; depends: T2)
-- [ ] T4: 构建验证 — acceptance: `npm run build:electron` 成功，`tsc --noEmit` 无新错误 (covers: S2; depends: T3)
+- [x] T1: 主进程项目 IPC 处理器 — acceptance: `ipc-handlers.ts` 实现 `mdh:projectList/Save/Delete/Get`，读写 `userData/projects.json`，preload 白名单加入 4 个通道 (covers: S2)
+- [x] T2: fileSystemStorage Electron 分支 — acceptance: `fileSystemStorage.ts` 在 Electron 环境下走 IPC，`getProjects/saveProject/deleteProject/renameProject/addTask/deleteTask/addSubtask/updateSubtaskStatus` 全部映射，浏览器环境行为不变 (covers: S2; depends: T1)
+- [x] T3: 测试 — acceptance: 新增 `electron-project-storage` 相关测试（前端 fileSystemStorage 分支 + Electron IPC 处理器单元测试），运行通过 (covers: S2; depends: T2)
+- [x] T4: 构建验证 — acceptance: `npm run build:electron` 成功，`tsc --noEmit` 无新错误 (covers: S2; depends: T3)
