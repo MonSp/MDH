@@ -1,7 +1,7 @@
 import { app, ipcMain, BrowserWindow, dialog, safeStorage } from 'electron';
 import { join, dirname } from 'path';
 import { homedir } from 'os';
-import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, statSync, renameSync } from 'fs';
 import { execSync } from 'child_process';
 
 // ─── 内联 LLM 调用（不依赖 orchestrator ESM 模块）───
@@ -868,11 +868,10 @@ function writeProjectsFile(projects: any[]): boolean {
   const filePath = getProjectsFilePath();
   try {
     mkdirSync(dirname(filePath), { recursive: true });
-    // 原子写入：先写临时文件再重命名，避免写入中断损坏数据
+    // 原子写入：先写临时文件，再重命名替换正式文件，避免写入中断损坏数据
     const tmpPath = `${filePath}.tmp`;
     writeFileSync(tmpPath, JSON.stringify(projects, null, 2), 'utf-8');
-    writeFileSync(filePath, JSON.stringify(projects, null, 2), 'utf-8');
-    try { if (existsSync(tmpPath)) writeFileSync(tmpPath, '', 'utf-8'); } catch {}
+    renameSync(tmpPath, filePath);
     return true;
   } catch (e) {
     console.error('[IPC] Failed to write projects.json:', e);
