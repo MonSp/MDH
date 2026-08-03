@@ -34,6 +34,11 @@ const VALID_INVOKE_CHANNELS = [
   'mdh:getRolesConfig',
   // 技能
   'mdh:getSkillsList',
+  // 项目
+  'mdh:projectList',
+  'mdh:projectSave',
+  'mdh:projectDelete',
+  'mdh:projectGet',
   // 更新
   'mdh:checkForUpdate',
   'mdh:downloadUpdate',

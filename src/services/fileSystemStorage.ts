@@ -1,7 +1,11 @@
 /**
  * 文件系统存储服务
  * 使用 File System Access API 将数据存储为本地文件
+ *
+ * Electron 环境下自动切换到 IPC 存储（主进程 userData/projects.json）
  */
+
+import * as electronStorage from './electronStorage'
 
 const DATA_DIR_NAME = 'tech-tower-data'
 
@@ -240,23 +244,41 @@ export interface SubTaskData {
 
 // 获取所有项目
 export async function getProjects(): Promise<ProjectData[]> {
+  if (electronStorage.isElectron()) {
+    const projects = await electronStorage.listProjects()
+    return projects as ProjectData[]
+  }
   const projects = await readJsonFile<ProjectData[]>('projects.json')
   return projects || []
 }
 
 // 保存所有项目
 export async function saveProjects(projects: ProjectData[]): Promise<void> {
+  if (electronStorage.isElectron()) {
+    // Electron 下按 project_id upsert（新增/更新，不处理删除）
+    for (const project of projects) {
+      await electronStorage.saveProject(project)
+    }
+    return
+  }
   await writeJsonFile('projects.json', projects)
 }
 
 // 获取单个项目
 export async function getProject(projectId: string): Promise<ProjectData | null> {
+  if (electronStorage.isElectron()) {
+    return await electronStorage.getProject(projectId) as ProjectData | null
+  }
   const projects = await getProjects()
   return projects.find(p => p.project_id === projectId) || null
 }
 
 // 保存单个项目（更新或新增）
 export async function saveProject(project: ProjectData): Promise<void> {
+  if (electronStorage.isElectron()) {
+    await electronStorage.saveProject(project)
+    return
+  }
   const projects = await getProjects()
   const idx = projects.findIndex(p => p.project_id === project.project_id)
   if (idx >= 0) {
@@ -269,6 +291,10 @@ export async function saveProject(project: ProjectData): Promise<void> {
 
 // 删除项目
 export async function deleteProject(projectId: string): Promise<void> {
+  if (electronStorage.isElectron()) {
+    await electronStorage.deleteProject(projectId)
+    return
+  }
   const projects = await getProjects()
   const filtered = projects.filter(p => p.project_id !== projectId)
   await saveProjects(filtered)
@@ -276,6 +302,14 @@ export async function deleteProject(projectId: string): Promise<void> {
 
 // 重命名项目
 export async function renameProject(projectId: string, newName: string): Promise<void> {
+  if (electronStorage.isElectron()) {
+    const project = await electronStorage.getProject(projectId)
+    if (project) {
+      project.name = newName
+      await electronStorage.saveProject(project)
+    }
+    return
+  }
   const projects = await getProjects()
   const project = projects.find(p => p.project_id === projectId)
   if (project) {
@@ -286,6 +320,15 @@ export async function renameProject(projectId: string, newName: string): Promise
 
 // 添加任务到项目
 export async function addTask(projectId: string, task: TaskData): Promise<void> {
+  if (electronStorage.isElectron()) {
+    const project = await electronStorage.getProject(projectId)
+    if (project) {
+      if (!project.tasks) project.tasks = []
+      project.tasks.push(task)
+      await electronStorage.saveProject(project)
+    }
+    return
+  }
   const projects = await getProjects()
   const project = projects.find(p => p.project_id === projectId)
   if (project) {
@@ -297,6 +340,14 @@ export async function addTask(projectId: string, task: TaskData): Promise<void> 
 
 // 删除任务
 export async function deleteTask(projectId: string, taskId: string): Promise<void> {
+  if (electronStorage.isElectron()) {
+    const project = await electronStorage.getProject(projectId)
+    if (project && project.tasks) {
+      project.tasks = project.tasks.filter((t: TaskData) => t.task_id !== taskId)
+      await electronStorage.saveProject(project)
+    }
+    return
+  }
   const projects = await getProjects()
   const project = projects.find(p => p.project_id === projectId)
   if (project && project.tasks) {
@@ -307,6 +358,18 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
 
 // 添加子任务
 export async function addSubtask(projectId: string, taskId: string, subtask: SubTaskData): Promise<void> {
+  if (electronStorage.isElectron()) {
+    const project = await electronStorage.getProject(projectId)
+    if (project) {
+      const task = project.tasks?.find((t: TaskData) => t.task_id === taskId)
+      if (task) {
+        if (!task.subtasks) task.subtasks = []
+        task.subtasks.push(subtask)
+        await electronStorage.saveProject(project)
+      }
+    }
+    return
+  }
   const projects = await getProjects()
   const project = projects.find(p => p.project_id === projectId)
   if (project) {
@@ -321,6 +384,21 @@ export async function addSubtask(projectId: string, taskId: string, subtask: Sub
 
 // 更新子任务状态
 export async function updateSubtaskStatus(projectId: string, taskId: string, subtaskId: string, status: string): Promise<void> {
+  if (electronStorage.isElectron()) {
+    const project = await electronStorage.getProject(projectId)
+    if (project) {
+      const task = project.tasks?.find((t: TaskData) => t.task_id === taskId)
+      if (task) {
+        const subtask = task.subtasks?.find((s: SubTaskData) => s.subtask_id === subtaskId)
+        if (subtask) {
+          subtask.status = status
+          if (status === 'completed') subtask.completed_at = Date.now() / 1000
+          await electronStorage.saveProject(project)
+        }
+      }
+    }
+    return
+  }
   const projects = await getProjects()
   const project = projects.find(p => p.project_id === projectId)
   if (project) {
@@ -338,6 +416,16 @@ export async function updateSubtaskStatus(projectId: string, taskId: string, sub
 
 // 获取分类统计
 export async function getCategories(): Promise<Record<string, ProjectData[]>> {
+  if (electronStorage.isElectron()) {
+    const projects = await electronStorage.listProjects()
+    const categories: Record<string, ProjectData[]> = {}
+    for (const project of projects as ProjectData[]) {
+      const cat = project.category || '未分类'
+      if (!categories[cat]) categories[cat] = []
+      categories[cat].push(project)
+    }
+    return categories
+  }
   const projects = await getProjects()
   const categories: Record<string, ProjectData[]> = {}
   for (const project of projects) {
@@ -350,6 +438,10 @@ export async function getCategories(): Promise<Record<string, ProjectData[]>> {
 
 // 导出所有数据
 export async function exportAll(): Promise<string> {
+  if (electronStorage.isElectron()) {
+    const projects = await electronStorage.listProjects()
+    return JSON.stringify({ projects, exportedAt: new Date().toISOString() }, null, 2)
+  }
   const projects = await getProjects()
   return JSON.stringify({ projects, exportedAt: new Date().toISOString() }, null, 2)
 }
@@ -358,6 +450,12 @@ export async function exportAll(): Promise<string> {
 export async function importAll(data: string): Promise<void> {
   const parsed = JSON.parse(data)
   if (parsed.projects) {
+    if (electronStorage.isElectron()) {
+      for (const project of parsed.projects) {
+        await electronStorage.saveProject(project)
+      }
+      return
+    }
     await saveProjects(parsed.projects)
   }
 }

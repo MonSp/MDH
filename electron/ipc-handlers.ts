@@ -1,7 +1,7 @@
 import { app, ipcMain, BrowserWindow, dialog, safeStorage } from 'electron';
 import { join, dirname } from 'path';
 import { homedir } from 'os';
-import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
+import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, statSync, renameSync } from 'fs';
 import { execSync } from 'child_process';
 
 // ─── 内联 LLM 调用（不依赖 orchestrator ESM 模块）───
@@ -544,6 +544,7 @@ export async function registerIpcHandlers(llmConfig: Partial<LLMConfig>) {
   registerConfigHandlers();
   registerWorkspaceHandlers();
   registerRoleHandlers();
+  registerProjectHandlers();
 }
 
 function recreateCoordinator() {
@@ -841,6 +842,77 @@ function registerRoleHandlers() {
       console.error('[IPC] Failed to load skills list:', e);
       return { success: false, data: null, error: String(e) };
     }
+  });
+}
+
+// ─── 项目持久化存储 ───
+// 项目数据以 JSON 数组形式存储在 userData/projects.json
+
+function getProjectsFilePath(): string {
+  return join(app.getPath('userData'), 'projects.json');
+}
+
+function readProjectsFile(): any[] {
+  const filePath = getProjectsFilePath();
+  if (!existsSync(filePath)) return [];
+  try {
+    const data = JSON.parse(readFileSync(filePath, 'utf-8'));
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error('[IPC] Failed to read projects.json:', e);
+    return [];
+  }
+}
+
+function writeProjectsFile(projects: any[]): boolean {
+  const filePath = getProjectsFilePath();
+  try {
+    mkdirSync(dirname(filePath), { recursive: true });
+    // 原子写入：先写临时文件，再重命名替换正式文件，避免写入中断损坏数据
+    const tmpPath = `${filePath}.tmp`;
+    writeFileSync(tmpPath, JSON.stringify(projects, null, 2), 'utf-8');
+    renameSync(tmpPath, filePath);
+    return true;
+  } catch (e) {
+    console.error('[IPC] Failed to write projects.json:', e);
+    return false;
+  }
+}
+
+function registerProjectHandlers() {
+  ipcMain.handle('mdh:projectList', async () => {
+    return { success: true, data: readProjectsFile(), error: null };
+  });
+
+  ipcMain.handle('mdh:projectSave', async (_event, data: { project: any }) => {
+    const project = data?.project;
+    if (!project || typeof project.project_id !== 'string') {
+      return { success: false, data: null, error: '无效的项目数据' };
+    }
+    const projects = readProjectsFile();
+    const idx = projects.findIndex(p => p?.project_id === project.project_id);
+    if (idx >= 0) {
+      projects[idx] = project;
+    } else {
+      projects.push(project);
+    }
+    const ok = writeProjectsFile(projects);
+    return { success: ok, data: null, error: ok ? null : '写入失败' };
+  });
+
+  ipcMain.handle('mdh:projectDelete', async (_event, data: { projectId: string }) => {
+    const projectId = data?.projectId;
+    if (!projectId) return { success: false, data: null, error: '缺少 projectId' };
+    const projects = readProjectsFile().filter(p => p?.project_id !== projectId);
+    const ok = writeProjectsFile(projects);
+    return { success: ok, data: null, error: ok ? null : '写入失败' };
+  });
+
+  ipcMain.handle('mdh:projectGet', async (_event, data: { projectId: string }) => {
+    const projectId = data?.projectId;
+    const projects = readProjectsFile();
+    const project = projects.find(p => p?.project_id === projectId) || null;
+    return { success: true, data: project, error: null };
   });
 }
 
