@@ -48,6 +48,22 @@ describe('isBlockedBashCommand', () => {
     expect(isBlockedBashCommand('   ')).toBe(false)
   })
 
+  it('拦截带版本号的 python (绕过向量)', () => {
+    expect(isBlockedBashCommand('python3.11 test.py')).toBe(true)
+    expect(isBlockedBashCommand('python3.12 -c "print(1)"')).toBe(true)
+    expect(isBlockedBashCommand('python2.7 script.py')).toBe(true)
+  })
+
+  it('拦截 env / sudo / 绝对路径 前缀 (绕过向量)', () => {
+    expect(isBlockedBashCommand('env python3 test.py')).toBe(true)
+    expect(isBlockedBashCommand('sudo python script.py')).toBe(true)
+    expect(isBlockedBashCommand('/usr/bin/python3 test.py')).toBe(true)
+  })
+
+  it('拦截 tab 分隔的命令 (绕过向量)', () => {
+    expect(isBlockedBashCommand('python3\t-c "print(1)"')).toBe(true)
+  })
+
   it('BLOCKED_COMMAND_MESSAGE 提供引导信息', () => {
     expect(BLOCKED_COMMAND_MESSAGE).toContain('node')
     expect(BLOCKED_COMMAND_MESSAGE).toContain('无 Python')
