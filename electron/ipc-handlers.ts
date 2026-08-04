@@ -4,6 +4,7 @@ import { homedir } from 'os';
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, statSync, renameSync } from 'fs';
 import { execSync } from 'child_process';
 import { buildPptx } from '../src/services/pptxBuilder.js';
+import { isBlockedBashCommand, BLOCKED_COMMAND_MESSAGE } from '../src/services/bashGuard.js';
 
 // ─── 内联 LLM 调用（不依赖 orchestrator ESM 模块）───
 const PROVIDER_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
@@ -73,7 +74,12 @@ async function executeTool(toolName: string, args: Record<string, any>, workspac
         return { success: true, output: listing };
       }
       case 'bash': {
-        const result = execSync(args.command, {
+        const command = args.command || '';
+        // 纯 Node 离线模式：拦截 python/pip/conda 命令
+        if (isBlockedBashCommand(command)) {
+          return { success: false, output: BLOCKED_COMMAND_MESSAGE };
+        }
+        const result = execSync(command, {
           cwd: workspace,
           timeout: (args.timeout || 30) * 1000,
           encoding: 'utf-8',
@@ -432,10 +438,11 @@ function buildElectronSystemPrompt(roleId: string, workspace: string): string {
 - 读取文件：\`\`\`tool_call\\n{"tool":"read_file","args":{"path":"..."}}\\n\`\`\`
 
 重要规则：
-1. 创建代码文件时，用 \`\`\`文件路径\`\`\` 格式（如 \`\`\`app.py\`\`\`）
+1. 创建代码文件时，用 \`\`\`文件路径\`\`\` 格式（如 \`\`\`app.js\`\`\`）
 2. 文件路径相对于工作区根目录
 3. 每次创建一个文件
-4. 创建完文件后运行测试验证`);
+4. 创建完文件后运行测试验证
+5. 本环境无 Python，禁止使用 python/pip/conda 命令；验证脚本用 node 命令`);
   }
 
   // 尝试从 skill_packs 加载角色主技能的 system_prompt
