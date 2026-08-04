@@ -1,14 +1,28 @@
 ---
 feature: offline-ppt-generation
-status: designed
+status: delivered
 updated: 2026-08-03
 branch: main
-commits:
+commits: 386bf7e..33076ed
 ---
 
 # 离线 PPT 生成（Node.js pptxgenjs）
 
 ## Report
+
+**What was built** — Electron 模式下 `create_slide` 工具现在可以离线生成 `.pptx` 文件，不依赖 Python 或公网。核心是新增 `src/services/pptxBuilder.ts`（纯 Node 模块，无 electron 依赖），支持 cover/bullets/chart（bar/pie）三种布局、主题色、多页幻灯片，并通过 `path.relative` 守卫拒绝路径越界（含 sibling-prefix 绕过和绝对路径）。`electron/ipc-handlers.ts` 的 `executeTool` 改为 async 并新增 `create_slide` 分支委托给 `buildPptx`。`pptxgenjs@4.0.1` 由 esbuild 直接 bundle 进 `main.cjs`（690KB），完全离线可用——解决了内网环境无 Python、无公网时无法生成 PPT 的问题。
+
+**Verification** —
+- PASS: `npx vitest run` — 993/993 全量前端测试（含 10 个 pptx-builder 测试）
+- PASS: `npx vitest run src/modules/__tests__/pptx-builder.test.ts` — 10/10（cover/bullets/chart/pie/多页/主题/路径越界/sibling 绕过/绝对路径）
+- PASS: `npm run build:electron` — main.cjs 含 pptx 逻辑（pptxgenjs 成功 bundle）
+- PASS: `npx tsc --noEmit` — 修改文件无类型错误
+- E2E: buildPptx 实际生成 44KB 有效 .pptx（PK zip 魔数验证）
+
+**Journey log** —
+- [lesson] `startsWith(workspace)` 路径守卫可被 sibling-prefix 绕过（`../workspace-evil/x.pptx` 共享前缀）——必须用 `path.relative` + `../` 检查（审查发现并修复）。
+- [lesson] Electron 侧 `executeTool` 是同步函数，接入异步生成库需整体改 async 并给调用点补 `await`（esbuild 会报 "await only in async function"）。
+- [lesson] vite/vitest 的 `include: src/**` 限制：被测模块必须放 `src/` 下，electron/ 目录内的纯逻辑模块无法被 vitest 直接测试——纯 Node 工具放 `src/services/` 更合理。
 
 ## [S1] Problem
 
@@ -86,7 +100,7 @@ commits:
 
 ## Tasks
 
-- [ ] T1: 安装 pptxgenjs 依赖 — acceptance: `pptxgenjs` 出现在 package.json dependencies 且可 import (covers: S2)
-- [ ] T2: executeTool 新增 create_slide 分支 — acceptance: `electron/ipc-handlers.ts` 的 executeTool 支持 create_slide，生成 .pptx 文件到 workspace，支持 cover/bullets/chart 布局 (covers: S2)
-- [ ] T3: 测试 — acceptance: 新增 create_slide 测试（生成 .pptx 文件存在、布局参数处理），运行通过 (covers: S2; depends: T2)
-- [ ] T4: 构建验证 — acceptance: `npm run build:electron` 成功且产物含 pptxgenjs 逻辑 (covers: S2; depends: T3)
+- [x] T1: 安装 pptxgenjs 依赖 — acceptance: `pptxgenjs` 出现在 package.json dependencies 且可 import (covers: S2)
+- [x] T2: executeTool 新增 create_slide 分支 — acceptance: `electron/ipc-handlers.ts` 的 executeTool 支持 create_slide，生成 .pptx 文件到 workspace，支持 cover/bullets/chart 布局 (covers: S2)
+- [x] T3: 测试 — acceptance: 新增 create_slide 测试（生成 .pptx 文件存在、布局参数处理），运行通过 (covers: S2; depends: T2)
+- [x] T4: 构建验证 — acceptance: `npm run build:electron` 成功且产物含 pptxgenjs 逻辑 (covers: S2; depends: T3)
