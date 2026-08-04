@@ -3,6 +3,7 @@ import { join, dirname } from 'path';
 import { homedir } from 'os';
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, statSync, renameSync } from 'fs';
 import { execSync } from 'child_process';
+import { buildPptx } from '../src/services/pptxBuilder.js';
 
 // ─── 内联 LLM 调用（不依赖 orchestrator ESM 模块）───
 const PROVIDER_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
@@ -42,7 +43,7 @@ async function chatCompletion(config: LLMConfig, messages: Array<{role: string; 
 // ─── 工具执行器 ───
 // 在本地工作区执行文件操作和 shell 命令
 
-function executeTool(toolName: string, args: Record<string, any>, workspace: string): { success: boolean; output: string } {
+async function executeTool(toolName: string, args: Record<string, any>, workspace: string): Promise<{ success: boolean; output: string }> {
   try {
     switch (toolName) {
       case 'write_file': {
@@ -109,6 +110,14 @@ function executeTool(toolName: string, args: Record<string, any>, workspace: str
           return { success: true, output: result };
         } catch (e: any) {
           return { success: false, output: `git commit 失败: ${e.message}` };
+        }
+      }
+      case 'create_slide': {
+        try {
+          const outPath = await buildPptx(workspace, args);
+          return { success: true, output: `已生成 PPT: ${outPath}（${Array.isArray(args.slides) ? args.slides.length : 1} 页）` };
+        } catch (e: any) {
+          return { success: false, output: `PPT 生成失败: ${e.message}` };
         }
       }
       default:
@@ -194,7 +203,7 @@ class ElectronRoleAgent {
       const toolResults: string[] = [];
 
       for (const block of codeBlocks) {
-        const result = executeTool('write_file', { path: block.filename, content: block.content }, this.workspace);
+        const result = await executeTool('write_file', { path: block.filename, content: block.content }, this.workspace);
         if (result.success) {
           totalFilesWritten++;
           onEvent?.({ type: 'assistant_message', agentId: this.id, content: `✅ 已写入 ${block.filename}` });
@@ -205,7 +214,7 @@ class ElectronRoleAgent {
       }
 
       for (const call of toolCalls) {
-        const result = executeTool(call.tool, call.args || {}, this.workspace);
+        const result = await executeTool(call.tool, call.args || {}, this.workspace);
         onEvent?.({ type: 'assistant_message', agentId: this.id, content: `[${call.tool}] ${result.output.substring(0, 500)}` });
         toolResults.push(`[${call.tool}] ${result.output}`);
       }
