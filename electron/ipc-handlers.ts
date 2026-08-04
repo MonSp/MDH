@@ -426,6 +426,9 @@ function buildElectronSystemPrompt(roleId: string, workspace: string): string {
     reviewer: { name: 'QA工程师', desc: '代码审查、测试、质量保证' },
     monitor: { name: 'DevOps', desc: '部署、监控、运维' },
     ceo: { name: 'CTO', desc: '技术决策、团队协调' },
+    ppt_lead: { name: '演示项目负责人', desc: '需求沟通、内容梳理、演示效果把控' },
+    slide_designer: { name: '视觉设计师', desc: '版式/配色/图表设计' },
+    content_architect: { name: '内容架构师', desc: '逻辑结构设计、故事线规划' },
   };
   const role = roleNames[roleId] || { name: roleId, desc: '' };
 
@@ -445,11 +448,29 @@ function buildElectronSystemPrompt(roleId: string, workspace: string): string {
 5. 本环境无 Python，禁止使用 python/pip/conda 命令；验证脚本用 node 命令`);
   }
 
+  // PPT 相关角色：注入 create_slide 工具说明，确保 LLM 知道生成 .pptx 的正确方式
+  const pptRoles = new Set(['ppt_lead', 'slide_designer', 'content_architect']);
+  if (pptRoles.has(roleId)) {
+    parts.push(`可用工具（用代码块格式调用）：
+- 生成 PPT：\`\`\`tool_call
+{"tool":"create_slide","args":{"path":"xxx.pptx","title":"标题","slides":[{"title":"封面","subtitle":"副标题","layout":"cover"},{"title":"要点页","bullets":["要点1","要点2"],"layout":"bullets"},{"title":"数据页","layout":"chart","chart":{"type":"bar","labels":["A","B"],"values":[30,70]}}]}}
+\`\`\`
+- 创建/写入文件：\`\`\`path/to/file.ext\\n内容\\n\`\`\`
+- 执行命令：\`\`\`tool_call\\n{"tool":"bash","args":{"command":"..."}}\\n\`\`\`
+
+重要规则：
+1. 制作 PPT 必须调用 create_slide 工具生成 .pptx 文件（支持 cover/bullets/chart 三种布局）
+2. 不要用 HTML/JS 手写演示文稿替代 .pptx
+3. 文件路径相对于工作区根目录
+4. 本环境无 Python，禁止使用 python/pip/conda 命令`);
+  }
+
   // 尝试从 skill_packs 加载角色主技能的 system_prompt
   try {
     const skillMap: Record<string, string> = {
       coordinator: 'task_decomposition', planner: 'architecture', executor: 'frontend_dev',
       reviewer: 'code_review', monitor: 'devops',
+      ppt_lead: 'ppt_design', slide_designer: 'ppt_design', content_architect: 'ppt_design',
     };
     const skillName = skillMap[roleId];
     if (skillName) {
