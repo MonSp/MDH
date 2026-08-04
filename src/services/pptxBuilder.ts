@@ -5,7 +5,7 @@
  * executeTool 的 create_slide 分支调用本模块，便于单元测试。
  */
 import pptxgen from 'pptxgenjs';
-import { join } from 'path';
+import { join, relative, isAbsolute } from 'path';
 import { mkdirSync } from 'fs';
 
 export interface SlideSpec {
@@ -31,8 +31,15 @@ export interface PptSpec {
  * @returns 输出文件绝对路径
  */
 export async function buildPptx(workspace: string, spec: PptSpec): Promise<string> {
-  const filePath = join(workspace, spec.path || 'presentation.pptx');
-  if (!filePath.startsWith(workspace)) {
+  // 拒绝绝对路径参数（明确防止绕过意图）
+  const rawPath = spec.path || 'presentation.pptx';
+  if (isAbsolute(rawPath)) {
+    throw new Error('路径越界: 仅允许 workspace 内');
+  }
+  const filePath = join(workspace, rawPath);
+  // 用 relative 判断越界：sibling-prefix（如 workspace-evil）和 ../ 逃逸都会被拒绝
+  const rel = relative(workspace, filePath);
+  if (rel.startsWith('..') || isAbsolute(rel)) {
     throw new Error('路径越界: 仅允许 workspace 内');
   }
 

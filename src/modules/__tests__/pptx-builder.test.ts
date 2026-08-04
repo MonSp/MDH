@@ -106,4 +106,20 @@ describe('buildPptx', () => {
     expect(existsSync(join(ws, '..', 'evil.pptx'))).toBe(false)
     rmSync(ws, { recursive: true, force: true })
   })
+
+  it('sibling-prefix 绕过被拒绝（workspace-evil 同级目录逃逸）', async () => {
+    const ws = makeWorkspace()
+    // join(ws, '../evil-ws/x.pptx') 解析到 ws 的同级目录，但前缀包含 ws
+    const spec: PptSpec = { path: '../evil-ws/x.pptx', slides: [] }
+    await expect(buildPptx(ws, spec)).rejects.toThrow('路径越界')
+    expect(existsSync(join(ws, '..', 'evil-ws', 'x.pptx'))).toBe(false)
+    rmSync(ws, { recursive: true, force: true })
+  })
+
+  it('绝对路径被拒绝', async () => {
+    const ws = makeWorkspace()
+    const spec: PptSpec = { path: '/tmp/evil-abs.pptx', slides: [] }
+    await expect(buildPptx(ws, spec)).rejects.toThrow('路径越界')
+    rmSync(ws, { recursive: true, force: true })
+  })
 })
