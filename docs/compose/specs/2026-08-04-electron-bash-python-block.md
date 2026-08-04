@@ -1,14 +1,27 @@
 ---
 feature: electron-bash-python-block
-status: designed
+status: delivered
 updated: 2026-08-04
 branch: main
-commits:
+commits: 73b31a5..aaac3a8
 ---
 
 # Electron bash 工具拦截 Python 命令
 
 ## Report
+
+**What was built** — Electron 纯 Node 离线模式下，`bash` 工具现在拦截 LLM 调用的 `python`/`pip`/`conda` 命令，并引导其改用 `node`。新增 `src/services/bashGuard.ts`（纯函数 `isBlockedBashCommand`），用正则拦截 python 家族命令，覆盖版本号（`python3.11`）、`env`/`sudo`/`nohup` 前缀、绝对路径（`/usr/bin/python3`）、Windows `py` launcher，且不误伤 `pymysql`/`pylint` 等。`electron/ipc-handlers.ts` 的 bash 分支执行前检查，命中返回引导信息；executor system prompt 追加规则 5（无 Python，用 node 验证）。
+
+**Verification** —
+- PASS: `npx vitest run` — 1006/1006（含 13 个 bashGuard 测试）
+- PASS: `npx vitest run src/services/__tests__/bashGuard.test.ts` — 13/13（7 个禁用 + 5 个放行 + 3 个绕过向量）
+- PASS: `npm run build:electron` — main.cjs 含拦截逻辑
+- PASS: `npx tsc --noEmit`
+
+**Journey log** —
+- [lesson] 前缀黑名单 `cmd.startsWith(p + ' ')` 对已含空格的 `'py '` 会产生双空格 bug（`py  `）——用 `p.endsWith(' ')` 判断避免。
+- [lesson] `python3.11`/`env python3`/`sudo python`/绝对路径是真实绕过向量——前缀列表升级为正则（`(?:\.\d+)*` 版本号、`env\s+|sudo\s+` 前缀）才彻底拦截。
+- [lesson] `\b` 词边界在 `conda-lock` 上会误命中（`-` 是 non-word 字符）——可接受，因为 conda 生态工具本就不该在纯 Node 环境运行。
 
 ## [S1] Problem
 
@@ -71,7 +84,7 @@ if (blocked) {
 
 ## Tasks
 
-- [ ] T1: 提取 isBlockedBashCommand 纯函数 — acceptance: `src/services/bashGuard.ts` 导出 `isBlockedBashCommand(cmd): boolean`，覆盖 7 个禁用前缀 (covers: S2)
-- [ ] T2: executeTool bash 分支接入拦截 — acceptance: `electron/ipc-handlers.ts` bash 分支执行前调用 isBlockedBashCommand，命中时返回引导信息 (covers: S2; depends: T1)
-- [ ] T3: system prompt 追加规则 — acceptance: `buildElectronSystemPrompt` executor 分支含"禁止 python/pip/conda，用 node 验证" (covers: S2; depends: T2)
-- [ ] T4: 测试 + 构建验证 — acceptance: bashGuard 测试通过（7+ 用例），`npm run build:electron` 成功 (covers: S2; depends: T3)
+- [x] T1: 提取 isBlockedBashCommand 纯函数 — acceptance: `src/services/bashGuard.ts` 导出 `isBlockedBashCommand(cmd): boolean`，覆盖 7 个禁用前缀 (covers: S2)
+- [x] T2: executeTool bash 分支接入拦截 — acceptance: `electron/ipc-handlers.ts` bash 分支执行前调用 isBlockedBashCommand，命中时返回引导信息 (covers: S2; depends: T1)
+- [x] T3: system prompt 追加规则 — acceptance: `buildElectronSystemPrompt` executor 分支含"禁止 python/pip/conda，用 node 验证" (covers: S2; depends: T2)
+- [x] T4: 测试 + 构建验证 — acceptance: bashGuard 测试通过（7+ 用例），`npm run build:electron` 成功 (covers: S2; depends: T3)
