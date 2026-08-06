@@ -32,6 +32,7 @@
     "@react-three/postprocessing": "^2.19.1",
     "@types/three": "^0.170.0",
     "antd": "^6.4.3",
+    "docx": "^9.7.1",
     "electron-updater": "^6.3.0",
     "postprocessing": "^6.39.1",
     "pptxgenjs": "^4.0.1",

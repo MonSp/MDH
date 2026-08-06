@@ -4,6 +4,7 @@ import { homedir } from 'os';
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync, statSync, renameSync } from 'fs';
 import { execSync } from 'child_process';
 import { buildPptx } from '../src/services/pptxBuilder.js';
+import { buildDocx } from '../src/services/docxBuilder.js';
 import { isBlockedBashCommand, BLOCKED_COMMAND_MESSAGE } from '../src/services/bashGuard.js';
 
 // ─── 内联 LLM 调用（不依赖 orchestrator ESM 模块）───
@@ -124,6 +125,14 @@ async function executeTool(toolName: string, args: Record<string, any>, workspac
           return { success: true, output: `已生成 PPT: ${outPath}（${Array.isArray(args.slides) ? args.slides.length : 1} 页）` };
         } catch (e: any) {
           return { success: false, output: `PPT 生成失败: ${e.message}` };
+        }
+      }
+      case 'create_document': {
+        try {
+          const outPath = await buildDocx(workspace, args);
+          return { success: true, output: `已生成 Word 文档: ${outPath}` };
+        } catch (e: any) {
+          return { success: false, output: `Word 文档生成失败: ${e.message}` };
         }
       }
       default:
@@ -461,6 +470,27 @@ function buildElectronSystemPrompt(roleId: string, workspace: string): string {
 重要规则：
 1. 制作 PPT 必须调用 create_slide 工具生成 .pptx 文件（支持 cover/bullets/chart 三种布局）
 2. 不要用 HTML/JS 手写演示文稿替代 .pptx
+3. 文件路径相对于工作区根目录
+4. 本环境无 Python，禁止使用 python/pip/conda 命令`);
+  }
+
+  // 文档相关角色：注入 create_document 工具说明，确保 LLM 用该工具生成真正的 .docx
+  const docRoles = new Set([
+    'content_director', 'coordinator', 'ppt_lead', 'brand_guardian', 'deal_strategist',
+    'financial_analyst', 'product_manager', 'sales_strategist', 'technical_writer',
+    'ui_designer', 'ux_researcher',
+  ]);
+  if (docRoles.has(roleId)) {
+    parts.push(`可用工具（用代码块格式调用）：
+- 生成 Word 文档：\`\`\`tool_call
+{"tool":"create_document","args":{"path":"报告.docx","title":"报告标题","sections":[{"heading":"第一章","paragraphs":["正文段落"]},{"heading":"第二章","bullets":["要点一","要点二"]},{"table":{"headers":["列1","列2"],"rows":[["A","1"]]}}]}}
+\`\`\`
+- 创建/写入文件：\`\`\`path/to/file.ext\\n内容\\n\`\`\`
+- 执行命令：\`\`\`tool_call\\n{"tool":"bash","args":{"command":"..."}}\\n\`\`\`
+
+重要规则：
+1. 制作 Word 文档必须调用 create_document 工具生成 .docx 文件（支持段落/要点/编号/标题/表格）
+2. 不要用 Markdown/纯文本文件替代 .docx
 3. 文件路径相对于工作区根目录
 4. 本环境无 Python，禁止使用 python/pip/conda 命令`);
   }
