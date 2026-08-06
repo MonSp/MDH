@@ -1,14 +1,28 @@
 ---
 feature: offline-docx-generation
-status: designed
+status: delivered
 updated: 2026-08-06
 branch: main
-commits:
+commits: c84dd99..2ae486d
 ---
 
 # 离线 Word 文档生成（Node.js docx）
 
 ## Report
+
+**What was built** — Electron 模式下 `create_document` 工具现在可以离线生成真正的 `.docx` Word 文档，不依赖 Python 或公网。核心是新增 `src/services/docxBuilder.ts`（纯 Node 模块，无 electron 依赖），支持段落/项目符号/编号列表/标题/表格五种块类型、文档标题、多 section，并通过 `path.relative` + `isAbsolute` 守卫拒绝路径越界（含 sibling-prefix 绕过和绝对路径）。`electron/ipc-handlers.ts` 的 `executeTool` 新增 `create_document` 分支委托给 `buildDocx`，并给 11 个文档相关角色（content_director/technical_writer/product_manager 等）注入 create_document 工具说明。`docx@9.7.1` 由 esbuild 直接 bundle 进 `main.cjs`，完全离线可用。
+
+**Verification** —
+- PASS: `npx vitest run` — 1016/1016 全量测试（含 10 个 docxBuilder 测试）
+- PASS: `npx vitest run src/services/__tests__/docxBuilder.test.ts` — 10/10（5 块类型 + 标题 + 多 section + 3 路径守卫）
+- PASS: `npm run build:electron` — main.cjs 含 docx 逻辑
+- PASS: `npx tsc --noEmit` — 修改文件无类型错误
+- PASS: E2E — technical_writer 调用 create_document 生成真实 .docx
+
+**Journey log** —
+- [lesson] docx 的 `numbering.config` 必须放 `Document` 构造器层级（不是 section properties），否则类型不匹配（TS2345/TS2322）。
+- [lesson] `buildParagraphs` 返回 `Paragraph[]` 但 table 块是 `Table` 类型——需放宽返回类型为 `(Paragraph | Table)[]`（TS2345）。
+- [lesson] ppt_lead 同时属于 pptRoles 和 docRoles，prompt 会注入两份"可用工具"节——冗余但不冲突（create_slide/create_document 是不同工具），可接受。
 
 ## [S1] Problem
 
@@ -74,7 +88,7 @@ commits:
 
 ## Tasks
 
-- [ ] T1: 安装 docx 依赖并验证 bundle — acceptance: `docx` 在 package.json dependencies，esbuild bundle 后生成有效 .docx（PK zip） (covers: S2)
-- [ ] T2: 实现 docxBuilder — acceptance: `src/services/docxBuilder.ts` 导出 `buildDocx(workspace, spec)`，支持 paragraphs/bullets/numbered/heading/table，路径守卫防越界 (covers: S2; depends: T1)
-- [ ] T3: executeTool 接入 create_document — acceptance: `electron/ipc-handlers.ts` 新增 create_document 分支委托 buildDocx，系统 prompt 给文档角色注入工具说明 (covers: S2; depends: T2)
-- [ ] T4: 测试 + 构建验证 — acceptance: docxBuilder 测试通过（10+ 用例含路径守卫），`npm run build:electron` 成功且产物含 docx 逻辑 (covers: S2; depends: T3)
+- [x] T1: 安装 docx 依赖并验证 bundle — acceptance: `docx` 在 package.json dependencies，esbuild bundle 后生成有效 .docx（PK zip） (covers: S2)
+- [x] T2: 实现 docxBuilder — acceptance: `src/services/docxBuilder.ts` 导出 `buildDocx(workspace, spec)`，支持 paragraphs/bullets/numbered/heading/table，路径守卫防越界 (covers: S2; depends: T1)
+- [x] T3: executeTool 接入 create_document — acceptance: `electron/ipc-handlers.ts` 新增 create_document 分支委托 buildDocx，系统 prompt 给文档角色注入工具说明 (covers: S2; depends: T2)
+- [x] T4: 测试 + 构建验证 — acceptance: docxBuilder 测试通过（10+ 用例含路径守卫），`npm run build:electron` 成功且产物含 docx 逻辑 (covers: S2; depends: T3)
