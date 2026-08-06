@@ -105,4 +105,18 @@ describe('buildDocx', () => {
     expect(out.includes('子目录')).toBe(true)
     rmSync(ws, { recursive: true, force: true })
   })
+
+  it('title + numbered 组合生成完整文档', async () => {
+    const ws = makeWorkspace()
+    const spec: DocxSpec = {
+      title: '操作指南',
+      sections: [{ numbered: ['安装依赖', '启动服务', '验证结果'] }],
+    }
+    const out = await buildDocx(ws, spec)
+    expect(existsSync(out)).toBe(true)
+    const buf = readFileSync(out)
+    expect(buf[0]).toBe(0x50)
+    expect(buf[1]).toBe(0x4b)
+    rmSync(ws, { recursive: true, force: true })
+  })
 })
