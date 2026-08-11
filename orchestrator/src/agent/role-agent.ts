@@ -22,6 +22,15 @@ export interface ToolResult {
   error?: string;
 }
 
+/** 执行阶段的结构化摘要 — 供 coordinator 总结和 reviewer 审查使用 */
+export interface ExecutionSummary {
+  filesCreated: string[];
+  filesModified: string[];
+  toolCalls: Array<{ tool: string; args: string; success: boolean }>;
+  errors: string[];
+  finalMessage: string;
+}
+
 /**
  * RoleAgent — 每个团队角色的独立智能体实例。
  *
@@ -53,14 +62,18 @@ export class RoleAgent {
     return response;
   }
 
-  /** 带工具的调用（执行阶段），返回最终文本 */
+  /** 带工具的调用（执行阶段），返回最终文本和结构化摘要 */
   async chatWithTools(
     userMessage: string,
     onEvent?: EventHandler,
     maxIterations = 15,
-  ): Promise<string> {
+  ): Promise<{ result: string; summary: ExecutionSummary }> {
     this.messages.push({ role: 'user', content: userMessage });
     let result = '';
+    const filesCreated: string[] = [];
+    const filesModified: string[] = [];
+    const toolCallsLog: Array<{ tool: string; args: string; success: boolean }> = [];
+    const errors: string[] = [];
 
     for (let i = 0; i < maxIterations; i++) {
       this.truncateIfNeeded();
@@ -99,6 +112,25 @@ export class RoleAgent {
           ? `Error: ${toolResult.error}`
           : String(toolResult.result ?? '');
 
+        // 追踪文件操作
+        const toolName = tc.function.name;
+        let toolArgs: Record<string, unknown> = {};
+        try { toolArgs = JSON.parse(tc.function.arguments); } catch {}
+        const argSummary = toolName === 'bash'
+          ? String(toolArgs.command || '').substring(0, 60)
+          : JSON.stringify(toolArgs).substring(0, 60);
+        toolCallsLog.push({ tool: toolName, args: argSummary, success: !toolResult.error });
+
+        if (toolResult.error) {
+          errors.push(`${toolName}: ${resultStr.substring(0, 100)}`);
+        }
+        if (toolName === 'write_file' && !toolResult.error && toolArgs.path) {
+          filesCreated.push(String(toolArgs.path));
+        }
+        if (toolName === 'edit_file' && !toolResult.error && toolArgs.path) {
+          filesModified.push(String(toolArgs.path));
+        }
+
         this.messages.push({
           role: 'tool',
           content: resultStr,
@@ -117,7 +149,10 @@ export class RoleAgent {
       }
     }
 
-    return result;
+    return {
+      result,
+      summary: { filesCreated, filesModified, toolCalls: toolCallsLog, errors, finalMessage: result },
+    };
   }
 
   /** 获取上下文摘要（用于跨 agent 传递） */

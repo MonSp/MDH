@@ -5,6 +5,7 @@ import { RouterFactory } from '../toolkit/router.js';
 import { getTemplate, getPromptTemplate } from './templates.js';
 import { Team, TeamMember } from './types.js';
 import { RoleAgent, buildSystemPrompt, getToolsForRole } from '../agent/index.js';
+import type { ExecutionSummary } from '../agent/role-agent.js';
 
 export interface CoordinatorConfig {
   llm: LLMConfig;
@@ -166,6 +167,7 @@ export class TeamCoordinator {
 
     const maxReviewRounds = reviewerAgent ? 2 : 1;
     let finalResult = '';
+    let execSummary: ExecutionSummary = { filesCreated: [], filesModified: [], toolCalls: [], errors: [], finalMessage: '' };
 
     for (let round = 0; round < maxReviewRounds; round++) {
       if (round > 0) {
@@ -173,32 +175,32 @@ export class TeamCoordinator {
       }
 
       // 执行任务 — RoleAgent 带独立上下文和工具循环
-      const executorResult = await executorAgent.chatWithTools(
+      const execOutput = await executorAgent.chatWithTools(
         round === 0 ? `请执行以下任务：\n${userMessage}` : `请根据审查反馈修改代码：\n${userMessage}`,
         onEvent,
       );
+      finalResult = execOutput.result;
+      execSummary = execOutput.summary;
 
       // 审查
       if (reviewerAgent && round < maxReviewRounds - 1) {
         onEvent?.({ type: 'phase', phase: 'reviewing' });
-        const review = await this.runReview(reviewerAgent, executorResult, userMessage, onEvent);
+        const review = await this.runReview(reviewerAgent, execSummary, userMessage, onEvent);
 
         if (review.approved) {
           onEvent?.({ type: 'assistant_message', agentId: reviewerAgent.id, content: `审查通过！代码质量良好。` });
-          finalResult = executorResult;
           break;
         }
         // 不通过，继续下一轮
-      } else {
-        finalResult = executorResult;
       }
     }
 
-    // ====== 阶段 5: 汇报结果 ======
+    // ====== 阶段 5: 汇报结果（结构化摘要，非截断全文）=====
     onEvent?.({ type: 'phase', phase: 'summarizing' });
 
     const summarySystem = getPromptTemplate('summary') || '你是一位技术项目经理，请用简洁的中文总结项目执行结果。使用 Markdown 表格格式。';
-    const summaryPrompt = `请根据以下执行结果，生成一份简洁的项目总结报告。\n\n任务：${userMessage}\n\n执行结果：\n${finalResult.substring(0, 2000)}`;
+    const structuredReport = this.formatExecSummary(execSummary, workspace);
+    const summaryPrompt = `请根据以下执行摘要，生成一份简洁的项目总结报告。重点说明创建了哪些文件、解决了什么问题、是否有未完成的部分。\n\n任务：${userMessage}\n\n${structuredReport}`;
     const summary = await this.callLLMOnce([
       { role: 'system', content: summarySystem },
       { role: 'user', content: summaryPrompt },
@@ -278,13 +280,42 @@ export class TeamCoordinator {
 
     onEvent?.({ type: 'agent_message', agentId: coordAgent.id, content: coordSummary, timestamp: Date.now() });
 
+    // 将讨论结论注入 executor 上下文作为执行约束
+    const executorAgent = agents.find(a => {
+      const t = getTemplate(a.roleId);
+      return t?.team_role === 'Executor';
+    });
+    if (executorAgent && discussions.length > 0) {
+      const constraints = discussions
+        .map(d => d.replace(/\[STANCE:\w+\]/gi, '').replace(/\[CONFIDENCE:[\d.]+\]/gi, '').trim())
+        .filter(d => d.length > 10);
+      if (constraints.length > 0) {
+        executorAgent.injectContext(
+          `## 团队讨论结论（执行时必须遵循）\n${constraints.map((c, i) => `${i + 1}. ${c}`).join('\n')}`,
+        );
+      }
+    }
+
     return coordSummary;
   }
 
-  // ====== 审查（reviewer RoleAgent 读取代码 + 审查）=====
+  /** 将 ExecutionSummary 格式化为结构化报告 */
+  private formatExecSummary(summary: ExecutionSummary, workspace: string): string {
+    const parts: string[] = [`工作区：${workspace}`];
+    if (summary.filesCreated.length > 0) parts.push(`创建文件 (${summary.filesCreated.length})：${summary.filesCreated.join(', ')}`);
+    if (summary.filesModified.length > 0) parts.push(`修改文件 (${summary.filesModified.length})：${summary.filesModified.join(', ')}`);
+    const failedTools = summary.toolCalls.filter(t => !t.success);
+    if (failedTools.length > 0) parts.push(`失败操作：${failedTools.map(t => `${t.tool}(${t.args})`).join(', ')}`);
+    if (summary.errors.length > 0) parts.push(`错误：${summary.errors.join('; ')}`);
+    parts.push(`工具调用次数：${summary.toolCalls.length}`);
+    if (summary.finalMessage) parts.push(`最终回复：${summary.finalMessage.substring(0, 500)}`);
+    return parts.join('\n');
+  }
+
+  // ====== 审查（reviewer 收到结构化变更清单，无需自行读文件）=====
   private async runReview(
     reviewerAgent: RoleAgent,
-    executionResult: string,
+    execSummary: ExecutionSummary,
     task: string,
     onEvent?: EventHandler,
   ): Promise<{ approved: boolean; feedback: string }> {
@@ -296,59 +327,26 @@ export class TeamCoordinator {
 
     const reviewTmpl = getPromptTemplate('review') || '{prompt}\n\n你正在审查代码质量。检查以下几点：\n1. 功能完整性\n2. 错误处理\n3. 代码结构\n4. 命名规范\n\n返回JSON：{"approved": true/false, "feedback": "审查意见"}';
 
-    // 使用 reviewer 的 team member 路由读取代码文件
-    const reviewerMember = this.team?.members.find(m => m.role === reviewerRole);
-    let codeContent = '';
-    if (reviewerMember) {
-      const routerMember = {
-        id: reviewerMember.id,
-        roleName: reviewerMember.name,
-        teamRole: (reviewerMember.template.team_role || 'Reviewer') as 'Coordinator' | 'Planner' | 'Executor' | 'Reviewer' | 'Monitor',
-        location: reviewerMember.location,
-        runtime: reviewerMember.runtime,
-        tools: reviewerMember.template.tools,
-        dangerousTools: reviewerMember.template.dangerous_tools,
-        status: 'idle' as const,
-      };
-      const reviewerRouter = this.config.routerFactory.getRouterForMember(routerMember);
-      const reviewerWorkspace = this.config.routerFactory.getWorkspaceForMember(routerMember);
-
-      try {
-        const filesResult = await reviewerRouter.execute({
-          id: 'review-files',
-          type: 'function',
-          function: { name: 'bash', arguments: JSON.stringify({ command: `find . -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.tsx" 2>/dev/null | head -5` }) },
-        }, reviewerWorkspace);
-
-        if (filesResult.result && typeof filesResult.result === 'string') {
-          const files = filesResult.result.trim().split('\n').filter(f => f).slice(0, 3);
-          const readPromises = files.map(file =>
-            reviewerRouter.execute({
-              id: `review-read-${file}`,
-              type: 'function',
-              function: { name: 'read_file', arguments: JSON.stringify({ path: file }) },
-            }, reviewerWorkspace)
-          );
-          const readResults = await Promise.all(readPromises);
-          for (let i = 0; i < files.length; i++) {
-            const result = readResults[i].result;
-            if (result && typeof result === 'string') {
-              codeContent += `\n--- ${files[i]} ---\n${result.substring(0, 1000)}\n`;
-            }
-          }
-        }
-      } catch (e) {
-        console.error('[review] Failed to read code files:', e);
-      }
+    // 从 ExecutionSummary 构建变更清单（无需 reviewer 自己读文件）
+    const changeList: string[] = [];
+    if (execSummary.filesCreated.length > 0) {
+      changeList.push(`新增文件 (${execSummary.filesCreated.length})：`);
+      for (const f of execSummary.filesCreated) changeList.push(`  + ${f}`);
+    }
+    if (execSummary.filesModified.length > 0) {
+      changeList.push(`修改文件 (${execSummary.filesModified.length})：`);
+      for (const f of execSummary.filesModified) changeList.push(`  ~ ${f}`);
+    }
+    const failedTools = execSummary.toolCalls.filter(t => !t.success);
+    if (failedTools.length > 0) {
+      changeList.push(`执行失败 (${failedTools.length})：${failedTools.map(t => `${t.tool}(${t.args})`).join(', ')}`);
+    }
+    if (execSummary.errors.length > 0) {
+      changeList.push(`错误详情：${execSummary.errors.join('; ')}`);
     }
 
-    const reviewContent = codeContent
-      ? `任务：${task}\n\n代码文件：\n${codeContent.substring(0, 3000)}\n\n执行摘要：\n${executionResult.substring(0, 500)}`
-      : `任务：${task}\n\n执行结果：\n${executionResult.substring(0, 2000)}`;
-
-    const reviewResult = await reviewerAgent.chat(
-      `${reviewTmpl}\n\n${reviewContent}`,
-    );
+    const reviewContent = `任务：${task}\n\n执行变更清单：\n${changeList.join('\n')}\n\n最终回复：\n${execSummary.finalMessage.substring(0, 1000)}`;
+    const reviewResult = await reviewerAgent.chat(`${reviewTmpl}\n\n${reviewContent}`);
 
     // 将审查结果发给前端
     try {
@@ -358,20 +356,19 @@ export class TeamCoordinator {
         const feedback = parsed.feedback || '审查完成';
         onEvent?.({ type: 'agent_message', agentId: reviewerAgent.id, content: feedback, timestamp: Date.now() });
         onEvent?.({ type: 'agent_status_update', agentId: reviewerAgent.id, status: 'meeting' });
-        
-        // 如果有详细评分，输出评分信息
+
         if (parsed.details) {
           const detailsStr = Object.entries(parsed.details)
             .map(([k, v]) => `${k}: ${v}`)
             .join(', ');
-          onEvent?.({ 
-            type: 'agent_message', 
-            agentId: reviewerAgent.id, 
-            content: `评分详情：${detailsStr}，总分：${parsed.score || 'N/A'}`, 
-            timestamp: Date.now() 
+          onEvent?.({
+            type: 'agent_message',
+            agentId: reviewerAgent.id,
+            content: `评分详情：${detailsStr}，总分：${parsed.score || 'N/A'}`,
+            timestamp: Date.now()
           });
         }
-        
+
         return { approved: parsed.approved !== false, feedback };
       }
     } catch (e) {
@@ -380,7 +377,6 @@ export class TeamCoordinator {
 
     onEvent?.({ type: 'agent_message', agentId: `agent-${reviewerRole}`, content: reviewResult.substring(0, 500), timestamp: Date.now() });
     onEvent?.({ type: 'agent_status_update', agentId: `agent-${reviewerRole}`, status: 'meeting' });
-    // 解析失败时不自动批准 — 无法确认审查是否通过
     return { approved: false, feedback: reviewResult };
   }
 

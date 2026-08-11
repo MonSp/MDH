@@ -200,14 +200,18 @@ class ElectronRoleAgent {
     this.messages.push({ role: 'user', content: `[团队上下文]\n${context}` });
   }
 
-  /** 带工具循环的执行（代码块写入 + tool_call 解析） */
+  /** 带工具循环的执行（代码块写入 + tool_call 解析），返回结构化执行摘要 */
   async chatWithTools(
     userMessage: string,
     onEvent?: EventHandler,
     maxRounds = 8,
-  ): Promise<{ result: string; filesWritten: number }> {
+  ): Promise<{ result: string; filesWritten: number; summary: ExecutionSummary }> {
     this.messages.push({ role: 'user', content: userMessage });
     let totalFilesWritten = 0;
+    const filesCreated: string[] = [];
+    const filesModified: string[] = [];
+    const toolCallsLog: Array<{ tool: string; args: string; success: boolean }> = [];
+    const errors: string[] = [];
 
     for (let round = 0; round < maxRounds; round++) {
       const response = await chatCompletion(this.llm, this.messages);
@@ -221,8 +225,10 @@ class ElectronRoleAgent {
         const result = await executeTool('write_file', { path: block.filename, content: block.content }, this.workspace);
         if (result.success) {
           totalFilesWritten++;
+          filesCreated.push(block.filename);
           onEvent?.({ type: 'assistant_message', agentId: this.id, content: `✅ 已写入 ${block.filename}` });
         } else {
+          errors.push(`写入 ${block.filename}: ${result.output}`);
           onEvent?.({ type: 'assistant_message', agentId: this.id, content: `❌ 写入失败 ${block.filename}: ${result.output}` });
         }
         toolResults.push(`[write_file ${block.filename}] ${result.output}`);
@@ -230,12 +236,20 @@ class ElectronRoleAgent {
 
       for (const call of toolCalls) {
         const result = await executeTool(call.tool, call.args || {}, this.workspace);
+        const argSummary = call.tool === 'bash' ? (call.args?.command || '').substring(0, 60) : JSON.stringify(call.args || {}).substring(0, 60);
+        toolCallsLog.push({ tool: call.tool, args: argSummary, success: result.success });
+        if (!result.success) errors.push(`${call.tool}: ${result.output.substring(0, 100)}`);
+        if (call.tool === 'edit_file' && result.success) filesModified.push(call.args?.path || '');
         onEvent?.({ type: 'assistant_message', agentId: this.id, content: `[${call.tool}] ${result.output.substring(0, 500)}` });
         toolResults.push(`[${call.tool}] ${result.output}`);
       }
 
       if (codeBlocks.length === 0 && toolCalls.length === 0) {
-        return { result: response, filesWritten: totalFilesWritten };
+        return {
+          result: response,
+          filesWritten: totalFilesWritten,
+          summary: { filesCreated, filesModified, toolCalls: toolCallsLog, errors, finalMessage: response },
+        };
       }
 
       if (toolResults.length > 0) {
@@ -244,7 +258,11 @@ class ElectronRoleAgent {
       }
     }
 
-    return { result: '', filesWritten: totalFilesWritten };
+    return {
+      result: '',
+      filesWritten: totalFilesWritten,
+      summary: { filesCreated, filesModified, toolCalls: toolCallsLog, errors, finalMessage: '' },
+    };
   }
 }
 
@@ -252,6 +270,65 @@ class ElectronRoleAgent {
 // 支持工具执行、多轮对话、代码块解析
 
 type EventHandler = (event: Record<string, unknown>) => void;
+
+/** 执行阶段的结构化摘要 — 供 coordinator 总结和 reviewer 审查使用 */
+interface ExecutionSummary {
+  filesCreated: string[];
+  filesModified: string[];
+  toolCalls: Array<{ tool: string; args: string; success: boolean }>;
+  errors: string[];
+  finalMessage: string;
+}
+
+/** 将讨论意见提炼为可注入 executor 的执行约束 */
+function buildDiscussionConstraints(opinions: string[]): string {
+  const constraints: string[] = [];
+  for (const opinion of opinions) {
+    // 提取 STANCE 和关键建议
+    const stanceMatch = opinion.match(/\[STANCE:(\w+)\]/i);
+    const stance = stanceMatch?.[1]?.toLowerCase() || 'neutral';
+    if (stance === 'oppose') continue; // 反对意见不注入约束
+
+    // 提取建议内容（去掉 STANCE/CONFIDENCE 标签）
+    const cleaned = opinion
+      .replace(/\[STANCE:\w+\]/gi, '')
+      .replace(/\[CONFIDENCE:[\d.]+\]/gi, '')
+      .trim();
+    if (cleaned.length > 10) constraints.push(cleaned);
+  }
+  return constraints.length > 0
+    ? `## 团队讨论结论（执行时必须遵循）\n${constraints.map((c, i) => `${i + 1}. ${c}`).join('\n')}`
+    : '';
+}
+
+/** 将 ExecutionSummary 格式化为 coordinator 可消费的结构化报告 */
+function formatSummaryForCoordinator(summary: ExecutionSummary, workspace: string): string {
+  const parts: string[] = [`工作区：${workspace}`];
+  if (summary.filesCreated.length > 0) parts.push(`创建文件：${summary.filesCreated.join(', ')}`);
+  if (summary.filesModified.length > 0) parts.push(`修改文件：${summary.filesModified.join(', ')}`);
+  const failedTools = summary.toolCalls.filter(t => !t.success);
+  if (failedTools.length > 0) parts.push(`失败操作：${failedTools.map(t => `${t.tool}(${t.args})`).join(', ')}`);
+  if (summary.errors.length > 0) parts.push(`错误：${summary.errors.join('; ')}`);
+  parts.push(`执行工具调用次数：${summary.toolCalls.length}`);
+  if (summary.finalMessage) parts.push(`最终回复：${summary.finalMessage.substring(0, 500)}`);
+  return parts.join('\n');
+}
+
+/** 将 ExecutionSummary 格式化为 reviewer 可消费的变更清单 */
+function formatSummaryForReviewer(summary: ExecutionSummary, workspace: string): string {
+  const parts: string[] = [`工作区：${workspace}`];
+  if (summary.filesCreated.length > 0) {
+    parts.push(`新增文件 (${summary.filesCreated.length})：`);
+    for (const f of summary.filesCreated) parts.push(`  + ${f}`);
+  }
+  if (summary.filesModified.length > 0) {
+    parts.push(`修改文件 (${summary.filesModified.length})：`);
+    for (const f of summary.filesModified) parts.push(`  ~ ${f}`);
+  }
+  const failedTools = summary.toolCalls.filter(t => !t.success);
+  if (failedTools.length > 0) parts.push(`执行失败 (${failedTools.length})：${failedTools.map(t => t.tool).join(', ')}`);
+  return parts.join('\n');
+}
 
 interface WorkspaceConfirmRequest {
   taskDescription: string;
@@ -369,6 +446,7 @@ ${allRoles}
     }));
 
     // 阶段 2: 讨论（复杂任务，多角色，并发执行）
+    let discussionConstraints = '';
     if (complexity.level !== 'simple' && roles.length > 1) {
       onEvent?.({ type: 'phase', phase: 'discussing' });
       const discussAgents = roleAgents.filter(a => a.roleId !== 'ceo');
@@ -385,11 +463,15 @@ ${allRoles}
           return err;
         }
       }));
-      // 讨论结果注入 coordinator agent 的上下文
+
+      // 讨论结果注入 coordinator 上下文（完整记录）
       const coordAgent = roleAgents.find(a => a.roleId === 'coordinator');
       if (coordAgent && opinions.length > 0) {
         coordAgent.injectContext(`团队讨论记录：\n${opinions.join('\n---\n')}`);
       }
+
+      // 提炼讨论结论为执行约束，注入 executor 上下文
+      discussionConstraints = buildDiscussionConstraints(opinions);
     }
 
     // 阶段 3: 执行（executor RoleAgent 带工具循环）
@@ -398,29 +480,40 @@ ${allRoles}
     const executorAgent = roleAgents.find(a => a.roleId === executorRole) || roleAgents[roleAgents.length - 1];
 
     let totalFilesWritten = 0;
-    let finalResult = '';
+    let execSummary: ExecutionSummary = { filesCreated: [], filesModified: [], toolCalls: [], errors: [], finalMessage: '' };
     try {
-      const execResult = await executorAgent.chatWithTools(`请执行以下任务：\n${userMessage}`, onEvent, 8);
+      // 注入讨论结论作为执行约束
+      const execPrompt = discussionConstraints
+        ? `请执行以下任务：\n${userMessage}\n\n${discussionConstraints}`
+        : `请执行以下任务：\n${userMessage}`;
+      const execResult = await executorAgent.chatWithTools(execPrompt, onEvent, 8);
       totalFilesWritten = execResult.filesWritten;
-      finalResult = execResult.result;
+      execSummary = execResult.summary;
     } catch (e) {
       onEvent?.({ type: 'error', message: `执行失败: ${e}` });
+      execSummary.errors.push(String(e));
     }
 
-    onEvent?.({ type: 'assistant_message', agentId: executorAgent.id, content: `执行完成，共写入 ${totalFilesWritten} 个文件到 ${workspace}` });
+    const createdCount = execSummary.filesCreated.length;
+    const modifiedCount = execSummary.filesModified.length;
+    const errCount = execSummary.errors.length;
+    onEvent?.({ type: 'assistant_message', agentId: executorAgent.id,
+      content: `执行完成 — 创建 ${createdCount} 个文件，修改 ${modifiedCount} 个文件${errCount > 0 ? `，${errCount} 个错误` : ''}，工作区：${workspace}` });
 
-    // 阶段 4: 总结（coordinator agent 独立上下文，含讨论记录）
+    // 阶段 4: 总结（coordinator 收到结构化摘要，而非截断全文）
     onEvent?.({ type: 'phase', phase: 'summarizing' });
     const coordinatorAgent = roleAgents.find(a => a.roleId === 'coordinator');
-    let summary = `任务执行完成。\n工作区：${workspace}\n写入文件数：${totalFilesWritten}`;
+    let summaryReport = `任务执行完成。\n${formatSummaryForCoordinator(execSummary, workspace)}`;
     if (coordinatorAgent) {
       try {
-        summary = await coordinatorAgent.chat(`任务：${userMessage}\n\n执行结果：\n${finalResult.substring(0, 2000)}\n\n请生成一份简洁的项目总结报告。`);
+        const structuredReport = formatSummaryForCoordinator(execSummary, workspace);
+        summaryReport = await coordinatorAgent.chat(
+          `任务：${userMessage}\n\n执行摘要：\n${structuredReport}\n\n请生成一份简洁的项目总结报告。重点说明创建了哪些文件、解决了什么问题、是否有未完成的部分。`);
       } catch (e) {
-        summary = `任务执行完成。\n工作区：${workspace}\n写入文件数：${totalFilesWritten}\n(总结失败: ${e})`;
+        summaryReport = `任务执行完成。\n${formatSummaryForCoordinator(execSummary, workspace)}\n(总结失败: ${e})`;
       }
     }
-    onEvent?.({ type: 'assistant_message', agentId: 'agent-coordinator', content: summary });
+    onEvent?.({ type: 'assistant_message', agentId: 'agent-coordinator', content: summaryReport });
 
     return `任务完成，工作区：${workspace}，文件数：${totalFilesWritten}`;
   }
