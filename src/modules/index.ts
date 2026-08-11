@@ -38,6 +38,14 @@ export {
 } from './agentTypes'
 
 export {
+  AgentPool,
+  type AgentStatus as PoolAgentStatus,
+  type PoolAgentInstance,
+  type PoolStatus,
+  type TeamTemplate,
+} from './agentPool'
+
+export {
   type AgendaPhase,
   type AgendaEvent,
   type AgendaSnapshot,
@@ -167,6 +175,11 @@ export {
 } from './deadlockDetector'
 
 export {
+  DeadLetterQueue,
+  type DeadLetterMessage,
+} from './deadLetterQueue'
+
+export {
   DependencyAnalyzer,
   type DependencyAnalysisResult,
   type DependencyPattern,
@@ -228,6 +241,14 @@ export {
   type MetricValue,
   metricsCollector,
 } from './metricsCollector'
+
+export {
+  MessageQueue,
+  MessagePriority as QueueMessagePriority,
+  MessageStatus as QueueMessageStatus,
+  type MessageHandler as QueueMessageHandler,
+  type QueueMessage,
+} from './messageQueue'
 
 export {
   MultiAgentConversation,
@@ -380,3 +401,112 @@ export {
   generateSpanId,
   generateTraceId,
 } from './traceContext'
+
+export {
+  LLMCache,
+  llmCache,
+  type LLMCacheStats,
+} from './llmCache'
+
+export {
+  ComplexityClassifier,
+  complexityClassifier,
+  type ComplexityResult,
+} from './complexityClassifier'
+
+export {
+  WorkflowEngineLocal,
+  workflowEngineLocal,
+  type NodeExecutor,
+} from './workflowEngineLocal'
+
+export {
+  ProjectManagerLocal,
+  projectManagerLocal,
+  type Project,
+  type ProjectTask,
+} from './projectManagerLocal'
+
+export {
+  EarsValidator,
+  type EarsViolation,
+  type EarsValidationResult,
+} from './earsValidator'
+
+export {
+  SpecTreeValidator,
+  SpecTreeNodeType,
+  type SpecTreeNode,
+  type SpecTree,
+  type SuccessCriterion,
+  type Provenance,
+  type ValidationResult,
+} from './specTreeValidator'
+
+export {
+  EvidenceChain,
+  type Evidence,
+} from './evidenceChain'
+
+export {
+  GateManager,
+  type GateResult,
+  type GateFn,
+} from './gateManager'
+
+export {
+  FallbackChainRunner,
+  RoutingFallbackBuilder,
+  type FallbackChainConfig,
+  type FallbackChainResult,
+  type FallbackStrategy,
+} from './fallbackChain'
+
+export {
+  DynamicRouterLocal,
+  tokenize,
+  type RouteEntryLocal,
+  type RoutingDecisionLocal,
+} from './dynamicRouterLocal'
+
+export {
+  SkillPackagerLocal,
+  skillPackagerLocal,
+  type DesensitizeIssue,
+  type DiffResult,
+} from './skillPackagerLocal'
+
+export {
+  ExperienceExtractorLocal,
+  experienceExtractorLocal,
+  type ExecutionLogLocal,
+  type ExperienceRuleLocal,
+} from './experienceExtractorLocal'
+
+export {
+  CrossNetworkBridgeLocal,
+  type AgentLocation,
+  type AgentEndpointStatus,
+  type AgentEndpointLocal,
+  type NetworkMessageLocal,
+  type MessageHandler,
+} from './crossNetworkBridgeLocal'
+
+export {
+  AgentDiscoveryLocal,
+  type DiscoveryCallback,
+} from './agentDiscoveryLocal'
+
+export {
+  WorkspaceSyncLocal,
+  type FileStateLocal,
+  type WorkspaceStateLocal,
+  type ConflictStrategy,
+  type ConflictCallback,
+} from './workspaceSyncLocal'
+
+export {
+  ParallelDiscussionManagerLocal,
+  type DiscussionResultLocal,
+  type AgentCallFn,
+} from './parallelDiscussionManagerLocal'
