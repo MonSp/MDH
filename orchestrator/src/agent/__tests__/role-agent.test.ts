@@ -314,12 +314,17 @@ describe('讨论约束提炼', () => {
     for (const opinion of opinions) {
       const stanceMatch = opinion.match(/\[STANCE:(\w+)\]/i);
       const stance = stanceMatch?.[1]?.toLowerCase() || 'neutral';
-      if (stance === 'oppose') continue;
       const cleaned = opinion
         .replace(/\[STANCE:\w+\]/gi, '')
         .replace(/\[CONFIDENCE:[\d.]+\]/gi, '')
         .trim();
-      if (cleaned.length > 10) constraints.push(cleaned);
+      if (cleaned.length <= 10) continue;
+      // oppose 意见转为"避免"约束
+      if (stance === 'oppose') {
+        constraints.push(`避免：${cleaned}`);
+      } else {
+        constraints.push(cleaned);
+      }
     }
     return constraints.length > 0
       ? `## 团队讨论结论（执行时必须遵循）\n${constraints.map((c, i) => `${i + 1}. ${c}`).join('\n')}`
@@ -334,11 +339,12 @@ describe('讨论约束提炼', () => {
     expect(result).toContain('## 团队讨论结论');
   });
 
-  it('oppose 意见被过滤', () => {
+  it('oppose 意见转为"避免"约束', () => {
     const result = buildDiscussionConstraints([
-      '不建议用 jQuery [STANCE:oppose] [CONFIDENCE:0.8]',
+      '不建议使用 jQuery 这种老旧框架 [STANCE:oppose] [CONFIDENCE:0.8]',
     ]);
-    expect(result).toBe('');
+    expect(result).toContain('避免：');
+    expect(result).toContain('jQuery');
   });
 
   it('STANCE/CONFIDENCE 标签被清除', () => {
@@ -350,14 +356,15 @@ describe('讨论约束提炼', () => {
     expect(result).toContain('TypeScript');
   });
 
-  it('混合意见只保留非反对', () => {
+  it('混合意见：support/modify 直接注入，oppose 转为避免约束', () => {
     const result = buildDiscussionConstraints([
       '建议用 React 框架来构建前端界面 [STANCE:support] [CONFIDENCE:0.9]',
       '反对使用 jQuery 这种老旧框架 [STANCE:oppose] [CONFIDENCE:0.8]',
       '建议添加完整的单元测试覆盖 [STANCE:modify] [CONFIDENCE:0.6]',
     ]);
     expect(result).toContain('React');
-    expect(result).not.toContain('jQuery');
+    expect(result).toContain('避免：');
+    expect(result).toContain('jQuery');
     expect(result).toContain('单元测试');
   });
 

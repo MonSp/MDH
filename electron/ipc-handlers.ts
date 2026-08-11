@@ -287,14 +287,20 @@ function buildDiscussionConstraints(opinions: string[]): string {
     // 提取 STANCE 和关键建议
     const stanceMatch = opinion.match(/\[STANCE:(\w+)\]/i);
     const stance = stanceMatch?.[1]?.toLowerCase() || 'neutral';
-    if (stance === 'oppose') continue; // 反对意见不注入约束
 
     // 提取建议内容（去掉 STANCE/CONFIDENCE 标签）
     const cleaned = opinion
       .replace(/\[STANCE:\w+\]/gi, '')
       .replace(/\[CONFIDENCE:[\d.]+\]/gi, '')
       .trim();
-    if (cleaned.length > 10) constraints.push(cleaned);
+    if (cleaned.length <= 10) continue;
+
+    // oppose 意见转为"避免"约束，信息不丢失
+    if (stance === 'oppose') {
+      constraints.push(`避免：${cleaned}`);
+    } else {
+      constraints.push(cleaned);
+    }
   }
   return constraints.length > 0
     ? `## 团队讨论结论（执行时必须遵循）\n${constraints.map((c, i) => `${i + 1}. ${c}`).join('\n')}`

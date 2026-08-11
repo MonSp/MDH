@@ -286,9 +286,19 @@ export class TeamCoordinator {
       return t?.team_role === 'Executor';
     });
     if (executorAgent && discussions.length > 0) {
-      const constraints = discussions
-        .map(d => d.replace(/\[STANCE:\w+\]/gi, '').replace(/\[CONFIDENCE:[\d.]+\]/gi, '').trim())
-        .filter(d => d.length > 10);
+      const constraints: string[] = [];
+      for (const d of discussions) {
+        const stanceMatch = d.match(/\[STANCE:(\w+)\]/i);
+        const stance = stanceMatch?.[1]?.toLowerCase() || 'neutral';
+        const cleaned = d.replace(/\[STANCE:\w+\]/gi, '').replace(/\[CONFIDENCE:[\d.]+\]/gi, '').trim();
+        if (cleaned.length <= 10) continue;
+        // oppose 意见转为"避免"约束
+        if (stance === 'oppose') {
+          constraints.push(`避免：${cleaned}`);
+        } else {
+          constraints.push(cleaned);
+        }
+      }
       if (constraints.length > 0) {
         executorAgent.injectContext(
           `## 团队讨论结论（执行时必须遵循）\n${constraints.map((c, i) => `${i + 1}. ${c}`).join('\n')}`,
