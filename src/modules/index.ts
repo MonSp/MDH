@@ -510,3 +510,64 @@ export {
   type DiscussionResultLocal,
   type AgentCallFn,
 } from './parallelDiscussionManagerLocal'
+
+export {
+  GitIntegration,
+  type GitResult,
+  type PRInfo,
+} from './gitIntegration'
+
+export {
+  extractCodeBlocks,
+  extractToolCalls,
+  langToFilename,
+  type CodeBlock,
+} from './codeExtractor'
+
+// ── Collaboration Agents ──
+
+export {
+  MessageType as CollabMessageType,
+  createMessage as createCollabMessage,
+  InMemoryCommunication,
+  CommunicationManager,
+  type Message as CollabMessage,
+  type MessageOptions as CollabMessageOptions,
+  type MessageHandler as CollabMessageHandler,
+} from './collaboration/communication'
+
+export {
+  TaskStatus as CollabTaskStatus,
+  TaskPriority as CollabTaskPriority,
+  PlannerAgent,
+  type SubTask,
+  type TaskPlan,
+  type PlanStatus,
+  type ReviewFeedback,
+} from './collaboration/plannerAgent'
+
+export {
+  AgentStatus as ExecutorAgentStatus,
+  ExecutorAgent,
+  type TaskResult as ExecutorTaskResult,
+  type AgentStats,
+  type TaskExecutorFn,
+  type ReviewCallbackFn,
+} from './collaboration/executorAgent'
+
+export {
+  CriticAgent,
+  type CriticResult,
+  type TaskContext,
+} from './collaboration/criticAgent'
+
+export {
+  GroundingAgent,
+  type GroundingResult,
+  type TaskOutput,
+  type RepoContext,
+} from './collaboration/groundingAgent'
+
+export {
+  CollaborativeAgent,
+} from './collaboration/collaborativeAgent'
