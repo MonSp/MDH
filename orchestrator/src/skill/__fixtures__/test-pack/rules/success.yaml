@@ -1,0 +1,3 @@
+trigger_condition: "task involves API endpoint creation"
+action: "Use RESTful conventions and validate input with zod"
+note: "From project X success pattern"

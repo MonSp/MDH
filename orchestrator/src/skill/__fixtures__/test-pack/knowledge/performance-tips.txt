@@ -1,0 +1,2 @@
+Use React.memo for expensive renders.
+Avoid inline functions in JSX props.

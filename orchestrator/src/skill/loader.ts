@@ -7,21 +7,60 @@ const cache = new Map<string, SkillPack>();
 export function parseYaml(text: string): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   let currentKey: string | null = null;
-  let currentList: string[] | null = null;
+  let currentList: unknown[] | null = null;
+  let currentObj: Record<string, unknown> | null = null;
 
   for (const rawLine of text.split('\n')) {
     const line = rawLine.replace(/\r$/, '');
     if (line.trim() === '' || line.trim().startsWith('#')) continue;
 
-    const listItem = line.match(/^\s+-\s+(.+)$/);
-    if (listItem && currentKey && currentList) {
+    // List item with inline key: "- key: value" (start of list object)
+    const listObjStart = line.match(/^\s*-\s+(\w[\w_]*):\s*(.*)$/);
+    if (listObjStart && currentKey && currentList !== null) {
+      // Flush previous object if any
+      if (currentObj) {
+        currentList.push(currentObj);
+      }
+      currentObj = {};
+      const [, k, v] = listObjStart;
+      const val = v.trim();
+      currentObj[k] = val ? val.replace(/^["']|["']$/g, '') : '';
+      continue;
+    }
+
+    // Continuation of list object: "  key: value" (indented under a list item)
+    const listObjCont = line.match(/^(\s+)(\w[\w_]*):\s*(.*)$/);
+    if (listObjCont && currentObj && currentKey) {
+      const [, indent, k, v] = listObjCont;
+      // Only treat as continuation if indent > key indent (inside list object)
+      if (indent.length >= 2) {
+        const val = v.trim();
+        currentObj[k] = val ? val.replace(/^["']|["']$/g, '') : '';
+        continue;
+      }
+    }
+
+    // Simple list item: "- value"
+    const listItem = line.match(/^\s*-\s+(.+)$/);
+    if (listItem && currentKey && currentList !== null) {
+      // Flush previous object if any
+      if (currentObj) {
+        currentList.push(currentObj);
+        currentObj = null;
+      }
       currentList.push(listItem[1].replace(/^["']|["']$/g, ''));
       continue;
     }
 
+    // Top-level key
     const kvMatch = line.match(/^(\w[\w_]*):\s*(.*)$/);
     if (kvMatch) {
-      if (currentKey && currentList) {
+      // Flush pending list
+      if (currentKey && currentList !== null) {
+        if (currentObj) {
+          currentList.push(currentObj);
+          currentObj = null;
+        }
         result[currentKey] = currentList;
       }
       const [, key, rawValue] = kvMatch;
@@ -29,15 +68,21 @@ export function parseYaml(text: string): Record<string, unknown> {
       if (value === '') {
         currentKey = key;
         currentList = [];
+        currentObj = null;
         continue;
       }
       currentKey = null;
       currentList = null;
+      currentObj = null;
       result[key] = value.replace(/^["']|["']$/g, '');
     }
   }
 
-  if (currentKey && currentList) {
+  // Flush remaining
+  if (currentKey && currentList !== null) {
+    if (currentObj) {
+      currentList.push(currentObj);
+    }
     result[currentKey] = currentList;
   }
 
@@ -112,4 +157,157 @@ export function getSkillPack(id: string): SkillPack | null {
 
 export function resetCache(): void {
   cache.clear();
+}
+
+/**
+ * 从 SkillPack 的 knowledge/ 和 rules/ 目录加载内容。
+ * - knowledge: 读取所有 .md/.txt 文件，用文件名作为标题拼接
+ * - rules: 读取所有 .yaml/.yml 文件，提取 trigger_condition/action/note 字段
+ * 目录不存在时返回空字符串。
+ */
+export async function loadSkillContent(
+  pack: SkillPack,
+): Promise<{ knowledge: string; rules: string }> {
+  let knowledge = '';
+  let rules = '';
+
+  // ── knowledge ──
+  if (pack.knowledgeDir) {
+    try {
+      const entries = await readdir(pack.knowledgeDir, { withFileTypes: true });
+      const files = entries
+        .filter((e) => e.isFile() && /\.(md|txt)$/i.test(e.name))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      const parts: string[] = [];
+      for (const f of files) {
+        const content = await readFile(join(pack.knowledgeDir, f.name), 'utf-8');
+        if (content.trim()) {
+          const heading = f.name.replace(/\.(md|txt)$/i, '').replace(/[-_]/g, ' ');
+          parts.push(`### ${heading}\n\n${content.trim()}`);
+        }
+      }
+      knowledge = parts.join('\n\n');
+    } catch {
+      // directory read error → empty
+    }
+  }
+
+  // ── rules ──
+  if (pack.rulesDir) {
+    try {
+      const entries = await readdir(pack.rulesDir, { withFileTypes: true });
+      const files = entries
+        .filter((e) => e.isFile() && /\.(ya?ml)$/i.test(e.name))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      const ruleLines: string[] = [];
+      for (const f of files) {
+        const raw = await readFile(join(pack.rulesDir, f.name), 'utf-8');
+        const parsed = parseYaml(raw);
+
+        // 单条规则文件
+        if (parsed.trigger_condition || parsed.action) {
+          const line = formatRule(parsed);
+          if (line) ruleLines.push(line);
+          continue;
+        }
+
+        // 多条规则文件（顶层 rules 数组或映射）
+        const rulesArr = parsed.rules;
+        if (Array.isArray(rulesArr)) {
+          for (const item of rulesArr) {
+            if (typeof item === 'object' && item !== null) {
+              const line = formatRule(item as Record<string, unknown>);
+              if (line) ruleLines.push(line);
+            }
+          }
+        }
+      }
+      rules = ruleLines.join('\n');
+    } catch {
+      // directory read error → empty
+    }
+  }
+
+  return { knowledge, rules };
+}
+
+function formatRule(rule: Record<string, unknown>): string {
+  const trigger = String(rule.trigger_condition ?? '').trim();
+  const action = String(rule.action ?? '').trim();
+  const note = String(rule.note ?? '').trim();
+  if (!trigger && !action) return '';
+  const parts: string[] = [];
+  if (trigger) parts.push(`触发条件: ${trigger}`);
+  if (action) parts.push(`建议动作: ${action}`);
+  if (note) parts.push(`补充说明: ${note}`);
+  return `- ${parts.join(' | ')}`;
+}
+
+/**
+ * 加载增量区内容（对应 Python SkillRegistry.create_incremental_area）。
+ * 读取:
+ * - system_prompt_addon.md → 追加到 system prompt 的文本
+ * - rules/ 目录 → 经验规则字符串数组
+ * - knowledge_add/ 目录 → 新增知识字符串数组
+ */
+export async function loadIncrementalArea(
+  incrementalDir: string,
+): Promise<{ addon: string; rules: string[]; knowledge: string[] }> {
+  let addon = '';
+  const rules: string[] = [];
+  const knowledge: string[] = [];
+
+  // ── system_prompt_addon.md ──
+  try {
+    addon = await readFile(join(incrementalDir, 'system_prompt_addon.md'), 'utf-8');
+    addon = addon.trim();
+  } catch {
+    // file doesn't exist → empty
+  }
+
+  // ── rules/ ──
+  const rulesDir = join(incrementalDir, 'rules');
+  if (await dirExists(rulesDir)) {
+    try {
+      const entries = await readdir(rulesDir, { withFileTypes: true });
+      for (const f of entries.filter((e) => e.isFile() && /\.(ya?ml)$/i.test(e.name)).sort((a, b) => a.name.localeCompare(b.name))) {
+        const raw = await readFile(join(rulesDir, f.name), 'utf-8');
+        const parsed = parseYaml(raw);
+        if (parsed.trigger_condition || parsed.action) {
+          const line = formatRule(parsed);
+          if (line) rules.push(line);
+          continue;
+        }
+        const rulesArr = parsed.rules;
+        if (Array.isArray(rulesArr)) {
+          for (const item of rulesArr) {
+            if (typeof item === 'object' && item !== null) {
+              const line = formatRule(item as Record<string, unknown>);
+              if (line) rules.push(line);
+            }
+          }
+        }
+      }
+    } catch {
+      // directory read error → empty
+    }
+  }
+
+  // ── knowledge_add/ ──
+  const knowledgeDir = join(incrementalDir, 'knowledge_add');
+  if (await dirExists(knowledgeDir)) {
+    try {
+      const entries = await readdir(knowledgeDir, { withFileTypes: true });
+      for (const f of entries.filter((e) => e.isFile() && /\.(md|txt)$/i.test(e.name)).sort((a, b) => a.name.localeCompare(b.name))) {
+        const content = await readFile(join(knowledgeDir, f.name), 'utf-8');
+        if (content.trim()) knowledge.push(content.trim());
+      }
+    } catch {
+      // directory read error → empty
+    }
+  }
+
+  return { addon, rules, knowledge };
 }

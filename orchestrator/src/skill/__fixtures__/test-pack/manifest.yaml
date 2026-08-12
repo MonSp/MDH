@@ -1,0 +1,6 @@
+name: test_pack
+version: 1.0.0
+description: Test skill pack
+category: dev
+required_tools:
+  - read_file

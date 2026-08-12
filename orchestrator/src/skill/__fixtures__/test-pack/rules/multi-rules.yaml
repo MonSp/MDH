@@ -1,0 +1,7 @@
+rules:
+- trigger_condition: "database migration needed"
+  action: "Always create rollback script"
+  note: "Lesson from failed deployment"
+- trigger_condition: "CSS styling task"
+  action: "Use CSS modules instead of inline styles"
+  note: "Maintainability pattern"

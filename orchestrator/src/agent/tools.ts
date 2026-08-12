@@ -2,6 +2,7 @@ import type { ToolDefinition } from '../llm/types.js';
 import { getTemplate } from '../team/templates.js';
 
 export const ALL_TOOL_DEFINITIONS: ToolDefinition[] = [
+  // ========== 原有工具 ==========
   {
     type: 'function',
     function: {
@@ -71,16 +72,95 @@ export const ALL_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+
+  // ========== 新增 Git 工具 ==========
   {
     type: 'function',
     function: {
-      name: 'grep_content',
-      description: '搜索文件内容',
+      name: 'git_status',
+      description: '查看 git 状态（简短格式）。提交前必须先检查。',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_commit',
+      description: '暂存所有变更并提交代码。自动执行 git add -A。',
       parameters: {
         type: 'object',
         properties: {
-          pattern: { type: 'string', description: '搜索模式' },
-          path: { type: 'string', default: '.' },
+          message: { type: 'string', description: '提交信息' },
+        },
+        required: ['message'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_push',
+      description: '推送代码到远程仓库。此操作不可逆，请确认后再执行。',
+      parameters: {
+        type: 'object',
+        properties: {
+          remote: { type: 'string', description: '远程仓库名（默认 origin）' },
+          branch: { type: 'string', description: '分支名' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_branch',
+      description: '创建新分支（带名称）或列出所有分支（不带名称）。',
+      parameters: {
+        type: 'object',
+        properties: {
+          branch_name: { type: 'string', description: '新分支名。省略则列出所有分支。' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_diff',
+      description: '查看代码变更差异。',
+      parameters: {
+        type: 'object',
+        properties: {
+          staged: { type: 'boolean', description: '是否查看已暂存的变更', default: false },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_log',
+      description: '查看最近的 git 提交历史。',
+      parameters: {
+        type: 'object',
+        properties: {
+          count: { type: 'number', description: '显示条数（默认 10）', default: 10 },
+        },
+      },
+    },
+  },
+
+  // ========== 新增搜索工具 ==========
+  {
+    type: 'function',
+    function: {
+      name: 'search_files',
+      description: '按文件名模式递归搜索文件。支持通配符 * 和 ?。',
+      parameters: {
+        type: 'object',
+        properties: {
+          pattern: { type: 'string', description: '文件名匹配模式（如 *.ts、config.*）' },
+          path: { type: 'string', description: '搜索起始路径（默认 workspace 根目录）' },
         },
         required: ['pattern'],
       },
@@ -89,28 +169,93 @@ export const ALL_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     type: 'function',
     function: {
-      name: 'git_status',
-      description: '查看 git 状态。提交前必须先检查。',
-      parameters: { type: 'object', properties: {} },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'git_diff',
-      description: '查看代码变更',
-      parameters: { type: 'object', properties: {} },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'git_commit',
-      description: '提交代码',
+      name: 'grep_content',
+      description: '搜索文件内容（使用 grep 正则表达式）。',
       parameters: {
         type: 'object',
-        properties: { message: { type: 'string', description: '提交信息' } },
-        required: ['message'],
+        properties: {
+          pattern: { type: 'string', description: '搜索正则表达式' },
+          path: { type: 'string', description: '搜索路径（默认当前目录）', default: '.' },
+          include: { type: 'string', description: '文件类型过滤（如 *.ts）' },
+        },
+        required: ['pattern'],
+      },
+    },
+  },
+
+  // ========== 新增测试/Lint 工具 ==========
+  {
+    type: 'function',
+    function: {
+      name: 'run_tests',
+      description: '运行项目测试套件（npm test）。',
+      parameters: {
+        type: 'object',
+        properties: {
+          test_path: { type: 'string', description: '指定测试文件路径' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'run_linter',
+      description: '运行 ESLint 代码检查。',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: '检查路径（默认当前目录）', default: '.' },
+        },
+      },
+    },
+  },
+
+  // ========== 新增文档工具 ==========
+  {
+    type: 'function',
+    function: {
+      name: 'create_document',
+      description: '创建或覆盖文档文件。功能同 write_file。',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: '文件路径' },
+          content: { type: 'string', description: '文档内容' },
+        },
+        required: ['path', 'content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'edit_document',
+      description: '编辑文档的特定部分。功能同 edit_file。',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: '文件路径' },
+          old_text: { type: 'string', description: '要替换的原文' },
+          new_text: { type: 'string', description: '替换后的内容' },
+        },
+        required: ['path', 'old_text', 'new_text'],
+      },
+    },
+  },
+
+  // ========== 新增 Web 工具 ==========
+  {
+    type: 'function',
+    function: {
+      name: 'web_fetch',
+      description: '获取网页内容（返回文本）。',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: '要获取的 URL' },
+        },
+        required: ['url'],
       },
     },
   },

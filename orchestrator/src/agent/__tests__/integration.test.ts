@@ -13,8 +13,8 @@ describe('Agent Integration', () => {
     await loadSkillPacks(SKILL_PACKS_DIR);
   });
 
-  it('executor agent 的 system prompt 包含 frontend_dev 技能', () => {
-    const prompt = buildSystemPrompt('executor');
+  it('executor agent 的 system prompt 包含 frontend_dev 技能', async () => {
+    const prompt = await buildSystemPrompt('executor');
     expect(prompt).toContain('组件驱动开发');
     expect(prompt).toContain('工具指南');
   });
@@ -24,12 +24,12 @@ describe('Agent Integration', () => {
     expect(tools.every(t => t.function.name !== 'write_file')).toBe(true);
   });
 
-  it('多个 agent 实例的工具集和 system prompt 完全不同', () => {
-    const agentSpecs = ['executor', 'reviewer', 'coordinator', 'planner', 'monitor'].map(roleId => ({
+  it('多个 agent 实例的工具集和 system prompt 完全不同', async () => {
+    const agentSpecs = await Promise.all(['executor', 'reviewer', 'coordinator', 'planner', 'monitor'].map(async roleId => ({
       roleId,
-      systemPrompt: buildSystemPrompt(roleId),
+      systemPrompt: await buildSystemPrompt(roleId),
       tools: getToolsForRole(roleId).map(t => t.function.name),
-    }));
+    })));
 
     // executor 有 write_file，reviewer 没有
     expect(agentSpecs[0].tools).toContain('write_file');
@@ -56,7 +56,7 @@ describe('Agent Integration', () => {
       id: 'agent-executor',
       roleId: 'executor',
       roleName: '全栈开发',
-      systemPrompt: buildSystemPrompt('executor'),
+      systemPrompt: await buildSystemPrompt('executor'),
       tools: getToolsForRole('executor'),
       router: router as any,
       workspace: '/tmp/w',
@@ -66,7 +66,7 @@ describe('Agent Integration', () => {
       id: 'agent-reviewer',
       roleId: 'reviewer',
       roleName: 'QA工程师',
-      systemPrompt: buildSystemPrompt('reviewer'),
+      systemPrompt: await buildSystemPrompt('reviewer'),
       tools: getToolsForRole('reviewer'),
       router: router as any,
       workspace: '/tmp/w',

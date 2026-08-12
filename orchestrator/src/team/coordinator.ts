@@ -138,7 +138,7 @@ export class TeamCoordinator {
     onEvent?.({ type: 'assistant_message', agentId: 'agent-ceo', content: `团队已组建：${this.team.members.map(m => m.name).join('、')}` });
 
     // 为每个角色创建独立 RoleAgent 实例（独立上下文 + system prompt + 工具集）
-    const agents = this.createAgents(rolesToUse, workspace);
+    const agents = await this.createAgents(rolesToUse, workspace);
 
     // ====== 阶段 2: 项目经理协调讨论 ======
     if ((complexity.level !== 'simple' || forceComplex) && rolesToUse.length > 1) {
@@ -420,8 +420,8 @@ export class TeamCoordinator {
   }
 
   // ====== 为每个角色创建独立 RoleAgent 实例 ======
-  private createAgents(roleIds: string[], workspace: string): RoleAgent[] {
-    return roleIds.map(roleId => {
+  private async createAgents(roleIds: string[], workspace: string): Promise<RoleAgent[]> {
+    return Promise.all(roleIds.map(async roleId => {
       const template = getTemplate(roleId);
       // 从 team 中查找该角色的 member（含 location/runtime 信息），找不到则默认 local
       const member = this.team?.members.find(m => m.role === roleId);
@@ -440,12 +440,12 @@ export class TeamCoordinator {
         id: `agent-${roleId}`,
         roleId,
         roleName: template?.name || roleId,
-        systemPrompt: buildSystemPrompt(roleId),
+        systemPrompt: await buildSystemPrompt(roleId),
         tools: getToolsForRole(roleId),
         router,
         workspace,
         llm: this.config.llm,
       });
-    });
+    }));
   }
 }

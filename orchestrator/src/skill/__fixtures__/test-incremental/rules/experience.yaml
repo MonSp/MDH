@@ -1,0 +1,3 @@
+trigger_condition: "commit without tests"
+action: "Run test suite first"
+note: "Prevents regression bugs"
