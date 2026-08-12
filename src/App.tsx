@@ -207,6 +207,7 @@ function AppContent() {
       multimodal: localStorage.getItem(STORAGE_KEYS.MULTIMODAL) !== 'false',
       backendToken: localStorage.getItem(STORAGE_KEYS.BACKEND_TOKEN) || '',
     });
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
