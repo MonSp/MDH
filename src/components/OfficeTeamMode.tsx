@@ -52,14 +52,6 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     sendAgendaAction,
     sendToolCall,
     sendWorkspaceAction,
-    meetingPhase,
-    meetingStartTime,
-    deleteTask,
-    // Bridge
-    registerBridgeAgent,
-    sendBridgeMessage,
-    onBridgeMessage,
-    // 投票决策
     activeProposal,
     votes,
     voteResults,

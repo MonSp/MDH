@@ -19,12 +19,6 @@ export const SSO_KEYS = {
   USERNAME: 'sso_auth_username',
 } as const;
 
-export const BRIDGE = {
-  PARENT_ORIGIN: 'chrome://ai-automation-side-panel.top-chrome',
-  PROTOCOL_VERSION: '1.3',
-  MIN_SUPPORTED_VERSION: '1.1',
-} as const;
-
 export interface SettingsConfig {
   agentUrl: string;
   provider: string;

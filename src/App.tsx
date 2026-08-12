@@ -2,9 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter, HashRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Sender } from '@agentscope-ai/chat';
 import { getFriendlyName } from './modules/commands';
-import { retryWithBackoff } from './modules/retry';
 import { extractSkillParams, stepsToServerFormat, buildSkillPrompt } from './modules/skillParser';
-
 import AppHeader from './components/AppHeader';
 import ConversationStream, { type Conversation } from './components/ConversationStream';
 import SettingsPanel from './components/SettingsPanel';
@@ -17,12 +15,10 @@ import type { ToolStep } from './components/ToolTree';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useApproval } from './hooks/useApproval';
 import { useScroll } from './hooks/useScroll';
-import { formatStepResult, executeCommand } from './utils/commands';
 import {
   AGENT_URL_DEFAULT,
   STORAGE_KEYS,
   SSO_KEYS,
-  BRIDGE,
   type SettingsConfig,
   type SkillInfo,
   type EditingSkill,
@@ -45,7 +41,7 @@ function AppContent() {
   const [skillPanelOpen, setSkillPanelOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState<EditingSkill | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-  const [pageCtx, setPageCtx] = useState({ url: '', title: '' });
+  const [pageCtx] = useState({ url: '', title: '' });
   const [ssoUsername] = useState(localStorage.getItem(SSO_KEYS.USERNAME) || '');
   const appMode: AppMode = isTeamMode ? 'team' : 'single';
   const [settingsCfg, setSettingsCfg] = useState<SettingsConfig>({
@@ -59,8 +55,6 @@ function AppContent() {
   });
 
   const activeConvRef = useRef<Conversation | null>(null);
-  const handshakeSentRef = useRef(false);
-  const manifestVersionRef = useRef('');
 
   const { containerRef: streamRef, scrollToBottom, forceScrollToBottom } = useScroll();
 
@@ -102,33 +96,6 @@ function AppContent() {
         activeConvRef.current.toolSteps.push(step);
         setConversations(prev => [...prev]);
         scrollToBottom();
-
-        retryWithBackoff(
-          () => executeCommand(name, args, BRIDGE.PARENT_ORIGIN),
-          {
-            maxRetries: 3,
-            onRetry: (state) => {
-              step.status = 'retrying';
-              step.detail = `重试中 (${state.attempt}/${state.maxRetries})`;
-              setConversations(prev => [...prev]);
-              scrollToBottom();
-            },
-          },
-        ).then(result => {
-          step.status = 'done';
-          step.detail = '';
-          step.duration = ((Date.now() - stepStart) / 1000).toFixed(1) + 's';
-          step.resultText = formatStepResult(result);
-          send({ type: 'tool_result', call_id, result });
-          setConversations(prev => [...prev]);
-          scrollToBottom();
-        }).catch(err => {
-          step.status = 'error';
-          step.detail = err.message || '执行失败';
-          send({ type: 'tool_result', call_id, result: { error: err.message || '执行失败' } });
-          setConversations(prev => [...prev]);
-          scrollToBottom();
-        });
         break;
       }
       case 'confirm_request': {
@@ -240,36 +207,6 @@ function AppContent() {
       multimodal: localStorage.getItem(STORAGE_KEYS.MULTIMODAL) !== 'false',
       backendToken: localStorage.getItem(STORAGE_KEYS.BACKEND_TOKEN) || '',
     });
-
-    const handleBridgeEvent = (event: MessageEvent) => {
-      if (event.origin !== BRIDGE.PARENT_ORIGIN) return;
-      const msg = event.data;
-      if (!msg || msg.type !== 'event') return;
-
-      if (msg.command === 'host_ready' && !handshakeSentRef.current) {
-        handshakeSentRef.current = true;
-        executeCommand('handshake', {
-          protocol_version: BRIDGE.PROTOCOL_VERSION,
-          min_supported_version: BRIDGE.MIN_SUPPORTED_VERSION,
-        }, BRIDGE.PARENT_ORIGIN).catch(() => {});
-      }
-
-      if (msg.command === 'manifest_push' || msg.command === 'manifest_update') {
-        manifestVersionRef.current = msg.payload?.manifest_version || msg.manifest_version || '';
-        const meta = msg.payload?.page_metadata;
-        if (meta) {
-          setPageCtx({ url: meta.url || meta.page_url || '', title: meta.title || meta.page_title || '' });
-        }
-      }
-
-      if (msg.command === 'page_changed' && msg.payload?.new_url) {
-        setPageCtx(prev => ({ ...prev, url: msg.payload.new_url }));
-      }
-    };
-
-    window.addEventListener('message', handleBridgeEvent);
-    return () => window.removeEventListener('message', handleBridgeEvent);
-  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
