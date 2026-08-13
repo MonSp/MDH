@@ -90,7 +90,7 @@ async function main() {
     console.warn('[WARN] No API Key configured. Set DEEPSEEK_API_KEY in .env');
   }
 
-  await startServer(port, routerFactory, defaultRouter, workspace, defaultLlmConfig);
+  await startServer(port, routerFactory, defaultRouter, workspace, defaultLlmConfig, executorUrl, executorToken);
   console.log(`[OK]   http://localhost:${port}`);
   console.log('========================================');
   console.log('');

@@ -26,7 +26,7 @@ const CONTENT_TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-export async function startServer(port: number, routerFactory: RouterFactory, defaultRouter: IToolkitRouter, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>) {
+export async function startServer(port: number, routerFactory: RouterFactory, defaultRouter: IToolkitRouter, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>, executorUrl?: string, executorToken?: string) {
   const distDir = process.env.DIST_DIR || resolve(process.cwd(), '../dist');
 
   const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -92,7 +92,7 @@ export async function startServer(port: number, routerFactory: RouterFactory, de
     ws.on('message', async (data: Buffer) => {
       try {
         const msg = JSON.parse(data.toString());
-        await handleMessage(ws, session, msg, routerFactory, defaultRouter);
+        await handleMessage(ws, session, msg, routerFactory, defaultRouter, executorUrl, executorToken);
       } catch (err: any) {
         ws.send(JSON.stringify({ type: 'error', message: err.message }));
       }
@@ -116,6 +116,8 @@ async function handleMessage(
   msg: Record<string, unknown>,
   routerFactory: RouterFactory,
   defaultRouter: IToolkitRouter,
+  executorUrl?: string,
+  executorToken?: string,
 ) {
   switch (msg.type) {
     case 'config': {
@@ -150,6 +152,8 @@ async function handleMessage(
         routerFactory,
         defaultRouter,
         workspace: session.workspace,
+        executorUrl,
+        executorToken,
         onWorkspaceConfirm: (request) => {
           return new Promise((resolve) => {
             // 发送工作区确认请求给前端

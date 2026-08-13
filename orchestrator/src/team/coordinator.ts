@@ -12,6 +12,9 @@ export interface CoordinatorConfig {
   routerFactory: RouterFactory;
   defaultRouter: IToolkitRouter;  // 用于协调器级别的操作（创建工作区等）
   workspace: string;
+  /** 默认远端 executor 地址/Token（未显式传 defaultRuntime 时 remote 成员的兜底值） */
+  executorUrl?: string;
+  executorToken?: string;
   onWorkspaceConfirm?: (request: WorkspaceConfirmRequest) => Promise<WorkspaceConfirmResponse>;
 }
 
@@ -418,8 +421,8 @@ export class TeamCoordinator {
           ? {
               type: 'remote' as const,
               workspace: defaultRuntime?.workspace ?? this.config.workspace,
-              executorUrl: defaultRuntime?.executorUrl ?? '',
-              executorToken: defaultRuntime?.executorToken ?? '',
+              executorUrl: defaultRuntime?.executorUrl ?? this.config.executorUrl ?? '',
+              executorToken: defaultRuntime?.executorToken ?? this.config.executorToken ?? '',
             }
           : defaultRuntime
             ? { type: 'local' as const, workspace: defaultRuntime.workspace, executorUrl: defaultRuntime.executorUrl, executorToken: defaultRuntime.executorToken }

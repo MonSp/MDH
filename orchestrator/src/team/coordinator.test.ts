@@ -1,13 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TeamCoordinator } from './coordinator.js';
+import { RoleAgent } from '../agent/index.js';
 import type { LLMConfig } from '../llm/types.js';
 
-// 注意：本仓库环境（vitest 3.2.4 从主仓库 node_modules 加载）下，vi.mock 对
-// '../../llm/openai.js' 的拦截仅当测试文件位于 src/agent/__tests__/ 时生效，
-// 其它目录（含 src/team/）不生效。因此这里不 mock LLM 模块，而是直接
-// stub coordinator 内部触碰 LLM 的私有方法（analyzeComplexity/createAgents/
-// callLLMOnce），让 execute 全链路跑通——真正验证的是
-// roleLocations → createTeam → member.location/runtime 的接线。
+// 说明：本测试刻意不 mock LLM 模块（vi.mock('../../llm/openai.js') 在 src/team/
+// 目录下是可以生效的，见同目录 assembler.test.ts），而是直接 stub coordinator
+// 实例方法（analyzeComplexity/createAgents/callLLMOnce）或 RoleAgent 实例方法
+// （chat/chatWithTools），把隔离面控制在最小，让 roleLocations → createTeam →
+// member.location/runtime 以及真实 createAgents 中的路由选择接线跑通。
 
 function makeCoordinator(overrides: Record<string, unknown> = {}) {
   const config = {
@@ -61,6 +61,10 @@ function stubLlmPaths(coordinator: TeamCoordinator, fakeAgents: unknown[]) {
 describe('TeamCoordinator roleLocations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('applies roleLocations to member.location and remote runtime via execute', async () => {
@@ -133,5 +137,51 @@ describe('TeamCoordinator roleLocations', () => {
   it('createTeam rejects unknown role', () => {
     const coordinator = makeCoordinator();
     expect(() => (coordinator as any).createTeam(['nonexistent-role'], '任务', {})).toThrow('Unknown role');
+  });
+
+  it('routes remote member through getRouterForMember with remote location', async () => {
+    // 真实 createAgents 会实例化 RoleAgent —— 仅 stub 其 LLM 交互方法，避免真实 API 调用
+    const chatSpy = vi.spyOn(RoleAgent.prototype, 'chat')
+      .mockResolvedValue('{"approved": true, "feedback": "ok"}');
+    const chatWithToolsSpy = vi.spyOn(RoleAgent.prototype, 'chatWithTools')
+      .mockResolvedValue({
+        result: 'done',
+        summary: { filesCreated: [], filesModified: [], toolCalls: [], errors: [], finalMessage: 'done' },
+      });
+
+    const getRouterForMember = vi.fn(() => ({ execute: vi.fn() }));
+    const coordinator = makeCoordinator({
+      executorUrl: 'http://executor:8767',
+      routerFactory: {
+        getRouterForMember,
+        getWorkspaceForMember: vi.fn(() => '/tmp/ws'),
+      },
+    });
+    // 仅 stub LLM 纯文本路径，保留真实 createTeam + createAgents 走完执行链路
+    (coordinator as any).analyzeComplexity = vi.fn(async () => ({ level: 'complex', reason: 'test' }));
+    (coordinator as any).callLLMOnce = vi.fn(async () => 'summary');
+
+    await coordinator.execute(
+      '开发前端页面',
+      ['executor', 'reviewer'],
+      undefined,
+      { executor: 'remote', reviewer: 'local' },
+    );
+
+    // createAgents 对每个成员调用 getRouterForMember：
+    // executor 应为 remote 且 runtime 携带配置的 executorUrl（R1 贯通验证）
+    expect(getRouterForMember).toHaveBeenCalledWith(
+      expect.objectContaining({
+        location: 'remote',
+        runtime: expect.objectContaining({
+          type: 'remote',
+          executorUrl: 'http://executor:8767',
+        }),
+      }),
+    );
+
+    // 真实 Agent 实例的 LLM 交互确实被调用过（说明 createAgents 未被 stub 掉）
+    expect(chatSpy).toHaveBeenCalled();
+    expect(chatWithToolsSpy).toHaveBeenCalled();
   });
 });
