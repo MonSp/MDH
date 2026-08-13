@@ -116,6 +116,8 @@ class MeetingCoordinator:
             self._workspace = None
         self._agent_pool = agent_pool
         self._models: Dict[str, Agent] = {}
+        # role.value -> AgentPool 实例 id（用于模型失败时标记不健康，触发 failover 重取）
+        self._model_pool_ids: Dict[str, str] = {}
         self._tasks: List[Dict[str, Any]] = []
         self._on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
         self._current_on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
@@ -329,6 +331,9 @@ class MeetingCoordinator:
             loop_result = await self._run_agent_execution_loop(model, prompt, agent_toolset)
         except Exception as e:
             self.logger.warning("工作流节点执行失败: %s", e)
+            # 单点治理：模型调用异常视为坏模型，驱逐缓存 + 标记 pool 实例不健康，
+            # 下次 _get_model 重新获取健康实例（failover）
+            self._mark_model_failed(role)
             loop_result = {
                 "result": LLM_FALLBACK_TEMPLATE.format(role=node.dept_id, content_type="执行结果"),
                 "files_written": [],
@@ -415,9 +420,18 @@ class MeetingCoordinator:
                 instance = self._agent_pool.get_agent_by_role(key)
                 if instance:
                     self._models[key] = instance.agent
+                    self._model_pool_ids[key] = instance.id
                     return instance.agent
             self._models[key] = self._create_model(role)
         return self._models[key]
+
+    def _mark_model_failed(self, role: AgentRole) -> None:
+        """模型调用失败：驱逐缓存 + 标记 pool 实例不健康（下次 _get_model 重新获取健康实例）"""
+        key = role.value
+        self._models.pop(key, None)
+        pool_id = self._model_pool_ids.pop(key, None)
+        if pool_id and self._agent_pool:
+            self._agent_pool.mark_unhealthy(pool_id)
 
     async def decompose_task(self, task_description: str) -> List[Dict[str, Any]]:
         planner = self._get_model(AgentRole.PLANNER)

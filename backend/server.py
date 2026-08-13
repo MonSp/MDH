@@ -1269,6 +1269,12 @@ async def ws_handler(ws: WebSocket):
                 if not session._approval_manager:
                     session._approval_manager = ApprovalManager()
 
+                # 单点治理：会议开始前健康探测，剔除不健康 agent（探测失败不阻塞会议创建）
+                try:
+                    await agent_pool.health_check(timeout=3.0)
+                except Exception:
+                    logger.warning("会议开始前 agent_pool 健康探测失败，继续创建会议")
+
                 coordinator = MeetingCoordinator(
                     meeting_session=meeting,
                     provider=session.provider,

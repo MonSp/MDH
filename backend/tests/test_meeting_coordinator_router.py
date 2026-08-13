@@ -794,5 +794,41 @@ def test_build_execution_artifact_text_empty():
     assert MeetingCoordinator._build_execution_artifact_text([]) == ""
 
 
+# ---------------------------------------------------------------------------
+# 模型 failover：_mark_model_failed 驱逐缓存 + 标记 pool 实例不健康
+# ---------------------------------------------------------------------------
+
+
+async def test_mark_model_failed_evicts_cache_and_marks_unhealthy(coordinator):
+    """_mark_model_failed 驱逐缓存 + 标记 pool 实例不健康"""
+    coordinator._agent_pool = MagicMock()
+    pool_instance = MagicMock()
+    pool_instance.id = "pool-1"
+    coordinator._agent_pool.get_agent_by_role.return_value = pool_instance
+
+    model = coordinator._get_model(AgentRole.EXECUTOR)
+    assert coordinator._models.get(AgentRole.EXECUTOR.value) is model
+    assert coordinator._model_pool_ids.get(AgentRole.EXECUTOR.value) == "pool-1"
+
+    coordinator._mark_model_failed(AgentRole.EXECUTOR)
+    assert AgentRole.EXECUTOR.value not in coordinator._models
+    assert AgentRole.EXECUTOR.value not in coordinator._model_pool_ids
+    coordinator._agent_pool.mark_unhealthy.assert_called_once_with("pool-1")
+
+
+async def test_get_model_refetches_after_failure(coordinator):
+    """模型失败后 _get_model 重新获取（不再返回坏模型缓存）"""
+    coordinator._agent_pool = MagicMock()
+    pool_instance = MagicMock()
+    pool_instance.id = "pool-1"
+    coordinator._agent_pool.get_agent_by_role.side_effect = [pool_instance, MagicMock(id="pool-2")]
+
+    model1 = coordinator._get_model(AgentRole.EXECUTOR)
+    coordinator._mark_model_failed(AgentRole.EXECUTOR)
+    model2 = coordinator._get_model(AgentRole.EXECUTOR)
+    assert model1 is not model2
+    assert coordinator._agent_pool.get_agent_by_role.call_count == 2
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
