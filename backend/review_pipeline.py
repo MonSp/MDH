@@ -57,7 +57,8 @@ class ReviewPipeline:
             on_message: 消息回调
             repo_context: 仓库上下文
             discussion_context: 团队讨论决策摘要
-            gate_result: 确定性门禁结果（测试/lint），失败时强制 revision_required
+            gate_result: 确定性门禁结果（测试/lint）。failures 非空时强制 revision_required；
+                工具缺失（基础设施不可用）由门禁记为 skipped，不触发 revision_required
             
         Returns:
             审查结果
@@ -284,7 +285,8 @@ class ReviewPipeline:
         else:
             result = {"status": "approved", "issues": [], "max_iterations": 3}
 
-        # 确定性门禁合并：测试/lint 失败强制 revision_required（仅降级，不覆盖 LLM 通过结论）
+        # 确定性门禁合并：真实测试/lint 失败强制 revision_required（仅降级，不覆盖 LLM 通过结论）。
+        # 工具缺失被门禁标记为 skipped（fail-open），不会进入 failures，因此不强制 revision。
         if gate_result and not gate_result.get("passed", True):
             result["status"] = "revision_required"
             for failure in gate_result.get("failures", []):

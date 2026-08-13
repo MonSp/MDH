@@ -284,4 +284,5 @@ async def test_gate_pass_keeps_status(pipeline):
         lambda *a, **k: None,
         gate_result={"passed": True, "failures": []},
     )
-    assert result["structured_feedback"]["status"] in ("approved", "revision_required")
+    # fixture 下审查无严重关键词，确定性 approved
+    assert result["structured_feedback"]["status"] == "approved"

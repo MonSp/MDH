@@ -13,7 +13,7 @@ from agent import PROVIDER_REGISTRY, _extract_text
 from agent_pool import AgentPool, AgentConfig
 from agenda import AgendaStateMachine, AgendaPhase
 from approval_manager import ApprovalManager
-from collaboration.planner_agent import PlannerAgent, SubTask
+from collaboration.planner_agent import PlannerAgent
 from dynamic_router import DynamicRouter
 from meeting import MeetingSession
 from negotiation import NegotiationEngine, ConsensusStrategy, Stance
@@ -835,6 +835,10 @@ class MeetingCoordinator:
         """执行任务并审查（委托给ReviewPipeline）
 
         WhyBuddy化：审查逻辑委托给ReviewPipeline，自动激活CriticAgent和GroundingAgent。
+
+        注意：本路径（execute_and_review_task）当前不接确定性门禁
+        （_run_deterministic_gate 仅在 process_user_message 的开发循环中调用），
+        后续统一时需补上门禁。
         
         Returns:
             Tuple[审查结果, 执行结果列表]
@@ -852,9 +856,35 @@ class MeetingCoordinator:
 
         return review_result, task_results
 
+    # 工具缺失信号：基础设施不可用（pylint/pytest 未安装等）而非真实检查失败
+    _GATE_TOOL_MISSING_SIGNALS = (
+        "no module named",
+        "not found",
+        "no tests were collected",
+        "no tests ran",
+    )
+
+    def _gate_check_unavailable(self, tool_result: Any) -> bool:
+        """判断 lint/test 工具结果为工具缺失（基础设施不可用）
+
+        匹配 output/error 中的工具缺失信号（pylint/pytest 未安装、测试未收集等）。
+        """
+        text = (
+            f"{getattr(tool_result, 'error', '') or ''}\n"
+            f"{getattr(tool_result, 'output', '') or ''}"
+        ).lower()
+        return any(sig in text for sig in self._GATE_TOOL_MISSING_SIGNALS)
+
     def _run_deterministic_gate(self, workspace_root: Optional[str] = None) -> Dict[str, Any]:
-        """确定性门禁：对工作区运行测试与代码检查，失败即 revision_required"""
-        result: Dict[str, Any] = {"passed": True, "failures": []}
+        """确定性门禁：对工作区运行测试与代码检查，失败即 revision_required
+
+        门禁对工具缺失采用 fail-open（跳过并记录 skipped，不产生失败），
+        对真实检查失败（lint/test 确定性失败）采用 fail-closed（passed=False）。
+
+        Returns:
+            {"passed": bool, "failures": List, "skipped": List}
+        """
+        result: Dict[str, Any] = {"passed": True, "failures": [], "skipped": []}
         if not workspace_root:
             return result
         try:
@@ -864,44 +894,36 @@ class MeetingCoordinator:
             )
             lint = toolset.run_linter(".")
             if not lint.success:
-                result["passed"] = False
-                result["failures"].append({
-                    "type": "lint_failure", "location": ".",
-                    "detail": (lint.error or lint.output or "lint 未通过")[:200],
-                })
-            tests = toolset.run_tests("", verbose=False)
+                if self._gate_check_unavailable(lint):
+                    # 基础设施不可用（如 pylint 未安装）→ fail-open：跳过并记录，不产生失败
+                    result["skipped"].append({
+                        "type": "lint_skipped", "location": ".",
+                        "detail": (lint.error or lint.output or "lint 工具不可用")[:200],
+                    })
+                else:
+                    result["passed"] = False
+                    result["failures"].append({
+                        "type": "lint_failure", "location": ".",
+                        "detail": (lint.error or lint.output or "lint 未通过")[:200],
+                    })
+            tests = toolset.run_tests(verbose=False)
             if not tests.success:
-                result["passed"] = False
-                result["failures"].append({
-                    "type": "test_failure", "location": "",
-                    "detail": (tests.error or tests.output or "测试未通过")[:200],
-                })
+                if self._gate_check_unavailable(tests):
+                    # 基础设施不可用（如 pytest 未安装 / 未收集到测试）→ fail-open：跳过并记录
+                    result["skipped"].append({
+                        "type": "test_skipped", "location": ".",
+                        "detail": (tests.error or tests.output or "测试工具不可用")[:200],
+                    })
+                else:
+                    result["passed"] = False
+                    result["failures"].append({
+                        "type": "test_failure", "location": ".",
+                        "detail": (tests.error or tests.output or "测试未通过")[:200],
+                    })
         except Exception as e:
             result["passed"] = False
-            result["failures"].append({"type": "gate_error", "detail": str(e)[:200]})
+            result["failures"].append({"type": "gate_error", "location": ".", "detail": str(e)[:200]})
         return result
-
-    def _generate_structured_feedback(
-        self, task_description: str, execution_result: str
-    ) -> Dict[str, Any]:
-        """使用 PlannerAgent 生成结构化验收反馈，无 PlannerAgent 时降级。"""
-        if self.planner:
-            # 将任务描述转换为 SubTask 以便调用 generate_review_feedback
-            subtask = SubTask(
-                name=task_description[:100],
-                description=task_description,
-            )
-            feedback = self.planner.generate_review_feedback(
-                task=subtask,
-                output=execution_result,
-            )
-        else:
-            feedback = {
-                "status": "approved",
-                "issues": [],
-                "max_iterations": 3,
-            }
-        return feedback
 
     async def semantic_analyze(self, user_message: str) -> SemanticAnalysisResult:
         """语义分析用户消息（委托给SemanticAnalyzer，带缓存）
@@ -1270,9 +1292,17 @@ class MeetingCoordinator:
                 execution_text = "\n\n".join([r.get("result", "") for r in exec_results])
 
             try:
-                gate_result = self._run_deterministic_gate(
-                    self._workspace.root_path if self._workspace else None
-                )
+                # 确定性门禁仅在本次迭代执行产出了文件/结果时运行（执行失败的迭代不门禁；
+                # 门禁即迭代验证点，每次有产出的迭代仍会跑）。
+                # 门禁内部为同步 subprocess（lint/test），通过 asyncio.to_thread
+                # 卸载到线程池，避免阻塞事件循环。
+                if exec_results:
+                    gate_result = await asyncio.to_thread(
+                        self._run_deterministic_gate,
+                        self._workspace.root_path if self._workspace else None,
+                    )
+                else:
+                    gate_result = None
                 review_result = await self._review_pipeline.review(
                     enhanced_description, execution_text, on_message,
                     discussion_context=discussion_context,

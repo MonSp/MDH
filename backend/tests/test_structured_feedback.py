@@ -195,25 +195,25 @@ class TestStructuredFeedbackOutput:
 # ---------------------------------------------------------------------------
 
 class TestStructuredFeedbackFields:
-    """验证结构化反馈的具体字段值。"""
+    """验证结构化反馈的具体字段值（走 review_pipeline 版本）。"""
 
     def test_status_is_string(self, coordinator):
-        feedback = coordinator._generate_structured_feedback("任务描述", "任务产出")
+        feedback = coordinator._review_pipeline._generate_structured_feedback("任务描述", "任务产出")
         assert isinstance(feedback["status"], str)
         assert feedback["status"] in ("approved", "revision_required")
 
     def test_max_iterations_default(self, coordinator):
-        feedback = coordinator._generate_structured_feedback("任务描述", "任务产出")
+        feedback = coordinator._review_pipeline._generate_structured_feedback("任务描述", "任务产出")
         assert feedback["max_iterations"] == 3
 
     def test_empty_output_produces_issues(self, coordinator):
         """空产出应产生问题列表。"""
-        feedback = coordinator._generate_structured_feedback("测试任务", "")
+        feedback = coordinator._review_pipeline._generate_structured_feedback("测试任务", "")
         assert len(feedback["issues"]) > 0
 
     def test_valid_output_produces_approved(self, coordinator):
         """有效的、非空的产出应被批准（无验收标准时）。"""
-        feedback = coordinator._generate_structured_feedback(
+        feedback = coordinator._review_pipeline._generate_structured_feedback(
             "普通任务", "这是一段足够长的执行结果内容，用于通过验证检查"
         )
         assert feedback["status"] == "approved"
@@ -229,7 +229,8 @@ class TestFallbackWithoutPlanner:
     def test_fallback_when_planner_is_none(self, coordinator):
         """将 planner 设为 None 后应返回降级反馈。"""
         coordinator.planner = None
-        feedback = coordinator._generate_structured_feedback("任务", "产出")
+        coordinator._review_pipeline._planner = None
+        feedback = coordinator._review_pipeline._generate_structured_feedback("任务", "产出")
         assert feedback == {
             "status": "approved",
             "issues": [],

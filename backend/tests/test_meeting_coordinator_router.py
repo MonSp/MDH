@@ -647,5 +647,98 @@ class TestUpdateRoutingStats:
         assert coordinator._task_routing == {}
 
 
+# ---------------------------------------------------------------------------
+# 5. 确定性门禁 _run_deterministic_gate（fail-open on 工具缺失 / fail-closed on 真实失败）
+# ---------------------------------------------------------------------------
+# 说明：_run_deterministic_gate 内部使用函数级 `from agent_toolset import
+# create_agent_toolset` 导入，因此 patch 目标是 agent_toolset.create_agent_toolset
+# （而非 meeting_coordinator 模块属性，后者不存在）。
+
+
+class TestDeterministicGate:
+    def _toolset(self, lint=None, tests=None):
+        ts = MagicMock()
+        ts.run_linter.return_value = lint or types.SimpleNamespace(success=True, output="ok", error="")
+        ts.run_tests.return_value = tests or types.SimpleNamespace(success=True, output="passed", error="")
+        return ts
+
+    def test_gate_no_workspace_passes_without_tools(self, coordinator):
+        """无 workspace → passed=True 且不调用工具"""
+        with patch("agent_toolset.create_agent_toolset") as mock_factory:
+            result = coordinator._run_deterministic_gate(None)
+        assert result["passed"] is True
+        assert result["failures"] == []
+        mock_factory.assert_not_called()
+
+    def test_gate_lint_failure_fails_closed(self, coordinator):
+        """真实 lint 失败 → passed=False + lint_failure"""
+        mock_toolset = self._toolset(
+            lint=types.SimpleNamespace(success=False, output="E0001 syntax error", error=""),
+        )
+        with patch("agent_toolset.create_agent_toolset", return_value=mock_toolset) as mock_factory:
+            result = coordinator._run_deterministic_gate("/tmp/ws")
+        assert result["passed"] is False
+        assert "lint_failure" in [f["type"] for f in result["failures"]]
+        assert result["skipped"] == []
+        mock_factory.assert_called_once_with(
+            agent_id="gate", agent_role="reviewer", workspace_root="/tmp/ws"
+        )
+
+    def test_gate_test_failure_fails_closed(self, coordinator):
+        """真实测试失败 → passed=False + test_failure（location 与 lint 统一为 .）"""
+        mock_toolset = self._toolset(
+            tests=types.SimpleNamespace(success=False, output="assertion failed: x != 1", error=""),
+        )
+        with patch("agent_toolset.create_agent_toolset", return_value=mock_toolset):
+            result = coordinator._run_deterministic_gate("/tmp/ws")
+        assert result["passed"] is False
+        failure = [f for f in result["failures"] if f["type"] == "test_failure"][0]
+        assert failure["location"] == "."
+
+    def test_gate_tool_missing_fails_open(self, coordinator):
+        """工具缺失（output/error 含 'No module named'）→ 不置失败，记录 skipped"""
+        mock_toolset = self._toolset(
+            lint=types.SimpleNamespace(success=False, output="", error="No module named pylint"),
+            tests=types.SimpleNamespace(success=False, output="", error="No module named pytest"),
+        )
+        with patch("agent_toolset.create_agent_toolset", return_value=mock_toolset):
+            result = coordinator._run_deterministic_gate("/tmp/ws")
+        assert result["passed"] is True
+        assert result["failures"] == []
+        skipped_types = [s["type"] for s in result["skipped"]]
+        assert "lint_skipped" in skipped_types
+        assert "test_skipped" in skipped_types
+
+    def test_gate_no_tests_collected_fails_open(self, coordinator):
+        """未收集到测试（'No tests were collected'）→ 视为工具缺失，不置失败"""
+        mock_toolset = self._toolset(
+            tests=types.SimpleNamespace(success=False, output="no tests ran", error=""),
+        )
+        with patch("agent_toolset.create_agent_toolset", return_value=mock_toolset):
+            result = coordinator._run_deterministic_gate("/tmp/ws")
+        assert result["passed"] is True
+        assert result["failures"] == []
+        assert "test_skipped" in [s["type"] for s in result["skipped"]]
+
+    def test_gate_lint_missing_test_real_failure_mixed(self, coordinator):
+        """混合：lint 工具缺失（跳过）+ 测试真实失败（fail-closed）"""
+        mock_toolset = self._toolset(
+            lint=types.SimpleNamespace(success=False, output="", error="pylint: command not found"),
+            tests=types.SimpleNamespace(success=False, output="FAILED test_foo.py::test_bar", error=""),
+        )
+        with patch("agent_toolset.create_agent_toolset", return_value=mock_toolset):
+            result = coordinator._run_deterministic_gate("/tmp/ws")
+        assert result["passed"] is False
+        assert "test_failure" in [f["type"] for f in result["failures"]]
+        assert "lint_skipped" in [s["type"] for s in result["skipped"]]
+
+    def test_gate_tool_exception_records_gate_error(self, coordinator):
+        """工具调用抛异常 → gate_error 兜底（passed=False）"""
+        with patch("agent_toolset.create_agent_toolset", side_effect=RuntimeError("boom")):
+            result = coordinator._run_deterministic_gate("/tmp/ws")
+        assert result["passed"] is False
+        assert "gate_error" in [f["type"] for f in result["failures"]]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
