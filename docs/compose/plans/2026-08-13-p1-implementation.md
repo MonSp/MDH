@@ -32,7 +32,7 @@
 - Consumes: `self._task_routing: Dict[str, str]`（meeting_coordinator.py:130，auto_assign_task :869-872 写入 `routing.selected_dept`）、`self.meeting.tasks`（`MeetingTaskInfo`，含 `.id`/`.status`，值 `"completed"`/`"failed"` 等）、`self.router.update_stats(dept_id, success) -> bool`（dynamic_router.py:444）
 - Produces: `_update_routing_stats() -> None`——在 `process_user_message` 开发循环退出后（meeting_coordinator.py:1239 附近、项目总结前）调用
 
-- [ ] **Step 1: 写失败测试**（追加到 `backend/tests/test_meeting_coordinator_router.py` 末尾；复用其 `meeting_coordinator` fixture）
+- [x] **Step 1: 写失败测试**（追加到 `backend/tests/test_meeting_coordinator_router.py` 末尾；复用其 `meeting_coordinator` fixture）
 
 ```python
 async def test_update_routing_stats_consumes_task_routing(meeting_coordinator):
@@ -64,12 +64,12 @@ async def test_update_routing_stats_failed_task_reports_failure(meeting_coordina
 
 > 若 fixture `meeting_coordinator` 的 meeting 无 tasks（`meeting.tasks` 为空），先读 fixture 定义，改用 `coordinator.meeting.add_task(...)`（MeetingSession 的既有方法，参考 test_meeting.py）构造一个任务再断言。`mock` 已在文件头部 import（该文件既有 mock 用法）。
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_meeting_coordinator_router.py -k "update_routing_stats" -v`
 Expected: FAIL — `AttributeError: 'MeetingCoordinator' object has no attribute '_update_routing_stats'`
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 3a. `backend/meeting_coordinator.py` 新增方法（放在 `execute_assigned_tasks` 附近）：
 
@@ -92,12 +92,12 @@ Expected: FAIL — `AttributeError: 'MeetingCoordinator' object has no attribute
 
 > 先读开发循环尾部实际代码确认插入点（紧邻技能提取块之前即可）。
 
-- [ ] **Step 4: 运行确认通过**
+- [x] **Step 4: 运行确认通过**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_meeting_coordinator_router.py -q`
 Expected: PASS（新增用例 + 既有用例；若既有 `test_no_stats_update_when_no_routing_dept` 仍通过——其断言"无路由记录时无更新"，与新增行为不冲突）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add backend/meeting_coordinator.py backend/tests/test_meeting_coordinator_router.py
@@ -119,7 +119,7 @@ git commit -m "feat(router): close adaptive routing learning loop via unified st
 - Consumes: `ExperienceExtractor`（`get_pending_rules()`、`approve_rule(rule_id)`、`_load_rule(rule_id)`、`write_to_incremental_area(rule)`、`_incremental_dir` 属性）、`SkillPackager(output_dir)`（`full_package(base_skill_path, incremental_path, project_id, skill_name) -> PackageResult`）
 - Produces: `_finalize_skill_evolution(extractor, packager, project_id) -> Dict[str, Any]`（`{"approved", "written", "packaged": [skill_name, ...]}`）；在技能提取块（meeting_coordinator.py:1271 之后）调用并发送结果消息
 
-- [ ] **Step 1: 写失败测试**（新建 `backend/tests/test_skill_evolution_autoclose.py`）
+- [x] **Step 1: 写失败测试**（新建 `backend/tests/test_skill_evolution_autoclose.py`）
 
 ```python
 """技能闭环自动触发：pending 规则自动审核→写增量区→打包"""
@@ -181,12 +181,12 @@ def test_finalize_skill_evolution_approves_writes_and_packages(tmp_path):
 
 > 注：`_finalize_skill_evolution` 设计为实例方法（内部只用参数与常量），测试用 `object.__new__` 绕过构造；若实现改为模块级函数则测试相应简化。`ExperienceRule`/`PackageResult` 字段以 `backend/experience_extractor.py`、`backend/skill_packager.py` 实际定义为准（read 确认后调整）。keywords 需命中真实 `skill_packs/backend_dev/` 目录（仓库根 `skill_packs/backend_dev/system_prompt.md` 存在，main 工作树有未跟踪技能文件）。
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_skill_evolution_autoclose.py -v`
 Expected: FAIL — `AttributeError: type object 'MeetingCoordinator' has no attribute '_finalize_skill_evolution'`
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 3a. `backend/meeting_coordinator.py` 新增方法：
 
@@ -247,12 +247,12 @@ Expected: FAIL — `AttributeError: type object 'MeetingCoordinator' has no attr
 
 > 先读技能提取块实际代码（变量 `data_dir`/`coordinator_id`/`evolution_rules` 是否在作用域内），按其结构接入。
 
-- [ ] **Step 4: 运行确认通过**
+- [x] **Step 4: 运行确认通过**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_skill_evolution_autoclose.py tests/test_experience_extractor.py tests/test_skill_packager.py -q`
 Expected: PASS（新增用例 + 既有用例）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add backend/meeting_coordinator.py backend/tests/test_skill_evolution_autoclose.py
@@ -274,7 +274,7 @@ git commit -m "feat(skill): auto-close skill evolution loop with review, increme
 - Consumes: `WorkflowNode/WorkflowEdge/WorkflowDefinition`（backend/protocol.py:13-60）、`RoutingDecision`（含 `selected_dept`/`candidate_depts`）
 - Produces: `_generate_workflow_definition(user_message, routing_decision) -> WorkflowDefinition`——节点集保留关键词检测+路由兜底；**边由依赖推断生成**（实现类部门互不依赖=并行；qa 依赖所有实现节点；devops 依赖 qa 与实现节点）；`execution_strategy` 按根节点数推导（根>1 → parallel，否则 sequential）
 
-- [ ] **Step 1: 写失败测试**（追加到 `backend/tests/test_workflow_integration.py` 末尾；`MockRoutingDecision` 为该文件既有 mock）
+- [x] **Step 1: 写失败测试**（追加到 `backend/tests/test_workflow_integration.py` 末尾；`MockRoutingDecision` 为该文件既有 mock）
 
 ```python
 def test_generate_workflow_definition_parallel_batch():
@@ -315,12 +315,12 @@ def test_generate_workflow_definition_single_node_sequential():
 
 > `MockRoutingDecision` 若构造签名不同（如无参），以文件内既有用法为准调整。`SemanticAnalyzer.__init__` 签名以 backend/semantic_analyzer.py 实际为准（可能含更多参数，用既有 fixture 或传 None）。
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_workflow_integration.py -k "generate_workflow_definition" -v`
 Expected: FAIL——既有 `test_generate_workflow_definition` 断言 `execution_strategy == "mixed"` 在新策略推导下不成立，且新断言（无实现类互连边）对当前线性链失败
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 重写 `backend/semantic_analyzer.py` `_generate_workflow_definition` 中"节点构建之后"的部分（保留关键词节点检测与路由/兜底节点；替换 `dept_order` 排序、线性连边与固定 `mixed`）：
 
@@ -361,12 +361,12 @@ Expected: FAIL——既有 `test_generate_workflow_definition` 断言 `execution
 
 > 同步更新既有 `test_generate_workflow_definition`（test_workflow_integration.py:74-93）：`execution_strategy == "mixed"` 改为对"前端和后端一起开发"断言 `"parallel"`；`len(nodes) >= 2` 保留。
 
-- [ ] **Step 4: 运行确认通过**
+- [x] **Step 4: 运行确认通过**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_workflow_integration.py -q`
 Expected: PASS（新增 3 用例 + 既有用例，含更新后的 `test_generate_workflow_definition`）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add backend/semantic_analyzer.py backend/tests/test_workflow_integration.py
@@ -389,7 +389,7 @@ git commit -m "feat(workflow): derive DAG edges from dependencies instead of har
 - Consumes: `TeamMember`（types.ts:19-27，含 `location: 'local'|'remote'` 与 `runtime: TeamMemberRuntime`）、`getTemplate(roleId)`、`this.config.routerFactory.getRouterForMember(member)`（router.ts:31-47）、`defaultRuntime?: { workspace; executorUrl?; executorToken? }`
 - Produces: `execute(userMessage, selectedRoles, onEvent?, roleLocations?: Record<string, 'local'|'remote'>)`；`createTeam(roleIds, task, roleLocations = {}, defaultRuntime?)`——member.location = `roleLocations[roleId] || 'local'`；remote 成员 runtime = `{type:'remote', workspace, executorUrl, executorToken}`
 
-- [ ] **Step 1: 写失败测试**（新建 `orchestrator/src/team/coordinator.test.ts`；先读 `coordinator.ts` 构造器与 `config` 形状、`assembler.test.ts` 的 mock 风格）
+- [x] **Step 1: 写失败测试**（新建 `orchestrator/src/team/coordinator.test.ts`；先读 `coordinator.ts` 构造器与 `config` 形状、`assembler.test.ts` 的 mock 风格）
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
@@ -439,12 +439,12 @@ describe('TeamCoordinator roleLocations', () => {
 
 > 先读 `coordinator.ts`：构造器参数名、`execute` 返回类型、`this.team` 字段、`createAgents` 是否需要真实 LLM 调用（测试需 mock LLM 或短路）。若 `execute` 内部会真实调用 LLM（`createAgents`/`runAgentTask`），测试改为直接断言 `createTeam` 产物：构造 coordinator 后调用私有 `createTeam`（`(coordinator as any).createTeam(...)`）断言 members，避免真实 LLM。以实际代码为准调整，验收标准不变：roleLocations → member.location/runtime 正确映射。
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd orchestrator && npm test -- src/team/coordinator.test.ts`
 Expected: FAIL——`execute` 现签名无第 4 参或 `createTeam` 无 roleLocations 支持
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 3a. `orchestrator/src/team/coordinator.ts` `execute` 签名加参数并透传：
 
@@ -503,12 +503,12 @@ Expected: FAIL——`execute` 现签名无第 4 参或 `createTeam` 无 roleLoca
 
 （先读 server.ts 的 execute 调用点，把 `msg.role_locations` 作为第 4 参传入。）
 
-- [ ] **Step 4: 运行确认通过**
+- [x] **Step 4: 运行确认通过**
 
 Run: `cd orchestrator && npm test`
 Expected: PASS（新增用例 + 既有 vitest 用例）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add orchestrator/src/team/coordinator.ts orchestrator/src/server.ts orchestrator/src/team/coordinator.test.ts
@@ -531,12 +531,12 @@ git commit -m "feat(orchestrator): wire roleLocations through team creation for 
 - Consumes: `WorkflowEngine`（backend/workflow_engine.py）、`MeetingCoordinator(..., workflow_engine=..., approval_manager=...)`
 - Produces: 两 CLI 脚本的 coordinator 注入 `workflow_engine=WorkflowEngine()`（脚本内共享；approval_manager 保持 None——CLI 无人工 UI，自动通过为诚实默认）
 
-- [ ] **Step 1: 写失败测试（编译验证）**
+- [x] **Step 1: 写失败测试（编译验证）**
 
 Run: `cd backend && /usr/bin/python3 -m py_compile run_project.py demo_full_cycle.py`
 Expected: PASS（改动前基线）
 
-- [ ] **Step 2: 实现**
+- [x] **Step 2: 实现**
 
 2a. `backend/run_project.py:335-342` 构造点加 `workflow_engine=WorkflowEngine()`（文件头部补 `from workflow_engine import WorkflowEngine`）。
 
@@ -546,12 +546,12 @@ Expected: PASS（改动前基线）
 
 2d. `git rm --cached backend/companion_log.json`（保留磁盘文件，仅移出跟踪）。
 
-- [ ] **Step 3: 验证**
+- [x] **Step 3: 验证**
 
 Run: `cd backend && /usr/bin/python3 -m py_compile run_project.py demo_full_cycle.py && /usr/bin/python3 -m pytest tests/ -q`
 Expected: py_compile PASS；全量回归 852 passed / 1 环境失败 / 1 skipped；`git status` 不再显示 companion_log.json 的 M 状态
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add backend/run_project.py backend/demo_full_cycle.py .gitignore
@@ -572,22 +572,22 @@ git commit -m "chore(cli): inject shared workflow engine in CLI scripts, untrack
 **Interfaces:**
 - Consumes: `useMeetingSocket` 的 `human_approval_request` 分支（:691-716）与 `sendApprovalResponse`（:1009-1016）、`pendingApprovals` state
 
-- [ ] **Step 1: 摸底**
+- [x] **Step 1: 摸底**
 
 Run: `ls src/hooks/__tests__ 2>/dev/null; grep -rn "pendingApprovals\|human_approval_request" src/hooks src/modules --include="*.test.ts*" | head`
 Expected: 确认既有测试文件与覆盖现状（前端测试命令以根 package.json 为准，如 `npm test`）
 
-- [ ] **Step 2: 补测试或验证**
+- [x] **Step 2: 补测试或验证**
 
 若可低成本构造 `useMeetingSocket` 测试（参考既有 hooks 测试的 renderHook/mock 风格），新增：模拟 WS 消息 `{ type: 'human_approval_request', request: { id, requesterId, operation, description, riskLevel, confidence, createdAt } }`，断言 `pendingApprovals.get(id)` 字段完整。
 
 若 hooks 测试基建不存在或成本过高，退化为验证性结论：代码级确认 `:691-716` 处理结构化请求 + `sendApprovalResponse` 发送 `human_approval_response`（P0 推送契约已通），在任务报告中记录验证结果并说明未补测试的原因。
 
-- [ ] **Step 3: 验证**
+- [x] **Step 3: 验证**
 
 Run:（前端测试命令，以根 package.json 为准）预期通过；若无测试补入，报告代码级验证结论即可。
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add <测试文件或 (none)>
