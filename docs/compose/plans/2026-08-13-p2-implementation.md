@@ -33,7 +33,7 @@
 - Consumes: `workflow_execution_to_dict`（protocol.py:591）、`WorkflowExecution`（protocol.py:63-72）、`WorkflowNodeStatus.COMPLETED`、`CheckpointManager`（compensation.py:164）
 - Produces: `WorkflowEngine.__init__(..., persistence_dir: Optional[str] = None)`；`persist_execution(execution_id)`、`load_execution(execution_id) -> Optional[WorkflowExecution]`、`load_all_executions()`；`CheckpointManager.__init__(..., persistence_dir: Optional[str] = None)` + `_persist/_load`；恢复执行时已完成节点跳过（不重复执行）
 
-- [ ] **Step 1: 写失败测试**（新建 `backend/tests/test_durable_execution.py`）
+- [x] **Step 1: 写失败测试**（新建 `backend/tests/test_durable_execution.py`）
 
 ```python
 """durable execution：工作流执行持久化 + 断点恢复跳过已完成节点 + 防重复执行"""
@@ -129,12 +129,12 @@ async def test_checkpoint_manager_persists_to_disk(tmp_path):
 
 > 若 `execute_workflow` 对已完成节点已有跳过逻辑（`_check_dependencies` 按 COMPLETED 判定），Step 2 中测试 2 可能直接通过——此时在 Step 3 仍需确保恢复路径真实存在（load 后执行），测试 2 保持为回归守卫。若 `execute_workflow` 会重跑所有节点，需在 `_execute_sequential`/`_execute_parallel` 节点循环加 `if node_states.get(node_id) == COMPLETED: continue`。
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_durable_execution.py -v`
 Expected: FAIL——`TypeError: __init__() got an unexpected keyword argument 'persistence_dir'`（或 `AttributeError: 'WorkflowEngine' object has no attribute 'persist_execution'`）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 3a. `backend/workflow_engine.py` `__init__` 加参数：
 
@@ -204,12 +204,12 @@ Expected: FAIL——`TypeError: __init__() got an unexpected keyword argument 'p
 
 3e. `backend/compensation.py` `CheckpointManager.__init__` 加 `persistence_dir: Optional[str] = None` 参数；`save_checkpoint`/`delete_checkpoint`/`delete_checkpoints_for_task`/`clear` 时若配置了目录则把 `self._checkpoints` 全量 JSON 落盘（`checkpoints.json`），`__init__` 时若文件存在则加载。
 
-- [ ] **Step 4: 运行确认通过**
+- [x] **Step 4: 运行确认通过**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_durable_execution.py tests/test_workflow_engine.py -q`
 Expected: PASS（新增 3 用例 + 既有 22 用例）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add backend/workflow_engine.py backend/compensation.py backend/tests/test_durable_execution.py
@@ -232,7 +232,7 @@ git commit -m "feat(workflow): durable execution with disk persistence and resum
 - Consumes: `AgentToolset.run_tests(test_path, verbose)` / `run_linter(path)`（agent_toolset.py:363-372，同步返回 ToolResult）、`ToolResult.success/output`
 - Produces: `review(task_description, execution_result, on_message, repo_context=None, discussion_context="", gate_result: Optional[Dict[str, Any]] = None)`；门禁结果并入 `structured_feedback`（status=revision_required + issues）；`meeting_coordinator._run_deterministic_gate(workspace_root) -> Dict`（运行 run_tests/run_linter，返回 `{"passed": bool, "failures": [{type, detail}]}`）
 
-- [ ] **Step 1: 写失败测试**（追加到 `backend/tests/test_review_pipeline.py` 末尾，复用 `pipeline` fixture）
+- [x] **Step 1: 写失败测试**（追加到 `backend/tests/test_review_pipeline.py` 末尾，复用 `pipeline` fixture）
 
 ```python
 async def test_gate_failure_forces_revision_required(pipeline):
@@ -261,12 +261,12 @@ async def test_gate_pass_keeps_status(pipeline):
     assert result["structured_feedback"]["status"] in ("approved", "revision_required")
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_review_pipeline.py -k "gate" -v`
 Expected: FAIL——`TypeError: review() got an unexpected keyword argument 'gate_result'`
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 3a. `backend/review_pipeline.py` `review()` 签名加参数并传给 `_generate_structured_feedback`：
 
@@ -338,12 +338,12 @@ Expected: FAIL——`TypeError: review() got an unexpected keyword argument 'gat
             )
 ```
 
-- [ ] **Step 4: 运行确认通过**
+- [x] **Step 4: 运行确认通过**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_review_pipeline.py tests/test_structured_feedback.py -q`
 Expected: PASS（新增 2 用例 + 既有用例；`test_full_review_returns_all_sections` 等既有用例不传 gate_result，行为不变）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add backend/review_pipeline.py backend/meeting_coordinator.py backend/tests/test_review_pipeline.py
@@ -365,7 +365,7 @@ git commit -m "feat(review): deterministic test/lint gate merged into structured
 - Consumes: `exec_results`（含 `result`/`written_files` 字段，task_orchestrator.py:365-374）
 - Produces: `_build_execution_artifact_text(exec_results, max_summary_len=400) -> str`（静态方法）——格式：每个任务 `[文件清单] file1, file2...\n[摘要] <result[:max_summary_len]>`
 
-- [ ] **Step 1: 写失败测试**（追加到 `backend/tests/test_meeting_coordinator_router.py` 末尾）
+- [x] **Step 1: 写失败测试**（追加到 `backend/tests/test_meeting_coordinator_router.py` 末尾）
 
 ```python
 def test_build_execution_artifact_text_lists_files_and_summary():
@@ -389,12 +389,12 @@ def test_build_execution_artifact_text_empty():
     assert MeetingCoordinator._build_execution_artifact_text([]) == ""
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_meeting_coordinator_router.py -k "artifact" -v`
 Expected: FAIL——`AttributeError: type object 'MeetingCoordinator' has no attribute '_build_execution_artifact_text'`
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 3a. `backend/meeting_coordinator.py` 新增静态方法：
 
@@ -426,12 +426,12 @@ Expected: FAIL——`AttributeError: type object 'MeetingCoordinator' has no att
             execution_result = self._build_execution_artifact_text(task_results)
 ```
 
-- [ ] **Step 4: 运行确认通过**
+- [x] **Step 4: 运行确认通过**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_meeting_coordinator_router.py tests/test_review_pipeline.py -q`
 Expected: PASS（新增 2 用例 + 既有用例；review 侧仅文本变小，行为不变）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add backend/meeting_coordinator.py backend/tests/test_meeting_coordinator_router.py
@@ -454,7 +454,7 @@ git commit -m "feat(workflow): artifact mode - pass file list and summary instea
 - Consumes: `AgentPool.get_agent_by_role(role) -> Optional[AgentInstance]`（含 `.agent`/`.id`）、`AgentPool.mark_unhealthy(agent_id) -> bool`（agent_pool.py:334）、`AgentPool.health_check(timeout=5.0)`
 - Produces: `_get_model` 记录 `self._model_pool_ids: Dict[str, str]`（role → pool agent id）；`_mark_model_failed(role)`（从 `_models` 驱逐 + `mark_unhealthy` + 清 `_model_pool_ids`）；`_run_agent_execution_loop`/`_execute_workflow_node` 异常分支调用
 
-- [ ] **Step 1: 写失败测试**（追加到 `backend/tests/test_meeting_coordinator_router.py` 末尾）
+- [x] **Step 1: 写失败测试**（追加到 `backend/tests/test_meeting_coordinator_router.py` 末尾）
 
 ```python
 async def test_mark_model_failed_evicts_cache_and_marks_unhealthy(meeting_coordinator):
@@ -491,12 +491,12 @@ async def test_get_model_refetches_after_failure(meeting_coordinator):
 
 > `AgentRole` 已在文件头部 import（既有用例使用）。若 fixture `meeting_coordinator` 的 `_agent_pool` 已是真实 AgentPool，测试中直接覆盖为 MagicMock。
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_meeting_coordinator_router.py -k "mark_model_failed or refetches" -v`
 Expected: FAIL——`AttributeError: 'MeetingCoordinator' object has no attribute '_mark_model_failed'`
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 3a. `__init__` 加 `self._model_pool_ids: Dict[str, str] = {}`（`self._models` 声明附近）。
 
@@ -542,12 +542,12 @@ Expected: FAIL——`AttributeError: 'MeetingCoordinator' object has no attribut
 
 （`agent_pool` 为模块级全局，会议处理函数内可直接引用；health_check 为 async，需在 async 上下文中 await。）
 
-- [ ] **Step 4: 运行确认通过**
+- [x] **Step 4: 运行确认通过**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_meeting_coordinator_router.py -q`
 Expected: PASS（新增 2 用例 + 既有 34 用例）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add backend/meeting_coordinator.py backend/server.py backend/tests/test_meeting_coordinator_router.py
@@ -572,7 +572,7 @@ git commit -m "feat(resilience): model failover via pool unhealthy marking and h
 - Consumes: `HybridToolkitRouter` + `createExecutionConfig(profile, options)`（hybrid.ts:43-77）、`TeamMember.runtime`（含可选 hybrid 配置）
 - Produces: `RouterFactory.getRouterForMember`：当 member.runtime 含 `hybrid` 配置时返回 HybridToolkitRouter；`PendingApprovalInfo` 增加 `status: string`；`_update_routing_stats` 异常被 try 包裹
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 1a. `backend/tests/test_meeting_coordinator_router.py` 追加（路由统计异常兜底）：
 
@@ -639,12 +639,12 @@ it('includes status field in pendingApprovals from structured request', () => {
 });
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd backend && /usr/bin/python3 -m pytest tests/test_meeting_coordinator_router.py -k "routing_stats_exception" -v`、`cd orchestrator && npx vitest run src/toolkit/router.test.ts`、`node /home/test/MDH/node_modules/vitest/vitest.mjs run src/__tests__/useMeetingSocket.test.ts -t "status"`
 Expected: 三处均 FAIL（方法不存在 / 断言失败）
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 
 3a. `backend/meeting_coordinator.py`：新增包装方法并替换调用点：
 
@@ -687,12 +687,12 @@ Expected: 三处均 FAIL（方法不存在 / 断言失败）
 
 3d. `src/hooks/useMeetingSocket.ts`：`PendingApprovalInfo` 增加 `status: string`；`human_approval_request` handler 与 `pending_approvals` handler 读 `request.status`；相关展示组件最小适配（若组件不展示则仅字段透传）。
 
-- [ ] **Step 4: 运行确认通过**
+- [x] **Step 4: 运行确认通过**
 
 Run: backend 全量 `cd backend && /usr/bin/python3 -m pytest tests/ -q`（预期 868+ passed）；orchestrator `npm test`；前端 useMeetingSocket 测试
 Expected: 全部通过（含新增用例）
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add backend/meeting_coordinator.py AGENTS.md orchestrator/src/toolkit/router.ts orchestrator/src/toolkit/router.test.ts src/hooks/useMeetingSocket.ts src/__tests__/useMeetingSocket.test.ts
