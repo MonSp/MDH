@@ -806,6 +806,9 @@ class MeetingCoordinator:
 
         pending = extractor.get_pending_rules()
         for rule in pending:
+            source = getattr(rule, "source_task_id", None)
+            if source and source != project_id:
+                continue  # 跳过其他项目的规则，防跨项目污染
             if not extractor.approve_rule(rule.rule_id):
                 continue
             result["approved"] += 1
@@ -1319,7 +1322,7 @@ class MeetingCoordinator:
             if evolution_rules:
                 evolution_text = (
                     f"项目经理：已从本次项目中提取 {len(evolution_rules)} 条经验规则，"
-                    f"可在「技能进化」面板中查看和审核。"
+                    f"将在「技能进化」面板中沉淀。"
                 )
                 await self._msg(coordinator_id, evolution_text)
                 self.meeting.add_message("agent", evolution_text, coordinator_id)
