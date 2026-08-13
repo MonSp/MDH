@@ -827,6 +827,20 @@ class MeetingCoordinator:
                         result["packaged"].append(kw)
         return result
 
+    @staticmethod
+    def _build_execution_artifact_text(
+        exec_results: List[Dict[str, Any]],
+        max_summary_len: int = 400,
+    ) -> str:
+        """构建 artifact 模式的执行结果文本：文件清单 + 截断摘要（轻量引用，降低 LLM 上下文放大）"""
+        parts: List[str] = []
+        for r in exec_results:
+            written = r.get("written_files") or []
+            files_line = f"[文件清单] {', '.join(written)}" if written else "[文件清单] (无)"
+            summary = (r.get("result") or "")[:max_summary_len]
+            parts.append(f"{files_line}\n[摘要] {summary}")
+        return "\n\n".join(parts)
+
     async def execute_and_review_task(
         self,
         task_description: str,
@@ -849,7 +863,7 @@ class MeetingCoordinator:
 
         review_result = {}
         if task_results:
-            execution_result = task_results[0]["result"]
+            execution_result = self._build_execution_artifact_text(task_results)
             review_result = await self._review_pipeline.review(
                 task_description, execution_result, on_message
             )
@@ -1297,9 +1311,7 @@ class MeetingCoordinator:
             await self._msg(coordinator_id, coordinator_review_text)
             self.meeting.add_message("agent", coordinator_review_text, coordinator_id)
 
-            execution_text = ""
-            if exec_results:
-                execution_text = "\n\n".join([r.get("result", "") for r in exec_results])
+            execution_text = self._build_execution_artifact_text(exec_results) if exec_results else ""
 
             try:
                 # 确定性门禁仅在本次迭代执行产出了文件/结果时运行（执行失败的迭代不门禁；

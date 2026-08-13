@@ -759,5 +759,40 @@ class TestDeterministicGate:
         assert "gate_error" in [f["type"] for f in result["failures"]]
 
 
+def test_build_execution_artifact_text_lists_files_and_summary():
+    """artifact 文本含文件清单 + 截断摘要（不携带完整结果文本）"""
+    from meeting_coordinator import MeetingCoordinator
+
+    exec_results = [
+        {"agent_id": "a1", "result": "完成了登录模块。" + "x" * 500, "written_files": ["src/auth.py", "src/auth_test.py"]},
+        {"agent_id": "a2", "result": "后端 API 完成。", "written_files": []},
+    ]
+    text = MeetingCoordinator._build_execution_artifact_text(exec_results, max_summary_len=400)
+    assert "src/auth.py" in text
+    assert "src/auth_test.py" in text
+    assert "[文件清单]" in text
+    assert "[摘要]" in text
+    assert len(text) < 600  # 轻量：不携带完整结果
+    assert "完成了登录模块。" in text
+
+
+def test_build_execution_artifact_text_respects_max_summary_len():
+    """摘要严格截断到 max_summary_len，不携带完整结果文本"""
+    from meeting_coordinator import MeetingCoordinator
+
+    exec_results = [{"result": "a" * 1000, "written_files": ["f.py"]}]
+    text = MeetingCoordinator._build_execution_artifact_text(exec_results, max_summary_len=400)
+    summary = text.split("[摘要] ", 1)[1]
+    assert len(summary) == 400
+    assert "a" * 401 not in text
+
+
+def test_build_execution_artifact_text_empty():
+    """无执行结果时返回空字符串"""
+    from meeting_coordinator import MeetingCoordinator
+
+    assert MeetingCoordinator._build_execution_artifact_text([]) == ""
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
