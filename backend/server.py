@@ -1144,11 +1144,15 @@ async def ws_handler(ws: WebSocket):
 
                 # 委托给CEO Agent处理
                 if session._ceo_agent is None:
+                    if not session._approval_manager:
+                        session._approval_manager = ApprovalManager()
                     session._ceo_agent = CeoAgent(
                         session=session,
                         project_manager=project_manager,
                         complexity_classifier=complexity_classifier,
                         simple_executor=simple_executor,
+                        workflow_engine=workflow_engine,
+                        approval_manager=session._approval_manager,
                     )
 
                 ceo = session._ceo_agent
@@ -1283,11 +1287,15 @@ async def ws_handler(ws: WebSocket):
 
                 # 创建CeoAgent并同步引用
                 if session._ceo_agent is None:
+                    if not session._approval_manager:
+                        session._approval_manager = ApprovalManager()
                     session._ceo_agent = CeoAgent(
                         session=session,
                         project_manager=project_manager,
                         complexity_classifier=complexity_classifier,
                         simple_executor=simple_executor,
+                        workflow_engine=workflow_engine,
+                        approval_manager=session._approval_manager,
                     )
                 session._ceo_agent._meeting_coordinator = coordinator
                 session._ceo_agent._agenda = coordinator.agenda
@@ -1331,18 +1339,37 @@ async def ws_handler(ws: WebSocket):
                 logger.info("收到会议消息: session=%s content=%r", session.session_id, content[:100])
                 session.meeting_session.add_message("boss", content)
 
-                # 委托给CeoAgent处理会议消息
+                # 委托给CeoAgent处理会议消息。
+                # 后台任务执行：协调器串行路径中的审批 wait_for_decision 会真阻塞等待，
+                # 若内联 await 会卡住本接收循环，导致 human_approval_response 无法被处理
+                # → 审批必然超时。改为 create_task 后台执行（对齐 user_message 的 _run_ceo 模式）。
                 ceo = getattr(session, '_ceo_agent', None)
                 if ceo:
-                    try:
-                        await ceo.handle_meeting_message(content, ws.send_json)
-                    except Exception:
-                        logger.exception("会议消息处理异常: session=%s", session.session_id)
-                        await session.send_error("会议消息处理出错")
+                    # 会话级 guard：取消仍在运行的上一轮会议处理任务，避免并发重复处理
+                    # （对齐 user_message 分支的 agent_task 取消模式；不 await，保证接收循环不阻塞）
+                    prev = getattr(session, '_meeting_task', None)
+                    if prev and not prev.done():
+                        prev.cancel()
+                        logger.info("取消上一轮会议处理任务: session=%s", session.session_id)
+
+                    async def _run_meeting_message():
+                        try:
+                            await ceo.handle_meeting_message(content, ws.send_json)
+                        except asyncio.CancelledError:
+                            logger.info("会议消息处理已取消: session=%s", session.session_id)
+                        except Exception:
+                            logger.exception("会议消息处理异常: session=%s", session.session_id)
+                            try:
+                                await session.send_error("会议消息处理出错")
+                            except Exception:
+                                logger.warning("会议消息处理失败且无法发送错误通知: session=%s",
+                                               session.session_id)
+
+                    session._meeting_task = asyncio.create_task(_run_meeting_message())
+                    await ws.send_json({"type": "meeting_message_ack", "content": content})
                 else:
                     logger.warning("CEO Agent未初始化: session=%s", session.session_id)
-
-                await ws.send_json({"type": "meeting_message_ack", "content": content})
+                    await ws.send_json({"type": "meeting_message_ack", "content": content})
 
             elif msg_type == "task_assign":
                 if not session.meeting_session or not session.meeting_session.is_running():

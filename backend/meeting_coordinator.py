@@ -65,6 +65,16 @@ def _build_task_approval_message(approved: bool, reason: str) -> str:
     )
 
 
+def _build_approval_send_fn(on_message: Callable[[str, str, str], Awaitable[None]]) -> Callable[[dict], Awaitable[None]]:
+    """构造审批请求推送回调：透传完整结构化 payload，kind='approval' 标记结构化通道。
+
+    前端审批面板只识别 type == 'human_approval_request' 的完整结构化消息，
+    因此这里不再把 payload 降级为聊天文本；由上层发送包装点
+    （CeoAgent._send_fn）在检测到 kind='approval' + dict 内容时直接透传完整消息。
+    """
+    return lambda payload: on_message("coordinator", payload, "approval")
+
+
 class MeetingCoordinator:
     def __init__(
         self,
@@ -1110,13 +1120,7 @@ class MeetingCoordinator:
                 description=enhanced_description[:200],
                 risk_level=risk_map.get(risk_level, RiskLevel.MEDIUM),
                 confidence=0.8,
-                send_fn=lambda payload: on_message(
-                    "coordinator",
-                    f"[审批请求] {payload.get('request', {}).get('description', '')} "
-                    f"(id: {payload.get('request', {}).get('id', '')}, "
-                    f"risk: {payload.get('request', {}).get('riskLevel', '')})",
-                    "",
-                ),
+                send_fn=_build_approval_send_fn(on_message),
             )
             try:
                 decision = await self._approval_manager.wait_for_decision(

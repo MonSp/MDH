@@ -96,9 +96,7 @@ MDH/
 │   ├── project_manager.py        # 项目管理器
 │   ├── meeting.py                # 会议会话 + 角色映射
 │   ├── discussion_manager.py     # 串行讨论管理器
-│   ├── parallel_discussion_manager.py # 并行讨论管理器
 │   ├── mixed_location_discussion.py # 混合位置并行讨论
-│   ├── parallel_meeting_coordinator.py # 并行会议协调器
 │   ├── negotiation.py            # 投票决策引擎
 │   ├── agenda.py                 # 议程状态机
 │   ├── workflow_engine.py        # 工作流引擎 (DAG执行)
@@ -524,7 +522,7 @@ rules:
 
 > 讨论与投票是复杂决策的**可选辅助机制**，主线执行流程见"协作流程"章节。
 
-生产路径由 `mixed_location_discussion.py` 的 `MixedLocationDiscussion` 实现真正的并行智能体讨论；`parallel_discussion_manager.py` 的 `ParallelDiscussionManager` 是并行实现的独立版本（当前仅测试引用）。
+生产路径由 `mixed_location_discussion.py` 的 `MixedLocationDiscussion` 实现真正的并行智能体讨论；并行实现的独立版本已移除（生产走 MixedLocationDiscussion）。
 
 #### 核心机制
 

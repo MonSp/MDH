@@ -74,11 +74,11 @@ MDH 已实现一套复杂多智能体协作机制（6 层架构链、三执行�
 - 两层复杂度判定真实存在：规则引擎命中（confidence >= 0.7）即返回（`backend/complexity_classifier.py:134`），否则一次 LLM 判定（:142-149），两者皆失败默认 complex"宁重勿轻"（:154-161）。
 - simple→complex 升级机制真实且接线完整：轻量验收（仅查工具 error + 结果非空，`backend/simple_executor.py:164-208`）失败即置 `retry_with_complex`（:99），CEO 侧发 `path_upgrade` 并重建多角色团队走复杂路径（`backend/ceo_agent.py:250-263`、`backend/simple_executor.py:210-278`）。
 
-#### 1.2 讨论机制：真并行 + 结构化收敛，但三套实现并存
+#### 1.2 讨论机制：真并行 + 结构化收敛，并行独立版本已删除（P0）
 
 - 生产路径为 `MixedLocationDiscussion`：`asyncio.gather(..., return_exceptions=True)` 真并行（`backend/mixed_location_discussion.py:137-148`），`Semaphore(6)` 并发控制（:82），默认最多 2 轮（:129，`backend/meeting_coordinator.py:319`）。
 - 收敛判定真实实现：最近一轮 stance 全部一致即收敛（`mixed_location_discussion.py:338-340`），或平均 confidence > 0.8 收敛（:347-349）；stance/confidence 从 LLM 响应正则解析 `[STANCE:...]`/`[CONFIDENCE:...]`（:278-288）。仅 Planner/Executor/Reviewer/Monitor 参与讨论，CEO/Coordinator 被排除（:114-118）。
-- 债务：`ParallelDiscussionManager`（`backend/parallel_discussion_manager.py:21`）与 `ParallelMeetingCoordinator`（`backend/parallel_meeting_coordinator.py:75`）仅被测试引用，属未接线死代码；串行 `DiscussionManager`（`backend/discussion_manager.py:24`）作为回退存在（`backend/meeting_coordinator.py:126`），但因复杂路径必然注入 Team（`backend/ceo_agent.py:478`）实际永不触发——且其收敛语义（CEO LLM 判 `continue_discussion`，`discussion_manager.py:245-254`）与混合版不一致。
+- 债务：`ParallelDiscussionManager`（`backend/parallel_discussion_manager.py:21`）与 `ParallelMeetingCoordinator`（`backend/parallel_meeting_coordinator.py:75`）仅被测试引用，属未接线死代码——已于 P0 完成时删除（commit `afad14e`，生产统一走 MixedLocationDiscussion）；串行 `DiscussionManager`（`backend/discussion_manager.py:24`）作为回退存在（`backend/meeting_coordinator.py:126`），但因复杂路径必然注入 Team（`backend/ceo_agent.py:478`）实际永不触发——且其收敛语义（CEO LLM 判 `continue_discussion`，`discussion_manager.py:245-254`）与混合版不一致。
 
 #### 1.3 投票：三种策略实现，但生产只跑一种
 

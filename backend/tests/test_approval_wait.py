@@ -144,3 +144,117 @@ async def test_approval_push_payload_contains_id_and_risk():
     assert req["id"] == approval.id
     assert req["riskLevel"] == "high"
     assert req["description"]
+
+
+# ── 审批推送结构化通道（P0 Critical 2） ──
+# coordinator 的审批 send_fn 不再把 payload 降级为聊天文本，而是透传完整
+# human_approval_request payload，并以 kind='approval' 标记结构化通道；
+# 上层发送包装点（CeoAgent._send_fn）据此直接发送完整结构化消息。
+
+async def test_approval_send_fn_passes_full_payload_with_approval_kind():
+    """coordinator 审批 send_fn 透传完整 payload，on_message 收到 kind='approval'。"""
+    from meeting_coordinator import _build_approval_send_fn
+
+    captured = {}
+
+    async def on_message(agent_id, text, delta):
+        captured["agent_id"] = agent_id
+        captured["text"] = text
+        captured["delta"] = delta
+
+    payload = {
+        "type": "human_approval_request",
+        "request": {
+            "id": "req-1",
+            "requesterId": "agent-executor",
+            "operation": "task_execution",
+            "description": "执行高风险任务",
+            "riskLevel": "high",
+            "confidence": 0.8,
+        },
+    }
+    send_fn = _build_approval_send_fn(on_message)
+    await send_fn(payload)
+
+    assert captured["agent_id"] == "coordinator"
+    assert captured["delta"] == "approval"
+    assert captured["text"] is payload
+    assert captured["text"]["type"] == "human_approval_request"
+    assert captured["text"]["request"]["id"] == "req-1"
+
+
+async def test_ceo_send_fn_passes_structured_approval_payload_through():
+    """CeoAgent._send_fn 对 kind='approval' + dict 内容直接透传完整结构化消息。
+
+    其他消息保持原 agent_message 行为，避免审批推送降级为聊天文本。
+    """
+    from ceo_agent import CeoAgent
+
+    sent = []
+
+    class _FakeSession:
+        def __init__(self):
+            self._seq = 0
+
+        def next_sequence(self):
+            self._seq += 1
+            return self._seq
+
+    async def send_message(msg):
+        sent.append(msg)
+
+    session = _FakeSession()
+    agent = CeoAgent(
+        session=session,
+        project_manager=None,
+        complexity_classifier=None,
+        simple_executor=None,
+    )
+    send = agent._send_fn(send_message)
+
+    payload = {
+        "type": "human_approval_request",
+        "request": {"id": "req-1", "description": "执行高风险任务", "riskLevel": "high"},
+    }
+    await send("coordinator", payload, "approval")
+
+    assert len(sent) == 1
+    assert sent[0]["type"] == "human_approval_request"
+    assert sent[0]["request"]["id"] == "req-1"
+    assert "sequence_no" in sent[0]
+
+    # 普通 agent_message 行为保持不变
+    await send("coordinator", "普通文本", "")
+    assert len(sent) == 2
+    assert sent[1]["type"] == "agent_message"
+    assert sent[1]["agentId"] == "coordinator"
+    assert sent[1]["content"] == "普通文本"
+    assert sent[1]["delta"] == ""
+
+
+# ── CeoAgent 共享引擎注入（P0 Important 3） ──
+# ceo_agent 复杂路径构造 MeetingCoordinator 时须注入与 server start_meeting
+# 一致的共享 workflow_engine 与 approval_manager，否则该路径仍用私有引擎且审批自动通过。
+
+def test_ceo_agent_accepts_shared_engines():
+    """CeoAgent 构造透传共享 workflow_engine / approval_manager。"""
+    from ceo_agent import CeoAgent
+    from approval_manager import ApprovalManager
+    from workflow_engine import WorkflowEngine
+
+    class _FakeSession:
+        def next_sequence(self):
+            return 0
+
+    manager = ApprovalManager()
+    engine = WorkflowEngine()
+    agent = CeoAgent(
+        session=_FakeSession(),
+        project_manager=None,
+        complexity_classifier=None,
+        simple_executor=None,
+        workflow_engine=engine,
+        approval_manager=manager,
+    )
+    assert agent._workflow_engine is engine
+    assert agent._approval_manager is manager

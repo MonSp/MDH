@@ -124,11 +124,15 @@ class CeoAgent:
         project_manager: ProjectManager,
         complexity_classifier: ComplexityClassifier,
         simple_executor: SimpleExecutor,
+        workflow_engine=None,
+        approval_manager=None,
     ):
         self._session = session
         self._project_manager = project_manager
         self._complexity_classifier = complexity_classifier
         self._simple_executor = simple_executor
+        self._workflow_engine = workflow_engine
+        self._approval_manager = approval_manager
         self._meeting_coordinator: Optional[MeetingCoordinator] = None
         self._agenda: Optional[AgendaStateMachine] = None
         self._workspace_manager = None
@@ -181,6 +185,14 @@ class CeoAgent:
     def _send_fn(self, send_message: Callable) -> Callable:
         """创建进度回调，自动管理sequence_no"""
         async def send(agent_id: str, text: str, delta: str, **kwargs):
+            # 结构化审批推送：kind == "approval" 且内容为完整消息 dict
+            # （如 human_approval_request）时直接透传完整结构化消息，
+            # 保证前端审批面板可识别（对齐 server request_approval 推送模式）。
+            if delta == "approval" and isinstance(text, dict):
+                payload = dict(text)
+                payload.setdefault("sequence_no", self._session.next_sequence())
+                await send_message(payload)
+                return
             msg_data = {
                 "type": "agent_message",
                 "agentId": agent_id,
@@ -465,7 +477,13 @@ class CeoAgent:
         self._session.meeting_session = meeting
         self._session.meeting_mode = True
 
-        # ⑤ 启动协调器（传入workspace以启用工具系统）
+        # ⑤ 启动协调器（传入workspace以启用工具系统）。
+        # 与 server start_meeting 构造点保持一致：注入共享 workflow_engine 与
+        # approval_manager（审批真阻塞等待 + 前端 human_approval_response 解析用同一实例）。
+        if self._approval_manager is None:
+            from approval_manager import ApprovalManager
+            self._approval_manager = ApprovalManager()
+            self._session._approval_manager = self._approval_manager
         coordinator = MeetingCoordinator(
             meeting_session=meeting,
             provider=self._session.provider,
@@ -473,6 +491,8 @@ class CeoAgent:
             api_key=self._session.api_key,
             base_url=self._session.base_url or "",
             workspace=workspace,
+            workflow_engine=self._workflow_engine,
+            approval_manager=self._approval_manager,
         )
         # 传递Team实例给协调器，用于并行讨论
         coordinator._team = team
