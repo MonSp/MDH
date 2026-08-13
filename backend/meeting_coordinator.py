@@ -50,6 +50,21 @@ AGENT_ROLE_TOOLS = {
 logger = logging.getLogger("meeting_coordinator")
 
 
+def _build_task_approval_message(approved: bool, reason: str) -> str:
+    """构造任务执行审批结果消息（显式区分通过/拒绝，避免空 reason 误报通过）。"""
+    if approved:
+        return (
+            f"项目经理：任务执行审批通过（{reason}）。"
+            if reason
+            else "项目经理：任务执行审批通过。"
+        )
+    return (
+        f"项目经理：任务执行审批被拒绝（{reason}）。"
+        if reason
+        else "项目经理：任务执行审批被拒绝。"
+    )
+
+
 class MeetingCoordinator:
     def __init__(
         self,
@@ -1097,7 +1112,9 @@ class MeetingCoordinator:
                 confidence=0.8,
                 send_fn=lambda payload: on_message(
                     "coordinator",
-                    f"[审批请求] {payload.get('request', {}).get('description', '')}",
+                    f"[审批请求] {payload.get('request', {}).get('description', '')} "
+                    f"(id: {payload.get('request', {}).get('id', '')}, "
+                    f"risk: {payload.get('request', {}).get('riskLevel', '')})",
                     "",
                 ),
             )
@@ -1114,11 +1131,7 @@ class MeetingCoordinator:
             approved = True
             reason = "未配置审批管理器，自动通过"
 
-        approve_msg = (
-            f"项目经理：任务执行审批通过（{reason}）。" if reason and approved else
-            f"项目经理：任务执行审批被拒绝（{reason}）。" if reason else
-            "项目经理：任务执行审批通过。"
-        )
+        approve_msg = _build_task_approval_message(approved, reason)
         await self._msg(coordinator_id, approve_msg)
         self.meeting.add_message("agent", approve_msg, coordinator_id)
 

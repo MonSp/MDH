@@ -83,3 +83,64 @@ async def test_coordinator_injects_approval_manager(tmp_path):
 
     assert coord._approval_manager is manager
     assert coord._approval_timeout == 123.0
+
+
+# ── 拒绝文案合成（R2） ──
+# 审批阶段嵌在 process_user_message 长流程中，消息合成已提取为模块级辅助函数
+# _build_task_approval_message，可直接单测（无需跑完整串行流程）。
+
+def test_build_task_approval_message_rejected_no_reason():
+    """回归用例：无 reason 的拒绝（server 允许 reason 为空）不得误报"通过"。"""
+    from meeting_coordinator import _build_task_approval_message
+
+    msg = _build_task_approval_message(approved=False, reason="")
+    assert msg == "项目经理：任务执行审批被拒绝。"
+    assert "通过" not in msg
+
+
+def test_build_task_approval_message_rejected_with_reason():
+    from meeting_coordinator import _build_task_approval_message
+
+    msg = _build_task_approval_message(approved=False, reason="方案不可行")
+    assert msg == "项目经理：任务执行审批被拒绝（方案不可行）。"
+
+
+def test_build_task_approval_message_approved_no_reason():
+    from meeting_coordinator import _build_task_approval_message
+
+    msg = _build_task_approval_message(approved=True, reason="")
+    assert msg == "项目经理：任务执行审批通过。"
+
+
+def test_build_task_approval_message_approved_with_reason():
+    from meeting_coordinator import _build_task_approval_message
+
+    msg = _build_task_approval_message(approved=True, reason="同意")
+    assert msg == "项目经理：任务执行审批通过（同意）。"
+
+
+# ── 审批请求推送可追溯（R1） ──
+# coordinator 的 send_fn lambda 读取 payload["request"]["id"] / ["riskLevel"]，
+# 校验 ApprovalManager 推送的 payload 契约，防止字段改名导致 lambda 静默失效。
+
+async def test_approval_push_payload_contains_id_and_risk():
+    """审批请求推送 payload 含 request.id 与 request.riskLevel，供聊天流识别追溯。"""
+    manager = ApprovalManager()
+    captured = {}
+
+    async def send_fn(payload):
+        captured["payload"] = payload
+
+    approval = await manager.request_approval(
+        requester_id="agent-executor",
+        operation="task_execution",
+        description="执行高风险任务",
+        risk_level=RiskLevel.HIGH,
+        confidence=0.8,
+        send_fn=send_fn,
+    )
+
+    req = captured["payload"]["request"]
+    assert req["id"] == approval.id
+    assert req["riskLevel"] == "high"
+    assert req["description"]
