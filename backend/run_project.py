@@ -32,7 +32,6 @@ from agent_toolset import load_roles_config, AgentToolset
 from meeting import MeetingSession, create_team_from_roles, ROLE_TO_AGENT_ROLE
 from meeting_coordinator import MeetingCoordinator
 from protocol import AgentRole
-from workflow_engine import WorkflowEngine
 from workspace_manager import WorkspaceManager, WorkspaceType
 
 
@@ -340,7 +339,6 @@ async def run(goal: str, team_size: int, api_key: str, base_url: str,
         api_key=api_key,
         base_url=base_url,
         workspace=workspace,
-        workflow_engine=WorkflowEngine(),
     )
 
     # 根据团队类型生成针对性任务描述

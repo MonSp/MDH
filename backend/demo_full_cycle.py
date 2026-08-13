@@ -20,7 +20,6 @@ from workspace_manager import WorkspaceManager, WorkspaceType
 from meeting import MeetingSession, create_team_from_roles
 from meeting_coordinator import MeetingCoordinator
 from agent_toolset import load_roles_config
-from workflow_engine import WorkflowEngine
 
 # ──────────────────── 配置 ────────────────────
 
@@ -126,7 +125,6 @@ async def run_project(title, task_desc, api_key, base_url, provider, model_name,
         api_key=api_key,
         base_url=base_url,
         workspace=workspace,
-        workflow_engine=WorkflowEngine(),
     )
 
     # 执行

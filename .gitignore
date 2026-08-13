@@ -13,7 +13,7 @@ third_party/
 
 logs/
 /companion_log.json
-backend/companion_log.json
+/backend/companion_log.json
 
 # Agent workspaces (created at runtime)
 data/workspaces/
