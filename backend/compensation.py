@@ -1,3 +1,5 @@
+import json
+import os
 import time
 import uuid
 from collections import defaultdict
@@ -162,9 +164,55 @@ class CompensationEngine:
 
 
 class CheckpointManager:
-    def __init__(self, max_per_task: int = 10):
+    def __init__(self, max_per_task: int = 10, persistence_dir: Optional[str] = None):
         self._checkpoints: Dict[str, List[Checkpoint]] = {}
         self._max_per_task = max_per_task
+        self._persistence_dir = persistence_dir
+        if persistence_dir:
+            os.makedirs(persistence_dir, exist_ok=True)
+            self._load_from_disk()
+
+    def _persist(self) -> None:
+        """将全部检查点落盘为 JSON（persistence_dir 未配置时跳过）"""
+        if not self._persistence_dir:
+            return
+        data = {
+            task_id: [
+                {
+                    "id": cp.id,
+                    "task_id": cp.task_id,
+                    "step_index": cp.step_index,
+                    "state_snapshot": cp.state_snapshot,
+                    "created_at": cp.created_at,
+                }
+                for cp in cps
+            ]
+            for task_id, cps in self._checkpoints.items()
+        }
+        path = os.path.join(self._persistence_dir, "checkpoints.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    def _load_from_disk(self) -> None:
+        """从磁盘加载检查点（文件不存在时静默跳过）"""
+        if not self._persistence_dir:
+            return
+        path = os.path.join(self._persistence_dir, "checkpoints.json")
+        if not os.path.exists(path):
+            return
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        for task_id, cp_list in data.items():
+            self._checkpoints[task_id] = [
+                Checkpoint(
+                    id=cp["id"],
+                    task_id=cp["task_id"],
+                    step_index=cp["step_index"],
+                    state_snapshot=cp.get("state_snapshot", {}),
+                    created_at=cp.get("created_at", 0.0),
+                )
+                for cp in cp_list
+            ]
 
     def save_checkpoint(
         self, task_id: str, step_index: int, state: dict
@@ -188,6 +236,7 @@ class CheckpointManager:
             )
             self._checkpoints[task_id] = sorted_cps[-self._max_per_task :]
 
+        self._persist()
         return checkpoint
 
     def get_latest_checkpoint(self, task_id: str) -> Optional[Checkpoint]:
@@ -220,12 +269,16 @@ class CheckpointManager:
                     task_checkpoints.pop(i)
                     if not task_checkpoints:
                         del self._checkpoints[task_id]
+                    self._persist()
                     return True
         return False
 
     def delete_checkpoints_for_task(self, task_id: str) -> int:
         task_checkpoints = self._checkpoints.pop(task_id, [])
+        if task_checkpoints:
+            self._persist()
         return len(task_checkpoints)
 
     def clear(self) -> None:
         self._checkpoints.clear()
+        self._persist()

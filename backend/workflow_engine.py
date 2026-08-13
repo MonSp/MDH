@@ -5,7 +5,9 @@
 """
 
 import asyncio
+import json
 import logging
+import os
 import uuid
 from collections import defaultdict, deque
 from datetime import datetime, timezone
@@ -33,13 +35,17 @@ class WorkflowEngine:
     支持顺序执行、并行执行和条件分支。
     """
 
-    def __init__(self):
+    def __init__(self, persistence_dir: Optional[str] = None):
         self._definitions: Dict[str, WorkflowDefinition] = {}
         self._executions: Dict[str, WorkflowExecution] = {}
         self._running_tasks: Dict[str, asyncio.Task] = {}
         self._node_executors: Dict[str, Callable] = {}
         self._on_status_change: Optional[Callable] = None
         self._on_node_status_change: Optional[Callable] = None
+        # 执行状态磁盘持久化目录（None 表示不持久化）
+        self._persistence_dir = persistence_dir
+        if persistence_dir:
+            os.makedirs(persistence_dir, exist_ok=True)
 
         # 集成agentscope Task系统
         self._task_bridge = AgentscopeTaskBridge()
@@ -99,8 +105,52 @@ class WorkflowEngine:
         # 更新Task的依赖关系
         self._task_bridge.update_task_dependencies(tasks, definition.edges)
 
+        # 落盘：创建即持久化（供断点恢复）
+        self.persist_execution(execution_id)
+
         logger.info("创建工作流执行实例: %s (workflow_id=%s)", execution_id, definition.workflow_id)
         return execution
+
+    def persist_execution(self, execution_id: str) -> bool:
+        """将 execution 状态落盘（JSON），供进程重启后恢复"""
+        if not self._persistence_dir:
+            return False
+        execution = self._executions.get(execution_id)
+        if execution is None:
+            return False
+        from protocol import workflow_execution_to_dict, workflow_definition_to_dict
+        data = workflow_execution_to_dict(execution)
+        definition = self._definitions.get(execution.workflow_id)
+        if definition is not None:
+            # 附带工作流定义，保证新进程恢复后可直接继续执行（无需重建定义）
+            data["definition"] = workflow_definition_to_dict(definition)
+        path = os.path.join(self._persistence_dir, f"{execution_id}.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+
+    def load_execution(self, execution_id: str) -> Optional[WorkflowExecution]:
+        """从磁盘恢复 execution（不存在返回 None）"""
+        if not self._persistence_dir:
+            return None
+        path = os.path.join(self._persistence_dir, f"{execution_id}.json")
+        if not os.path.exists(path):
+            return None
+        from protocol import dict_to_workflow_execution, dict_to_workflow_definition
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        execution = dict_to_workflow_execution(data)
+        self._executions[execution_id] = execution
+        definition_data = data.get("definition")
+        if definition_data is not None:
+            self._definitions[execution.workflow_id] = dict_to_workflow_definition(definition_data)
+        return execution
+
+    def load_all_executions(self) -> List[str]:
+        """列出磁盘上已持久化的 execution_id 列表"""
+        if not self._persistence_dir or not os.path.isdir(self._persistence_dir):
+            return []
+        return [f[:-5] for f in os.listdir(self._persistence_dir) if f.endswith(".json")]
 
     async def execute_workflow(self, execution_id: str):
         """执行工作流
@@ -146,11 +196,14 @@ class WorkflowEngine:
 
             execution.completed_at = datetime.now(timezone.utc).isoformat()
             await self._notify_status_change(execution)
+            # 最终状态落盘（供重启后按最终状态恢复）
+            self.persist_execution(execution_id)
 
         except asyncio.CancelledError:
             # 保持CANCELLED状态，不覆盖
             execution.completed_at = datetime.now(timezone.utc).isoformat()
             await self._notify_status_change(execution)
+            self.persist_execution(execution_id)
             raise
 
         except Exception as e:
@@ -160,6 +213,7 @@ class WorkflowEngine:
                 execution.status = WorkflowExecutionStatus.FAILED
                 execution.completed_at = datetime.now(timezone.utc).isoformat()
                 await self._notify_status_change(execution)
+                self.persist_execution(execution_id)
             raise
 
     def start_workflow(self, execution_id: str) -> asyncio.Task:
@@ -186,6 +240,10 @@ class WorkflowEngine:
         for node in sorted_nodes:
             if execution.status == WorkflowExecutionStatus.CANCELLED:
                 break
+
+            # 恢复执行时跳过已完成节点（防重复执行）
+            if execution.node_states.get(node.node_id) == WorkflowNodeStatus.COMPLETED:
+                continue
 
             # 检查依赖是否满足
             if not self._check_dependencies(node, execution, definition):
@@ -218,10 +276,11 @@ class WorkflowEngine:
             if execution.status == WorkflowExecutionStatus.CANCELLED:
                 break
 
-            # 并行执行所有就绪节点
+            # 并行执行所有就绪节点（跳过已完成节点，防重复执行）
             tasks = [
                 self._execute_node(execution, node)
                 for node in ready_nodes
+                if execution.node_states.get(node.node_id) != WorkflowNodeStatus.COMPLETED
             ]
             await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -276,11 +335,12 @@ class WorkflowEngine:
                 if not self._has_condition(node, definition)
             ]
 
-            # 并行执行无条件节点
+            # 并行执行无条件节点（跳过已完成节点，防重复执行）
             if unconditional_nodes:
                 tasks = [
                     self._execute_node(execution, node)
                     for node in unconditional_nodes
+                    if execution.node_states.get(node.node_id) != WorkflowNodeStatus.COMPLETED
                 ]
                 await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -288,6 +348,10 @@ class WorkflowEngine:
             for node in conditional_nodes:
                 if execution.status == WorkflowExecutionStatus.CANCELLED:
                     break
+
+                # 恢复执行时跳过已完成节点（防重复执行）
+                if execution.node_states.get(node.node_id) == WorkflowNodeStatus.COMPLETED:
+                    continue
 
                 # 检查条件是否满足
                 if self._evaluate_condition(node, execution, definition):
@@ -404,6 +468,8 @@ class WorkflowEngine:
             # 同步状态到agentscope Task
             self._task_bridge.update_node_status(node.node_id, WorkflowNodeStatus.FAILED)
 
+        # 节点完成/失败即落盘（节点级持久化）
+        self.persist_execution(execution.execution_id)
         await self._notify_node_status_change(execution, node.node_id)
 
     def _topological_sort(self, definition: WorkflowDefinition) -> List[WorkflowNode]:
@@ -654,6 +720,8 @@ class WorkflowEngine:
 
         execution.status = WorkflowExecutionStatus.PAUSED
         await self._notify_status_change(execution)
+        # 暂停状态落盘
+        self.persist_execution(execution_id)
 
         # 取消正在运行的任务
         if execution_id in self._running_tasks:
@@ -703,6 +771,8 @@ class WorkflowEngine:
         execution.status = WorkflowExecutionStatus.CANCELLED
         execution.completed_at = datetime.now(timezone.utc).isoformat()
         await self._notify_status_change(execution)
+        # 取消状态落盘
+        self.persist_execution(execution_id)
 
         # 取消正在运行的任务
         if execution_id in self._running_tasks:
