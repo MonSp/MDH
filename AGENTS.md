@@ -39,7 +39,7 @@
 | 前端 | React 18 + TypeScript + Vite 6 + Three.js | 3D 虚拟办公室、实时通信 |
 | 后端 | Python 3.11 + FastAPI + WebSocket | 智能体协调、工具执行 |
 | AI 引擎 | AgentScope + DeepSeek API | 多模型支持 (DeepSeek/OpenAI/Anthropic) |
-| 测试 | Vitest (TS) + pytest (Python) | 865 TS 测试 + 532 Python 测试 |
+| 测试 | Vitest (TS) + pytest (Python) | 1700+ TS 测试（前端 1630 + orchestrator 110）+ 860+ Python 测试 |
 
 ### 项目结构
 

@@ -591,6 +591,50 @@ describe('useMeetingSocket', () => {
       expect(result.current.pendingApprovals.get('req-a')?.operation).toBe('op1')
       expect(result.current.pendingApprovals.get('req-b')?.operation).toBe('op2')
     })
+
+    it('includes status field in pendingApprovals from structured request', () => {
+      const { result, ws } = setupHook()
+      act(() => {
+        emitMsg(ws, {
+          type: 'human_approval_request',
+          request: {
+            id: 'req-status-1',
+            requesterId: 'agent-executor',
+            operation: 'bash',
+            description: '执行部署脚本',
+            riskLevel: 'HIGH',
+            confidence: 0.8,
+            status: 'pending',
+            createdAt: 1720000000000,
+          },
+        })
+      })
+
+      const pending = result.current.pendingApprovals.get('req-status-1')
+      expect(pending).toBeDefined()
+      expect(pending?.status).toBe('pending')
+    })
+
+    it('reads status field from pending_approvals list', () => {
+      const { result, ws } = setupHook()
+      act(() => {
+        emitMsg(ws, {
+          type: 'pending_approvals',
+          requests: [{
+            id: 'req-status-2',
+            requesterId: 'agent-executor',
+            operation: 'git_push',
+            description: '推送分支',
+            riskLevel: 'MEDIUM',
+            confidence: 0.6,
+            status: 'pending',
+            createdAt: 1720000000000,
+          }],
+        })
+      })
+
+      expect(result.current.pendingApprovals.get('req-status-2')?.status).toBe('pending')
+    })
   })
 
   describe('approval response (send + confirmation)', () => {

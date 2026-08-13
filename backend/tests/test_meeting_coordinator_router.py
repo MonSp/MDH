@@ -646,6 +646,17 @@ class TestUpdateRoutingStats:
         m.assert_any_call("dept-qa", success=False)
         assert coordinator._task_routing == {}
 
+    async def test_update_routing_stats_exception_does_not_abort(self, coordinator):
+        """_update_routing_stats 抛异常时不中断后续流程（_task_routing 仍被清理）"""
+        task = coordinator.meeting.add_task("agent-executor", "任务")
+        coordinator._task_routing[task.id] = "dept-frontend"
+        task.status = "completed"
+
+        with patch.object(coordinator.router, "update_stats", side_effect=RuntimeError("disk full")):
+            coordinator._update_routing_stats_safe()
+
+        assert coordinator._task_routing == {}
+
 
 # ---------------------------------------------------------------------------
 # 5. 确定性门禁 _run_deterministic_gate（fail-open on 工具缺失 / fail-closed on 真实失败）

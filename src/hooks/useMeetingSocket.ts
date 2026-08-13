@@ -134,6 +134,7 @@ export default function useMeetingSocket({
     description: string
     riskLevel: string
     confidence: number
+    status: string
     createdAt: number
   }
   const [pendingApprovals, setPendingApprovals] = useState<Map<string, PendingApprovalInfo>>(new Map())
@@ -701,6 +702,7 @@ export default function useMeetingSocket({
                 description: request.description,
                 riskLevel: request.riskLevel,
                 confidence: request.confidence,
+                status: request.status,
                 createdAt: request.createdAt,
               })
               return next
@@ -743,6 +745,7 @@ export default function useMeetingSocket({
                 description: req.description,
                 riskLevel: req.riskLevel,
                 confidence: req.confidence,
+                status: req.status,
                 createdAt: req.createdAt,
               })
             }

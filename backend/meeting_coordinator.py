@@ -801,6 +801,16 @@ class MeetingCoordinator:
             self.router.update_stats(dept_id, success=task.status == "completed")
             del self._task_routing[task_id]
 
+    def _update_routing_stats_safe(self) -> None:
+        """路由统计安全包装：异常不中断后续流程（项目总结/技能进化）"""
+        try:
+            self._update_routing_stats()
+        except Exception as e:
+            self.logger.warning("更新路由统计失败: %s", e)
+        finally:
+            # 无论统计是否成功，都清理剩余跟踪条目，避免残留导致重复统计
+            self._task_routing.clear()
+
     def _finalize_skill_evolution(
         self,
         extractor,
@@ -1390,7 +1400,7 @@ class MeetingCoordinator:
             self.logger.info("第 %d 轮审查未通过，启动第 %d 轮修复", dev_iter, dev_iter + 1)
 
         # 更新路由统计（修复自适应学习断链）
-        self._update_routing_stats()
+        self._update_routing_stats_safe()
 
         # 生成项目总结报告
         project_summary = self._generate_project_summary(
