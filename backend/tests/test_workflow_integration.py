@@ -4,11 +4,10 @@ import asyncio
 import pytest
 import sys
 import os
+import types
 
 # 添加backend目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from agentscope.message import Msg
 
 from protocol import (
     AgentRole,
@@ -230,8 +229,9 @@ async def test_run_agent_execution_loop_writes_code_block(meeting_coordinator, t
 
     class FakeModel:
         async def reply(self, conversation):
-            return Msg(name="assistant", role="assistant",
-                       content=[{"type": "text", "text": "```out.txt\nhello workflow\n```\n完成。"}])
+            return types.SimpleNamespace(
+                content=[{"type": "text", "text": "```out.txt\nhello workflow\n```\n完成。"}]
+            )
 
     result = await meeting_coordinator._run_agent_execution_loop(
         FakeModel(), "请执行任务", toolset
@@ -248,13 +248,30 @@ def test_extract_tool_calls_from_text(meeting_coordinator):
     assert calls[0]["tool"] == "write_file"
 
 
+def test_extract_tool_calls_skips_stray_brace(meeting_coordinator):
+    """散落/未闭合的大括号不吞掉后续有效工具调用"""
+    text = '这里有 { 一个未闭合括号，然后 {"tool": "read_file", "arguments": {"path": "p"}} 收尾。'
+    calls = meeting_coordinator._extract_tool_calls_from_text(text)
+    assert len(calls) == 1
+    assert calls[0]["tool"] == "read_file"
+
+
+def test_extract_tool_calls_skips_brace_paired_with_tool_json(meeting_coordinator):
+    """散落 { 与有效工具 JSON 的 } 误配对导致 json.loads 失败时不吞掉有效调用"""
+    text = '前言 { 散落括号 {"tool": "read_file", "arguments": {"path": "p"}}} 收尾。'
+    calls = meeting_coordinator._extract_tool_calls_from_text(text)
+    assert len(calls) == 1
+    assert calls[0]["tool"] == "read_file"
+
+
 @pytest.mark.asyncio
 async def test_run_agent_execution_loop_no_tool_no_blocks(meeting_coordinator):
     """无工具无代码块时返回纯文本结果（不崩溃）"""
     class FakeModel:
         async def reply(self, conversation):
-            return Msg(name="assistant", role="assistant",
-                       content=[{"type": "text", "text": "方案完成。"}])
+            return types.SimpleNamespace(
+                content=[{"type": "text", "text": "方案完成。"}]
+            )
 
     result = await meeting_coordinator._run_agent_execution_loop(FakeModel(), "请执行", None)
     assert result["result"] == "方案完成。"

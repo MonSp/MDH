@@ -50,36 +50,6 @@ AGENT_ROLE_TOOLS = {
 logger = logging.getLogger("meeting_coordinator")
 
 
-def _extract_response_text(response) -> str:
-    """从模型回复中提取文本。
-
-    优先复用 agent._extract_text；当 agentscope 在测试环境中被 mock
-    （tests/conftest.py 将 agentscope.message 替换为 MagicMock）导致无法直接
-    读取 content 时，回退到最近一次 Msg(...) 调用的 kwargs 提取内容。
-    """
-    text = _extract_text(response)
-    if text:
-        return text
-    try:
-        from agentscope.message import Msg
-        call_args = getattr(Msg, "call_args", None)
-        kwargs = getattr(call_args, "kwargs", None)
-        if isinstance(kwargs, dict):
-            content = kwargs.get("content")
-            if isinstance(content, list):
-                parts = [
-                    b.get("text", "")
-                    for b in content
-                    if isinstance(b, dict) and b.get("type") == "text"
-                ]
-                joined = " ".join(p for p in parts if p)
-                if joined:
-                    return joined
-    except Exception:
-        pass
-    return text
-
-
 class MeetingCoordinator:
     def __init__(
         self,
@@ -201,14 +171,11 @@ class MeetingCoordinator:
         tool_outputs: List[Dict[str, Any]] = []
         last_text = ""
 
-        if agent_toolset:
-            agent_toolset.list_directory(".")
-
         from code_extractor import extract_code_blocks
 
         for _ in range(max_tool_rounds + 1):
             response = await model.reply(conversation)
-            last_text = _extract_response_text(response)
+            last_text = _extract_text(response)
 
             code_blocks = extract_code_blocks(last_text)
             if code_blocks and agent_toolset:
@@ -216,6 +183,8 @@ class MeetingCoordinator:
                     wf = agent_toolset.write_file(block["filename"], block["content"])
                     if wf.success:
                         files_written.append(block["filename"])
+                    else:
+                        self.logger.warning("工作流节点写文件失败: %s", block["filename"])
 
             if not code_blocks and agent_toolset:
                 tool_calls = self._extract_tool_calls_from_text(last_text)
@@ -239,6 +208,10 @@ class MeetingCoordinator:
 
         使用花括号配对扫描而非简单正则，以支持 arguments 中嵌套的花括号
         （例如 {"tool": "write_file", "arguments": {"path": "a.txt", "content": "1"}}）。
+
+        对解析失败或括号不平衡的候选，仅跳过起始的 `{` 继续扫描，避免散落的
+        花括号吞掉后续有效的工具调用（既不终止整个扫描，也不跳到 end + 1 跳过
+        候选内可能包含的有效调用）。
         """
         calls: List[Dict[str, Any]] = []
         start = 0
@@ -270,16 +243,21 @@ class MeetingCoordinator:
                             end = i
                             break
             if end == -1:
-                break
+                # 括号不平衡：跳过起始 { 继续扫描
+                start = begin + 1
+                continue
             candidate = text[begin:end + 1]
             if '"tool"' in candidate:
                 try:
                     parsed = json.loads(candidate)
                     if isinstance(parsed, dict) and parsed.get("tool"):
                         calls.append(parsed)
+                        start = end + 1
+                        continue
                 except Exception:
                     pass
-            start = end + 1
+            # 解析失败（如散落 { 与有效 JSON 的 } 误配对）：只跳过起始 { 继续扫描
+            start = begin + 1
         return calls
 
     async def _execute_workflow_node(self, node: WorkflowNode, input_data: dict) -> dict:
