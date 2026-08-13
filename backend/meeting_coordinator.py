@@ -104,8 +104,11 @@ class MeetingCoordinator:
         self.planner = PlannerAgent(name="coordinator_planner")
 
         # WorkflowEngine 初始化（可由外部注入共享实例，保证 REST 可管理会议工作流）
+        # 仅当本地自建引擎时才注册执行器与回调，避免多个 coordinator 注入同一共享引擎时
+        # 发生 last-wins 覆盖（共享引擎由 server 统一注册委托执行器）
         self.workflow_engine = workflow_engine or WorkflowEngine()
-        self._setup_workflow_engine()
+        if not workflow_engine:
+            self._setup_workflow_engine()
 
         # WhyBuddy化：实例化拆分后的子模块
         self._semantic_analyzer = SemanticAnalyzer(
@@ -1389,13 +1392,19 @@ class MeetingCoordinator:
             try:
                 await task
             except asyncio.CancelledError:
+                # 区分暂停与取消：暂停时引擎状态为 paused，取消时为 cancelled
                 cancelled_status = self.workflow_engine.get_workflow_status(execution.execution_id)
-                cancelled_msg = f"工作流已取消: {cancelled_status.status.value}"
+                if cancelled_status.status.value == "paused":
+                    cancelled_msg = "工作流已暂停"
+                    cancelled_result_status = "paused"
+                else:
+                    cancelled_msg = "工作流已取消"
+                    cancelled_result_status = "cancelled"
                 await self._msg(ceo_id, cancelled_msg)
                 self.meeting.add_message("agent", cancelled_msg, ceo_id)
                 return {
                     "execution_id": execution.execution_id,
-                    "status": "cancelled",
+                    "status": cancelled_result_status,
                     "results": cancelled_status.results,
                 }
 

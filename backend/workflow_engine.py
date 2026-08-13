@@ -166,7 +166,13 @@ class WorkflowEngine:
         """启动工作流执行并注册为可中断任务（pause/cancel 真正生效）"""
         task = asyncio.create_task(self.execute_workflow(execution_id))
         self._running_tasks[execution_id] = task
-        task.add_done_callback(lambda t: self._running_tasks.pop(execution_id, None) if self._running_tasks.get(execution_id) is t else None)
+
+        # 提取为带名闭包：任务完成时仅移除仍指向该任务自身的注册项
+        def _on_task_done(done_task):
+            if self._running_tasks.get(execution_id) is done_task:
+                self._running_tasks.pop(execution_id, None)
+
+        task.add_done_callback(_on_task_done)
         return task
 
     async def _execute_sequential(self, execution: WorkflowExecution, definition: WorkflowDefinition):
@@ -673,7 +679,7 @@ class WorkflowEngine:
         await self._notify_status_change(execution)
 
         # 重新执行工作流（委托 start_workflow，获得注册与 done_callback 清理）
-        task = self.start_workflow(execution_id)
+        self.start_workflow(execution_id)
 
         logger.info("工作流已恢复: %s", execution_id)
 

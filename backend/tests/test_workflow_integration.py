@@ -178,5 +178,45 @@ async def test_meeting_coordinator_accepts_injected_engine(meeting_coordinator):
     assert injected.workflow_engine is shared
 
 
+@pytest.mark.asyncio
+async def test_execute_workflow_returns_cancelled_on_pause(meeting_coordinator):
+    """会议路径工作流被暂停时 _execute_workflow 返回 paused 状态"""
+    coordinator = meeting_coordinator
+
+    async def slow_executor(node, input_data):
+        await asyncio.sleep(30)
+        return {"result": "done"}
+
+    for dept in ("dept-frontend", "dept-backend", "dept-qa"):
+        coordinator.workflow_engine.register_node_executor(dept, slow_executor)
+
+    from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge
+    wf = WorkflowDefinition(
+        workflow_id="pause-test", name="暂停测试", description="",
+        nodes=[
+            WorkflowNode(node_id="n1", task_description="t1", dept_id="dept-frontend"),
+            WorkflowNode(node_id="n2", task_description="t2", dept_id="dept-backend"),
+        ],
+        edges=[WorkflowEdge(source_node_id="n1", target_node_id="n2")],
+    )
+
+    async def on_msg(agent_id, content, kind):
+        return None
+
+    async def run():
+        return await coordinator._execute_workflow(wf, on_msg)
+
+    runner = asyncio.create_task(run())
+    await asyncio.sleep(0.2)
+    # 通过引擎暂停（fixture 协调器为本地自建引擎，暂停可取消运行中的任务）
+    exec_id = coordinator.workflow_engine._definitions.get("pause-test")
+    executions = [e for e in coordinator.workflow_engine._executions.values()]
+    execution = executions[0] if executions else None
+    assert execution is not None, "工作流未启动"
+    await coordinator.workflow_engine.pause_workflow(execution.execution_id)
+    result = await runner
+    assert result["status"] == "paused"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

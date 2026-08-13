@@ -1011,6 +1011,7 @@ async def delete_skill(skill_id: str):
 
 @app.websocket("/ws")
 async def ws_handler(ws: WebSocket):
+    global _active_coordinator  # 共享引擎的委托执行器/回调按最近启动的会议路由
     # 认证：从 query string 的 token 参数校验
     if BACKEND_TOKEN and not _verify_ws_token(ws):
         await ws.close(code=4001, reason="Unauthorized")
@@ -1271,6 +1272,9 @@ async def ws_handler(ws: WebSocket):
                     workflow_engine=workflow_engine,
                 )
                 session._meeting_coordinator = coordinator
+
+                # 记录为活动协调器，供共享引擎的委托执行器/状态回调路由
+                _active_coordinator = coordinator
 
                 # 创建CeoAgent并同步引用
                 if session._ceo_agent is None:
@@ -2191,6 +2195,42 @@ from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge, workflow_ex
 
 workflow_engine = WorkflowEngine()
 
+# 活动 MeetingCoordinator（单用户本地形态：最近启动的会议）。
+# 共享引擎上的节点执行器与状态回调统一委托到该协调器，
+# 避免多个 MeetingCoordinator 注入同一共享引擎时 last-wins 覆盖注册。
+_active_coordinator = None
+
+
+async def _delegate_node_executor(node, input_data):
+    """共享引擎节点执行器：委托到活动协调器的本地节点执行"""
+    coordinator = _active_coordinator
+    if coordinator is None:
+        raise ValueError("无活动协调器可执行工作流节点")
+    return await coordinator._execute_workflow_node(node, input_data)
+
+
+async def _delegate_status_change(execution):
+    """共享引擎状态变化回调：委托到活动协调器（无活动协调器时忽略）"""
+    coordinator = _active_coordinator
+    if coordinator is not None:
+        await coordinator._on_workflow_status_change(execution)
+
+
+async def _delegate_node_status_change(execution, node_id):
+    """共享引擎节点状态变化回调：委托到活动协调器（无活动协调器时忽略）"""
+    coordinator = _active_coordinator
+    if coordinator is not None:
+        await coordinator._on_workflow_node_status_change(execution, node_id)
+
+
+# 在共享引擎上注册委托执行器（仅此一处注册，coordinator 不再覆盖）
+for _dept in ("dept-frontend", "dept-backend", "dept-qa", "dept-devops",
+              "dept-data", "dept-docs", "dept-fullstack"):
+    workflow_engine.register_node_executor(_dept, _delegate_node_executor)
+
+workflow_engine.set_status_change_callback(_delegate_status_change)
+workflow_engine.set_node_status_change_callback(_delegate_node_status_change)
+
 
 @app.post("/api/workflow/create")
 async def create_workflow(definition: dict):
@@ -2234,6 +2274,10 @@ async def execute_workflow(execution_id: str):
         await task
         execution = workflow_engine.get_workflow_status(execution_id)
         return {"success": True, "data": workflow_execution_to_dict(execution)}
+    except asyncio.CancelledError:
+        # 工作流任务被暂停/取消时 `await task` 抛 CancelledError（BaseException），
+        # 显式捕获避免逃逸成 500
+        return {"success": False, "error": "cancelled"}
     except KeyError as e:
         return {"success": False, "error": str(e)}
     except Exception as e:
