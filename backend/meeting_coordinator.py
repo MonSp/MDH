@@ -787,6 +787,43 @@ class MeetingCoordinator:
             self.router.update_stats(dept_id, success=task.status == "completed")
             del self._task_routing[task_id]
 
+    def _finalize_skill_evolution(
+        self,
+        extractor,
+        packager,
+        project_id: str,
+    ) -> Dict[str, Any]:
+        """技能闭环自动触发：审核 pending 规则 → 写增量区 → 打包升级版技能包
+
+        Returns:
+            {"approved": int, "written": int, "packaged": List[str]}
+        """
+        result: Dict[str, Any] = {"approved": 0, "written": 0, "packaged": []}
+        # abspath 归一化 __file__（pytest 下可能带 "tests/.." 前缀，需先解析再取上层目录）
+        skill_packs_root = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skill_packs"
+        )
+
+        pending = extractor.get_pending_rules()
+        for rule in pending:
+            if not extractor.approve_rule(rule.rule_id):
+                continue
+            result["approved"] += 1
+            approved_rule = extractor._load_rule(rule.rule_id)
+            if approved_rule and extractor.write_to_incremental_area(approved_rule):
+                result["written"] += 1
+                for kw in approved_rule.keywords or []:
+                    base_skill = os.path.join(skill_packs_root, kw)
+                    if os.path.isdir(base_skill) and kw not in result["packaged"]:
+                        packager.full_package(
+                            base_skill_path=base_skill,
+                            incremental_path=extractor._incremental_dir,
+                            project_id=project_id,
+                            skill_name=kw,
+                        )
+                        result["packaged"].append(kw)
+        return result
+
     async def execute_and_review_task(
         self,
         task_description: str,
@@ -1286,6 +1323,25 @@ class MeetingCoordinator:
                 )
                 await self._msg(coordinator_id, evolution_text)
                 self.meeting.add_message("agent", evolution_text, coordinator_id)
+
+            # 技能闭环自动触发：审核 pending → 写增量区 → 打包
+            from skill_packager import SkillPackager
+
+            skill_packager = SkillPackager(output_dir=os.path.join(data_dir, "packages"))
+            finalize = self._finalize_skill_evolution(
+                extractor, skill_packager, project_id=self.meeting.meeting_id
+            )
+            if finalize["written"]:
+                packaged_text = (
+                    f"，打包技能包: {', '.join(finalize['packaged'])}"
+                    if finalize["packaged"] else ""
+                )
+                finalize_text = (
+                    f"项目经理：已自动审核并沉淀 {finalize['written']} 条经验规则"
+                    f"{packaged_text}。"
+                )
+                await self._msg(coordinator_id, finalize_text)
+                self.meeting.add_message("agent", finalize_text, coordinator_id)
         except Exception as e:
             self.logger.warning("技能进化提取失败: %s", e)
 
