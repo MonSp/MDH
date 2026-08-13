@@ -620,6 +620,32 @@ class TestUpdateRoutingStats:
 
         m.assert_called_once_with("dept-qa", success=False)
 
+    async def test_update_routing_stats_skips_unknown_task(self, coordinator):
+        """_task_routing 中无对应 meeting task 的条目被跳过且清理（不崩溃）"""
+        coordinator._task_routing["ghost-task"] = "dept-frontend"
+        with patch.object(coordinator.router, "update_stats", return_value=True) as m:
+            coordinator._update_routing_stats()
+        m.assert_not_called()
+        assert "ghost-task" not in coordinator._task_routing
+
+    async def test_update_routing_stats_multiple_entries_and_cleanup(self, coordinator):
+        """多条目一次统计；消费后字典清空，二次调用不重复计数"""
+        task1 = coordinator.meeting.add_task("agent-executor", "任务一")
+        task2 = coordinator.meeting.add_task("agent-executor", "任务二")
+        task1.status = "completed"
+        task2.status = "failed"
+        coordinator._task_routing[task1.id] = "dept-frontend"
+        coordinator._task_routing[task2.id] = "dept-qa"
+
+        with patch.object(coordinator.router, "update_stats", return_value=True) as m:
+            coordinator._update_routing_stats()
+            coordinator._update_routing_stats()  # 第二次调用应为空操作
+
+        assert m.call_count == 2
+        m.assert_any_call("dept-frontend", success=True)
+        m.assert_any_call("dept-qa", success=False)
+        assert coordinator._task_routing == {}
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

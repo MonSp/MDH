@@ -774,12 +774,18 @@ class MeetingCoordinator:
         return await self._task_orchestrator.execute(on_progress=self._on_message)
 
     def _update_routing_stats(self) -> None:
-        """统一更新路由统计：修复自适应学习断链（auto_assign_task 写入的 _task_routing 从未被消费）"""
-        for task_id, dept_id in self._task_routing.items():
+        """统一更新路由统计：修复自适应学习断链（auto_assign_task 写入的 _task_routing 从未被消费）
+
+        消费即删：每条消息只统计一次，避免多消息会议重复计数。
+        """
+        for task_id in list(self._task_routing.keys()):
+            dept_id = self._task_routing[task_id]
             task = next((t for t in self.meeting.tasks if getattr(t, "id", None) == task_id), None)
             if task is None:
+                del self._task_routing[task_id]
                 continue
             self.router.update_stats(dept_id, success=task.status == "completed")
+            del self._task_routing[task_id]
 
     async def execute_and_review_task(
         self,
