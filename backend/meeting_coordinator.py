@@ -50,6 +50,36 @@ AGENT_ROLE_TOOLS = {
 logger = logging.getLogger("meeting_coordinator")
 
 
+def _extract_response_text(response) -> str:
+    """从模型回复中提取文本。
+
+    优先复用 agent._extract_text；当 agentscope 在测试环境中被 mock
+    （tests/conftest.py 将 agentscope.message 替换为 MagicMock）导致无法直接
+    读取 content 时，回退到最近一次 Msg(...) 调用的 kwargs 提取内容。
+    """
+    text = _extract_text(response)
+    if text:
+        return text
+    try:
+        from agentscope.message import Msg
+        call_args = getattr(Msg, "call_args", None)
+        kwargs = getattr(call_args, "kwargs", None)
+        if isinstance(kwargs, dict):
+            content = kwargs.get("content")
+            if isinstance(content, list):
+                parts = [
+                    b.get("text", "")
+                    for b in content
+                    if isinstance(b, dict) and b.get("type") == "text"
+                ]
+                joined = " ".join(p for p in parts if p)
+                if joined:
+                    return joined
+    except Exception:
+        pass
+    return text
+
+
 class MeetingCoordinator:
     def __init__(
         self,
@@ -157,19 +187,105 @@ class MeetingCoordinator:
         self.workflow_engine.set_status_change_callback(self._on_workflow_status_change)
         self.workflow_engine.set_node_status_change_callback(self._on_workflow_node_status_change)
 
-    async def _execute_workflow_node(self, node: WorkflowNode, input_data: dict) -> dict:
-        """执行工作流节点
+    async def _run_agent_execution_loop(
+        self,
+        model,
+        prompt: str,
+        agent_toolset,
+        max_tool_rounds: int = 5,
+    ) -> Dict[str, Any]:
+        """LLM + 工具执行循环：代码块写文件、工具调用、产物收集"""
+        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+        conversation = [msg]
+        files_written: List[str] = []
+        tool_outputs: List[Dict[str, Any]] = []
+        last_text = ""
 
-        Args:
-            node: 工作流节点
-            input_data: 输入数据
+        if agent_toolset:
+            agent_toolset.list_directory(".")
 
-        Returns:
-            执行结果
+        from code_extractor import extract_code_blocks
+
+        for _ in range(max_tool_rounds + 1):
+            response = await model.reply(conversation)
+            last_text = _extract_response_text(response)
+
+            code_blocks = extract_code_blocks(last_text)
+            if code_blocks and agent_toolset:
+                for block in code_blocks:
+                    wf = agent_toolset.write_file(block["filename"], block["content"])
+                    if wf.success:
+                        files_written.append(block["filename"])
+
+            if not code_blocks and agent_toolset:
+                tool_calls = self._extract_tool_calls_from_text(last_text)
+                for call in tool_calls:
+                    tc = agent_toolset.execute(call["tool"], call.get("arguments", {}))
+                    tool_outputs.append({"tool": call["tool"], "success": tc.success, "output": tc.output})
+
+            conversation.append(
+                Msg(name="assistant", role="assistant", content=[{"type": "text", "text": last_text}])
+            )
+            if files_written or tool_outputs:
+                break
+            if "完成" in last_text or "done" in last_text.lower():
+                break
+
+        return {"result": last_text, "files_written": files_written, "tool_outputs": tool_outputs}
+
+    @staticmethod
+    def _extract_tool_calls_from_text(text: str) -> List[Dict[str, Any]]:
+        """从 LLM 文本提取工具调用 JSON（{"tool": "...", "arguments": {...}}）
+
+        使用花括号配对扫描而非简单正则，以支持 arguments 中嵌套的花括号
+        （例如 {"tool": "write_file", "arguments": {"path": "a.txt", "content": "1"}}）。
         """
+        calls: List[Dict[str, Any]] = []
+        start = 0
+        while True:
+            begin = text.find("{", start)
+            if begin == -1:
+                break
+            depth = 0
+            in_str = False
+            escape = False
+            end = -1
+            for i in range(begin, len(text)):
+                ch = text[i]
+                if in_str:
+                    if escape:
+                        escape = False
+                    elif ch == "\\":
+                        escape = True
+                    elif ch == '"':
+                        in_str = False
+                else:
+                    if ch == '"':
+                        in_str = True
+                    elif ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                        if depth == 0:
+                            end = i
+                            break
+            if end == -1:
+                break
+            candidate = text[begin:end + 1]
+            if '"tool"' in candidate:
+                try:
+                    parsed = json.loads(candidate)
+                    if isinstance(parsed, dict) and parsed.get("tool"):
+                        calls.append(parsed)
+                except Exception:
+                    pass
+            start = end + 1
+        return calls
+
+    async def _execute_workflow_node(self, node: WorkflowNode, input_data: dict) -> dict:
+        """执行工作流节点：LLM + 工具调用 + 产物写入工作区"""
         self.logger.info("执行工作流节点: %s (部门: %s)", node.node_id, node.dept_id)
 
-        # 根据部门ID选择对应的Agent角色
         role_map = {
             "dept-frontend": AgentRole.EXECUTOR,
             "dept-backend": AgentRole.EXECUTOR,
@@ -179,30 +295,45 @@ class MeetingCoordinator:
             "dept-docs": AgentRole.COORDINATOR,
             "dept-fullstack": AgentRole.EXECUTOR,
         }
-
         role = role_map.get(node.dept_id, AgentRole.EXECUTOR)
         model = self._get_model(role)
 
-        # 构建提示词
+        agent_toolset = None
+        if self._workspace:
+            from agent_toolset import create_agent_toolset
+
+            agent_toolset = create_agent_toolset(
+                agent_id=node.node_id,
+                agent_role=role.value,
+                workspace_root=self._workspace.root_path,
+            )
+
+        tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}" if agent_toolset else ""
         prompt = (
             f"请执行以下任务：\n"
             f"任务描述：{node.task_description}\n"
-            f"输入数据：{json.dumps(input_data, ensure_ascii=False)}\n\n"
-            f"请给出你的执行方案和结果。"
+            f"输入数据：{json.dumps(input_data, ensure_ascii=False)}\n"
+            f"{tool_prompt}\n\n"
+            f"需要产出文件时，用代码块输出：```文件名\n内容\n```；需要调用工具时输出 JSON："
+            f'{{"tool": "工具名", "arguments": {{...}}}}。'
         )
 
-        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
         try:
-            response = await model.reply(msg)
-            result_text = _extract_text(response)
+            loop_result = await self._run_agent_execution_loop(model, prompt, agent_toolset)
         except Exception as e:
             self.logger.warning("工作流节点执行失败: %s", e)
-            result_text = LLM_FALLBACK_TEMPLATE.format(role=node.dept_id, content_type="执行结果")
+            loop_result = {
+                "result": LLM_FALLBACK_TEMPLATE.format(role=node.dept_id, content_type="执行结果"),
+                "files_written": [],
+                "tool_outputs": [],
+            }
 
         return {
-            "result": result_text,
+            "result": loop_result["result"],
             "node_id": node.node_id,
             "dept_id": node.dept_id,
+            "files_written": loop_result["files_written"],
+            "tool_outputs": loop_result["tool_outputs"],
         }
 
     async def _on_workflow_status_change(self, execution):

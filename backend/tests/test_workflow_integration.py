@@ -8,6 +8,8 @@ import os
 # 添加backend目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+from agentscope.message import Msg
+
 from protocol import (
     AgentRole,
     MeetingAgentStatus,
@@ -216,6 +218,47 @@ async def test_execute_workflow_returns_cancelled_on_pause(meeting_coordinator):
     await coordinator.workflow_engine.pause_workflow(execution.execution_id)
     result = await runner
     assert result["status"] == "paused"
+
+
+@pytest.mark.asyncio
+async def test_run_agent_execution_loop_writes_code_block(meeting_coordinator, tmp_path):
+    """执行循环把 LLM 输出的代码块写入工作区文件"""
+    from agent_toolset import create_agent_toolset
+    toolset = create_agent_toolset(
+        agent_id="node-1", agent_role="executor", workspace_root=str(tmp_path)
+    )
+
+    class FakeModel:
+        async def reply(self, conversation):
+            return Msg(name="assistant", role="assistant",
+                       content=[{"type": "text", "text": "```out.txt\nhello workflow\n```\n完成。"}])
+
+    result = await meeting_coordinator._run_agent_execution_loop(
+        FakeModel(), "请执行任务", toolset
+    )
+    assert "out.txt" in result["files_written"]
+    assert (tmp_path / "out.txt").read_text() == "hello workflow"
+
+
+def test_extract_tool_calls_from_text(meeting_coordinator):
+    """从 LLM 文本提取工具调用 JSON"""
+    text = '先做 A，然后 {"tool": "write_file", "arguments": {"path": "a.txt", "content": "1"}} 再收尾。'
+    calls = meeting_coordinator._extract_tool_calls_from_text(text)
+    assert len(calls) == 1
+    assert calls[0]["tool"] == "write_file"
+
+
+@pytest.mark.asyncio
+async def test_run_agent_execution_loop_no_tool_no_blocks(meeting_coordinator):
+    """无工具无代码块时返回纯文本结果（不崩溃）"""
+    class FakeModel:
+        async def reply(self, conversation):
+            return Msg(name="assistant", role="assistant",
+                       content=[{"type": "text", "text": "方案完成。"}])
+
+    result = await meeting_coordinator._run_agent_execution_loop(FakeModel(), "请执行", None)
+    assert result["result"] == "方案完成。"
+    assert result["files_written"] == []
 
 
 if __name__ == "__main__":
