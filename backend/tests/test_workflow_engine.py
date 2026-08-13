@@ -552,5 +552,29 @@ async def test_node_status_change_callback():
     assert any(cb[0] == "A" and cb[1] == "completed" for cb in node_callbacks)
 
 
+# ── start_workflow 可中断执行 ──
+
+@pytest.mark.asyncio
+async def test_start_workflow_can_be_cancelled(workflow_engine, sample_workflow_definition):
+    """start_workflow 启动的任务可被 cancel_workflow 真正中断"""
+
+    async def slow_executor(node, input_data):
+        await asyncio.sleep(60)
+        return {"result": "slow"}
+
+    for dept in ("dept-frontend", "dept-backend", "dept-qa"):
+        workflow_engine.register_node_executor(dept, slow_executor)
+
+    execution = workflow_engine.create_workflow(sample_workflow_definition)
+    task = workflow_engine.start_workflow(execution.execution_id)
+
+    await asyncio.sleep(0.1)
+    await workflow_engine.cancel_workflow(execution.execution_id)
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert execution.execution_id not in workflow_engine._running_tasks
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

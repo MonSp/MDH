@@ -162,6 +162,13 @@ class WorkflowEngine:
                 await self._notify_status_change(execution)
             raise
 
+    def start_workflow(self, execution_id: str) -> asyncio.Task:
+        """启动工作流执行并注册为可中断任务（pause/cancel 真正生效）"""
+        task = asyncio.create_task(self.execute_workflow(execution_id))
+        self._running_tasks[execution_id] = task
+        task.add_done_callback(lambda t: self._running_tasks.pop(execution_id, None))
+        return task
+
     async def _execute_sequential(self, execution: WorkflowExecution, definition: WorkflowDefinition):
         """顺序执行策略
 
