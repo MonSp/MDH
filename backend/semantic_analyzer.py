@@ -250,20 +250,35 @@ class SemanticAnalyzer:
                 status=WorkflowNodeStatus.PENDING,
             ))
         
-        dept_order = ["dept-frontend", "dept-backend", "dept-qa", "dept-devops"]
-        sorted_nodes = sorted(nodes, key=lambda n: dept_order.index(n.dept_id) if n.dept_id in dept_order else 999)
-        
-        for i in range(len(sorted_nodes) - 1):
-            edges.append(WorkflowEdge(
-                source_node_id=sorted_nodes[i].node_id,
-                target_node_id=sorted_nodes[i + 1].node_id,
-            ))
-        
+        # 依赖推断（替代硬编码 dept_order 线性链）：
+        # 实现类部门（前端/后端/全栈/数据）互不依赖 → 可并行；
+        # qa 依赖所有实现类节点；devops 依赖 qa 与实现类节点；docs 独立。
+        IMPL_DEPTS = {"dept-frontend", "dept-backend", "dept-fullstack", "dept-data"}
+        for node in nodes:
+            if node.dept_id == "dept-qa":
+                for other in nodes:
+                    if other.node_id != node.node_id and other.dept_id in IMPL_DEPTS:
+                        edges.append(WorkflowEdge(source_node_id=other.node_id, target_node_id=node.node_id))
+            elif node.dept_id == "dept-devops":
+                for other in nodes:
+                    if other.node_id != node.node_id and other.dept_id in (IMPL_DEPTS | {"dept-qa"}):
+                        edges.append(WorkflowEdge(source_node_id=other.node_id, target_node_id=node.node_id))
+
+        if not edges and len(nodes) > 1 and not any(n.dept_id in IMPL_DEPTS for n in nodes):
+            # 兜底：仅当不含可并行的实现类节点时按原顺序线性连接，保证可执行
+            for i in range(len(nodes) - 1):
+                edges.append(WorkflowEdge(source_node_id=nodes[i].node_id, target_node_id=nodes[i + 1].node_id))
+
+        # 执行策略：根节点（无入边）> 1 → parallel；否则 sequential
+        incoming = {e.target_node_id for e in edges}
+        root_count = sum(1 for n in nodes if n.node_id not in incoming)
+        execution_strategy = "parallel" if root_count > 1 else "sequential"
+
         return WorkflowDefinition(
             workflow_id=workflow_id,
             name=f"工作流-{user_message[:30]}",
             description=user_message,
             nodes=nodes,
             edges=edges,
-            execution_strategy="mixed",
+            execution_strategy=execution_strategy,
         )

@@ -22,6 +22,15 @@ from meeting_coordinator import MeetingCoordinator
 from meeting import MeetingSession
 
 
+class MockRoutingDecision:
+    """模拟路由决策（支持构造器传 selected_dept）"""
+
+    def __init__(self, selected_dept="dept-frontend", confidence=0.8, reason="测试"):
+        self.selected_dept = selected_dept
+        self.confidence = confidence
+        self.reason = reason
+
+
 @pytest.fixture
 def meeting_session():
     """创建会议会话"""
@@ -90,7 +99,7 @@ async def test_generate_workflow_definition(meeting_coordinator):
 
     assert workflow_def.workflow_id is not None
     assert len(workflow_def.nodes) >= 2
-    assert workflow_def.execution_strategy == "mixed"
+    assert workflow_def.execution_strategy == "parallel"
 
 
 @pytest.mark.asyncio
@@ -276,6 +285,42 @@ async def test_run_agent_execution_loop_no_tool_no_blocks(meeting_coordinator):
     result = await meeting_coordinator._run_agent_execution_loop(FakeModel(), "请执行", None)
     assert result["result"] == "方案完成。"
     assert result["files_written"] == []
+
+
+def test_generate_workflow_definition_parallel_batch():
+    """前端+后端节点无依赖边（可并行），策略为 parallel"""
+    from semantic_analyzer import SemanticAnalyzer
+    analyzer = SemanticAnalyzer(router=None, get_model_fn=None, meeting_agents=[])
+    wf = analyzer._generate_workflow_definition("前端和后端一起开发", MockRoutingDecision(selected_dept="dept-frontend"))
+    depts = [n.dept_id for n in wf.nodes]
+    assert "dept-frontend" in depts and "dept-backend" in depts
+    edge_pairs = {(e.source_node_id, e.target_node_id) for e in wf.edges}
+    by_dept = {n.node_id: n.dept_id for n in wf.nodes}
+    for src, tgt in edge_pairs:
+        assert not ({by_dept[src], by_dept[tgt]} <= {"dept-frontend", "dept-backend", "dept-fullstack", "dept-data"})
+    assert wf.execution_strategy == "parallel"
+
+
+def test_generate_workflow_definition_qa_depends_on_impl():
+    """qa 节点依赖所有实现类节点"""
+    from semantic_analyzer import SemanticAnalyzer
+    analyzer = SemanticAnalyzer(router=None, get_model_fn=None, meeting_agents=[])
+    wf = analyzer._generate_workflow_definition("前端和后端以及测试", MockRoutingDecision(selected_dept="dept-frontend"))
+    by_dept = {n.node_id: n.dept_id for n in wf.nodes}
+    qa_ids = [nid for nid, d in by_dept.items() if d == "dept-qa"]
+    impl_ids = [nid for nid, d in by_dept.items() if d in {"dept-frontend", "dept-backend", "dept-fullstack", "dept-data"}]
+    assert qa_ids and impl_ids
+    incoming = {e.source_node_id for e in wf.edges if e.target_node_id == qa_ids[0]}
+    assert set(impl_ids) <= incoming
+
+
+def test_generate_workflow_definition_single_node_sequential():
+    """单节点工作流策略为 sequential"""
+    from semantic_analyzer import SemanticAnalyzer
+    analyzer = SemanticAnalyzer(router=None, get_model_fn=None, meeting_agents=[])
+    wf = analyzer._generate_workflow_definition("优化数据库查询", MockRoutingDecision(selected_dept="dept-backend"))
+    assert len(wf.nodes) == 1
+    assert wf.execution_strategy == "sequential"
 
 
 if __name__ == "__main__":
