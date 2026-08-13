@@ -226,3 +226,33 @@ async def test_review_with_llm_fallback_on_llm_error(pipeline):
     )
     assert isinstance(result.findings, list)
     assert result.details is None or "llm_findings" not in result.details
+
+
+@pytest.mark.asyncio
+async def test_review_with_llm_parses_array_after_prose_bracket(pipeline):
+    """prose 中先出现方括号时仍能解析 LLM findings"""
+    async def llm_reply(self, conversation):
+        return _FindingMsg('参考文档[3] 的建议：[{"finding": "缺少测试", "severity": "High"}]')
+
+    pipeline._get_model = lambda role: type("M", (), {"reply": llm_reply})()
+    result = await pipeline._critic.review_with_llm(
+        {"task_description": "重构登录模块", "requirements": []},
+        get_model_fn=pipeline._get_model,
+        stage="review",
+    )
+    assert "缺少测试" in result.findings
+
+
+@pytest.mark.asyncio
+async def test_review_with_llm_severity_merge_normalized(pipeline):
+    """severity 大小写变体归一化后参与合并（rule low + LLM critical → critical）"""
+    async def llm_reply(self, conversation):
+        return _FindingMsg('[{"finding": "致命缺陷", "severity": "Critical!"}]')
+
+    pipeline._get_model = lambda role: type("M", (), {"reply": llm_reply})()
+    result = await pipeline._critic.review_with_llm(
+        {"task_description": "添加注册功能", "requirements": []},
+        get_model_fn=pipeline._get_model,
+        stage="review",
+    )
+    assert result.severity == "critical"

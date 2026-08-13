@@ -11,9 +11,13 @@ from datetime import datetime
 import json
 import logging
 import os
+import re
 
 from agentscope.message import Msg
 from protocol import AgentRole
+from agent import _extract_text
+
+logger = logging.getLogger("critic_agent")
 
 
 @dataclass
@@ -99,7 +103,6 @@ class CriticAgent:
         stage: str = "review",
     ) -> CriticResult:
         """规则审查 + LLM 补充审查（LLM 失败时回退纯规则）"""
-        logger = logging.getLogger("critic_agent")
         rule_result = self.review(task_context, stage=stage)
 
         try:
@@ -118,7 +121,6 @@ class CriticAgent:
 
         try:
             response = await model.reply(msg)
-            from agent import _extract_text
             text = _extract_text(response)
             llm_findings = self._parse_llm_findings(text)
         except Exception as e:
@@ -139,36 +141,41 @@ class CriticAgent:
 
     @staticmethod
     def _parse_llm_findings(text: str) -> List[Dict[str, str]]:
-        """解析 LLM 返回的 JSON 数组，容错提取"""
-        import re as _re
-
+        """解析 LLM 返回的 JSON 数组，容错提取（首个可解析且含 findings 的数组）"""
         findings: List[Dict[str, str]] = []
-        match = _re.search(r'\[.*\]', text, _re.DOTALL)
-        if not match:
-            return findings
-        try:
-            parsed = json.loads(match.group(0))
-        except Exception:
-            return findings
-        if not isinstance(parsed, list):
-            return findings
-        for item in parsed:
-            if isinstance(item, dict) and item.get("finding"):
-                findings.append({
-                    "finding": str(item["finding"]),
-                    "severity": str(item.get("severity", "medium")),
-                })
+        for match in re.finditer(r'\[[^\]]*\]', text):
+            try:
+                parsed = json.loads(match.group(0))
+            except Exception:
+                continue
+            if not isinstance(parsed, list):
+                continue
+            for item in parsed:
+                if isinstance(item, dict) and item.get("finding"):
+                    findings.append({
+                        "finding": str(item["finding"]),
+                        "severity": CriticAgent._normalize_severity(item.get("severity", "medium")),
+                    })
+            if findings:
+                break  # 只取首个含 findings 的可解析数组
         return findings
+
+    @staticmethod
+    def _normalize_severity(severity: Any) -> str:
+        """归一化 severity：小写、去空白与标点，仅保留字母；未知/空值回落 medium"""
+        normalized = re.sub(r'[^a-z]', '', str(severity).lower())
+        return normalized if normalized in {"low", "medium", "high", "critical"} else "medium"
 
     @staticmethod
     def _merge_severity(rule_severity: str, llm_findings: List[Dict[str, str]]) -> str:
         """合并严重程度：取最严重值"""
         order = {"low": 0, "medium": 1, "high": 2, "critical": 3}
-        current = order.get(rule_severity, 0)
+        current = order.get(rule_severity, 1)
         for f in llm_findings:
-            sev = f.get("severity", "medium")
-            if order.get(sev, 0) > current:
-                current = order[sev]
+            sev = CriticAgent._normalize_severity(f.get("severity", "medium"))
+            rank = order[sev]
+            if rank > current:
+                current = rank
         return next(k for k, v in order.items() if v == current)
     
     def _check_requirements(self, context: Dict[str, Any]) -> List[str]:
