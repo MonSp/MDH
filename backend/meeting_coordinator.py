@@ -856,10 +856,16 @@ class MeetingCoordinator:
 
         return review_result, task_results
 
-    # 工具缺失信号：基础设施不可用（pylint/pytest 未安装等）而非真实检查失败
+    # 工具缺失信号：基础设施不可用（pylint/pytest 未安装等）而非真实检查失败。
+    # 仅保留确定性的缺失文本信号：实测 _exec_run_tests 在 python -m pytest 缺模块且
+    # pytest 不在 PATH 时返回 "[Errno 2] No such file or directory: 'pytest'"，
+    # _exec_run_linter 在 python -m pylint 缺模块时返回 "<python路径>: No module named pylint"。
+    # 不使用裸 "not found"，避免误伤真实失败（如 pytest 的
+    # "AssertionError: config key not found"）而错误地 fail-open。
     _GATE_TOOL_MISSING_SIGNALS = (
         "no module named",
-        "not found",
+        "no such file or directory",
+        "command not found",
         "no tests were collected",
         "no tests ran",
     )
@@ -872,7 +878,7 @@ class MeetingCoordinator:
         text = (
             f"{getattr(tool_result, 'error', '') or ''}\n"
             f"{getattr(tool_result, 'output', '') or ''}"
-        ).lower()
+        ).strip().lower()
         return any(sig in text for sig in self._GATE_TOOL_MISSING_SIGNALS)
 
     def _run_deterministic_gate(self, workspace_root: Optional[str] = None) -> Dict[str, Any]:
@@ -896,10 +902,12 @@ class MeetingCoordinator:
             if not lint.success:
                 if self._gate_check_unavailable(lint):
                     # 基础设施不可用（如 pylint 未安装）→ fail-open：跳过并记录，不产生失败
+                    lint_detail = (lint.error or lint.output or "lint 工具不可用")[:200]
                     result["skipped"].append({
                         "type": "lint_skipped", "location": ".",
-                        "detail": (lint.error or lint.output or "lint 工具不可用")[:200],
+                        "detail": lint_detail,
                     })
+                    self.logger.info("确定性门禁跳过: %s", lint_detail)
                 else:
                     result["passed"] = False
                     result["failures"].append({
@@ -910,10 +918,12 @@ class MeetingCoordinator:
             if not tests.success:
                 if self._gate_check_unavailable(tests):
                     # 基础设施不可用（如 pytest 未安装 / 未收集到测试）→ fail-open：跳过并记录
+                    test_detail = (tests.error or tests.output or "测试工具不可用")[:200]
                     result["skipped"].append({
                         "type": "test_skipped", "location": ".",
-                        "detail": (tests.error or tests.output or "测试工具不可用")[:200],
+                        "detail": test_detail,
                     })
+                    self.logger.info("确定性门禁跳过: %s", test_detail)
                 else:
                     result["passed"] = False
                     result["failures"].append({

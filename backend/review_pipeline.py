@@ -296,4 +296,8 @@ class ReviewPipeline:
                     "detail": failure.get("detail", "确定性门禁未通过"),
                     "suggestion": "请修复后重新运行测试/代码检查",
                 })
+
+        # 门禁跳过（工具缺失 fail-open）对下游可见（前端/日志），不影响 status
+        if gate_result and gate_result.get("skipped"):
+            result["gate_skipped"] = gate_result.get("skipped", [])
         return result

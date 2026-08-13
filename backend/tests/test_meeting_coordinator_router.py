@@ -696,10 +696,17 @@ class TestDeterministicGate:
         assert failure["location"] == "."
 
     def test_gate_tool_missing_fails_open(self, coordinator):
-        """工具缺失（output/error 含 'No module named'）→ 不置失败，记录 skipped"""
+        """工具缺失（真实 executor 输出文本）→ 不置失败，记录 skipped
+
+        mock error 使用实测 _exec_run_tests / _exec_run_linter 的真实缺失文本：
+        - run_tests: python -m pytest 缺模块且 pytest 不在 PATH →
+            "[Errno 2] No such file or directory: 'pytest'"
+        - run_linter: python -m pylint 缺模块 →
+            "<python路径>: No module named pylint"
+        """
         mock_toolset = self._toolset(
-            lint=types.SimpleNamespace(success=False, output="", error="No module named pylint"),
-            tests=types.SimpleNamespace(success=False, output="", error="No module named pytest"),
+            lint=types.SimpleNamespace(success=False, output="", error="/home/test/miniconda3/bin/python: No module named pylint\n"),
+            tests=types.SimpleNamespace(success=False, output="", error="[Errno 2] No such file or directory: 'pytest'"),
         )
         with patch("agent_toolset.create_agent_toolset", return_value=mock_toolset):
             result = coordinator._run_deterministic_gate("/tmp/ws")
@@ -708,6 +715,18 @@ class TestDeterministicGate:
         skipped_types = [s["type"] for s in result["skipped"]]
         assert "lint_skipped" in skipped_types
         assert "test_skipped" in skipped_types
+
+    def test_gate_real_failure_not_found_text_fails_closed(self, coordinator):
+        """真实失败文本含裸 'not found'（如 pytest 断言失败）→ 不误判为工具缺失，fail-closed"""
+        mock_toolset = self._toolset(
+            lint=types.SimpleNamespace(success=False, output="", error="/home/test/miniconda3/bin/python: No module named pylint\n"),
+            tests=types.SimpleNamespace(success=False, output="AssertionError: config key not found", error=""),
+        )
+        with patch("agent_toolset.create_agent_toolset", return_value=mock_toolset):
+            result = coordinator._run_deterministic_gate("/tmp/ws")
+        assert result["passed"] is False
+        assert "test_failure" in [f["type"] for f in result["failures"]]
+        assert "test_skipped" not in [s["type"] for s in result["skipped"]]
 
     def test_gate_no_tests_collected_fails_open(self, coordinator):
         """未收集到测试（'No tests were collected'）→ 视为工具缺失，不置失败"""

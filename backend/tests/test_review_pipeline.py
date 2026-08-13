@@ -286,3 +286,34 @@ async def test_gate_pass_keeps_status(pipeline):
     )
     # fixture 下审查无严重关键词，确定性 approved
     assert result["structured_feedback"]["status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_gate_skipped_exposed_and_status_kept(pipeline):
+    """门禁 skipped（工具缺失 fail-open）→ gate_skipped 可见，不影响 status"""
+    skipped = [
+        {"type": "lint_skipped", "location": ".", "detail": "[Errno 2] No such file or directory: 'pylint'"},
+        {"type": "test_skipped", "location": ".", "detail": "[Errno 2] No such file or directory: 'pytest'"},
+    ]
+    result = await pipeline.review(
+        "测试任务",
+        "执行结果文本",
+        lambda *a, **k: None,
+        gate_result={"passed": True, "failures": [], "skipped": skipped},
+    )
+    sf = result["structured_feedback"]
+    assert sf["gate_skipped"] == skipped
+    # skipped 不强制 revision：无 failures 时保持 LLM 审查结论（approved）
+    assert sf["status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_gate_no_skipped_key_absent(pipeline):
+    """门禁无 skipped → 返回 dict 不含 gate_skipped 键"""
+    result = await pipeline.review(
+        "测试任务",
+        "执行结果文本",
+        lambda *a, **k: None,
+        gate_result={"passed": True, "failures": []},
+    )
+    assert "gate_skipped" not in result["structured_feedback"]
