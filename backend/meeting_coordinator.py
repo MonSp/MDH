@@ -894,17 +894,19 @@ class MeetingCoordinator:
 
         return review_result, task_results
 
-    # 工具缺失信号（通道感知）：基础设施不可用（pylint/pytest 未安装等）而非真实检查失败。
+    # 工具缺失信号（通道感知 + 工具特定）：门禁只跑 run_linter（pylint）与 run_tests（pytest）
+    # 两个工具，故 error 通道只匹配这两个工具的缺失文本，不做通用匹配。
     # error 通道承载 spawn OSError / import stderr（实测 _exec_run_tests 在 python -m pytest
     # 缺模块且 pytest 不在 PATH 时 error 为 "[Errno 2] No such file or directory: 'pytest'"，
     # _exec_run_linter 在 python -m pylint 缺模块时 error 为 "<python路径>: No module named pylint"）；
     # output 通道承载命令 stdout（真实检查失败、未收集到测试均出现在此处）。
-    # 仅按通道匹配，不使用裸 "not found"，避免误伤真实失败（如 pytest 输出的
-    # "FileNotFoundError: No such file or directory: 'missing_data.csv'"）而错误地 fail-open。
+    # 工具特定匹配使 conftest/插件导入错误（如 "ModuleNotFoundError: No module named foo"）
+    # 不再被误判为工具缺失 → fail-closed，暴露真实项目缺陷。
     _GATE_ERROR_CHANNEL_SIGNALS = (
-        "no module named",
-        "no such file or directory",
-        "command not found",
+        "no module named pytest",
+        "no module named pylint",
+        "no such file or directory: 'pytest'",
+        "no such file or directory: 'pylint'",
     )
     _GATE_OUTPUT_CHANNEL_SIGNALS = (
         "no tests were collected",
@@ -915,11 +917,14 @@ class MeetingCoordinator:
     def _gate_check_unavailable(error: str, output: str) -> bool:
         """判断 lint/test 工具结果为工具缺失（基础设施不可用）
 
-        通道感知：工具缺失信号（pylint/pytest 未安装、spawn OSError）只出现在
-        error 通道；无测试信号（未收集到测试）出现在 output 通道。真实检查失败
-        （如 pytest 输出 "FileNotFoundError: No such file or directory:
-        'missing_data.csv'"）位于 output 通道，不匹配 error 通道信号 → 不会被
-        误判为工具缺失而 fail-open。返回 True 表示工具缺失/无测试（→ skipped）。
+        通道感知 + 工具特定：error 通道只匹配 pytest/pylint 的缺失文本
+        （未安装、spawn OSError），不做通用 "no module named / no such file"
+        匹配——conftest/插件导入错误（如 "ModuleNotFoundError: No module
+        named 'conftest_dep'"）不会被误判为工具缺失，保持 fail-closed；
+        无测试信号（未收集到测试）出现在 output 通道。真实检查失败（如 pytest
+        输出 "FileNotFoundError: No such file or directory: 'missing_data.csv'"）
+        位于 output 通道，不匹配 error 通道信号 → 不会被误判为工具缺失而
+        fail-open。返回 True 表示工具缺失/无测试（→ skipped）。
         """
         error_text = (error or "").strip().lower()
         output_text = (output or "").strip().lower()

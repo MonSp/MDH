@@ -753,7 +753,7 @@ class TestDeterministicGate:
     def test_gate_lint_missing_test_real_failure_mixed(self, coordinator):
         """混合：lint 工具缺失（跳过）+ 测试真实失败（fail-closed）"""
         mock_toolset = self._toolset(
-            lint=types.SimpleNamespace(success=False, output="", error="pylint: command not found"),
+            lint=types.SimpleNamespace(success=False, output="", error="/home/test/miniconda3/bin/python: No module named pylint\n"),
             tests=types.SimpleNamespace(success=False, output="FAILED test_foo.py::test_bar", error=""),
         )
         with patch("agent_toolset.create_agent_toolset", return_value=mock_toolset):
@@ -770,13 +770,19 @@ class TestDeterministicGate:
         assert "gate_error" in [f["type"] for f in result["failures"]]
 
     def test_gate_error_channel_only_prevents_real_failure_misjudgment(self):
-        """真实失败输出（output 通道含 no such file or directory）不被误判为工具缺失"""
+        """通道感知 + 工具特定：仅 pytest/pylint 缺失文本判工具缺失，其余 fail-closed"""
         from meeting_coordinator import MeetingCoordinator
         coordinator = object.__new__(MeetingCoordinator)
         # error 为空、output 含真实失败文本 → 判定为真实失败（非工具缺失）
         assert not MeetingCoordinator._gate_check_unavailable("", "FileNotFoundError: [Errno 2] No such file or directory: 'missing.csv'")
-        # error 通道含工具缺失文本 → 判定为工具缺失
+        # error 通道含工具特定缺失文本 → 判定为工具缺失
         assert MeetingCoordinator._gate_check_unavailable("[Errno 2] No such file or directory: 'pytest'", "")
+        assert MeetingCoordinator._gate_check_unavailable("/opt/python: No module named pylint", "")
+        # error 通道含通用 "no module named" 但非 pytest/pylint（conftest/插件导入错误）
+        # → 不判为工具缺失（fail-closed，暴露真实项目缺陷）
+        assert not MeetingCoordinator._gate_check_unavailable("ModuleNotFoundError: No module named 'conftest_dep'", "")
+        # error 通道含通用 "no such file or directory" 但非 pytest/pylint → 不判为工具缺失
+        assert not MeetingCoordinator._gate_check_unavailable("No such file or directory: 'missing_data.csv'", "")
         # output 通道含 no tests ran → 判定为无测试（跳过）
         assert MeetingCoordinator._gate_check_unavailable("", "no tests ran in 0.00s")
 
