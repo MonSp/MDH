@@ -43,6 +43,7 @@ export class TeamCoordinator {
     userMessage: string,
     selectedRoles: string[],
     onEvent?: EventHandler,
+    roleLocations?: Record<string, 'local' | 'remote'>,
   ): Promise<string> {
     // ====== 阶段 0: CEO 分析复杂度 ======
     onEvent?.({ type: 'phase', phase: 'analyzing' });
@@ -122,7 +123,7 @@ export class TeamCoordinator {
       ? ['executor']
       : effectiveRoles;
 
-    this.team = this.createTeam(rolesToUse, userMessage);
+    this.team = this.createTeam(rolesToUse, userMessage, roleLocations);
     onEvent?.({
       type: 'meeting_started',
       meetingId: this.team.id,
@@ -399,21 +400,38 @@ export class TeamCoordinator {
     return content;
   }
 
-  // ====== 团队创建（保留 meeting_started 事件和路由信息）=====
-  private createTeam(roleIds: string[], task: string, defaultRuntime?: { workspace: string; executorUrl?: string; executorToken?: string }): Team {
+  // ====== 团队创建（保留 meeting_started 事件和路由信息）======
+  // roleLocations 按角色指定执行位置（local/remote），未指定则默认 local。
+  // member.location 决定 RouterFactory 返回 local 还是 remote router（见 toolkit/router.ts）。
+  private createTeam(
+    roleIds: string[],
+    task: string,
+    roleLocations: Record<string, 'local' | 'remote'> = {},
+    defaultRuntime?: { workspace: string; executorUrl?: string; executorToken?: string },
+  ): Team {
     const members: TeamMember[] = roleIds.map((roleId, i) => {
       const template = getTemplate(roleId);
       if (!template) throw new Error(`Unknown role: ${roleId}`);
+      const location: 'local' | 'remote' = roleLocations[roleId] || 'local';
+      const runtime =
+        location === 'remote'
+          ? {
+              type: 'remote' as const,
+              workspace: defaultRuntime?.workspace ?? this.config.workspace,
+              executorUrl: defaultRuntime?.executorUrl ?? '',
+              executorToken: defaultRuntime?.executorToken ?? '',
+            }
+          : defaultRuntime
+            ? { type: 'local' as const, workspace: defaultRuntime.workspace, executorUrl: defaultRuntime.executorUrl, executorToken: defaultRuntime.executorToken }
+            : { type: 'local' as const, workspace: this.config.workspace };
       return {
         id: `member-${i}`,
         name: template.name,
         role: roleId,
         template,
         status: 'idle',
-        location: 'local' as const,
-        runtime: defaultRuntime
-          ? { type: 'local' as const, workspace: defaultRuntime.workspace, executorUrl: defaultRuntime.executorUrl, executorToken: defaultRuntime.executorToken }
-          : { type: 'local' as const, workspace: this.config.workspace },
+        location,
+        runtime,
       };
     });
     return { id: `team-${Date.now()}`, name: `task-${Date.now().toString(36)}`, description: task, members, leader: members[0] };

@@ -186,6 +186,14 @@ async function handleMessage(
 
       console.log(`[WS] Task: "${content.substring(0, 60)}..." roles: [${selectedRoles.join(', ')}]`);
 
+      // 读取前端 per-agent location 选择（如 { executor: 'remote', reviewer: 'local' }）
+      const roleLocations = (msg.role_locations && typeof msg.role_locations === 'object')
+        ? msg.role_locations as Record<string, 'local' | 'remote'>
+        : undefined;
+      if (roleLocations) {
+        console.log(`[WS] roleLocations: ${JSON.stringify(roleLocations)}`);
+      }
+
       try {
         const result = await coordinator.execute(content, selectedRoles, (event) => {
           // 转换 phase 事件为前端期望的 agenda_update 格式
@@ -197,7 +205,7 @@ async function handleMessage(
           } else {
             ws.send(JSON.stringify(event));
           }
-        });
+        }, roleLocations);
         ws.send(JSON.stringify({ type: 'task_result', content: result }));
       } catch (err: any) {
         console.error('[WS] Error:', err.message);
