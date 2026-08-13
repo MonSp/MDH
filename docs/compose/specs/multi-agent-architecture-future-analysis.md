@@ -1,14 +1,28 @@
 ---
 feature: multi-agent-architecture-future-analysis
-status: in-progress
+status: delivered
 updated: 2026-08-13
 branch: analysis/multi-agent-architecture-future
-commits:
+commits: 7982912..1748522
 ---
 
 # MDH 多智能体架构：现状分析与未来方向
 
 ## Report
+
+**What was built** — 一份约 250 行的分析规格文档，回答"MDH 多智能体协作机制现状 + 行业趋势 + 未来方向"三问：(1) 现状分析基于代码级取证，以 54 处 file:line 引用还原三路径真实接线、讨论/投票/DAG/技能进化/混合执行的真实形态，并给出 9 条按严重度排序的局限性清单；(2) 行业趋势基于 deep-research（6 个并行调研角度、43 个去重来源），覆盖框架格局收敛、MCP/A2A 协议分层、多智能体实证效果、企业级生产模式与"组织模拟"范式的市场检验；(3) 未来方向判断为"强单 agent 主轴 + 确定性轻协作 + 标准协议 + 可恢复执行"，含 4 条反方观点，并给出 MDH 三阶段演进路线图（收敛治理 → 范式转向 → 差异化能力），每阶段与现状局限逐一对应。
+
+**Verification** —
+- PASS 引用完整性：正文 40 个 [n] 全部在 43 条来源表中可解析，来源零冗余（脚本校验）
+- PASS 代码引用：54 处 file:line 全部存在且行号在范围内（脚本校验）
+- PASS 独立评审：三项结论（规格合规/事实正确/风格一致）全部通过，无 critical；3 处 minor 已修复
+- PASS 无 TBD/占位符
+
+**Journey log** —
+- 文档口径 ≠ 代码现实：AGENTS.md 宣称的"三路径/四维路由"与代码取证结果差异显著（工作流是复杂路径子分支、路由学习断链），分析以代码为准，文档承诺需单独治理（L8）。
+- 评审发现 `_evaluate_convergence` 返回值语义与函数名相反（True=继续讨论），文档描述行为而非返回值才能避免误读——后续引用该函数的文档以此为范本。
+- 评审发现 "hybrid 未接线" 的原表述过头：cli.ts `--profile` 路径确实接线了 HybridToolkitRouter，准确表述是"未接入 per-agent location 路由"。
+- deep-research 在本环境的 DDG/Bing 搜索不可靠（超时/本地化噪声），有效路径是 arXiv/GitHub/HN Algolia API + 直抓已知一手 URL，后续调研沿用。
 
 ## [S1] Problem
 
@@ -42,7 +56,7 @@ MDH 已实现一套复杂多智能体协作机制（6 层架构链、三执行�
 - [x] T2: deep-research 行业趋势调研（标准深度，6 个角度，43 个来源）— acceptance: 产出 6 份 findings 证据文件，趋势章节关键论断均带 `[n]` 引用且可解析（covers: S2.2）
 - [x] T3: 撰写未来方向判断 + MDH 演进路线图章节 — acceptance: 含未来方向判断（含反方观点）与 3 阶段路线图，每阶段与现状局限对应（covers: S2.3, S2.4）
 - [x] T4: 文档完整性验证 — acceptance: 无 TBD/占位符，所有 `[n]` 与 `file:line` 引用可解析，任务勾选与状态一致（covers: S2）
-- [ ] T5: 独立子代理评审 — acceptance: 评审三项结论（规格合规/事实正确/风格一致）全部通过或差异已解决（covers: S2; depends: T4）
+- [x] T5: 独立子代理评审 — acceptance: 评审三项结论（规格合规/事实正确/风格一致）全部通过或差异已解决（covers: S2; depends: T4）
 
 ---
 
@@ -82,7 +96,7 @@ MDH 已实现一套复杂多智能体协作机制（6 层架构链、三执行�
 #### 1.6 本地/远端混合执行：展示层完备，执行层未接通
 
 - Python 侧：`role_locations` 从 UI（`src/components/office-team/CeoChatPanel.tsx:145,395`）经 `server.py:1142` 写入 DAG task（`backend/ceo_agent.py:72-103`）、映射为 `AgentLocation`（`backend/team_assembler.py:78-90`），但 location 仅用于讨论统计与 💻/☁️ 图标（`backend/mixed_location_discussion.py:125-127,302-303`）；实际工具执行用本地 `AgentToolset` 直连（`backend/task_orchestrator.py:196-202`），不感知 location。
-- TS 侧：`RouterFactory` 按 member.location 路由（`orchestrator/src/toolkit/router.ts:17-35`）、RemoteToolkitRouter（HTTP + 退避重试 + 熔断，`remote.ts:96-203`）、HybridToolkitRouter 按工具类型路由（`hybrid.ts:43-77`）均已实现；但 `TeamCoordinator.createTeam` 硬编码 `location: 'local'`（`orchestrator/src/team/coordinator.ts:413`）、不传 runtime（:125），`HybridToolkitRouter` 全文件未接线——UI 的 per-agent 位置选择没有贯穿到 TS 编排器。
+- TS 侧：`RouterFactory` 按 member.location 路由（`orchestrator/src/toolkit/router.ts:17-35`）、RemoteToolkitRouter（HTTP + 退避重试 + 熔断，`remote.ts:96-203`）、HybridToolkitRouter 按工具类型路由（`hybrid.ts:43-77`）均已实现；但 `TeamCoordinator.createTeam` 硬编码 `location: 'local'`（`orchestrator/src/team/coordinator.ts:413`）、不传 runtime（:125），`HybridToolkitRouter` 未接入 per-agent 路由路径（仅在 `cli.ts:59-65` 经 `--profile` 作为全局 defaultRouter 使用）——UI 的 per-agent 位置选择没有贯穿到 TS 编排器。
 
 #### 1.7 机制层面的优势（应当保留）
 
@@ -101,7 +115,7 @@ MDH 已实现一套复杂多智能体协作机制（6 层架构链、三执行�
 | L3 | 自适应路由学习断链 | 会议写 `_task_routing`（`meeting_coordinator.py:730`），但 `update_stats` 只在 TaskOrchestrator 自己的 dict 上生效（`task_orchestrator.py:361-363`），会议流程从不调用 | "成功率自适应"是摆设 |
 | L4 | 会议/投票机制与证据冲突 | 硬编码 SIMPLE_MAJORITY（`meeting_coordinator.py:94,933`）；会议式协商对编码任务收益低（43.3% 情况单 agent 更优 [23]；MAST 14 失败模式 [22]） | 高成本低增益；论据投票从未生效 |
 | L5 | 技能闭环半通 | 审核→增量→打包仅手工 REST（`server.py:479-499`） | "项目结束产出进化技能包"的核心卖点未自动兑现 |
-| L6 | 混合执行未接线 | `coordinator.ts:413` 硬编码 local；hybrid 未引用；Python 侧 location 仅展示 | per-agent 位置选择是 UI 幻觉 |
+| L6 | 混合执行未接线 | `coordinator.ts:413` 硬编码 local；hybrid 未接入 per-agent 路由（仅 `cli.ts:59-65` 作全局 defaultRouter）；Python 侧 location 仅展示 | per-agent 位置选择是 UI 幻觉 |
 | L7 | 名不副实的组件 | critic/grounding 是同步规则匹配非 LLM（`backend/collaboration/critic_agent.py:46`、`grounding_agent.py:45`）；审批"自动通过"（`meeting_coordinator.py:981-984`） | 审查与安全承诺高于实际 |
 | L8 | 死代码与文档债务 | 两套 discussion 死代码；`mock-sso/` 镜像 `backend/`；AGENTS.md 描述与代码不符 | 维护负担、误导决策 |
 | L9 | 单点故障 | 每会话单例 CeoAgent（`server.py:1145-1151`）、内存模型缓存（`meeting_coordinator.py:268-278`）、agent_pool 未注入（:63,87） | 无故障转移，与 durable execution 差距大 [25] |
