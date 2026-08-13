@@ -62,6 +62,7 @@ class MeetingCoordinator:
         workspace=None,
         agent_pool: Optional[AgentPool] = None,
         max_iterations: int = 3,
+        workflow_engine: Optional[WorkflowEngine] = None,
     ):
         self._max_iterations = max_iterations
         self.meeting = meeting_session
@@ -102,8 +103,8 @@ class MeetingCoordinator:
         # PlannerAgent 用于生成结构化验收反馈
         self.planner = PlannerAgent(name="coordinator_planner")
 
-        # WorkflowEngine 初始化
-        self.workflow_engine = WorkflowEngine()
+        # WorkflowEngine 初始化（可由外部注入共享实例，保证 REST 可管理会议工作流）
+        self.workflow_engine = workflow_engine or WorkflowEngine()
         self._setup_workflow_engine()
 
         # WhyBuddy化：实例化拆分后的子模块
@@ -1383,8 +1384,20 @@ class MeetingCoordinator:
             await self._msg(ceo_id, create_msg)
             self.meeting.add_message("agent", create_msg, ceo_id)
 
-            # 执行工作流
-            await self.workflow_engine.execute_workflow(execution.execution_id)
+            # 启动工作流执行（注册任务，支持暂停/取消真正生效）
+            task = self.workflow_engine.start_workflow(execution.execution_id)
+            try:
+                await task
+            except asyncio.CancelledError:
+                cancelled_status = self.workflow_engine.get_workflow_status(execution.execution_id)
+                cancelled_msg = f"工作流已取消: {cancelled_status.status.value}"
+                await self._msg(ceo_id, cancelled_msg)
+                self.meeting.add_message("agent", cancelled_msg, ceo_id)
+                return {
+                    "execution_id": execution.execution_id,
+                    "status": "cancelled",
+                    "results": cancelled_status.results,
+                }
 
             # 获取执行结果
             status = self.workflow_engine.get_workflow_status(execution.execution_id)

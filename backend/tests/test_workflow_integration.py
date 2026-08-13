@@ -160,5 +160,23 @@ def test_workflow_engine_setup(meeting_coordinator):
     assert len(meeting_coordinator.workflow_engine._node_executors) > 0
 
 
+@pytest.mark.asyncio
+async def test_meeting_coordinator_accepts_injected_engine(meeting_coordinator):
+    """MeetingCoordinator 支持注入外部共享引擎"""
+    from workflow_engine import WorkflowEngine
+    shared = WorkflowEngine()
+    coordinator = meeting_coordinator
+    from meeting_coordinator import MeetingCoordinator
+    injected = MeetingCoordinator(
+        meeting_session=coordinator.meeting,
+        provider=coordinator.provider,
+        model_name=coordinator.model_name,
+        api_key=coordinator.api_key,
+        base_url=coordinator.base_url or "",
+        workflow_engine=shared,
+    )
+    assert injected.workflow_engine is shared
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

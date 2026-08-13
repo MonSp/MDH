@@ -1268,6 +1268,7 @@ async def ws_handler(ws: WebSocket):
                     workspace=workspace,
                     agent_pool=agent_pool,
                     max_iterations=msg.get("max_iterations", 3),
+                    workflow_engine=workflow_engine,
                 )
                 session._meeting_coordinator = coordinator
 
@@ -2229,7 +2230,8 @@ async def create_workflow(definition: dict):
 async def execute_workflow(execution_id: str):
     """执行工作流"""
     try:
-        await workflow_engine.execute_workflow(execution_id)
+        task = workflow_engine.start_workflow(execution_id)
+        await task
         execution = workflow_engine.get_workflow_status(execution_id)
         return {"success": True, "data": workflow_execution_to_dict(execution)}
     except KeyError as e:
