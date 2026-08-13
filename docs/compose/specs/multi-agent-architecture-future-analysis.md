@@ -26,6 +26,8 @@ commits: 7982912..1748522
 - 产品定义先行：用户先修正了 AGENTS.md 的产品叙事（意图驱动派发 + 五支柱，会议/投票降级为辅助），方向判断据此重写——"组织模拟降级"议题通过产品定义解决，分析退居证据层。
 - P0 实施交付（2026-08-13）：工作流真执行/双引擎合并/审查 LLM 通道/审批真等待/死代码清理 5 项全部落地（12 commits 合并至 main，852 tests 通过）。最终集成评审发现并修复 1 个 Critical——审批阻塞 WS 接收循环（meeting_message 内联 await），改为后台任务 + 结构化 `human_approval_request` 推送；并统一全部 3 处 MeetingCoordinator 构造点的引擎/审批注入。
 - P1 实施交付（2026-08-13）：路由断链修复/技能闭环自动触发/DAG 依赖推断/混合执行真接线/杂项收尾 5 项落地（11 commits 合并至 main，backend 864 + orchestrator 110 + 前端 1630 tests 全绿）。评审驱动的关键修正：① CLI 裸引擎注入会跳过 executor 注册致 DAG 分支回归，已回退（`MeetingCoordinator.__init__` 注入契约：注入引擎必须已注册执行器，否则留空自建）；② 技能自动闭环按 `source_task_id` 项目隔离防跨项目污染；③ 前端审批契约验证闭环（结构化推送 → pendingApprovals 字段逐一对应）。
+- P2 实施交付（2026-08-13）：durable execution 基础版/审查确定性门禁/artifact 模式/模型 failover/杂项 5 项落地（11 commits + vitest 修复合并至 main，backend 891 + orchestrator 118 + 前端 1632 tests 全绿）。评审驱动的关键修正：① durable execution 落盘采用原子写 + 容错加载 + execution-id 过滤（防 checkpoints.json 混淆），恢复仅跳过 COMPLETED（FAILED 按重试语义）；② 审查门禁对工具缺失 fail-open（信号集经真实错误文本实测对齐），真实失败 fail-closed，经 asyncio.to_thread 避免阻塞事件循环；③ main 上发现 orchestrator 陈旧编译产物 .js 遮蔽 .ts 导致新测试套件失败——以 vitest 正则 alias 非破坏性修复。
+- P3 方向融合（2026-08-13）：研究 DeepSeek Harness（dsh，agent 运行时平台）后确认其"强单 agent + subagent 轻协作 + 插件化 + session log 真相源 + 评测门禁"与本文档方向同向；决定不落盘对比文档，改为将 5 项 dsh 理念（session log 真相源、subagent 委托、配置层插件化、快照/评测门禁、守卫/沙箱系统化）直接吸收进"四、产品发展方向"的 P3 小节，与既有评审遗留项合并为连贯后续计划。
 
 ## [S1] Problem
 
@@ -228,6 +230,30 @@ MDH 已实现一套复杂多智能体协作机制（6 层架构链、三执行�
 
 **优先级汇总**：P0 = 让五大支柱"名副其实"（工作流真执行、审查诚实化、债务清理、双引擎合并）——**已于 2026-08-13 交付（main@7cb63c9，852 tests 通过）**；P1 = 补全主线能力（路由自适应、技能闭环、真实 DAG、artifact、混合执行、HITL 分级）；P2 = 差异化深化（Agent Skills 对齐、MCP、durable execution、技能市场）。
 
+#### P3/后续方向（含 deepseek-harness 理念吸收）
+
+> 2026-08-13 增补：研究 DeepSeek Harness（`dsh`，DeepSeek 开源的 agent 运行时平台 [44]）后吸收其理念——"强单 agent 主轴 + subagent 轻协作 + 插件化组合 + session log 上下文真相源 + 平台化接口 + 评测门禁"与本文档方向判断同向，融合为下述 P3 方向。dsh 处于开发者预览（0.1.0-rc，破坏性迭代），**只借鉴理念，不依赖其 API**。以下标注"dsh 借鉴"者来自该研究，"评审遗留"者来自 P0-P2 评审记录，其余为原 P2 顺延项。
+
+| 方向 | 来源 | 说明 |
+|------|------|------|
+| **session log 作为上下文真相源**：会议/执行记录升级为 append-only log，模型上下文从 log 投影（fork/resume/transcript），替代散落的 `meeting.add_message`/审计 | **dsh 借鉴**（最高优先级） | 对齐 context engineering 落地 [31]；与 P2 检查点/artifact 模式衔接 |
+| **subagent 委托模式**：TS orchestrator 角色 agent 支持 spawn/fork/ACP 子进程委托（可选外部 agent 子进程），并行执行演进为 orchestrator-worker 工业形态 | **dsh 借鉴** | 对应 dsh subagent 能力族；承接调研结论 [20] |
+| **快照回放测试 + 场景评测门禁**：keyless snapshot replay 引入 loop-engineering，配合场景评测（对齐 dsh BENCHMARK 思路） | **dsh 借鉴** | dsh 工程纪律的核心可迁移项 |
+| **配置层插件化**：角色模板/技能包升级为可 patch 的组合层（profile/bundle/patch 思想；现有 roles_config + CoW 增量为雏形） | **dsh 借鉴** | 支柱 2/5 关联 |
+| **守卫/超时系统化**：工具超时、loop 卫生（对齐 dsh guard 包） | **dsh 借鉴** | 与 HITL 分级、沙箱增强合并推进 |
+| **技能 provider 中立目录 + loader**：多来源（本地/远程）技能发现，对齐 Agent Skills [30] 与 dsh skill 能力族 | **dsh 借鉴** + 原 P2 | 支柱 5 |
+| **模型自产工作流（model-authored workflow）**：让模型输出 DAG 配置（对齐 dsh workflow 能力；当前为确定性依赖推断） | **dsh 借鉴**（远期） | 支柱 3，需结构化输出稳定性评估 |
+| 判定结果结构化回传 UI（复杂度+路由理由可解释化） | 评审遗留 | 支柱 1 |
+| 审查报告闭环（审查意见全程结构化，形成"审查报告→迭代"可见闭环） | 原 P2 | 支柱 4 |
+| 门禁通道感知匹配（工具缺失在 error 通道、真实失败在 output 通道） | 评审遗留 | 支柱 4，T2 残余 |
+| durable execution 读侧入口（resume REST 端点）+ per-execution 持久化加锁 | 评审遗留 | 支柱 3，T1 残余 |
+| failover 扩展到 review/discussion 消费点；hybrid 生产接线 + profile 校验 | 评审遗留 | 横向，T4/T5 残余 |
+| MCP client 兼容 [11]（dsh 已内置 mcp 包，必要性强化）；A2A 跨产品边界 [15] | 原 P2（强化） | 横向 |
+| HITL 分级（白名单+分级+分类器 [27]）+ 沙箱系统化（对齐 dsh landlock/e2b） | 原 P0/P1 + **dsh 借鉴** | 横向 |
+| 技能市场/跨项目经验融合；技能打包人工审核 UI | 原 P2 | 支柱 5 |
+
+**P3 启动建议**：优先 session log 真相源、subagent 委托、快照/评测门禁三项（与现有检查点、TS 编排器、loop-engineering 衔接最紧，且直接对齐 dsh 已验证的实践）。
+
 ### 五、来源
 
 [1] Microsoft AutoGen repository README — https://github.com/microsoft/autogen (accessed 2026-08-13)
@@ -273,3 +299,4 @@ MDH 已实现一套复杂多智能体协作机制（6 层架构链、三执行�
 [41] Qian et al., "ChatDev: Communicative Agents for Software Development" — https://arxiv.org/abs/2307.07924 (2023-07)
 [42] ZDNet, "As AI agents multiply, IT becomes the new HR department" — https://www.zdnet.com/article/as-ai-agents-multiply-it-becomes-the-new-hr-department/ (2025-03-10)
 [43] Sam Altman, "Three Observations" — https://blog.samaltman.com/three-observations (2025-02-09)
+[44] DeepSeek Harness repository — https://github.com/deepseek-ai/deepseek-harness (公开于 2026-08-13，accessed 2026-08-13)
