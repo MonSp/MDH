@@ -256,3 +256,32 @@ async def test_review_with_llm_severity_merge_normalized(pipeline):
         stage="review",
     )
     assert result.severity == "critical"
+
+
+# ── 确定性门禁（测试/lint 失败并入结构化反馈）──
+
+
+@pytest.mark.asyncio
+async def test_gate_failure_forces_revision_required(pipeline):
+    """确定性门禁失败 → structured_feedback.status == revision_required"""
+    result = await pipeline.review(
+        "测试任务",
+        "执行结果文本",
+        lambda *a, **k: None,
+        gate_result={"passed": False, "failures": [{"type": "test_failure", "detail": "tests/test_x.py 失败"}]},
+    )
+    sf = result["structured_feedback"]
+    assert sf["status"] == "revision_required"
+    assert any(i["type"] == "test_failure" for i in sf["issues"])
+
+
+@pytest.mark.asyncio
+async def test_gate_pass_keeps_status(pipeline):
+    """确定性门禁通过 → 不覆盖 LLM 审查结论（approved 保持）"""
+    result = await pipeline.review(
+        "测试任务",
+        "执行结果文本",
+        lambda *a, **k: None,
+        gate_result={"passed": True, "failures": []},
+    )
+    assert result["structured_feedback"]["status"] in ("approved", "revision_required")

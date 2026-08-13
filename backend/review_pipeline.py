@@ -44,6 +44,7 @@ class ReviewPipeline:
         on_message: Callable[[str, str, str], Awaitable[None]],
         repo_context: Optional[Dict[str, Any]] = None,
         discussion_context: str = "",
+        gate_result: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         执行审查流水线
@@ -56,6 +57,7 @@ class ReviewPipeline:
             on_message: 消息回调
             repo_context: 仓库上下文
             discussion_context: 团队讨论决策摘要
+            gate_result: 确定性门禁结果（测试/lint），失败时强制 revision_required
             
         Returns:
             审查结果
@@ -107,9 +109,10 @@ class ReviewPipeline:
             task_description, execution_result, reviewer_feedback, monitor_feedback, on_message
         )
         
-        # 6. 结构化验收反馈（整合 LLM 审查意见）
+        # 6. 结构化验收反馈（整合 LLM 审查意见 + 确定性门禁结果）
         structured_feedback = self._generate_structured_feedback(
             task_description, execution_result, reviewer_feedback, monitor_feedback,
+            gate_result=gate_result,
         )
         
         return {
@@ -254,8 +257,9 @@ class ReviewPipeline:
         execution_result: str,
         reviewer_feedback: str = "",
         monitor_feedback: str = "",
+        gate_result: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """生成结构化验收反馈，整合 LLM 审查意见"""
+        """生成结构化验收反馈，整合 LLM 审查意见与确定性门禁结果"""
         if self._planner:
             subtask = SubTask(
                 name=task_description[:100],
@@ -277,6 +281,17 @@ class ReviewPipeline:
                         "detail": "审查者发现严重问题",
                         "suggestion": reviewer_feedback[:200],
                     })
-            return result
+        else:
+            result = {"status": "approved", "issues": [], "max_iterations": 3}
 
-        return {"status": "approved", "issues": [], "max_iterations": 3}
+        # 确定性门禁合并：测试/lint 失败强制 revision_required（仅降级，不覆盖 LLM 通过结论）
+        if gate_result and not gate_result.get("passed", True):
+            result["status"] = "revision_required"
+            for failure in gate_result.get("failures", []):
+                result["issues"].append({
+                    "type": failure.get("type", "gate_failure"),
+                    "location": failure.get("location", "deterministic_gate"),
+                    "detail": failure.get("detail", "确定性门禁未通过"),
+                    "suggestion": "请修复后重新运行测试/代码检查",
+                })
+        return result

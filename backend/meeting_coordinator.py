@@ -852,6 +852,35 @@ class MeetingCoordinator:
 
         return review_result, task_results
 
+    def _run_deterministic_gate(self, workspace_root: Optional[str] = None) -> Dict[str, Any]:
+        """确定性门禁：对工作区运行测试与代码检查，失败即 revision_required"""
+        result: Dict[str, Any] = {"passed": True, "failures": []}
+        if not workspace_root:
+            return result
+        try:
+            from agent_toolset import create_agent_toolset
+            toolset = create_agent_toolset(
+                agent_id="gate", agent_role="reviewer", workspace_root=workspace_root
+            )
+            lint = toolset.run_linter(".")
+            if not lint.success:
+                result["passed"] = False
+                result["failures"].append({
+                    "type": "lint_failure", "location": ".",
+                    "detail": (lint.error or lint.output or "lint 未通过")[:200],
+                })
+            tests = toolset.run_tests("", verbose=False)
+            if not tests.success:
+                result["passed"] = False
+                result["failures"].append({
+                    "type": "test_failure", "location": "",
+                    "detail": (tests.error or tests.output or "测试未通过")[:200],
+                })
+        except Exception as e:
+            result["passed"] = False
+            result["failures"].append({"type": "gate_error", "detail": str(e)[:200]})
+        return result
+
     def _generate_structured_feedback(
         self, task_description: str, execution_result: str
     ) -> Dict[str, Any]:
@@ -1241,9 +1270,13 @@ class MeetingCoordinator:
                 execution_text = "\n\n".join([r.get("result", "") for r in exec_results])
 
             try:
+                gate_result = self._run_deterministic_gate(
+                    self._workspace.root_path if self._workspace else None
+                )
                 review_result = await self._review_pipeline.review(
                     enhanced_description, execution_text, on_message,
                     discussion_context=discussion_context,
+                    gate_result=gate_result,
                 )
             except Exception as e:
                 self.logger.warning("第 %d 轮审查失败: %s", dev_iter, e)
