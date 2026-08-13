@@ -1,7 +1,7 @@
 """
-端到端测试 - 并行多Agent系统
+端到端测试 - KeyManager / MessageQueue 集成
 
-测试ParallelMeetingCoordinator的完整流程。
+覆盖 KeyManager 多角色密钥配置与 MessageQueue 发布-持久化生命周期（原 parallel 模块已删除，保留本文件覆盖存活代码）。
 使用mock避免依赖agentscope。
 """
 import asyncio

@@ -1,7 +1,7 @@
 """
-并行多Agent系统模块测试
+KeyManager / MessageQueue 模块测试
 
-测试KeyManager、MessageQueue、AgentPool和ParallelDiscussionManager。
+覆盖 KeyManager 与 MessageQueue 的存活功能（原 parallel 模块已删除，保留本文件覆盖存活代码）。
 """
 import asyncio
 import os
