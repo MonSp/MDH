@@ -592,5 +592,34 @@ class TestConfidenceFieldCompatibility:
         assert confidence == 0.7, f"应读取 confidence=0.7, 实际={confidence}"
 
 
+# ---------------------------------------------------------------------------
+# 4. 自适应路由学习断链修复（P1：统一消费 _task_routing）
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateRoutingStats:
+    async def test_update_routing_stats_consumes_task_routing(self, coordinator):
+        """_task_routing 中记录的任务在完成后触发 router.update_stats（修复断链）"""
+        task = coordinator.meeting.add_task("agent-executor", "测试任务")
+        coordinator._task_routing[task.id] = "dept-frontend"
+        task.status = "completed"
+
+        with patch.object(coordinator.router, "update_stats", return_value=True) as m:
+            coordinator._update_routing_stats()
+
+        m.assert_called_once_with("dept-frontend", success=True)
+
+    async def test_update_routing_stats_failed_task_reports_failure(self, coordinator):
+        """失败任务上报 success=False"""
+        task = coordinator.meeting.add_task("agent-executor", "测试任务")
+        coordinator._task_routing[task.id] = "dept-qa"
+        task.status = "failed"
+
+        with patch.object(coordinator.router, "update_stats", return_value=True) as m:
+            coordinator._update_routing_stats()
+
+        m.assert_called_once_with("dept-qa", success=False)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

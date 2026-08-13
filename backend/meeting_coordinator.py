@@ -773,6 +773,14 @@ class MeetingCoordinator:
         """
         return await self._task_orchestrator.execute(on_progress=self._on_message)
 
+    def _update_routing_stats(self) -> None:
+        """统一更新路由统计：修复自适应学习断链（auto_assign_task 写入的 _task_routing 从未被消费）"""
+        for task_id, dept_id in self._task_routing.items():
+            task = next((t for t in self.meeting.tasks if getattr(t, "id", None) == task_id), None)
+            if task is None:
+                continue
+            self.router.update_stats(dept_id, success=task.status == "completed")
+
     async def execute_and_review_task(
         self,
         task_description: str,
@@ -1235,6 +1243,9 @@ class MeetingCoordinator:
                     task.description = fix_description
 
             self.logger.info("第 %d 轮审查未通过，启动第 %d 轮修复", dev_iter, dev_iter + 1)
+
+        # 更新路由统计（修复自适应学习断链）
+        self._update_routing_stats()
 
         # 生成项目总结报告
         project_summary = self._generate_project_summary(
