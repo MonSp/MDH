@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 import time
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
+
+logger = logging.getLogger("compensation")
 
 
 @dataclass
@@ -173,7 +176,10 @@ class CheckpointManager:
             self._load_from_disk()
 
     def _persist(self) -> None:
-        """将全部检查点落盘为 JSON（persistence_dir 未配置时跳过）"""
+        """将全部检查点落盘为 JSON（persistence_dir 未配置时跳过）
+
+        写入采用"临时文件 + 原子替换（os.replace）"，防止崩溃导致 JSON 截断。
+        """
         if not self._persistence_dir:
             return
         data = {
@@ -190,18 +196,27 @@ class CheckpointManager:
             for task_id, cps in self._checkpoints.items()
         }
         path = os.path.join(self._persistence_dir, "checkpoints.json")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        tmp_path = f"{path}.tmp"
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, path)
+        except OSError as e:
+            logger.warning("持久化检查点失败: %s", e)
 
     def _load_from_disk(self) -> None:
-        """从磁盘加载检查点（文件不存在时静默跳过）"""
+        """从磁盘加载检查点（文件不存在或损坏时静默跳过，不崩溃）"""
         if not self._persistence_dir:
             return
         path = os.path.join(self._persistence_dir, "checkpoints.json")
         if not os.path.exists(path):
             return
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("加载检查点失败（%s），跳过磁盘恢复", e)
+            return
         for task_id, cp_list in data.items():
             self._checkpoints[task_id] = [
                 Checkpoint(

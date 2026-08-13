@@ -112,7 +112,11 @@ class WorkflowEngine:
         return execution
 
     def persist_execution(self, execution_id: str) -> bool:
-        """将 execution 状态落盘（JSON），供进程重启后恢复"""
+        """将 execution 状态落盘（JSON），供进程重启后恢复
+
+        恢复语义：恢复时跳过已完成（COMPLETED）节点，FAILED/中断节点按重试语义重新执行。
+        写入采用"临时文件 + 原子替换（os.replace）"，防止崩溃导致 JSON 截断。
+        """
         if not self._persistence_dir:
             return False
         execution = self._executions.get(execution_id)
@@ -125,21 +129,39 @@ class WorkflowEngine:
             # 附带工作流定义，保证新进程恢复后可直接继续执行（无需重建定义）
             data["definition"] = workflow_definition_to_dict(definition)
         path = os.path.join(self._persistence_dir, f"{execution_id}.json")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        tmp_path = f"{path}.tmp"
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, path)
+        except OSError as e:
+            logger.warning("持久化 execution %s 失败: %s", execution_id, e)
+            return False
         return True
 
     def load_execution(self, execution_id: str) -> Optional[WorkflowExecution]:
-        """从磁盘恢复 execution（不存在返回 None）"""
+        """从磁盘恢复 execution（不存在或文件损坏返回 None）
+
+        恢复语义：恢复时跳过已完成（COMPLETED）节点，FAILED/中断节点按重试语义重新执行。
+        损坏/截断的 JSON 不崩溃，记录 warning 并返回 None。
+        """
         if not self._persistence_dir:
             return None
         path = os.path.join(self._persistence_dir, f"{execution_id}.json")
         if not os.path.exists(path):
             return None
         from protocol import dict_to_workflow_execution, dict_to_workflow_definition
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        execution = dict_to_workflow_execution(data)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("加载 execution %s 失败（%s），返回 None", execution_id, e)
+            return None
+        try:
+            execution = dict_to_workflow_execution(data)
+        except Exception as e:
+            logger.warning("解析 execution %s 数据失败（%s），返回 None", execution_id, e)
+            return None
         self._executions[execution_id] = execution
         definition_data = data.get("definition")
         if definition_data is not None:
@@ -147,10 +169,13 @@ class WorkflowEngine:
         return execution
 
     def load_all_executions(self) -> List[str]:
-        """列出磁盘上已持久化的 execution_id 列表"""
+        """列出磁盘上已持久化的 execution_id 列表（仅匹配 execution-id 形态文件名）"""
+        import re as _re
+
         if not self._persistence_dir or not os.path.isdir(self._persistence_dir):
             return []
-        return [f[:-5] for f in os.listdir(self._persistence_dir) if f.endswith(".json")]
+        pattern = _re.compile(r'^[0-9a-fA-F]{8}\.json$')
+        return [f[:-5] for f in os.listdir(self._persistence_dir) if pattern.match(f)]
 
     async def execute_workflow(self, execution_id: str):
         """执行工作流

@@ -6,7 +6,13 @@ import json
 import pytest
 
 from workflow_engine import WorkflowEngine
-from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowNodeStatus
+from protocol import (
+    WorkflowDefinition,
+    WorkflowNode,
+    WorkflowEdge,
+    WorkflowNodeStatus,
+    WorkflowExecutionStatus,
+)
 
 
 def _make_definition(workflow_id="wf-persist"):
@@ -87,3 +93,147 @@ async def test_checkpoint_manager_persists_to_disk(tmp_path):
     m2 = CheckpointManager(persistence_dir=str(tmp_path))
     restored = m2.restore_checkpoint(cp.id)
     assert restored == {"progress": "half"}
+
+
+async def test_recovery_parallel_skips_completed_nodes(tmp_path):
+    """parallel 策略：恢复持久化 execution 后仅执行剩余节点（已完成节点不重复执行）"""
+    first_engine = WorkflowEngine(persistence_dir=str(tmp_path))
+    executed = []
+
+    async def exec1(node, input_data):
+        executed.append(node.node_id)
+        return {"result": f"done-{node.node_id}"}
+
+    # p1 → p3，p2 → p3（第一层并行，p3 依赖两者）
+    nodes = [
+        WorkflowNode(node_id="p1", task_description="t1", dept_id="dept-frontend"),
+        WorkflowNode(node_id="p2", task_description="t2", dept_id="dept-backend"),
+        WorkflowNode(node_id="p3", task_description="t3", dept_id="dept-qa"),
+    ]
+    edges = [
+        WorkflowEdge(source_node_id="p1", target_node_id="p3"),
+        WorkflowEdge(source_node_id="p2", target_node_id="p3"),
+    ]
+    definition = WorkflowDefinition(
+        workflow_id="wf-parallel-recover", name="并行恢复", description="",
+        nodes=nodes, edges=edges, execution_strategy="parallel",
+    )
+    for dept in ("dept-frontend", "dept-backend", "dept-qa"):
+        first_engine.register_node_executor(dept, exec1)
+
+    execution = first_engine.create_workflow(definition)
+    # 模拟进程中断在 p3 之前：p1、p2 已完成，p3 仍 PENDING
+    execution.node_states["p1"] = WorkflowNodeStatus.COMPLETED
+    execution.node_states["p2"] = WorkflowNodeStatus.COMPLETED
+    execution.results["p1"] = {"result": "done-p1"}
+    execution.results["p2"] = {"result": "done-p2"}
+    first_engine.persist_execution(execution.execution_id)
+
+    second_engine = WorkflowEngine(persistence_dir=str(tmp_path))
+    for dept in ("dept-frontend", "dept-backend", "dept-qa"):
+        second_engine.register_node_executor(dept, exec1)
+
+    restored = second_engine.load_execution(execution.execution_id)
+    assert restored is not None
+    assert restored.node_states["p1"] == WorkflowNodeStatus.COMPLETED
+
+    await second_engine.execute_workflow(restored.execution_id)
+    # p1、p2 不重复执行，仅执行 p3
+    assert executed == ["p3"]
+    status = second_engine.get_workflow_status(restored.execution_id)
+    assert status.status == WorkflowExecutionStatus.COMPLETED
+    assert status.node_states["p3"] == WorkflowNodeStatus.COMPLETED
+
+
+async def test_recovery_mixed_skips_completed_nodes(tmp_path):
+    """mixed 策略：恢复持久化 execution 后仅执行剩余节点（已完成节点不重复执行）"""
+    first_engine = WorkflowEngine(persistence_dir=str(tmp_path))
+    executed = []
+
+    async def exec1(node, input_data):
+        executed.append(node.node_id)
+        return {"result": f"done-{node.node_id}"}
+
+    # A、B 无依赖（并行）；D 依赖 A（A→D）
+    nodes = [
+        WorkflowNode(node_id="A", task_description="t1", dept_id="dept-frontend"),
+        WorkflowNode(node_id="B", task_description="t2", dept_id="dept-backend"),
+        WorkflowNode(node_id="D", task_description="t3", dept_id="dept-qa"),
+    ]
+    edges = [WorkflowEdge(source_node_id="A", target_node_id="D")]
+    definition = WorkflowDefinition(
+        workflow_id="wf-mixed-recover", name="混合恢复", description="",
+        nodes=nodes, edges=edges, execution_strategy="mixed",
+    )
+    for dept in ("dept-frontend", "dept-backend", "dept-qa"):
+        first_engine.register_node_executor(dept, exec1)
+
+    execution = first_engine.create_workflow(definition)
+    # 模拟进程中断：A 已完成，B、D 未执行
+    execution.node_states["A"] = WorkflowNodeStatus.COMPLETED
+    execution.results["A"] = {"result": "done-A"}
+    first_engine.persist_execution(execution.execution_id)
+
+    second_engine = WorkflowEngine(persistence_dir=str(tmp_path))
+    for dept in ("dept-frontend", "dept-backend", "dept-qa"):
+        second_engine.register_node_executor(dept, exec1)
+
+    restored = second_engine.load_execution(execution.execution_id)
+    assert restored is not None
+
+    await second_engine.execute_workflow(restored.execution_id)
+    # A 不重复执行，仅执行 B 和 D
+    assert set(executed) == {"B", "D"}
+    status = second_engine.get_workflow_status(restored.execution_id)
+    assert status.status == WorkflowExecutionStatus.COMPLETED
+    assert status.node_states["B"] == WorkflowNodeStatus.COMPLETED
+    assert status.node_states["D"] == WorkflowNodeStatus.COMPLETED
+
+
+def test_load_all_executions_filters_checkpoints_json(tmp_path):
+    """load_all_executions 仅返回 execution-id 形态文件，checkpoints.json 不应出现"""
+    from compensation import CheckpointManager
+
+    engine = WorkflowEngine(persistence_dir=str(tmp_path))
+    execution = engine.create_workflow(_make_definition("wf-list"))
+
+    # 构造 CheckpointManager 落盘的 checkpoints.json（非 execution-id 形态）
+    CheckpointManager(persistence_dir=str(tmp_path)).save_checkpoint("task-x", 1, {"s": 1})
+    assert (tmp_path / "checkpoints.json").exists()
+
+    ids = engine.load_all_executions()
+    assert execution.execution_id in ids
+    assert "checkpoints" not in ids
+    # 返回的每个 id 均为 8 位十六进制（uuid4[:8] 形态）
+    assert all(len(eid) == 8 and all(c in "0123456789abcdefABCDEF" for c in eid) for eid in ids)
+
+
+async def test_persist_execution_atomic_leaves_no_tmp(tmp_path):
+    """原子写：持久化后不残留 .tmp 文件，目标文件完整可读"""
+    engine = WorkflowEngine(persistence_dir=str(tmp_path))
+    execution = engine.create_workflow(_make_definition("wf-atomic"))
+    engine.persist_execution(execution.execution_id)
+
+    assert not [p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp")]
+    data = json.loads((tmp_path / f"{execution.execution_id}.json").read_text())
+    assert data["workflow_id"] == "wf-atomic"
+
+
+async def test_load_execution_corrupt_file_returns_none(tmp_path):
+    """损坏/截断的 execution JSON 返回 None 而非抛异常"""
+    engine = WorkflowEngine(persistence_dir=str(tmp_path))
+    execution = engine.create_workflow(_make_definition("wf-corrupt"))
+    path = tmp_path / f"{execution.execution_id}.json"
+    path.write_text('{"status": "running", "node_states": {')  # 截断 JSON
+
+    restored = engine.load_execution(execution.execution_id)
+    assert restored is None
+
+
+def test_checkpoint_manager_load_corrupt_file_skips(tmp_path):
+    """损坏的 checkpoints.json 不导致 CheckpointManager 崩溃"""
+    from compensation import CheckpointManager
+
+    (tmp_path / "checkpoints.json").write_text('{"task-x": [')
+    m = CheckpointManager(persistence_dir=str(tmp_path))
+    assert m.get_latest_checkpoint("task-x") is None

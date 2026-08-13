@@ -2233,7 +2233,9 @@ async def ws_handler(ws: WebSocket):
 from workflow_engine import WorkflowEngine
 from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge, workflow_execution_to_dict, workflow_definition_to_dict
 
-workflow_engine = WorkflowEngine()
+workflow_engine = WorkflowEngine(
+    persistence_dir=os.path.join(os.path.dirname(__file__), "data", "workflows")
+)
 
 # 活动 MeetingCoordinator（单用户本地形态：最近启动的会议）。
 # 共享引擎上的节点执行器与状态回调统一委托到该协调器，
