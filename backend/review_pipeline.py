@@ -60,14 +60,15 @@ class ReviewPipeline:
         Returns:
             审查结果
         """
-        # 1. CriticAgent 自动审查（失败时跳过，不阻断审查流程）
+        # 1. CriticAgent 自动审查（规则兜底 + LLM 补充；失败时跳过，不阻断审查流程）
         try:
-            critic_result = self._critic.review(
+            critic_result = await self._critic.review_with_llm(
                 {
                     "task_description": task_description,
                     "requirements": [],
                     "success_criteria": [],
                 },
+                get_model_fn=self._get_model,
                 stage="review",
             )
             logger.info("Critic审查: severity=%s, findings=%d", critic_result.severity, len(critic_result.findings))

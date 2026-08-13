@@ -151,7 +151,7 @@ class TestReviewFlow:
 
     @pytest.mark.asyncio
     async def test_reviewer_llm_failure_uses_fallback(self):
-        """reviewer LLM 失败时应使用 fallback"""
+        """LLM 调用失败（critic 审查通道）时流程不应崩溃，回退纯规则"""
         meeting = MagicMock()
         meeting.agents = []
 
@@ -161,7 +161,7 @@ class TestReviewFlow:
             nonlocal call_count
             m = MagicMock()
             if call_count == 0:
-                # reviewer 调用失败
+                # 首次 get_model 由 critic review_with_llm 消费，令其失败
                 m.reply = AsyncMock(side_effect=Exception("LLM error"))
             else:
                 m.reply = AsyncMock(return_value=_FakeMsg("OK"))
@@ -181,3 +181,48 @@ class TestReviewFlow:
         )
         # 不应崩溃，应有 fallback 反馈
         assert "reviewer_feedback" in result
+
+
+# ── CriticAgent review_with_llm（规则兜底 + LLM 补充审查）──
+
+
+class _FindingMsg:
+    def __init__(self, text):
+        self._text = text
+
+    @property
+    def content(self):
+        return [{"type": "text", "text": self._text}]
+
+
+@pytest.mark.asyncio
+async def test_review_with_llm_merges_findings(pipeline):
+    """LLM 审查 findings 与规则 findings 合并"""
+    # type("M", ..., {"reply": fn})() 使 fn 作为实例方法绑定，需接收 self
+    async def llm_reply(self, conversation):
+        return _FindingMsg('[{"finding": "缺少回滚方案", "severity": "high"}]')
+
+    pipeline._get_model = lambda role: type("M", (), {"reply": llm_reply})()
+    result = await pipeline._critic.review_with_llm(
+        {"task_description": "重构登录模块", "requirements": []},
+        get_model_fn=pipeline._get_model,
+        stage="review",
+    )
+    assert "缺少回滚方案" in result.findings
+    assert result.details["llm_findings"][0]["severity"] == "high"
+
+
+@pytest.mark.asyncio
+async def test_review_with_llm_fallback_on_llm_error(pipeline):
+    """LLM 失败时回退到纯规则结果，不崩溃"""
+    async def failing_reply(self, conversation):
+        raise RuntimeError("llm down")
+
+    pipeline._get_model = lambda role: type("M", (), {"reply": failing_reply})()
+    result = await pipeline._critic.review_with_llm(
+        {"task_description": "重构登录模块", "requirements": []},
+        get_model_fn=pipeline._get_model,
+        stage="review",
+    )
+    assert isinstance(result.findings, list)
+    assert result.details is None or "llm_findings" not in result.details

@@ -9,7 +9,11 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import json
+import logging
 import os
+
+from agentscope.message import Msg
+from protocol import AgentRole
 
 
 @dataclass
@@ -87,6 +91,85 @@ class CriticAgent:
         self._write_to_log(result)
         
         return result
+
+    async def review_with_llm(
+        self,
+        task_context: Dict[str, Any],
+        get_model_fn,
+        stage: str = "review",
+    ) -> CriticResult:
+        """规则审查 + LLM 补充审查（LLM 失败时回退纯规则）"""
+        logger = logging.getLogger("critic_agent")
+        rule_result = self.review(task_context, stage=stage)
+
+        try:
+            model = get_model_fn(AgentRole.REVIEWER)
+        except Exception as e:
+            logger.warning("Critic 获取模型失败: %s", e)
+            return rule_result
+
+        prompt = (
+            "你是审查智能体（Critic）。请审查以下任务上下文，找出漏洞、被忽略的需求域、"
+            "矛盾约束与风险。\n"
+            f"任务上下文：{json.dumps(task_context, ensure_ascii=False)}\n\n"
+            '请以 JSON 数组返回发现，每项为 {"finding": "...", "severity": "low|medium|high|critical"}。'
+        )
+        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+
+        try:
+            response = await model.reply(msg)
+            from agent import _extract_text
+            text = _extract_text(response)
+            llm_findings = self._parse_llm_findings(text)
+        except Exception as e:
+            logger.warning("Critic LLM 审查失败: %s", e)
+            return rule_result
+
+        merged = CriticResult(
+            findings=rule_result.findings + [f["finding"] for f in llm_findings],
+            severity=self._merge_severity(rule_result.severity, llm_findings),
+            timestamp=datetime.now().isoformat(),
+            stage=stage,
+            details={
+                "llm_findings": llm_findings,
+                "rule_findings": rule_result.findings,
+            },
+        )
+        return merged
+
+    @staticmethod
+    def _parse_llm_findings(text: str) -> List[Dict[str, str]]:
+        """解析 LLM 返回的 JSON 数组，容错提取"""
+        import re as _re
+
+        findings: List[Dict[str, str]] = []
+        match = _re.search(r'\[.*\]', text, _re.DOTALL)
+        if not match:
+            return findings
+        try:
+            parsed = json.loads(match.group(0))
+        except Exception:
+            return findings
+        if not isinstance(parsed, list):
+            return findings
+        for item in parsed:
+            if isinstance(item, dict) and item.get("finding"):
+                findings.append({
+                    "finding": str(item["finding"]),
+                    "severity": str(item.get("severity", "medium")),
+                })
+        return findings
+
+    @staticmethod
+    def _merge_severity(rule_severity: str, llm_findings: List[Dict[str, str]]) -> str:
+        """合并严重程度：取最严重值"""
+        order = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+        current = order.get(rule_severity, 0)
+        for f in llm_findings:
+            sev = f.get("severity", "medium")
+            if order.get(sev, 0) > current:
+                current = order[sev]
+        return next(k for k, v in order.items() if v == current)
     
     def _check_requirements(self, context: Dict[str, Any]) -> List[str]:
         """检查需求完整性"""
