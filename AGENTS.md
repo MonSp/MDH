@@ -2,13 +2,16 @@
 
 ## 项目概述
 
-**大荒界 (MDH)** 是一个基于 React + Python FastAPI + AgentScope 的全领域智能体协作系统。多个 AI 智能体在虚拟办公室中协作，完成从需求分析到代码交付的完整流程。
+**大荒界 (MDH)** 是一个基于 React + Python FastAPI + AgentScope 的全领域智能体协作系统。用户派发任务后，CEO 智能体利用意图识别引擎拆解任务，动态组建智能体团队并行执行，并由专门的审查智能体把控开发进度与作品完成度；每个领域智能体在使用中不断总结提升自己的技能（skill），技能随用随进化。
 
 ### 核心定位
-- **多智能体协作平台**: 模拟公司组织架构，CEO、架构师、开发、QA、DevOps、项目经理等角色协同工作
+- **意图驱动的任务派发**: 用户派发任务 → CEO 智能体利用意图识别引擎拆解任务（两层复杂度判定：规则引擎 + LLM；四维加权路由：关键词/语义/成功率/优先级）
+- **动态团队组装**: 按拆解结果智能创建智能体团队——通过预配置的角色模板组装，或直接选取工具创建
+- **并行任务执行**: 任务派发后由团队成员并行执行；复杂任务按 DAG 工作流调度（顺序/并行/混合三种策略）
+- **审查智能体把控**: 团队中指定审查智能体全程把控开发进度与作品完成度，输出审查意见并驱动迭代
+- **技能随用随进化**: 每个领域智能体对自己使用的技能进行总结提升，技能持久进化，下次加载的是提升后的版本，而非重新加载旧技能
 - **虚拟办公室可视化**: 3D 科技大厦场景，实时展示智能体状态
 - **本地/远端智能体混合执行**: 每个智能体可独立选择在用户浏览器本地(Node.js)或远端(Python Executor)执行工具调用
-- **技能进化系统**: 项目执行过程中积累经验，生成可复用的技能包
 
 ---
 
@@ -22,11 +25,11 @@
 
 | 层 | 组件 | 说明 |
 |---|---|---|
-| L1 | CEO Agent | 意图理解、复杂度判定、任务路由 |
-| L2 | Project Manager | 项目创建、技能克隆、实例管理 |
+| L1 | CEO Agent | 意图识别、任务拆解、团队组建决策、任务派发 |
+| L2 | Project Manager | 项目创建、技能加载、实例管理 |
 | L3 | Team | 团队组装、角色分配、位置选择 |
-| L4 | Role Agent | 角色实例、LLM 调用、工具执行 |
-| L5 | Skill Pack | 技能包加载、经验注入、增量区 |
+| L4 | Role Agent | 角色实例、LLM 调用、工具执行、技能总结提升 |
+| L5 | Skill Pack | 技能加载、经验注入、技能增量区（随用随进化） |
 | L6 | Toolkit | 工具路由 (local/remote/hybrid) |
 
 ### 技术栈
@@ -82,31 +85,40 @@ MDH/
 │   └── services/                 # 服务层
 ├── backend/                      # Python 后端
 │   ├── server.py                 # FastAPI + WebSocket 服务
-│   ├── meeting_coordinator.py    # 会议协调器（核心）
+│   ├── meeting_coordinator.py    # 会议协调器（复杂任务协作实现）
 │   ├── ceo_agent.py              # CEO 智能体
+│   ├── semantic_analyzer.py      # 语义分析器 (DynamicRouter + LLM)
+│   ├── complexity_classifier.py  # 复杂度分类器 (规则+LLM 两层)
+│   ├── dynamic_router.py         # 动态路由器 (四维加权)
+│   ├── simple_executor.py        # 简单任务轻量执行器
+│   ├── team.py                   # Team/TeamMember 数据模型
+│   ├── team_assembler.py         # TeamAssembler (DAG→Team)
+│   ├── project_manager.py        # 项目管理器
+│   ├── meeting.py                # 会议会话 + 角色映射
+│   ├── discussion_manager.py     # 串行讨论管理器
+│   ├── parallel_discussion_manager.py # 并行讨论管理器
+│   ├── mixed_location_discussion.py # 混合位置并行讨论
+│   ├── parallel_meeting_coordinator.py # 并行会议协调器
+│   ├── negotiation.py            # 投票决策引擎
+│   ├── agenda.py                 # 议程状态机
+│   ├── workflow_engine.py        # 工作流引擎 (DAG执行)
+│   ├── task_orchestrator.py      # 任务编排器
+│   ├── review_pipeline.py        # 审查流水线 (CriticAgent + GroundingAgent)
 │   ├── agent_bridge.py           # TS-Python 桥接
 │   ├── cross_network_bridge.py   # 跨网络智能体桥接
 │   ├── agent_discovery.py        # 智能体发现服务
 │   ├── workspace_sync.py         # 工作区同步器
-│   ├── mixed_location_discussion.py # 混合位置并行讨论
+│   ├── workspace_manager.py      # 工作区管理
 │   ├── approval_manager.py       # 审批管理器
-│   ├── negotiation.py            # 投票决策引擎
-│   ├── agenda.py                 # 议程状态机
-│   ├── workflow_engine.py        # 工作流引擎
-│   ├── task_orchestrator.py      # 任务编排器
-│   ├── dynamic_router.py         # 动态路由器
 │   ├── security.py               # 安全中间件
 │   ├── compensation.py           # 检查点管理
-│   ├── meeting.py                # 会议会话
 │   ├── agent_toolset.py          # Agent 工具集
 │   ├── tool_executor.py          # 工具执行器
 │   ├── tool_registry.py          # 工具注册表
 │   ├── skill_registry.py         # 技能注册中心
 │   ├── skill_packager.py         # 技能打包器
 │   ├── experience_extractor.py   # 经验提炼器
-│   ├── project_manager.py        # 项目管理器
-│   ├── workspace_manager.py      # 工作区管理
-│   ├── roles_config.yaml         # 角色配置
+│   ├── roles_config.yaml         # 角色配置 (1973行，定义所有角色)
 │   ├── llm_cache.py              # LLM 响应缓存 (MD5 key, TTL 300s, LRU)
 │   ├── message_queue.py          # 异步消息队列 (SQLite 持久化)
 │   ├── spec_manager.py           # 规格管理器
@@ -115,10 +127,6 @@ MDH/
 │   ├── ears_validator.py         # EARS 验收句式校验
 │   ├── evidence_chain.py         # 证据链追踪
 │   ├── fallback_chain.py         # 回退链机制
-│   ├── complexity_classifier.py  # 复杂度分类器 (规则+LLM 两层)
-│   ├── simple_executor.py        # 简单任务轻量执行器
-│   ├── parallel_meeting_coordinator.py # 并行会议协调器
-│   ├── parallel_discussion_manager.py # 并行讨论管理器
 │   ├── agent_pool.py             # Agent 池管理
 │   ├── key_manager.py            # API 密钥管理
 │   ├── trace.py                  # 结构化日志 + TraceSpan
@@ -201,6 +209,8 @@ MDH/
 ---
 
 ## 智能体角色系统
+
+角色模板是动态团队组装的基础：CEO 按任务拆解结果从预配置的角色模板中选取角色组建团队，也可以直接选取工具创建团队角色；每个角色实例独立挂载技能与工具权限。
 
 ### 核心角色
 
@@ -299,35 +309,76 @@ custom_roles:
 
 ## 协作流程
 
-### 完整工作流
+### 执行主线
+
+用户派发任务后，系统按以下主线协作：
 
 ```
-用户需求 → CEO 交接 → 需求确认 → 语义分析 → 项目规划 → 讨论 → 投票 → 分派 → 审批 → 执行 → 审查 → 总结
+用户派发任务
+    ↓
+CEO 智能体（意图识别引擎拆解任务）
+    ↓
+动态组建智能体团队（预配置角色模板 / 直接选取工具）
+    ↓
+并行派发执行（DAG 工作流调度：顺序/并行/混合）
+    ↓
+审查智能体把控开发进度与作品完成度
+    ↓
+各领域智能体对所用技能总结提升（技能随用随进化）
 ```
-
-### 各阶段说明
 
 | 阶段 | 负责人 | 说明 |
 |------|--------|------|
-| CEO 交接 | CEO | 接收用户需求，转交项目经理 |
-| 需求确认 | 项目经理 | 确认需求细节和复杂度 |
-| 语义分析 | 项目经理 | 分析意图，确定目标智能体 |
-| 项目规划 | 项目经理 | 制定 4 阶段计划 |
-| 讨论 | 全体 | 多角色讨论方案 |
-| 投票 | 全体 | 对方案进行投票 |
-| 分派 | 项目经理 | 将任务分派给执行者 |
-| 审批 | 人工 | 高风险操作需人工审批 |
-| 执行 | 执行者 | 编写代码、执行任务 |
-| 审查 | QA | 质量审查，最多 3 轮迭代 |
-| 总结 | 项目经理 | 生成报告，提取经验 |
+| 意图识别与任务拆解 | CeoAgent + SemanticAnalyzer | 两层复杂度判定（规则引擎 + LLM）识别意图，拆解为可执行的子任务 |
+| 团队组装 | TeamAssembler | 按拆解结果从预配置角色模板中选取角色（或直接选取工具）动态组建团队 |
+| 并行派发执行 | WorkflowEngine / TaskOrchestrator | 子任务并行派发给团队成员执行；复杂任务按 DAG 调度 |
+| 审查把控 | Reviewer（审查智能体） | 全程把控开发进度与作品完成度，输出审查意见，驱动迭代（最多 3 轮） |
+| 技能总结提升 | 各领域智能体 | 对自己使用的技能进行总结提升，持久保存，下次加载提升后的版本 |
 
-### 复杂度判定
+### 路径选择
 
-系统自动判定任务复杂度：
-- **简单任务**: 创建/修改少量文件（1-3个）、简单脚本、单文件工具
-- **复杂任务**: 需要架构设计、多模块协作、前后端联调
+系统根据任务复杂度动态选择执行路径：
 
-简单任务走轻量执行路径，复杂任务走完整会议流程。
+| 路径 | 触发条件 | 流程 |
+|------|----------|------|
+| **简单路径** | `level=="simple" && confidence>=0.7` | CEO → SimpleExecutor → 单人助理 → 直接执行 → 轻量验收 |
+| **复杂路径** | 其余情况（默认宁重勿轻） | CEO 拆解 → 团队组装 → 并行派发执行 → 审查把控 → 技能总结提升 |
+
+- 复杂路径内部，SemanticAnalyzer 检测到跨部门复杂任务时生成 WorkflowDefinition（DAG），由 WorkflowEngine 按顺序/并行/混合三种策略执行（详见"工作流引擎"章节）。
+- 简单路径验收失败时自动升级为复杂路径（`upgrade_to_complex`）。
+
+### 各路径详细流程
+
+#### 简单路径
+
+| 阶段 | 负责人 | 说明 |
+|------|--------|------|
+| 复杂度判定 | ComplexityClassifier | 规则引擎快速匹配，置信度 >= 0.7 时直接走简单路径 |
+| 直接执行 | SimpleExecutor | 单人助理使用工具直接完成任务 |
+| 轻量验收 | SimpleExecutor | 检查工具错误和结果非空 |
+| 路径升级 | CeoAgent | 验收失败时自动升级为复杂路径 |
+
+#### 复杂路径（含工作流分支）
+
+| 阶段 | 负责人 | 说明 |
+|------|--------|------|
+| 意图拆解 | CeoAgent + SemanticAnalyzer | 语义分析识别意图，检测跨部门复杂任务，拆解子任务并生成 WorkflowDefinition（DAG） |
+| 团队组装 | TeamAssembler | 按拆解结果从预配置角色模板选取角色（或直接选取工具）动态组装 Team |
+| 工作区确认 | CeoAgent | 询问用户选择工作区类型（独立工作区 / Git Worktree） |
+| 并行派发执行 | WorkflowEngine / Executor | DAG 调度（顺序/并行/混合），团队成员并行执行，支持本地/远端混合执行 |
+| 审查把控 | Reviewer（CriticAgent + GroundingAgent） | 审查智能体把控开发进度与作品完成度，代码审查 + 接地验证，最多 3 轮迭代 |
+| 技能总结提升 | ExperienceExtractor + SkillPackager | 各领域智能体总结提升所用技能，写入增量区；项目结束可打包升级版技能包 |
+
+### 辅助机制：讨论与投票（可选）
+
+当方案存在分歧、需要多方决策时，团队成员可启动讨论与投票作为辅助决策手段（非默认主线）：
+
+| 阶段 | 负责人 | 说明 |
+|------|--------|------|
+| 并行讨论 | 团队成员 | asyncio.gather 并行讨论，多轮收敛判定（立场一致性 + 置信度阈值 > 0.8） |
+| 经验注入 | ExperienceExtractor | 检索相关经验规则注入讨论上下文 |
+| 投票 | NegotiationEngine | 基于讨论 stance 和 confidence 投票（simple_majority / weighted_vote / argument_based） |
+| 共识后执行 | 团队 | 达成共识后按主线派发执行 |
 
 ---
 
@@ -337,15 +388,78 @@ custom_roles:
 
 ### 两层分类器 (ComplexityClassifier)
 
-1. **规则引擎** (快速): 正则匹配简单模式（打开网页、搜索、点击等）
-2. **LLM 语义分析** (精确): 分析任务意图，返回 `simple` 或 `complex`
+`complexity_classifier.py` 实现两层判定策略：
+
+#### 第一层：规则引擎（快速）
+
+```python
+# 简单模式匹配 (SIMPLE_PATTERNS)
+r'打开\s*\S+', r'搜索\s*\S+', r'点击\s*\S+', r'截图', ...
+
+# 复杂模式匹配 (COMPLEX_PATTERNS)
+r'首先.*然后.*最后', r'前端.*后端', r'设计.*开发', r'工作流', ...
+
+# 跨部门关键词计数
+CROSS_DEPT_KEYWORDS = ['前端', '后端', '数据库', '测试', '部署', ...]
+# >= 2 个关键词 → complex (confidence=0.9)
+
+# 动词计数
+VERBS = ['设计', '开发', '实现', '测试', '部署', '分析', ...]
+# >= 3 个动词 → complex (confidence=0.85)
+```
+
+#### 第二层：LLM 语义分析（精确）
+
+当规则引擎置信度 < 0.7 时，调用 CEO 模型进行语义分析：
+
+```python
+prompt = "请分析以下用户消息的任务复杂度..."
+# 返回: {"level": "simple/complex", "confidence": 0.0-1.0, "reason": "..."}
+```
+
+#### 降级策略
+
+如果规则引擎和 LLM 均无法确定，默认走复杂路径（宁重勿轻）。
+
+### 动态路由 (DynamicRouter)
+
+`dynamic_router.py` 实现四维加权路由：
+
+```python
+final_score = keyword_score * 0.4    # 关键词匹配
+            + semantic_score * 0.3   # 语义相似度（Jaccard）
+            + success_rate * 0.2     # 历史成功率（自适应学习）
+            + priority * 0.1         # 部门优先级
+```
+
+**关键特性**：
+- 支持中英文混合分词（英文正则 + 中文 2-4 字滑动窗口）
+- 路由表持久化为 JSON，线程安全读写
+- `update_stats(dept_id, success)` 更新部门成功率，实现自适应学习
+- 置信度计算：top-2 分数差 + 基础分数
+
+### 语义分析器 (SemanticAnalyzer)
+
+`semantic_analyzer.py` 整合 DynamicRouter 和 LLM：
+
+```
+用户消息 → DynamicRouter.route() → 路由结果
+         → _detect_complex_task() → 复杂任务检测
+         → LLM 意图分析 → SemanticAnalysisResult
+```
+
+**复杂任务检测**：匹配跨部门关键词组合、多步骤动词（>=3）、依赖关系描述
+
+**工作流生成**：检测到复杂任务时，自动生成 WorkflowDefinition（DAG），包含前端/后端/测试/部署节点
 
 ### 执行路径
 
 | 路径 | 触发条件 | 流程 |
 |------|----------|------|
-| **简单路径** | 单步操作、1-3个文件 | CEO → SimpleExecutor → 单人助理 → 直接执行 → 轻量验收 |
-| **复杂路径** | 多模块、架构设计 | CEO → MeetingCoordinator → 讨论 → 投票 → 分派 → 执行 → 审查 |
+| **简单路径** | `level=="simple" && confidence>=0.7` | CEO → SimpleExecutor → 单人助理 → 直接执行 → 轻量验收 |
+| **复杂路径** | 其余情况（默认宁重勿轻） | CEO 拆解 → 团队组装 → 并行派发执行 → 审查把控 → 技能总结提升 |
+| **工作流分支** | `is_workflow==true`（跨部门复杂任务，复杂路径内子分支） | SemanticAnalyzer → WorkflowEngine → DAG 执行（顺序/并行/混合） |
+| **讨论投票（辅助）** | 复杂任务存在方案分歧时可选 | 并行讨论 → 投票收敛 → 按主线派发执行 |
 
 ### 简单任务特征
 
@@ -353,6 +467,17 @@ custom_roles:
 - 单步浏览器操作（打开、搜索、点击）
 - 简单脚本、配置文件修改
 - 读取/查看操作
+
+### 路径升级机制
+
+简单路径执行失败时，自动升级为复杂路径：
+
+```python
+# simple_executor.py
+if result.retry_with_complex:
+    upgrade_result = await self.upgrade_to_complex(session, content, send_progress)
+    return {"type": "task_result", "path_used": "complex", "upgraded_from": "simple"}
+```
 
 ---
 
@@ -371,10 +496,14 @@ skill_packs/<skill_name>/
 
 ### 技能进化流程
 
-1. **项目启动**: 从技能注册中心克隆基础技能包
-2. **执行过程**: 智能体在工作区执行任务，积累经验
-3. **经验提炼**: 从执行日志中提取可复用的规则
-4. **技能打包**: 项目结束时合并基础技能包与增量，生成升级版技能包
+技能的定位是**随用随进化**：每个领域智能体在执行任务时，对自己使用的技能（skill）进行总结提升；技能持久保存，下一次加载的即是提升后的版本，而不是每次重新加载旧的技能。
+
+1. **技能加载**: 智能体组建时加载自身领域的最新技能（基础技能 + 历次总结提升的增量）
+2. **使用中总结提升**: 执行过程中，智能体对自己使用的技能进行总结——记录成功方案、踩坑与解法，提炼为可复用的经验规则
+3. **经验注入**: 后续任务执行时自动检索并注入相关经验规则，避免重复踩坑
+4. **技能持久化**: 总结提升的规则写入技能增量区，作为该技能的持久改进；项目结束时可合并打包（含脱敏），生成可复用、可分享的升级版技能包
+
+实现细节（Copy-on-Write）：技能以"只读基础 + 可写增量"组织，增量区承载每次总结提升，避免直接改写基础技能。
 
 ### 经验规则格式
 
@@ -388,6 +517,241 @@ rules:
   status: approved
   keywords: [executor, software-dev, support]
 ```
+
+---
+
+## 并行讨论机制
+
+> 讨论与投票是复杂决策的**可选辅助机制**，主线执行流程见"协作流程"章节。
+
+生产路径由 `mixed_location_discussion.py` 的 `MixedLocationDiscussion` 实现真正的并行智能体讨论；`parallel_discussion_manager.py` 的 `ParallelDiscussionManager` 是并行实现的独立版本（当前仅测试引用）。
+
+#### 核心机制
+
+```python
+# 使用 asyncio.gather 实现并行
+async with asyncio.Semaphore(max_concurrent):  # 并发控制（默认5）
+    results = await asyncio.gather(*agent_tasks, return_exceptions=True)
+
+# 每个智能体有独立的超时控制
+response = await asyncio.wait_for(agent.reply(msg), timeout=timeout)
+```
+
+#### 多轮收敛判定
+
+讨论不是简单的"所有人同时发言"，而是有收敛判定的迭代过程：
+
+```python
+def _evaluate_convergence(stances, confidences):
+    # 1. 所有立场一致 → 达成共识
+    if all(s == stances[0] for s in stances):
+        return True
+    # 2. 平均置信度 > 0.8 → 达成共识
+    if mean(confidences) > 0.8:
+        return True
+    # 3. 否则继续下一轮讨论
+    return False
+```
+
+#### 立场解析
+
+从 LLM 响应中解析结构化立场：
+
+```python
+# 支持的立场标签
+[STANCE:support]   # 支持
+[STANCE:oppose]    # 反对
+[STANCE:modify]    # 修改建议
+[STANCE:neutral]   # 中立
+
+# 置信度标签
+[CONFIDENCE:0.85]  # 0.0-1.0
+```
+
+### MixedLocationDiscussion
+
+`mixed_location_discussion.py` 支持混合位置的并行讨论：
+
+- 追踪每个 TeamMember 的 `local` / `remote` 位置
+- 使用相同的 `asyncio.gather` 并行模式
+- 支持位置感知的日志和统计
+
+### 讨论与投票的集成
+
+讨论结果直接影响投票行为：
+
+```python
+# meeting_coordinator.py
+for dr in discussion_results:
+    stance = dr.get("stance", "neutral")
+    if stance == "support":
+        vote_approve = True
+    elif stance == "oppose":
+        vote_approve = False
+    elif stance == "modify":
+        vote_approve = True  # 有条件批准
+    elif stance == "neutral":
+        vote_approve = confidence >= 0.4  # 中立时根据置信度决定
+```
+
+---
+
+## 工作流引擎
+
+### WorkflowEngine
+
+`workflow_engine.py` 实现基于 DAG 的工作流执行：
+
+#### 三种执行策略
+
+| 策略 | 方法 | 说明 |
+|------|------|------|
+| **顺序执行** | `_execute_sequential` | Kahn 拓扑排序，按依赖顺序执行 |
+| **并行执行** | `_execute_parallel` | BFS 层级执行，`asyncio.gather` 并发 |
+| **混合执行** | `_execute_mixed` | 无条件节点并行，条件节点顺序 |
+
+#### DAG 节点与边
+
+```python
+@dataclass
+class WorkflowNode:
+    node_id: str
+    task_description: str
+    dept_id: str              # 部门映射
+    status: WorkflowNodeStatus  # PENDING/RUNNING/COMPLETED/FAILED/SKIPPED
+
+@dataclass
+class WorkflowEdge:
+    source_node_id: str
+    target_node_id: str
+    condition: str = ""       # 条件表达式（可选）
+```
+
+#### 工作流生成
+
+SemanticAnalyzer 根据用户消息自动生成工作流：
+
+```python
+# semantic_analyzer.py
+def _generate_workflow_definition(user_message, routing_decision):
+    nodes = []
+    edges = []
+
+    # 根据关键词检测需要的部门
+    if '前端' in user_message:
+        nodes.append(WorkflowNode(dept_id="dept-frontend", ...))
+    if '后端' in user_message:
+        nodes.append(WorkflowNode(dept_id="dept-backend", ...))
+    if '测试' in user_message:
+        nodes.append(WorkflowNode(dept_id="dept-qa", ...))
+    if '部署' in user_message:
+        nodes.append(WorkflowNode(dept_id="dept-devops", ...))
+
+    # 按部门顺序创建边
+    dept_order = ["dept-frontend", "dept-backend", "dept-qa", "dept-devops"]
+    # ... 创建顺序边 ...
+
+    return WorkflowDefinition(
+        execution_strategy="mixed",  # 默认混合策略
+        nodes=nodes,
+        edges=edges,
+    )
+```
+
+#### 条件分支与跳过传播
+
+```python
+# 条件评估
+def _evaluate_simple_condition(condition, results):
+    # 支持 "field=value" 和 "field!=value" 表达式
+    ...
+
+# 跳过传播：当节点被跳过时，递归跳过所有下游节点
+def _propagate_skip(node_id, edges, nodes):
+    for edge in edges:
+        if edge.source_node_id == node_id:
+            nodes[edge.target_node_id].status = SKIPPED
+            _propagate_skip(edge.target_node_id, edges, nodes)
+```
+
+#### 生命周期管理
+
+```python
+# 支持暂停/恢复/取消
+await engine.pause_workflow(workflow_id)
+await engine.resume_workflow(workflow_id)
+await engine.cancel_workflow(workflow_id)
+
+# 失败节点重试
+await engine.retry_node(workflow_id, node_id)
+```
+
+---
+
+## 动态团队组装
+
+### TeamAssembler
+
+`team_assembler.py` 从 DAG 动态组装 Team：CEO 按任务拆解结果确定所需角色（预配置角色模板），用户也可手动选择角色组合；组装流程如下：
+
+#### 组装流程
+
+```
+用户选择角色 (selected_roles)
+    ↓
+_build_dag(selected_roles, roles_config, task_description, role_locations)
+    ↓
+ProjectManager.instantiate_project(project_id, dag)
+    ↓
+TeamAssembler.assemble_from_dag(dag, project_id, runtime)
+    ↓
+Team (包含 TeamMember 列表，每个成员有 location 标记)
+```
+
+#### 技能到角色的映射
+
+```python
+SKILL_TO_TEAM_ROLE = {
+    "frontend_dev": "Executor",
+    "backend_dev": "Executor",
+    "fullstack_dev": "Executor",
+    "testing": "Reviewer",
+    "code_review": "Reviewer",
+    "architecture": "Planner",
+    "task_decomposition": "Planner",
+    "progress_tracking": "Coordinator",
+    # ...
+}
+```
+
+#### 角色选择策略
+
+```python
+def _select_roles_for_dag(dag):
+    needed_team_roles = set()
+    needed_team_roles.add("Coordinator")  # 始终需要协调者
+
+    for task in tasks:
+        for skill in task.get("required_skills", []):
+            team_role = SKILL_TO_TEAM_ROLE.get(skill, "Executor")
+            needed_team_roles.add(team_role)
+
+    # 每种 team_role 只选第一个匹配的角色，避免团队臃肿
+    for role_name, role_config in self._base_roles.items():
+        if role_config.get("team_role") in needed_team_roles:
+            selected_roles.append((role_name, team_role))
+            needed_team_roles.discard(team_role)
+
+    return selected_roles
+```
+
+### 用户自定义团队
+
+前端 `CeoChatPanel.tsx` 支持：
+
+- 用户手动选择角色组合
+- 每个角色独立选择执行位置（local/remote）
+- 自动模式：系统根据任务自动选择角色
 
 ---
 
@@ -415,10 +779,22 @@ rules:
 
 | 消息类型 | 说明 |
 |----------|------|
-| `meeting_started` | 会议已启动 |
+| `complexity_result` | 复杂度判定结果 (level, confidence, reason, method) |
+| `path_selected` | 执行路径选择 (simple/complex) |
+| `path_upgrade` | 路径升级通知 (from: simple, to: complex) |
+| `workspace_confirm_request` | 工作区确认请求 (含建议类型和选项) |
+| `workspace_created` | 工作区已创建 (workspace_id, path, branch) |
+| `meeting_started` | 会议已启动 (meeting_id, agents, project_id) |
 | `meeting_ended` | 会议已结束 |
+| `meeting_error` | 会议错误通知 |
 | `agent_message` | 智能体消息（含 delta 流式） |
+| `task_auto_assigned` | 任务自动分配结果 |
 | `task_assigned` | 任务已分派 |
+| `workflow_executed` | 工作流执行结果 |
+| `structured_feedback` | 结构化审查反馈 |
+| `iteration_update` | 迭代状态更新 (current_iteration, max_iterations) |
+| `review_completed` | 审查完成 (critic_result, grounding_result) |
+| `task_result` | 任务最终结果 (path_used, success, written_files) |
 | `agenda_update` | 议程状态更新 |
 | `proposal` | 提案推送 |
 | `vote` | 投票推送 |
@@ -432,6 +808,21 @@ rules:
 ---
 
 ## 关键基础设施模块
+
+### 动态路由器 (dynamic_router.py)
+
+- 四维加权评分: keyword×0.4 + semantic×0.3 + success_rate×0.2 + priority×0.1
+- 中英文混合分词: 英文正则 + 中文 2-4 字滑动窗口
+- 路由表持久化: JSON 存储，线程安全读写（threading.Lock）
+- 自适应学习: `update_stats(dept_id, success)` 更新部门成功率
+- 置信度计算: top-2 分数差 + 基础分数
+
+### 语义分析器 (semantic_analyzer.py)
+
+- 整合 DynamicRouter + LLM 意图分析
+- 复杂任务检测: 跨部门关键词组合、多步骤动词、依赖关系描述
+- 工作流自动生成: 检测到复杂任务时生成 WorkflowDefinition（DAG）
+- 回退策略: LLM 失败时使用路由结果（置信度 >= 0.6）
 
 ### LLM 缓存 (llm_cache.py)
 
@@ -581,7 +972,7 @@ EXECUTOR_TOKEN=
 |------|------|------|------|
 | **React 前端** | React + TypeScript | 8080 | UI、WebSocket 客户端 |
 | **TS Orchestrator** | Node.js + TypeScript | 8080 | 本地 LLM 调用、团队管理、本地工具执行 |
-| **Python Backend** | Python + FastAPI | 8765 | 会议协调、CEO 智能体、投票/审批、技能进化 |
+| **Python Backend** | Python + FastAPI | 8765 | 智能体协调（CEO 拆解/团队组装/审查）、投票审批（辅助）、技能进化 |
 | **Python Executor** | Python + FastAPI | 8767 | 远端工具执行、工作区隔离 |
 
 ---
@@ -745,10 +1136,11 @@ EXECUTOR_TOKEN=your_token_here
 - **路径遍历保护**: 所有文件操作限制在工作区内
 - **Shell 命令白名单**: 只允许预定义的安全命令
 
-### 3. 投票决策系统
+### 3. 讨论与投票决策系统（辅助机制）
 
+- 复杂决策存在分歧时启用的可选辅助机制，主线为拆解→组队→并行执行→审查
+- 并行讨论（stance + confidence 收敛判定）→ 提案 → 投票 → 共识评估 → 执行
 - 支持 3 种共识策略: simple_majority / weighted_vote / argument_based
-- 提案 → 投票 → 共识评估 → 执行
 
 ### 4. 人工审批流程
 
@@ -762,11 +1154,11 @@ EXECUTOR_TOKEN=your_token_here
 - 支持会议快照的保存和恢复
 - 断点续跑能力
 
-### 6. 技能进化
+### 6. 技能随用随进化
 
-- 项目执行过程中积累经验
-- 经验提炼器从执行日志中提取规则
-- 项目结束时生成可复用的技能包
+- 每个领域智能体对自己使用的技能进行总结提升，技能持久进化，下次加载提升后的版本
+- 经验提炼器从执行记录中提取可复用的经验规则，写入技能增量区
+- 项目结束时可合并基础与增量（含脱敏），生成可复用、可分享的升级版技能包
 
 ### 7. 跨网络协作
 
@@ -774,6 +1166,29 @@ EXECUTOR_TOKEN=your_token_here
 - 智能体发现服务 - 发现网络中的可用智能体
 - 工作区同步器 - 同步本地和远端的工作区状态
 - 心跳检测 - 监控智能体在线状态
+
+### 8. 动态路由与意图识别
+
+- **两层复杂度判定**：规则引擎（快速）+ LLM（精确），置信度阈值 0.7
+- **四维加权路由**：keyword×0.4 + semantic×0.3 + success_rate×0.2 + priority×0.1
+- **自适应学习**：`update_stats(dept_id, success)` 更新部门成功率
+- **中英文混合分词**：英文正则 + 中文 2-4 字滑动窗口
+- **路由表持久化**：JSON 存储，线程安全读写
+
+### 9. 并行讨论与收敛判定（辅助决策机制）
+
+- **asyncio.gather 并行**：多智能体同时讨论，信号量控制并发（默认5）
+- **多轮收敛判定**：立场一致性 + 置信度阈值（>0.8）判断是否达成共识
+- **结构化解析**：从 LLM 响应中提取 `[STANCE:support/oppose/modify/neutral]` 和 `[CONFIDENCE:0.0-1.0]`
+- **讨论→投票集成**：讨论 stance 直接映射为投票行为
+
+### 10. DAG 工作流引擎
+
+- **三种执行策略**：顺序（Kahn拓扑排序）、并行（BFS层级+asyncio.gather）、混合（无条件并行+条件顺序）
+- **自动生成**：SemanticAnalyzer 根据跨部门关键词自动生成 WorkflowDefinition
+- **条件分支**：支持 `field=value` 和 `field!=value` 条件表达式
+- **跳过传播**：节点被跳过时，递归跳过所有下游节点
+- **生命周期管理**：暂停/恢复/取消/重试
 
 ---
 
