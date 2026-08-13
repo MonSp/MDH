@@ -894,30 +894,39 @@ class MeetingCoordinator:
 
         return review_result, task_results
 
-    # 工具缺失信号：基础设施不可用（pylint/pytest 未安装等）而非真实检查失败。
-    # 仅保留确定性的缺失文本信号：实测 _exec_run_tests 在 python -m pytest 缺模块且
-    # pytest 不在 PATH 时返回 "[Errno 2] No such file or directory: 'pytest'"，
-    # _exec_run_linter 在 python -m pylint 缺模块时返回 "<python路径>: No module named pylint"。
-    # 不使用裸 "not found"，避免误伤真实失败（如 pytest 的
-    # "AssertionError: config key not found"）而错误地 fail-open。
-    _GATE_TOOL_MISSING_SIGNALS = (
+    # 工具缺失信号（通道感知）：基础设施不可用（pylint/pytest 未安装等）而非真实检查失败。
+    # error 通道承载 spawn OSError / import stderr（实测 _exec_run_tests 在 python -m pytest
+    # 缺模块且 pytest 不在 PATH 时 error 为 "[Errno 2] No such file or directory: 'pytest'"，
+    # _exec_run_linter 在 python -m pylint 缺模块时 error 为 "<python路径>: No module named pylint"）；
+    # output 通道承载命令 stdout（真实检查失败、未收集到测试均出现在此处）。
+    # 仅按通道匹配，不使用裸 "not found"，避免误伤真实失败（如 pytest 输出的
+    # "FileNotFoundError: No such file or directory: 'missing_data.csv'"）而错误地 fail-open。
+    _GATE_ERROR_CHANNEL_SIGNALS = (
         "no module named",
         "no such file or directory",
         "command not found",
+    )
+    _GATE_OUTPUT_CHANNEL_SIGNALS = (
         "no tests were collected",
         "no tests ran",
     )
 
-    def _gate_check_unavailable(self, tool_result: Any) -> bool:
+    @staticmethod
+    def _gate_check_unavailable(error: str, output: str) -> bool:
         """判断 lint/test 工具结果为工具缺失（基础设施不可用）
 
-        匹配 output/error 中的工具缺失信号（pylint/pytest 未安装、测试未收集等）。
+        通道感知：工具缺失信号（pylint/pytest 未安装、spawn OSError）只出现在
+        error 通道；无测试信号（未收集到测试）出现在 output 通道。真实检查失败
+        （如 pytest 输出 "FileNotFoundError: No such file or directory:
+        'missing_data.csv'"）位于 output 通道，不匹配 error 通道信号 → 不会被
+        误判为工具缺失而 fail-open。返回 True 表示工具缺失/无测试（→ skipped）。
         """
-        text = (
-            f"{getattr(tool_result, 'error', '') or ''}\n"
-            f"{getattr(tool_result, 'output', '') or ''}"
-        ).strip().lower()
-        return any(sig in text for sig in self._GATE_TOOL_MISSING_SIGNALS)
+        error_text = (error or "").strip().lower()
+        output_text = (output or "").strip().lower()
+        return (
+            any(sig in error_text for sig in MeetingCoordinator._GATE_ERROR_CHANNEL_SIGNALS)
+            or any(sig in output_text for sig in MeetingCoordinator._GATE_OUTPUT_CHANNEL_SIGNALS)
+        )
 
     def _run_deterministic_gate(self, workspace_root: Optional[str] = None) -> Dict[str, Any]:
         """确定性门禁：对工作区运行测试与代码检查，失败即 revision_required
@@ -938,7 +947,7 @@ class MeetingCoordinator:
             )
             lint = toolset.run_linter(".")
             if not lint.success:
-                if self._gate_check_unavailable(lint):
+                if self._gate_check_unavailable(lint.error or "", lint.output or ""):
                     # 基础设施不可用（如 pylint 未安装）→ fail-open：跳过并记录，不产生失败
                     lint_detail = (lint.error or lint.output or "lint 工具不可用")[:200]
                     result["skipped"].append({
@@ -954,7 +963,7 @@ class MeetingCoordinator:
                     })
             tests = toolset.run_tests(verbose=False)
             if not tests.success:
-                if self._gate_check_unavailable(tests):
+                if self._gate_check_unavailable(tests.error or "", tests.output or ""):
                     # 基础设施不可用（如 pytest 未安装 / 未收集到测试）→ fail-open：跳过并记录
                     test_detail = (tests.error or tests.output or "测试工具不可用")[:200]
                     result["skipped"].append({
