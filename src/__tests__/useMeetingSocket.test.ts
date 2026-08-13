@@ -527,6 +527,119 @@ describe('useMeetingSocket', () => {
     })
   })
 
+  describe('human_approval_request (P0 structured approval push)', () => {
+    it('should populate pendingApprovals with complete structured fields', () => {
+      const { result, ws } = setupHook()
+      act(() => {
+        emitMsg(ws, {
+          type: 'human_approval_request',
+          request: {
+            id: 'req-1',
+            requesterId: 'agent-executor',
+            operation: 'git_push',
+            description: '推送 feature 分支到远程仓库',
+            riskLevel: 'HIGH',
+            confidence: 0.85,
+            createdAt: 1720000000000,
+          },
+        })
+      })
+
+      const pending = result.current.pendingApprovals.get('req-1')
+      expect(pending).toBeDefined()
+      expect(pending).toEqual({
+        id: 'req-1',
+        requesterId: 'agent-executor',
+        operation: 'git_push',
+        description: '推送 feature 分支到远程仓库',
+        riskLevel: 'HIGH',
+        confidence: 0.85,
+        createdAt: 1720000000000,
+      })
+    })
+
+    it('should append an approval request chat message', () => {
+      const { result, ws } = setupHook()
+      act(() => {
+        emitMsg(ws, {
+          type: 'human_approval_request',
+          request: {
+            id: 'req-2',
+            requesterId: 'agent-executor',
+            operation: 'bash',
+            description: '执行 npm publish',
+            riskLevel: 'CRITICAL',
+            confidence: 0.9,
+            createdAt: 1720000000000,
+          },
+        })
+      })
+
+      expect(result.current.chatMessages[0].content).toContain('[审批请求]')
+      expect(result.current.chatMessages[0].content).toContain('bash')
+      expect(result.current.chatMessages[0].content).toContain('npm publish')
+      expect(result.current.chatMessages[0].content).toContain('CRITICAL')
+    })
+
+    it('should accumulate multiple requests in pendingApprovals', () => {
+      const { result, ws } = setupHook()
+      act(() => {
+        emitMsg(ws, { type: 'human_approval_request', request: { id: 'req-a', requesterId: 'a', operation: 'op1', description: 'd1', riskLevel: 'LOW', confidence: 0.4, createdAt: 1 } })
+        emitMsg(ws, { type: 'human_approval_request', request: { id: 'req-b', requesterId: 'b', operation: 'op2', description: 'd2', riskLevel: 'MEDIUM', confidence: 0.6, createdAt: 2 } })
+      })
+      expect(result.current.pendingApprovals.size).toBe(2)
+      expect(result.current.pendingApprovals.get('req-a')?.operation).toBe('op1')
+      expect(result.current.pendingApprovals.get('req-b')?.operation).toBe('op2')
+    })
+  })
+
+  describe('approval response (send + confirmation)', () => {
+    it('should send human_approval_response via sendApprovalResponse', () => {
+      const { result, ws } = setupHook()
+      act(() => { result.current.sendApprovalResponse('req-1', true, '批准执行') })
+
+      const sent = JSON.parse(ws.send.mock.calls[0][0])
+      expect(sent.type).toBe('human_approval_response')
+      expect(sent.requestId).toBe('req-1')
+      expect(sent.approved).toBe(true)
+      expect(sent.reason).toBe('批准执行')
+    })
+
+    it('should send human_approval_response with empty reason by default', () => {
+      const { result, ws } = setupHook()
+      act(() => { result.current.sendApprovalResponse('req-2', false) })
+
+      const sent = JSON.parse(ws.send.mock.calls[0][0])
+      expect(sent.type).toBe('human_approval_response')
+      expect(sent.requestId).toBe('req-2')
+      expect(sent.approved).toBe(false)
+      expect(sent.reason).toBe('')
+    })
+
+    it('should remove pending approval when backend confirms with human_approval_response', () => {
+      const { result, ws } = setupHook()
+      act(() => {
+        emitMsg(ws, {
+          type: 'human_approval_request',
+          request: { id: 'req-1', requesterId: 'agent-executor', operation: 'git_push', description: 'push', riskLevel: 'HIGH', confidence: 0.85, createdAt: 1720000000000 },
+        })
+      })
+      expect(result.current.pendingApprovals.has('req-1')).toBe(true)
+
+      act(() => {
+        emitMsg(ws, {
+          type: 'human_approval_response',
+          requestId: 'req-1',
+          approved: true,
+          reason: '已批准',
+        })
+      })
+      expect(result.current.pendingApprovals.has('req-1')).toBe(false)
+      expect(result.current.chatMessages[1].content).toContain('[审批结果]')
+      expect(result.current.chatMessages[1].content).toContain('已批准')
+    })
+  })
+
   describe('reconnect', () => {
     it('should attempt reconnect on close', () => {
       const { wsRef } = setupHook()
