@@ -83,12 +83,7 @@ async def test_detect_complex_task(meeting_coordinator):
 async def test_generate_workflow_definition(meeting_coordinator):
     """测试工作流定义生成"""
     analyzer = meeting_coordinator._semantic_analyzer
-    # 模拟路由决策
-    class MockRoutingDecision:
-        selected_dept = "dept-frontend"
-        confidence = 0.8
-        reason = "测试"
-
+    # 复用模块级 MockRoutingDecision（默认 dept-frontend）
     routing_decision = MockRoutingDecision()
 
     # 测试生成工作流定义
@@ -320,6 +315,33 @@ def test_generate_workflow_definition_single_node_sequential():
     analyzer = SemanticAnalyzer(router=None, get_model_fn=None, meeting_agents=[])
     wf = analyzer._generate_workflow_definition("优化数据库查询", MockRoutingDecision(selected_dept="dept-backend"))
     assert len(wf.nodes) == 1
+    assert wf.execution_strategy == "sequential"
+
+
+def test_generate_workflow_definition_devops_depends_on_impl():
+    """devops 节点依赖实现类节点"""
+    from semantic_analyzer import SemanticAnalyzer
+    analyzer = SemanticAnalyzer(router=None, get_model_fn=None, meeting_agents=[])
+    wf = analyzer._generate_workflow_definition("前端和部署", MockRoutingDecision(selected_dept="dept-frontend"))
+    by_dept = {n.node_id: n.dept_id for n in wf.nodes}
+    devops_ids = [nid for nid, d in by_dept.items() if d == "dept-devops"]
+    impl_ids = [nid for nid, d in by_dept.items() if d in {"dept-frontend", "dept-backend", "dept-fullstack", "dept-data"}]
+    assert devops_ids and impl_ids
+    incoming = {e.source_node_id for e in wf.edges if e.target_node_id == devops_ids[0]}
+    assert set(impl_ids) <= incoming
+    assert wf.execution_strategy == "sequential"
+
+
+def test_generate_workflow_definition_qa_devops_chain():
+    """测试+部署：qa→devops 依赖链，策略 sequential"""
+    from semantic_analyzer import SemanticAnalyzer
+    analyzer = SemanticAnalyzer(router=None, get_model_fn=None, meeting_agents=[])
+    wf = analyzer._generate_workflow_definition("测试和部署", MockRoutingDecision(selected_dept="dept-qa"))
+    by_dept = {n.node_id: n.dept_id for n in wf.nodes}
+    qa_ids = [nid for nid, d in by_dept.items() if d == "dept-qa"]
+    devops_ids = [nid for nid, d in by_dept.items() if d == "dept-devops"]
+    assert qa_ids and devops_ids
+    assert any(e.source_node_id == qa_ids[0] and e.target_node_id == devops_ids[0] for e in wf.edges)
     assert wf.execution_strategy == "sequential"
 
 

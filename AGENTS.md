@@ -645,12 +645,11 @@ def _generate_workflow_definition(user_message, routing_decision):
     if '部署' in user_message:
         nodes.append(WorkflowNode(dept_id="dept-devops", ...))
 
-    # 按部门顺序创建边
-    dept_order = ["dept-frontend", "dept-backend", "dept-qa", "dept-devops"]
-    # ... 创建顺序边 ...
+    # 依赖推断：实现类部门并行，qa 依赖实现类节点，devops 依赖 qa 与实现类节点
+    # ... 创建依赖边 ...
 
     return WorkflowDefinition(
-        execution_strategy="mixed",  # 默认混合策略
+        execution_strategy=推导的策略  # 按根节点数推导（根>1 → parallel，否则 sequential）
         nodes=nodes,
         edges=edges,
     )
