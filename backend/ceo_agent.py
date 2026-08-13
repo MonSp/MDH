@@ -126,6 +126,7 @@ class CeoAgent:
         simple_executor: SimpleExecutor,
         workflow_engine=None,
         approval_manager=None,
+        on_coordinator_created=None,
     ):
         self._session = session
         self._project_manager = project_manager
@@ -133,6 +134,9 @@ class CeoAgent:
         self._simple_executor = simple_executor
         self._workflow_engine = workflow_engine
         self._approval_manager = approval_manager
+        # 协调器创建回调：server 注入以更新 _active_coordinator，
+        # 保证 CEO 对话（unified_message）路径创建的协调器可被共享引擎委托执行。
+        self._on_coordinator_created = on_coordinator_created
         self._meeting_coordinator: Optional[MeetingCoordinator] = None
         self._agenda: Optional[AgendaStateMachine] = None
         self._workspace_manager = None
@@ -500,6 +504,11 @@ class CeoAgent:
         self._agenda = coordinator.agenda
         self._session._meeting_coordinator = coordinator
         self._session._agenda = coordinator.agenda
+
+        # 注册为活动协调器（server 委托执行器按最近启动的会议路由），
+        # 否则 CEO 对话路径的共享引擎工作流委托会因 _active_coordinator=None 失败。
+        if self._on_coordinator_created:
+            self._on_coordinator_created(coordinator)
 
         # 通知前端会议已启动
         self._session.project_id = project.project_id  # 存储项目ID到会话

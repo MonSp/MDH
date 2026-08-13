@@ -39,12 +39,23 @@ class SimpleResult:
 class SimpleExecutor:
     """简单执行引擎"""
 
-    def __init__(self, project_manager: ProjectManager):
+    def __init__(
+        self,
+        project_manager: ProjectManager,
+        workflow_engine=None,
+        on_coordinator_created=None,
+    ):
         """
         Args:
             project_manager: 项目管理器实例
+            workflow_engine: 共享 WorkflowEngine（与 server/ceo_agent 构造点一致，
+                升级路径注入后工作流受共享引擎管理）
+            on_coordinator_created: 协调器创建回调（server 用于更新 _active_coordinator，
+                保证共享引擎委托执行器能路由到升级路径创建的协调器）
         """
         self._project_manager = project_manager
+        self._workflow_engine = workflow_engine
+        self._on_coordinator_created = on_coordinator_created
 
     async def execute(
         self,
@@ -249,13 +260,25 @@ class SimpleExecutor:
             session.meeting_mode = True
 
             # 3. 启动会议协调器
+            # 与 server start_meeting / ceo_agent 复杂路径构造点保持一致：注入共享
+            # workflow_engine 与会话级 approval_manager，否则该路径审批仍自动通过且
+            # 工作流不受共享引擎（REST）管理。
+            approval_manager = getattr(session, "_approval_manager", None)
+            if approval_manager is None:
+                from approval_manager import ApprovalManager
+                approval_manager = ApprovalManager()
+                session._approval_manager = approval_manager
             coordinator = MeetingCoordinator(
                 meeting_session=meeting,
                 provider=session.provider,
                 model_name=session.model_name or "",
                 api_key=session.api_key,
                 base_url=session.base_url or "",
+                workflow_engine=self._workflow_engine,
+                approval_manager=approval_manager,
             )
+            if self._on_coordinator_created:
+                self._on_coordinator_created(coordinator)
             session._meeting_coordinator = coordinator
 
             # 4. 执行复杂路径

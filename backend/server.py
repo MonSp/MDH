@@ -1153,6 +1153,7 @@ async def ws_handler(ws: WebSocket):
                         simple_executor=simple_executor,
                         workflow_engine=workflow_engine,
                         approval_manager=session._approval_manager,
+                        on_coordinator_created=_register_active_coordinator,
                     )
 
                 ceo = session._ceo_agent
@@ -1296,6 +1297,7 @@ async def ws_handler(ws: WebSocket):
                         simple_executor=simple_executor,
                         workflow_engine=workflow_engine,
                         approval_manager=session._approval_manager,
+                        on_coordinator_created=_register_active_coordinator,
                     )
                 session._ceo_agent._meeting_coordinator = coordinator
                 session._ceo_agent._agenda = coordinator.agenda
@@ -2213,6 +2215,15 @@ async def ws_handler(ws: WebSocket):
                 await agent_task
             except (asyncio.CancelledError, Exception):
                 pass
+        # 会议消息后台任务同样需在断开时取消，避免任务悬挂并持续向已关闭的
+        # WebSocket 发送消息（配合 meeting_message 的 create_task 后台化）。
+        _meeting_task = getattr(session, "_meeting_task", None)
+        if _meeting_task and not _meeting_task.done():
+            _meeting_task.cancel()
+            try:
+                await _meeting_task
+            except (asyncio.CancelledError, Exception):
+                pass
         sessions.pop(session.session_id, None)
         logger.info("Session 已清理: session=%s, 活跃会话数=%d", session.session_id, len(sessions))
 
@@ -2228,6 +2239,24 @@ workflow_engine = WorkflowEngine()
 # 共享引擎上的节点执行器与状态回调统一委托到该协调器，
 # 避免多个 MeetingCoordinator 注入同一共享引擎时 last-wins 覆盖注册。
 _active_coordinator = None
+
+
+def _register_active_coordinator(coordinator) -> None:
+    """将新创建的协调器注册为活动协调器。
+
+    server start_meeting 直接构造协调器时会自行赋值；CeoAgent 复杂路径与
+    SimpleExecutor 升级路径通过构造时注入的 on_coordinator_created 回调走到这里，
+    否则共享引擎委托执行器（_delegate_node_executor）无法路由到这些路径创建的协调器。
+    """
+    global _active_coordinator
+    _active_coordinator = coordinator
+
+
+# 升级路径（simple_executor.upgrade_to_complex）构造协调器时需与 server/ceo_agent
+# 构造点一致：注入共享 workflow_engine 并注册活动协调器（approval_manager 为会话级，
+# 在调用时从 session 解析）。
+simple_executor._workflow_engine = workflow_engine
+simple_executor._on_coordinator_created = _register_active_coordinator
 
 
 async def _delegate_node_executor(node, input_data):
