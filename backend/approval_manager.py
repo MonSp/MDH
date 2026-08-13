@@ -185,14 +185,14 @@ class ApprovalManager:
             result = await asyncio.wait_for(approval._future, timeout=effective_timeout)
             return result
         except asyncio.TimeoutError:
-            # 超时处理
+            # 超时处理：记录状态后重新抛出，由调用方决定超时策略（如默认通过）
             approval.status = ApprovalStatus.EXPIRED
             approval.resolved_at = time.time()
             approval.resolution_reason = "Timeout"
             del self._pending[request_id]
             self._history.append(approval)
             logger.warning("审批超时: id=%s", request_id)
-            return {"approved": False, "reason": "Timeout", "request_id": request_id}
+            raise
 
     def get_pending_requests(self) -> list[dict]:
         """获取所有待审批请求"""

@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import re
-import time
 import uuid
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
@@ -13,6 +12,7 @@ from agentscope.message import Msg
 from agent import PROVIDER_REGISTRY, _extract_text
 from agent_pool import AgentPool, AgentConfig
 from agenda import AgendaStateMachine, AgendaPhase
+from approval_manager import ApprovalManager
 from collaboration.planner_agent import PlannerAgent, SubTask
 from dynamic_router import DynamicRouter
 from meeting import MeetingSession
@@ -63,8 +63,12 @@ class MeetingCoordinator:
         agent_pool: Optional[AgentPool] = None,
         max_iterations: int = 3,
         workflow_engine: Optional[WorkflowEngine] = None,
+        approval_manager: Optional[ApprovalManager] = None,
+        approval_timeout: float = 300.0,
     ):
         self._max_iterations = max_iterations
+        self._approval_manager = approval_manager
+        self._approval_timeout = approval_timeout
         self.meeting = meeting_session
         self.provider = provider
         self.model_name = model_name
@@ -1075,26 +1079,48 @@ class MeetingCoordinator:
         await self._msg(coordinator_id, coordinator_approve_text)
         self.meeting.add_message("agent", coordinator_approve_text, coordinator_id)
 
-        # 创建审批请求
-        approval_request = {
-            "type": "human_approval_request",
-            "request": {
-                "id": str(uuid.uuid4()),
-                "requesterId": target_agent_id,
-                "operation": "task_execution",
-                "description": enhanced_description[:200],
-                "riskLevel": risk_level,
-                "confidence": 0.8,
-                "status": "pending",
-                "createdAt": time.time(),
-            },
-        }
-        await on_message("coordinator", f"[审批请求] 任务执行 - {risk_level}", "")
+        # 创建审批请求并真阻塞等待（超时按配置默认通过，防单用户场景阻塞）
+        if self._approval_manager:
+            from protocol import RiskLevel
 
-        # 自动审批（在真实场景中会等待人工审批）
-        coordinator_auto_approve = f"项目经理：任务执行已自动审批通过。"
-        await self._msg(coordinator_id, coordinator_auto_approve)
-        self.meeting.add_message("agent", coordinator_auto_approve, coordinator_id)
+            risk_map = {
+                "low": RiskLevel.LOW,
+                "medium": RiskLevel.MEDIUM,
+                "high": RiskLevel.HIGH,
+                "critical": RiskLevel.CRITICAL,
+            }
+            approval = await self._approval_manager.request_approval(
+                requester_id=target_agent_id,
+                operation="task_execution",
+                description=enhanced_description[:200],
+                risk_level=risk_map.get(risk_level, RiskLevel.MEDIUM),
+                confidence=0.8,
+                send_fn=lambda payload: on_message(
+                    "coordinator",
+                    f"[审批请求] {payload.get('request', {}).get('description', '')}",
+                    "",
+                ),
+            )
+            try:
+                decision = await self._approval_manager.wait_for_decision(
+                    approval.id, timeout=self._approval_timeout
+                )
+                approved = bool(decision.get("approved", True))
+                reason = decision.get("reason", "")
+            except asyncio.TimeoutError:
+                approved = True
+                reason = "审批超时，默认通过"
+        else:
+            approved = True
+            reason = "未配置审批管理器，自动通过"
+
+        approve_msg = (
+            f"项目经理：任务执行审批通过（{reason}）。" if reason and approved else
+            f"项目经理：任务执行审批被拒绝（{reason}）。" if reason else
+            "项目经理：任务执行审批通过。"
+        )
+        await self._msg(coordinator_id, approve_msg)
+        self.meeting.add_message("agent", approve_msg, coordinator_id)
 
         # COORDINATOR监督审查
         self.logger.info("串行流程 - 审查阶段: task=%s", assign_result.get("task_id", ""))

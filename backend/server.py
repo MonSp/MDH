@@ -1260,6 +1260,10 @@ async def ws_handler(ws: WebSocket):
                 session._workspace_manager = workspace_mgr
                 session._workspace = workspace
 
+                # 创建审批管理器（构造前确保存在，供会议流程真阻塞等待人工审批）
+                if not session._approval_manager:
+                    session._approval_manager = ApprovalManager()
+
                 coordinator = MeetingCoordinator(
                     meeting_session=meeting,
                     provider=session.provider,
@@ -1270,6 +1274,7 @@ async def ws_handler(ws: WebSocket):
                     agent_pool=agent_pool,
                     max_iterations=msg.get("max_iterations", 3),
                     workflow_engine=workflow_engine,
+                    approval_manager=session._approval_manager,
                 )
                 session._meeting_coordinator = coordinator
 
@@ -1287,9 +1292,6 @@ async def ws_handler(ws: WebSocket):
                 session._ceo_agent._meeting_coordinator = coordinator
                 session._ceo_agent._agenda = coordinator.agenda
                 session._agenda = coordinator.agenda
-
-                # 创建审批管理器
-                session._approval_manager = ApprovalManager()
 
                 # 创建检查点管理器
                 from compensation import CheckpointManager
