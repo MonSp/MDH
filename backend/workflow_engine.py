@@ -116,6 +116,11 @@ class WorkflowEngine:
 
         恢复语义：恢复时跳过已完成（COMPLETED）节点，FAILED/中断节点按重试语义重新执行。
         写入采用"临时文件 + 原子替换（os.replace）"，防止崩溃导致 JSON 截断。
+
+        并发说明：落盘为同步原子写（事件循环内无 await 间隙，快照总是当前内存状态），
+        但未做 per-execution 串行化——并行节点先后完成时 last-writer-wins 可使磁盘快照
+        相对最新内存状态略旧（os.replace 保证文件完整不损坏）。恢复语义按"跳过 COMPLETED、
+        重跑 FAILED/中断"处理，快照略旧只可能多跑一个已完成节点，不影响正确性。
         """
         if not self._persistence_dir:
             return False
@@ -134,7 +139,8 @@ class WorkflowEngine:
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             os.replace(tmp_path, path)
-        except OSError as e:
+        except (OSError, TypeError, ValueError) as e:
+            # TypeError/ValueError：结果含不可序列化对象或数据形态异常——返回 False 不传播
             logger.warning("持久化 execution %s 失败: %s", execution_id, e)
             return False
         return True

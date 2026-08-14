@@ -2237,7 +2237,7 @@ async def ws_handler(ws: WebSocket):
 # ──────────────────── WorkflowEngine REST API ────────────────────
 
 from workflow_engine import WorkflowEngine
-from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge, workflow_execution_to_dict, workflow_definition_to_dict
+from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowExecutionStatus, workflow_execution_to_dict, workflow_definition_to_dict
 
 workflow_engine = WorkflowEngine(
     persistence_dir=os.path.join(os.path.dirname(__file__), "data", "workflows")
@@ -2332,6 +2332,16 @@ async def create_workflow(definition: dict):
         return {"success": False, "error": str(e)}
 
 
+@app.get("/api/workflow/executions")
+async def list_workflow_executions():
+    """列出已持久化的工作流执行实例 id（读侧入口，供断点恢复/复跑选择）"""
+    try:
+        ids = workflow_engine.load_all_executions()
+        return {"success": True, "data": ids}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 @app.post("/api/workflow/execute/{execution_id}")
 async def execute_workflow(execution_id: str):
     """执行工作流"""
@@ -2362,11 +2372,38 @@ async def pause_workflow(execution_id: str):
 
 @app.post("/api/workflow/resume/{execution_id}")
 async def resume_workflow(execution_id: str):
-    """恢复工作流"""
+    """恢复工作流
+
+    优先走内存中 PAUSED 态的暂停/恢复语义；否则（进程重启后执行实例不在内存中，
+    或处于 FAILED/中断态）从持久化目录加载后重新启动——FAILED/中断节点按重试语义
+    重跑、COMPLETED 节点跳过，与 execute 端点（start_workflow + await）结构对齐。
+    """
     try:
-        await workflow_engine.resume_workflow(execution_id)
-        return {"success": True, "data": None}
+        try:
+            in_memory = workflow_engine.get_workflow_status(execution_id)
+        except KeyError:
+            in_memory = None
+
+        if in_memory is not None:
+            if in_memory.status == WorkflowExecutionStatus.PAUSED:
+                await workflow_engine.resume_workflow(execution_id)
+                return {"success": True, "data": None}
+            if in_memory.status == WorkflowExecutionStatus.RUNNING:
+                return {"success": False, "error": f"工作流正在运行中: {execution_id}"}
+
+        # durable resume：从磁盘加载并重新启动
+        restored = workflow_engine.load_execution(execution_id)
+        if restored is None:
+            return {"success": False, "error": f"执行实例不存在或无法恢复: {execution_id}"}
+        task = workflow_engine.start_workflow(execution_id)
+        await task
+        execution = workflow_engine.get_workflow_status(execution_id)
+        return {"success": True, "data": workflow_execution_to_dict(execution)}
+    except asyncio.CancelledError:
+        return {"success": False, "error": "cancelled"}
     except (KeyError, ValueError) as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
         return {"success": False, "error": str(e)}
 
 

@@ -237,3 +237,78 @@ def test_checkpoint_manager_load_corrupt_file_skips(tmp_path):
     (tmp_path / "checkpoints.json").write_text('{"task-x": [')
     m = CheckpointManager(persistence_dir=str(tmp_path))
     assert m.get_latest_checkpoint("task-x") is None
+
+
+async def test_reloaded_execution_reruns_failed_nodes(tmp_path):
+    """恢复含 FAILED 节点的工作流：FAILED 节点按重试语义重新执行（仅跳过 COMPLETED）"""
+    engine1 = WorkflowEngine(persistence_dir=str(tmp_path))
+    executed = []
+
+    async def exec1(node, input_data):
+        executed.append(node.node_id)
+        return {"result": "ok"}
+
+    engine1.register_node_executor("dept-frontend", exec1)
+    engine1.register_node_executor("dept-backend", exec1)
+
+    execution = engine1.create_workflow(_make_definition())
+    # 模拟进程中断在 n1 完成、n2 失败之后
+    execution.node_states["n1"] = WorkflowNodeStatus.COMPLETED
+    execution.results["n1"] = {"result": "ok"}
+    execution.node_states["n2"] = WorkflowNodeStatus.FAILED
+    execution.results["n2"] = {"error": "boom"}
+    engine1.persist_execution(execution.execution_id)
+
+    engine2 = WorkflowEngine(persistence_dir=str(tmp_path))
+    engine2.register_node_executor("dept-frontend", exec1)
+    engine2.register_node_executor("dept-backend", exec1)
+
+    restored = engine2.load_execution(execution.execution_id)
+    assert restored is not None
+    assert restored.node_states["n2"] == WorkflowNodeStatus.FAILED
+
+    await engine2.execute_workflow(restored.execution_id)
+    # 仅重跑 FAILED 的 n2，COMPLETED 的 n1 跳过
+    assert executed == ["n2"]
+    status = engine2.get_workflow_status(restored.execution_id)
+    assert status.status == WorkflowExecutionStatus.COMPLETED
+    assert status.node_states["n1"] == WorkflowNodeStatus.COMPLETED
+    assert status.node_states["n2"] == WorkflowNodeStatus.COMPLETED
+
+
+def test_persist_execution_unserializable_result_returns_false(tmp_path):
+    """executor 结果含不可序列化对象时 persist_execution 返回 False 而非抛 TypeError"""
+    engine = WorkflowEngine(persistence_dir=str(tmp_path))
+    execution = engine.create_workflow(_make_definition("wf-typeerror"))
+    # 注入不可序列化的结果（函数对象无法被 json.dump）
+    execution.node_states["n1"] = WorkflowNodeStatus.COMPLETED
+    execution.results["n1"] = {"bad": lambda x: x}
+
+    assert engine.persist_execution(execution.execution_id) is False
+
+
+async def test_parallel_execution_persists_all_node_states(tmp_path):
+    """并行 DAG：两节点均完成后落盘文件包含两节点 COMPLETED 状态（原子写完整性）"""
+    engine = WorkflowEngine(persistence_dir=str(tmp_path))
+
+    async def exec1(node, input_data):
+        return {"result": f"done-{node.node_id}"}
+
+    # p1、p2 无依赖（同一层并行）
+    nodes = [
+        WorkflowNode(node_id="p1", task_description="t1", dept_id="dept-frontend"),
+        WorkflowNode(node_id="p2", task_description="t2", dept_id="dept-backend"),
+    ]
+    definition = WorkflowDefinition(
+        workflow_id="wf-parallel-persist", name="并行落盘", description="",
+        nodes=nodes, edges=[], execution_strategy="parallel",
+    )
+    engine.register_node_executor("dept-frontend", exec1)
+    engine.register_node_executor("dept-backend", exec1)
+
+    execution = engine.create_workflow(definition)
+    await engine.execute_workflow(execution.execution_id)
+
+    data = json.loads((tmp_path / f"{execution.execution_id}.json").read_text())
+    assert data["node_states"]["p1"] == WorkflowNodeStatus.COMPLETED.value
+    assert data["node_states"]["p2"] == WorkflowNodeStatus.COMPLETED.value
