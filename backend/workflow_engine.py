@@ -47,6 +47,9 @@ class WorkflowEngine:
         if persistence_dir:
             os.makedirs(persistence_dir, exist_ok=True)
 
+        # per-execution 持久化锁：串行化同一 execution 的并发落盘（execution_id → asyncio.Lock）
+        self._persist_locks: Dict[str, asyncio.Lock] = {}
+
         # 集成agentscope Task系统
         self._task_bridge = AgentscopeTaskBridge()
 
@@ -105,22 +108,37 @@ class WorkflowEngine:
         # 更新Task的依赖关系
         self._task_bridge.update_task_dependencies(tasks, definition.edges)
 
-        # 落盘：创建即持久化（供断点恢复）
-        self.persist_execution(execution_id)
+        # 落盘：创建即持久化（供断点恢复）；创建时独占、无并发，走同步写无需锁
+        self._persist_execution_sync(execution_id)
 
         logger.info("创建工作流执行实例: %s (workflow_id=%s)", execution_id, definition.workflow_id)
         return execution
 
-    def persist_execution(self, execution_id: str) -> bool:
-        """将 execution 状态落盘（JSON），供进程重启后恢复
+    async def persist_execution(self, execution_id: str) -> bool:
+        """将 execution 状态落盘（JSON），供进程重启后恢复（并发安全）
 
         恢复语义：恢复时跳过已完成（COMPLETED）节点，FAILED/中断节点按重试语义重新执行。
         写入采用"临时文件 + 原子替换（os.replace）"，防止崩溃导致 JSON 截断。
 
-        并发说明：落盘为同步原子写（事件循环内无 await 间隙，快照总是当前内存状态），
-        但未做 per-execution 串行化——并行节点先后完成时 last-writer-wins 可使磁盘快照
-        相对最新内存状态略旧（os.replace 保证文件完整不损坏）。恢复语义按"跳过 COMPLETED、
-        重跑 FAILED/中断"处理，快照略旧只可能多跑一个已完成节点，不影响正确性。
+        并发安全：per-execution asyncio.Lock（`self._persist_locks`）串行化同一 execution
+        的并发落盘。并行节点先后完成时多个 persist_execution 并发进入事件循环——锁保证磁盘
+        快照按获取顺序串行写入，最终落盘为最后一个写入者看到的最新内存状态，消除
+        last-writer-wins 竞态（原实现并行节点并发落盘可能使磁盘快照相对内存略旧）。
+
+        _persist_locks 条目保留策略：条目保留（不清理），后续再次落盘时复用同一把锁，
+        避免重复创建；每引擎实例的 executions 数量有限，条目占用可忽略。
+        """
+        if not self._persistence_dir:
+            return False
+        lock = self._persist_locks.setdefault(execution_id, asyncio.Lock())
+        async with lock:
+            return self._persist_execution_sync(execution_id)
+
+    def _persist_execution_sync(self, execution_id: str) -> bool:
+        """同步原子写核心（tmp + os.replace + 异常捕获），不持有 _persist_locks
+
+        仅被 async persist_execution 在锁内调用，以及 create_workflow 同步调用
+        （创建时独占，无需锁）。
         """
         if not self._persistence_dir:
             return False
@@ -228,13 +246,13 @@ class WorkflowEngine:
             execution.completed_at = datetime.now(timezone.utc).isoformat()
             await self._notify_status_change(execution)
             # 最终状态落盘（供重启后按最终状态恢复）
-            self.persist_execution(execution_id)
+            await self.persist_execution(execution_id)
 
         except asyncio.CancelledError:
             # 保持CANCELLED状态，不覆盖
             execution.completed_at = datetime.now(timezone.utc).isoformat()
             await self._notify_status_change(execution)
-            self.persist_execution(execution_id)
+            await self.persist_execution(execution_id)
             raise
 
         except Exception as e:
@@ -244,7 +262,7 @@ class WorkflowEngine:
                 execution.status = WorkflowExecutionStatus.FAILED
                 execution.completed_at = datetime.now(timezone.utc).isoformat()
                 await self._notify_status_change(execution)
-                self.persist_execution(execution_id)
+                await self.persist_execution(execution_id)
             raise
 
     def start_workflow(self, execution_id: str) -> asyncio.Task:
@@ -500,7 +518,7 @@ class WorkflowEngine:
             self._task_bridge.update_node_status(node.node_id, WorkflowNodeStatus.FAILED)
 
         # 节点完成/失败即落盘（节点级持久化）
-        self.persist_execution(execution.execution_id)
+        await self.persist_execution(execution.execution_id)
         await self._notify_node_status_change(execution, node.node_id)
 
     def _topological_sort(self, definition: WorkflowDefinition) -> List[WorkflowNode]:
@@ -752,7 +770,7 @@ class WorkflowEngine:
         execution.status = WorkflowExecutionStatus.PAUSED
         await self._notify_status_change(execution)
         # 暂停状态落盘
-        self.persist_execution(execution_id)
+        await self.persist_execution(execution_id)
 
         # 取消正在运行的任务
         if execution_id in self._running_tasks:
@@ -803,7 +821,7 @@ class WorkflowEngine:
         execution.completed_at = datetime.now(timezone.utc).isoformat()
         await self._notify_status_change(execution)
         # 取消状态落盘
-        self.persist_execution(execution_id)
+        await self.persist_execution(execution_id)
 
         # 取消正在运行的任务
         if execution_id in self._running_tasks:
