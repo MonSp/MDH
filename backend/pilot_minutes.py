@@ -23,6 +23,7 @@
 
 import argparse
 import asyncio
+import json
 import os
 import re
 import sys
@@ -70,6 +71,9 @@ class MessageCollector:
         self.gate_seen = False
 
     async def collect(self, agent_id, text, delta=None, **kwargs):
+        # 把关请求推送 payload 是 dict（kind="approval"），转为 JSON 文本避免 re.sub 崩溃
+        if isinstance(text, dict):
+            text = json.dumps(text, ensure_ascii=False)
         safe = re.sub(r"[\U0001f300-\U0001f9ff]", "", text or "")
         self.messages.append({"agent_id": agent_id, "text": safe})
         write_match = re.search(r"\[写入文件\]\s*(.+?)\s*\(", safe)
@@ -168,7 +172,12 @@ async def main():
     wf = result.get("workflow_result", {}) or {}
     wf_status = wf.get("status")
     wf_results = wf.get("results", {}) or {}
-    executed = sorted(k for k, v in wf_results.items() if isinstance(v, dict) and "result" in v or "gate" in v)
+    for nid, r in wf_results.items():
+        if isinstance(r, dict):
+            err = r.get("error")
+            res_txt = str(r.get("result", ""))[:160].replace("\n", " ")
+            print(f"  [节点] {nid}: status={r.get('status', '?')} error={str(err)[:200] if err else '-'} result={res_txt}")
+    executed = sorted(k for k, v in wf_results.items() if isinstance(v, dict) and ("result" in v or "gate" in v))
     results.append(check("DAG 执行：工作流结束且节点有结果", bool(wf_status) and len(executed) >= 1,
                          f"status={wf_status} nodes={executed}"))
 
