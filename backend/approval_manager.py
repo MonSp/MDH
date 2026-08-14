@@ -299,6 +299,8 @@ class ApprovalManager:
                 "status": a.status.value,
                 "createdAt": a.created_at,
                 "approver": a.approver,
+                "taskId": a.task_id,
+                "gateId": a.gate_id,
             }
             for a in self._pending.values()
         ]

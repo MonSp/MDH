@@ -140,3 +140,16 @@ async def test_request_approval_payload_has_approver():
         requester_id="a", operation="op", description="d", approver="emp-1", send_fn=send_fn,
     )
     assert captured["request"]["approver"] == "emp-1"
+
+
+async def test_pending_requests_include_task_gate_and_approver():
+    manager = ApprovalManager()
+    await manager.request_gate(
+        requester_id="a", operation="op", description="d",
+        task_id="task-1", gate_id="gate-1", approver="emp-1",
+    )
+    pending = manager.get_pending_requests()
+    assert len(pending) == 1
+    assert pending[0]["taskId"] == "task-1"
+    assert pending[0]["gateId"] == "gate-1"
+    assert pending[0]["approver"] == "emp-1"
