@@ -15,6 +15,7 @@ from agentscope.message import Msg
 
 from agent import _extract_text
 from dynamic_router import DynamicRouter, RoutingDecision
+from minutes_workflow import MINUTES_KEYWORDS, build_minutes_workflow
 from protocol import AgentRole, SemanticAnalysisResult
 
 logger = logging.getLogger("semantic_analyzer")
@@ -49,6 +50,18 @@ class SemanticAnalyzer:
         Returns:
             SemanticAnalysisResult
         """
+        # 0. 文档模式检测（确定性规则，命中即返回，不依赖 LLM/router）
+        if self._detect_minutes_task(user_message):
+            logger.info("检测到文档型任务（会议纪要），生成纪要 DAG")
+            return SemanticAnalysisResult(
+                is_task=True,
+                intent="minutes",
+                task_description="会议纪要+待办",
+                is_workflow=True,
+                workflow_definition=build_minutes_workflow(user_message),
+                reason="文档任务规则命中",
+            )
+
         # 1. DynamicRouter 初步路由
         routing_decision = self._router.route(user_message)
         self._last_routing_decision = routing_decision
@@ -143,6 +156,12 @@ class SemanticAnalyzer:
             discussion_topic=user_message,
         )
     
+    def _detect_minutes_task(self, user_message: str) -> bool:
+        """检测是否为文档型会议纪要任务（速记→纪要）"""
+        return any(k in user_message for k in MINUTES_KEYWORDS) and any(
+            v in user_message for v in ("整理", "生成", "撰写", "输出", "写")
+        )
+
     def _detect_complex_task(self, user_message: str) -> bool:
         """检测是否为跨部门复杂任务"""
         complex_patterns = [
