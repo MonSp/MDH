@@ -116,6 +116,33 @@ def test_jsonl_ioerror_falls_back_to_memory(tmp_path, monkeypatch):
     assert msgs[0]["content"] == "降级消息"
 
 
+def test_reload_then_append_keeps_history(tmp_path):
+    """重载→追加后投影仍含全部事件（防历史丢失）"""
+    m1 = MeetingSession("m1", session_log_dir=str(tmp_path))
+    m1.add_message("agent", "A1", "a")
+    m1.add_message("agent", "A2", "b")
+
+    m2 = MeetingSession("m1", session_log_dir=str(tmp_path))
+    first = m2.deriveMessages()
+    assert len(first) == 2
+    m2.add_message("agent", "B1", "c")
+    second = m2.deriveMessages()
+    assert [x["content"] for x in second] == ["A1", "A2", "B1"]
+
+
+def test_load_events_skips_non_dict_json_lines(tmp_path):
+    """合法 JSON 非 dict 行（如 123）被跳过而非引发 AttributeError"""
+    m = MeetingSession("m1", session_log_dir=str(tmp_path))
+    m.add_message("agent", "好行", "agent-1")
+    log_file = tmp_path / "m1.jsonl"
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write("123\n")
+        f.write('"a plain string"\n')
+    events = m.load_events()
+    assert len(events) == 1  # 非 dict 行被跳过
+    assert events[0]["content"] == "好行"
+
+
 def test_session_event_types_minimal_set():
     values = {t.value for t in SessionEventType}
     for expected in (

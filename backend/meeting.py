@@ -371,6 +371,7 @@ class MeetingSession:
         if not events and self._session_log_dir:
             # 会话重载场景：内存为空时从 JSONL 重载投影
             events = self.load_events()
+            self._events = events  # 回写缓存，防后续 add_message 后投影丢历史
         if event_types is not None:
             allowed = set(event_types)
             events = [e for e in events if e.get("event_type") in allowed]
@@ -407,7 +408,13 @@ class MeetingSession:
                     if not line:
                         continue
                     try:
-                        events.append(json.loads(line))
+                        obj = json.loads(line)
+                        if not isinstance(obj, dict):
+                            logger.warning(
+                                "跳过非 dict 的 SessionEvent 行: %s...", line[:80]
+                            )
+                            continue
+                        events.append(obj)
                     except json.JSONDecodeError:
                         logger.warning(
                             "跳过损坏的 SessionEvent 行: %s...", line[:80]
