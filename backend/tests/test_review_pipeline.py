@@ -416,3 +416,46 @@ class TestOnModelErrorCallback:
         pipeline = ReviewPipeline(get_model_fn=get_model, meeting=meeting, planner=None)
         feedback = await pipeline._reviewer_review("任务", "产出", AsyncMock())
         assert "[reviewer]" in feedback
+
+    @pytest.mark.asyncio
+    async def test_throwing_on_model_error_keeps_fallback(self):
+        """on_model_error 回调自身抛异常 → 不顶掉模型异常路径，fallback 仍被构造"""
+        def throwing_on_model_error(r):
+            raise RuntimeError("callback boom")
+
+        meeting = MagicMock()
+        meeting.agents = [types.SimpleNamespace(id="agent-reviewer", role=AgentRole.REVIEWER)]
+
+        def get_model(r):
+            m = MagicMock()
+            m.reply = AsyncMock(side_effect=RuntimeError("model down"))
+            return m
+
+        pipeline = ReviewPipeline(
+            get_model_fn=get_model, meeting=meeting, planner=None,
+            on_model_error=throwing_on_model_error,
+        )
+        feedback = await pipeline._reviewer_review("任务", "产出", AsyncMock())
+        # 回调异常被吞掉，fallback 契约保持：仍返回 fallback 文本而非抛异常
+        assert "[reviewer]" in feedback
+
+    @pytest.mark.asyncio
+    async def test_throwing_on_model_error_monitor_keeps_fallback(self):
+        """Monitor 调用点：on_model_error 回调自身抛异常 → fallback 仍被构造"""
+        def throwing_on_model_error(r):
+            raise RuntimeError("callback boom")
+
+        meeting = MagicMock()
+        meeting.agents = [types.SimpleNamespace(id="agent-monitor", role=AgentRole.MONITOR)]
+
+        def get_model(r):
+            m = MagicMock()
+            m.reply = AsyncMock(side_effect=RuntimeError("model down"))
+            return m
+
+        pipeline = ReviewPipeline(
+            get_model_fn=get_model, meeting=meeting, planner=None,
+            on_model_error=throwing_on_model_error,
+        )
+        feedback = await pipeline._monitor_evaluate("任务", "产出", "审查意见", AsyncMock())
+        assert "[monitor]" in feedback

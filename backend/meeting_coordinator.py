@@ -217,7 +217,10 @@ class MeetingCoordinator:
                 response = await model.reply(conversation)
             except Exception:
                 if on_model_error:
-                    on_model_error()
+                    try:
+                        on_model_error()
+                    except Exception as e:
+                        self.logger.warning("模型失败通知回调异常: %s", e)
                 raise
             last_text = _extract_text(response)
 
@@ -450,6 +453,13 @@ class MeetingCoordinator:
         if pool_id and self._agent_pool:
             self._agent_pool.mark_unhealthy(pool_id)
 
+    def _safe_mark_model_failed(self, role: AgentRole) -> None:
+        """模型失败通知：回调自身异常不顶掉原模型异常（fallback 契约异常安全）"""
+        try:
+            self._mark_model_failed(role)
+        except Exception as e:
+            self.logger.warning("模型失败通知回调异常: %s", e)
+
     async def decompose_task(self, task_description: str) -> List[Dict[str, Any]]:
         planner = self._get_model(AgentRole.PLANNER)
         prompt = (
@@ -465,7 +475,7 @@ class MeetingCoordinator:
             text = _extract_text(response)
         except Exception as e:
             self.logger.warning("任务分解 LLM 调用失败: %s", e)
-            self._mark_model_failed(AgentRole.PLANNER)
+            self._safe_mark_model_failed(AgentRole.PLANNER)
             text = "[]"
 
         try:
@@ -757,7 +767,7 @@ class MeetingCoordinator:
                 text = _extract_text(response)
             except Exception as e:
                 self.logger.warning("紧急响应LLM调用失败: %s", e)
-                self._mark_model_failed(AgentRole.PLANNER)
+                self._safe_mark_model_failed(AgentRole.PLANNER)
                 text = LLM_FALLBACK_TEMPLATE.format(role="planner", content_type="应急方案")
             await self._msg(planner_id, text)
             self.meeting.add_message("agent", text, planner_id)

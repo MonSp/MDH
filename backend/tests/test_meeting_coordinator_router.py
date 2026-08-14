@@ -978,6 +978,63 @@ async def test_handle_critical_blocker_model_error_marks_model_failed(coordinato
 
 
 # ---------------------------------------------------------------------------
+# fallback 契约异常安全：回调自身抛异常不顶掉原模型异常路径
+# ---------------------------------------------------------------------------
+
+
+async def test_decompose_task_callback_error_keeps_fallback(coordinator):
+    """_mark_model_failed 自身抛异常 → 不顶掉模型异常路径，decompose_task 仍回退 []"""
+    class ExplodingModel:
+        async def reply(self, msg):
+            raise RuntimeError("model down")
+
+    def boom(role):
+        raise RuntimeError("callback boom")
+
+    coordinator._get_model = MagicMock(return_value=ExplodingModel())
+    coordinator._mark_model_failed = boom
+
+    subtasks = await coordinator.decompose_task("开发一个网站")
+    # fallback 契约保持：回调异常被吞掉，仍返回空列表（而非回调异常冒泡）
+    assert subtasks == []
+
+
+async def test_handle_critical_blocker_callback_error_keeps_fallback(coordinator):
+    """_mark_model_failed 自身抛异常 → handle_critical_blocker 仍回退 fallback 文本并推送"""
+    class ExplodingModel:
+        async def reply(self, msg):
+            raise RuntimeError("model down")
+
+    def boom(role):
+        raise RuntimeError("callback boom")
+
+    coordinator._get_model = MagicMock(return_value=ExplodingModel())
+    coordinator._mark_model_failed = boom
+    coordinator._msg = AsyncMock()
+
+    await coordinator.handle_critical_blocker("agent-executor", "前端构建失败", AsyncMock())
+    coordinator._msg.assert_awaited_once()
+    text_arg = coordinator._msg.call_args[0][1]
+    assert "应急方案" in text_arg
+
+
+async def test_run_agent_execution_loop_callback_error_preserves_model_error(coordinator):
+    """on_model_error 回调自身抛异常 → 不顶掉原模型异常，仍 re-raise 模型异常"""
+    class ExplodingModel:
+        async def reply(self, conversation):
+            raise RuntimeError("model down")
+
+    def boom():
+        raise RuntimeError("callback boom")
+
+    # 回调异常被吞掉，re-raise 的仍是原模型异常（match="model down" 验证）
+    with pytest.raises(RuntimeError, match="model down"):
+        await coordinator._run_agent_execution_loop(
+            ExplodingModel(), "请执行", None, on_model_error=boom
+        )
+
+
+# ---------------------------------------------------------------------------
 # 门禁接入 execute_and_review_task：review 前计算 gate_result 并传入
 # ---------------------------------------------------------------------------
 
