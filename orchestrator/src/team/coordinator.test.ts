@@ -184,4 +184,45 @@ describe('TeamCoordinator roleLocations', () => {
     expect(chatSpy).toHaveBeenCalled();
     expect(chatWithToolsSpy).toHaveBeenCalled();
   });
+
+  it('applies config hybridProfiles to member runtime.hybrid', async () => {
+    const coordinator = makeCoordinator({ hybridProfiles: { executor: 'remote-brain-local-hands' } });
+    stubLlmPaths(coordinator, makeFakeAgents());
+
+    await coordinator.execute(
+      '任务',
+      ['executor', 'reviewer'],
+      undefined,
+      { executor: 'remote', reviewer: 'local' },
+    );
+
+    const execMember = coordinator['team']!.members.find((m) => m.role === 'executor')!;
+    expect((execMember.runtime as any).hybrid).toEqual({ profile: 'remote-brain-local-hands' });
+  });
+
+  it('applies config hybridProfiles to local member runtime.hybrid', async () => {
+    const coordinator = makeCoordinator({ hybridProfiles: { reviewer: 'remote-brain-local-hands' } });
+    stubLlmPaths(coordinator, makeFakeAgents());
+
+    await coordinator.execute(
+      '任务',
+      ['executor', 'reviewer'],
+      undefined,
+      { executor: 'remote', reviewer: 'local' },
+    );
+
+    const revMember = coordinator['team']!.members.find((m) => m.role === 'reviewer')!;
+    expect(revMember?.location).toBe('local');
+    expect((revMember!.runtime as any).hybrid).toEqual({ profile: 'remote-brain-local-hands' });
+  });
+
+  it('createTeam applies hybridProfiles from config by default', () => {
+    const coordinator = makeCoordinator({ hybridProfiles: { executor: 'local-full' } });
+    const team = (coordinator as any).createTeam(['executor', 'reviewer'], '任务');
+    expect((team.members.find((m: any) => m.role === 'executor')!.runtime as any).hybrid)
+      .toEqual({ profile: 'local-full' });
+    // 未配置 profile 的角色不注入 hybrid
+    expect((team.members.find((m: any) => m.role === 'reviewer')!.runtime as any).hybrid)
+      .toBeUndefined();
+  });
 });

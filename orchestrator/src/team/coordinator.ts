@@ -2,6 +2,7 @@ import { LLMConfig, Message } from '../llm/types.js';
 import { chatStream } from '../llm/openai.js';
 import type { IToolkitRouter } from '../toolkit/router.js';
 import { RouterFactory } from '../toolkit/router.js';
+import type { ExecutionProfile } from '../toolkit/hybrid.js';
 import { getTemplate, getPromptTemplate } from './templates.js';
 import { Team, TeamMember } from './types.js';
 import { RoleAgent, buildSystemPrompt, getToolsForRole } from '../agent/index.js';
@@ -15,6 +16,8 @@ export interface CoordinatorConfig {
   /** 默认远端 executor 地址/Token（未显式传 defaultRuntime 时 remote 成员的兜底值） */
   executorUrl?: string;
   executorToken?: string;
+  /** per-agent hybrid 执行配置（role → ExecutionProfile）。createTeam 时为匹配的角色写入 runtime.hybrid。 */
+  hybridProfiles?: Record<string, ExecutionProfile>;
   onWorkspaceConfirm?: (request: WorkspaceConfirmRequest) => Promise<WorkspaceConfirmResponse>;
 }
 
@@ -405,17 +408,21 @@ export class TeamCoordinator {
 
   // ====== 团队创建（保留 meeting_started 事件和路由信息）======
   // roleLocations 按角色指定执行位置（local/remote），未指定则默认 local。
-  // member.location 决定 RouterFactory 返回 local 还是 remote router（见 toolkit/router.ts）。
+  // member.location 决定 RouterFactory 返回 local 还是 remote router（见 toolkit/router.ts）；
+  // 但若 hybridProfiles[roleId] 存在，runtime.hybrid.profile 优先于 location —— router.ts
+  // 的 getRouterForMember 先查 runtime.hybrid（local/remote 分支均支持混合路由）。
   private createTeam(
     roleIds: string[],
     task: string,
     roleLocations: Record<string, 'local' | 'remote'> = {},
     defaultRuntime?: { workspace: string; executorUrl?: string; executorToken?: string },
+    hybridProfiles: Record<string, ExecutionProfile> = this.config.hybridProfiles ?? {},
   ): Team {
     const members: TeamMember[] = roleIds.map((roleId, i) => {
       const template = getTemplate(roleId);
       if (!template) throw new Error(`Unknown role: ${roleId}`);
       const location: 'local' | 'remote' = roleLocations[roleId] || 'local';
+      const hybrid = hybridProfiles[roleId] ? { hybrid: { profile: hybridProfiles[roleId] } } : {};
       const runtime =
         location === 'remote'
           ? {
@@ -423,10 +430,11 @@ export class TeamCoordinator {
               workspace: defaultRuntime?.workspace ?? this.config.workspace,
               executorUrl: defaultRuntime?.executorUrl ?? this.config.executorUrl ?? '',
               executorToken: defaultRuntime?.executorToken ?? this.config.executorToken ?? '',
+              ...hybrid,
             }
           : defaultRuntime
-            ? { type: 'local' as const, workspace: defaultRuntime.workspace, executorUrl: defaultRuntime.executorUrl, executorToken: defaultRuntime.executorToken }
-            : { type: 'local' as const, workspace: this.config.workspace };
+            ? { type: 'local' as const, workspace: defaultRuntime.workspace, executorUrl: defaultRuntime.executorUrl, executorToken: defaultRuntime.executorToken, ...hybrid }
+            : { type: 'local' as const, workspace: this.config.workspace, ...hybrid };
       return {
         id: `member-${i}`,
         name: template.name,

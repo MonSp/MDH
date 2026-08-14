@@ -67,4 +67,9 @@ describe('HybridToolkitRouter', () => {
     expect(config.commands).toBe('local');
     expect(config.localWorkspace).toBe('/home/user/project');
   });
+
+  it('throws on unknown ExecutionProfile', () => {
+    expect(() => createExecutionConfig('bogus' as any, { localWorkspace: TEST_DIR }))
+      .toThrow('unknown ExecutionProfile: bogus');
+  });
 });

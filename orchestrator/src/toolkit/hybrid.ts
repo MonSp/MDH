@@ -30,10 +30,15 @@ const PROFILES: Record<Exclude<ExecutionProfile, 'custom'>, Omit<ExecutionConfig
   'remote-brain-local-hands': { llm: 'remote', agents: 'remote', files: 'local', commands: 'local' },
 };
 
+const PRESET_PROFILES = new Set<string>(Object.keys(PROFILES));
+
 export function createExecutionConfig(
   profile: ExecutionProfile,
   options: { localWorkspace: string; remote?: RemoteToolkitRouterConfig; overrides?: Partial<ExecutionConfig> },
 ): ExecutionConfig {
+  if (profile !== 'custom' && !PRESET_PROFILES.has(profile)) {
+    throw new Error(`unknown ExecutionProfile: ${profile}`);
+  }
   const base = profile === 'custom'
     ? { llm: 'remote' as const, agents: 'remote' as const, files: 'local' as const, commands: 'local' as const }
     : PROFILES[profile];
