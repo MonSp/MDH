@@ -32,7 +32,7 @@
 - Consumes: `MeetingSession.add_message(role, content, agent_id=None)`（meeting.py:245-254）、`uuid`/`time`（已 import）
 - Produces: `SessionEvent` dataclass（`event_id/event_type/role/content/agent_id/phase/actor/span_id/timestamp`）；`SessionEventType` 枚举（`user_message/agent_message/discussion/execution/review/approval/experience_injection/tool/audit`，另含 `system` 供非 user/agent 角色推断回退——见 Step 3b，共 10 成员）；`MeetingSession.__init__(meeting_id, session_log_dir: Optional[str] = None)`；`add_message(...)` 追加事件并 JSONL 持久化（append 即写，断点可续读）；`deriveMessages(event_types=None, window=None, max_content_len=None) -> List[dict]`（从事件流投影为消息列表，兼容现有 `messages` 结构 `{id, role, content, agent_id, timestamp}`）；`load_events()` 静态/类方法（重载持久化事件）；`messages` 属性保持（投影或内存镜像）
 
-- [ ] **Step 1: 写失败测试**（新建 `backend/tests/test_session_log.py`）
+- [x] **Step 1: 写失败测试**（新建 `backend/tests/test_session_log.py`）
 
 ```python
 """SessionEvent 事件流：统一写入口 + JSONL 持久化 + 投影接口"""
@@ -82,14 +82,14 @@ def test_no_dir_falls_back_to_memory(tmp_path):
     assert m.load_events() == []
 ```
 
-- [ ] **Step 2: 运行确认失败**：预期 `TypeError: __init__() got an unexpected keyword argument 'session_log_dir'` / 无 `deriveMessages`。
-- [ ] **Step 3: 实现**：
+- [x] **Step 2: 运行确认失败**：预期 `TypeError: __init__() got an unexpected keyword argument 'session_log_dir'` / 无 `deriveMessages`。
+- [x] **Step 3: 实现**：
   3a. `meeting.py` 新增 `SessionEventType` 枚举与 `SessionEvent` dataclass（含 `event_type` 默认 `"agent_message"`）；`MeetingSession.__init__` 加 `session_log_dir: Optional[str] = None`（目录存在则 `makedirs`），`self._session_log_dir`。
   3b. `add_message`：构造消息 dict（现有结构）后，追加 `SessionEvent` 记录（`event_type` 由 role 推断：`"user"`→`user_message`、`"agent"`→`agent_message`、其余→`"system"`；`phase/actor/span_id` 可选空），若 `session_log_dir` 则 JSONL append（`with open(path, "a") as f: f.write(json.dumps(event) + "\n")`，IOError 静默降级内存）；保持现有返回与 `messages` 追加行为不变。
   3c. `deriveMessages(event_types=None, window=None, max_content_len=None)`：从内存事件（或 `load_events()` 重载）投影，过滤 event_types、取最近 window 条、内容截断，返回 `{id, role, content, agent_id, timestamp}` 列表；无持久化时从内存事件投影。
   3d. `load_events()`：从 JSONL 逐行读取（损坏行跳过），返回事件 dict 列表。
-- [ ] **Step 4: 验证**：`cd backend && /usr/bin/python3 -m pytest tests/test_session_log.py tests/test_meeting.py -q`；全量 `tests/ -q`（既有 913 用例不回归——`add_message` 签名与 `messages` 结构不变）。
-- [ ] **Step 5: 提交**：`git add backend/meeting.py backend/tests/test_session_log.py && git commit -m "feat(session): append-only SessionEvent log with deriveMessages projection"`
+- [x] **Step 4: 验证**：`cd backend && /usr/bin/python3 -m pytest tests/test_session_log.py tests/test_meeting.py -q`；全量 `tests/ -q`（既有 913 用例不回归——`add_message` 签名与 `messages` 结构不变）。
+- [x] **Step 5: 提交**：`git add backend/meeting.py backend/tests/test_session_log.py && git commit -m "feat(session): append-only SessionEvent log with deriveMessages projection"`
 
 ---
 
@@ -109,7 +109,7 @@ def test_no_dir_falls_back_to_memory(tmp_path):
 - Consumes: `MeetingSession.deriveMessages`（Task 1）、`discussion_results`/`discussions` 现有结构
 - Produces: `MixedLocationDiscussion`/`DiscussionManager` 的 previous_context 构造改用 `deriveMessages(window=10, max_content_len=80)`（保留既有 10 条/80 字语义）；`MeetingCoordinator._extract_discussion_decisions` 改用投影事件（保留 support/modify 过滤与 8 条/120 字语义）；经验注入（meeting_coordinator :1182-1202、task_orchestrator :488-513）保持现状（注明本期不改）
 
-- [ ] **Step 1: 写失败测试**（追加到 `test_mixed_location_discussion.py` / `test_meeting_coordinator_router.py`）：
+- [x] **Step 1: 写失败测试**（追加到 `test_mixed_location_discussion.py` / `test_meeting_coordinator_router.py`）：
 
 ```python
 async def test_parallel_discussion_context_from_events(meeting_coordinator):
@@ -123,10 +123,10 @@ async def test_parallel_discussion_context_from_events(meeting_coordinator):
 
 （以既有 discussion 测试的 fixture 结构为准；验收：previous_context 来源为事件投影、语义与现有一致。）
 
-- [ ] **Step 2: 运行确认失败**：现有实现仍从 discussions 列表拼接。
-- [ ] **Step 3: 实现**：按 Interfaces 改造 4 处（讨论串行/并行 previous_context、`_extract_discussion_decisions`）；先读各处实际代码，`deriveMessages` 投影后保持输出文本形状不变（避免下游 prompt 语义漂移）；经验注入两处加注释"本期保留现有实现，P3 后续可事件化"。
-- [ ] **Step 4: 验证**：`cd backend && /usr/bin/python3 -m pytest tests/test_mixed_location_discussion.py tests/test_meeting_coordinator_router.py tests/test_review_pipeline.py -q`；全量 `tests/ -q`。
-- [ ] **Step 5: 提交**：`git add backend/discussion_manager.py backend/mixed_location_discussion.py backend/meeting_coordinator.py backend/tests/ && git commit -m "feat(session): project LLM contexts from SessionEvent log (discussion, review decisions)"`
+- [x] **Step 2: 运行确认失败**：现有实现仍从 discussions 列表拼接。
+- [x] **Step 3: 实现**：按 Interfaces 改造 4 处（讨论串行/并行 previous_context、`_extract_discussion_decisions`）；先读各处实际代码，`deriveMessages` 投影后保持输出文本形状不变（避免下游 prompt 语义漂移）；经验注入两处加注释"本期保留现有实现，P3 后续可事件化"。
+- [x] **Step 4: 验证**：`cd backend && /usr/bin/python3 -m pytest tests/test_mixed_location_discussion.py tests/test_meeting_coordinator_router.py tests/test_review_pipeline.py -q`；全量 `tests/ -q`。
+- [x] **Step 5: 提交**：`git add backend/discussion_manager.py backend/mixed_location_discussion.py backend/meeting_coordinator.py backend/tests/ && git commit -m "feat(session): project LLM contexts from SessionEvent log (discussion, review decisions)"`
 
 ---
 
@@ -145,7 +145,7 @@ async def test_parallel_discussion_context_from_events(meeting_coordinator):
 - Consumes: `deriveMessages(window=50)`、`SecurityMiddleware._log_audit`（security.py:182-203）
 - Produces: 快照 payload 的 `messages` 改为 `deriveMessages(window=50)` 投影（结构不变）；`_log_audit` 在内存 append 外追加 `SessionEvent(event_type="audit", ...)` 事件（经 `MeetingSession` 或独立 audit JSONL——以实现最简为准，若 SecurityMiddleware 无 MeetingSession 引用，则独立写 `backend/data/session_logs/audit.jsonl`）
 
-- [ ] **Step 1: 写失败测试**（test_session_log.py 追加）：
+- [x] **Step 1: 写失败测试**（test_session_log.py 追加）：
 
 ```python
 def test_audit_event_persisted(tmp_path):
@@ -155,10 +155,10 @@ def test_audit_event_persisted(tmp_path):
     ...
 ```
 
-- [ ] **Step 2: 运行确认失败**：审计无持久化事件。
-- [ ] **Step 3: 实现**：按 Interfaces；先读 server.py 快照/恢复与 security.py 实际代码。
-- [ ] **Step 4: 验证**：`cd backend && /usr/bin/python3 -m pytest tests/test_session_log.py tests/test_meeting.py -q`；全量 `tests/ -q`。
-- [ ] **Step 5: 提交**：`git add backend/server.py backend/security.py backend/meeting.py backend/tests/ && git commit -m "feat(session): snapshot projection and audit events into session log"`
+- [x] **Step 2: 运行确认失败**：审计无持久化事件。
+- [x] **Step 3: 实现**：按 Interfaces；先读 server.py 快照/恢复与 security.py 实际代码。
+- [x] **Step 4: 验证**：`cd backend && /usr/bin/python3 -m pytest tests/test_session_log.py tests/test_meeting.py -q`；全量 `tests/ -q`。
+- [x] **Step 5: 提交**：`git add backend/server.py backend/security.py backend/meeting.py backend/tests/ && git commit -m "feat(session): snapshot projection and audit events into session log"`
 
 ---
 
@@ -176,7 +176,7 @@ def test_audit_event_persisted(tmp_path):
 - Consumes: `runScenario`（需 DEEPSEEK_API_KEY，真实会议全链）、checkpoint 结构（`results[].filesCreated/testOutput/issues`）、`verifyFiles/verifyCommands/qualityChecks`
 - Produces: `snapshot.ts` 的 `buildScenarioSnapshot(scenario, runResults) -> Snapshot`（文件 sha256 hash + verifyCommands exitCode/stdoutHash + qualityChecks passed）与 `runKeylessChecks(scenario, workspace) -> Snapshot`（纯确定性不调 LLM）；`runScenario` 增加 `keyless` 选项（跳过模型循环）；checkpoint `results[]` 每项补存 `snapshot` 字段（向后兼容）
 
-- [ ] **Step 1: 写失败测试**（新建 `orchestrator/src/loop/loop.test.ts`，含 `snapshot.ts` 纯函数测试）：
+- [x] **Step 1: 写失败测试**（新建 `orchestrator/src/loop/loop.test.ts`，含 `snapshot.ts` 纯函数测试）：
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -197,10 +197,10 @@ describe('scenario snapshot', () => {
 });
 ```
 
-- [ ] **Step 2: 运行确认失败**：`buildScenarioSnapshot`/`runKeylessChecks` 不存在。
-- [ ] **Step 3: 实现**：`snapshot.ts`（sha256 文件 hash、verifyCommands exitCode/stdoutHash、qualityChecks passed；`runKeylessChecks` 文件存在性 + readFile 非空 + verifyCommands 执行）；`loop.ts` 的 `runScenario` 加 `keyless` 选项与 snapshot 序列化（归一化：非确定性输出不入快照）。
-- [ ] **Step 4: 验证**：`cd orchestrator && npx vitest run src/loop/loop.test.ts`；全量 `npm test`（125 不回归）。
-- [ ] **Step 5: 提交**：`git add orchestrator/src/loop/snapshot.ts orchestrator/src/loop/loop.ts orchestrator/src/loop/loop.test.ts && git commit -m "feat(loop): keyless scenario snapshot with deterministic check hashing"`
+- [x] **Step 2: 运行确认失败**：`buildScenarioSnapshot`/`runKeylessChecks` 不存在。
+- [x] **Step 3: 实现**：`snapshot.ts`（sha256 文件 hash、verifyCommands exitCode/stdoutHash、qualityChecks passed；`runKeylessChecks` 文件存在性 + readFile 非空 + verifyCommands 执行）；`loop.ts` 的 `runScenario` 加 `keyless` 选项与 snapshot 序列化（归一化：非确定性输出不入快照）。
+- [x] **Step 4: 验证**：`cd orchestrator && npx vitest run src/loop/loop.test.ts`；全量 `npm test`（125 不回归）。
+- [x] **Step 5: 提交**：`git add orchestrator/src/loop/snapshot.ts orchestrator/src/loop/loop.ts orchestrator/src/loop/loop.test.ts && git commit -m "feat(loop): keyless scenario snapshot with deterministic check hashing"`
 
 ---
 
@@ -218,7 +218,7 @@ describe('scenario snapshot', () => {
 - Consumes: checkpoint 快照（Task 4）、`loadBaseline/updateBaseline`（baseline.ts）、`getDb`（db.ts）、`runCiGate`（gate.ts）
 - Produces: `diffSnapshot(snapshot, actual) -> Diff[]`（纯函数）；`replayScenario(snapshot, workspacePath) -> Diff[]`（重跑确定性校验 → diff）；`main.ts` 命令 `replay`（遍历含 snapshot 的 checkpoint 回放，diff 非空 exit 1）；`runCiGate` 增加 replay 门禁段（快照存在时回放，diff 非空 FAIL）
 
-- [ ] **Step 1: 写失败测试**（新建 `loop-engineering/src/replay/replay.test.ts`）：
+- [x] **Step 1: 写失败测试**（新建 `loop-engineering/src/replay/replay.test.ts`）：
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -240,10 +240,10 @@ describe('replay diff', () => {
 
 （vitest 加 devDependency：`cd loop-engineering && npm i -D vitest`——先确认 workspace 网络/registry 可用；不可用则以主仓库 `node /home/test/MDH/node_modules/vitest/vitest.mjs run <file>` 复用。）
 
-- [ ] **Step 2: 运行确认失败**：`diffSnapshot` 不存在。
-- [ ] **Step 3: 实现**：`replay.ts`（diffSnapshot 纯函数 + replayScenario 重跑确定性校验）；`main.ts` COMMANDS 加 `"replay"`；`gate.ts` `runCiGate` 加 replay 门禁段；两处 package.json 脚本。
-- [ ] **Step 4: 验证**：`cd loop-engineering && npx vitest run src/replay/replay.test.ts`；`npx tsx src/main.ts replay`（空 checkpoints → exit 0）；orchestrator `npm test` 不回归。
-- [ ] **Step 5: 提交**：`git add loop-engineering/src/replay/ loop-engineering/src/main.ts loop-engineering/src/ci/gate.ts loop-engineering/package.json orchestrator/package.json && git commit -m "feat(loop): keyless snapshot replay with CI gate integration"`
+- [x] **Step 2: 运行确认失败**：`diffSnapshot` 不存在。
+- [x] **Step 3: 实现**：`replay.ts`（diffSnapshot 纯函数 + replayScenario 重跑确定性校验）；`main.ts` COMMANDS 加 `"replay"`；`gate.ts` `runCiGate` 加 replay 门禁段；两处 package.json 脚本。
+- [x] **Step 4: 验证**：`cd loop-engineering && npx vitest run src/replay/replay.test.ts`；`npx tsx src/main.ts replay`（空 checkpoints → exit 0）；orchestrator `npm test` 不回归。
+- [x] **Step 5: 提交**：`git add loop-engineering/src/replay/ loop-engineering/src/main.ts loop-engineering/src/ci/gate.ts loop-engineering/package.json orchestrator/package.json && git commit -m "feat(loop): keyless snapshot replay with CI gate integration"`
 
 ---
 

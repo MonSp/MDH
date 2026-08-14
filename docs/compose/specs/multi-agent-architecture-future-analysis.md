@@ -28,6 +28,7 @@ commits: 7982912..1748522
 - P1 实施交付（2026-08-13）：路由断链修复/技能闭环自动触发/DAG 依赖推断/混合执行真接线/杂项收尾 5 项落地（11 commits 合并至 main，backend 864 + orchestrator 110 + 前端 1630 tests 全绿）。评审驱动的关键修正：① CLI 裸引擎注入会跳过 executor 注册致 DAG 分支回归，已回退（`MeetingCoordinator.__init__` 注入契约：注入引擎必须已注册执行器，否则留空自建）；② 技能自动闭环按 `source_task_id` 项目隔离防跨项目污染；③ 前端审批契约验证闭环（结构化推送 → pendingApprovals 字段逐一对应）。
 - P2 实施交付（2026-08-13）：durable execution 基础版/审查确定性门禁/artifact 模式/模型 failover/杂项 5 项落地（11 commits + vitest 修复合并至 main，backend 891 + orchestrator 118 + 前端 1632 tests 全绿）。评审驱动的关键修正：① durable execution 落盘采用原子写 + 容错加载 + execution-id 过滤（防 checkpoints.json 混淆），恢复仅跳过 COMPLETED（FAILED 按重试语义）；② 审查门禁对工具缺失 fail-open（信号集经真实错误文本实测对齐），真实失败 fail-closed，经 asyncio.to_thread 避免阻塞事件循环；③ main 上发现 orchestrator 陈旧编译产物 .js 遮蔽 .ts 导致新测试套件失败——以 vitest 正则 alias 非破坏性修复。
 - P3 方向融合（2026-08-13）：研究 DeepSeek Harness（dsh，agent 运行时平台）后确认其"强单 agent + subagent 轻协作 + 插件化 + session log 真相源 + 评测门禁"与本文档方向同向；决定不落盘对比文档，改为将 5 项 dsh 理念（session log 真相源、subagent 委托、配置层插件化、快照/评测门禁、守卫/沙箱系统化）直接吸收进"四、产品发展方向"的 P3 小节，与既有评审遗留项合并为连贯后续计划。
+- P2 遗留闭环（2026-08-13）：按"先补完 P2 遗留再进 P3"的决定，将 9 项评审遗留全部闭环（7 commits 合并至 main，backend 913 + orchestrator 125 全绿）：门禁通道感知+工具特定信号、hybrid 生产接线+profile 校验+local 分支 executor 连接、durable 读侧（executions 列表 + resume 端点含内存终态守卫）、persist 捕获加宽、FAILED 重跑测试、failover 归因收窄（on_model_error 仅模型层）、门禁接入 execute_and_review_task、planner issues setdefault。刻意保留两项（failover 扩展到全部消费点、per-execution 异步锁）并记录理由。
 
 ## [S1] Problem
 
@@ -185,7 +186,7 @@ MDH 已实现一套复杂多智能体协作机制（6 层架构链、三执行�
 
 按产品定义的五条主线组织，每条给出：现状（对应局限 L#）、行业参照（`[n]` 引用）、方向动作与优先级。P0=现在（名不副实的修正），P1=近期（主线能力补全），P2=中期（差异化深化）。
 
-> **实施进度**：P0 优先级项已于 2026-08-13 交付并合并至 main（`7653967..7cb63c9`，852 tests）：工作流真执行、双引擎合并、审查 LLM 通道、审批真等待、死代码清理。**P1 优先级项同日交付**（`3cf543c..b0132e8`，backend 864 + orchestrator 110 + 前端 1630 全绿）：路由自适应断链修复、DAG 依赖推断、技能闭环自动触发（项目隔离）、混合执行 roleLocations 真接线、杂项。**P2 优先级项同日交付**（`f2c6eb6..3f929b5` + vitest 修复 `c20989f`；backend 891 + orchestrator 118 + 前端 1632 全绿）：durable execution 基础版（工作流持久化 + 恢复跳过 COMPLETED + 原子写 + server 接线）、审查确定性门禁（fail-open 工具缺失 + to_thread + 仅产物迭代）、artifact 模式（文件清单+摘要轻量引用）、模型 failover + agent_pool 健康接线、杂项（路由统计安全包装、AGENTS.md 计数、per-member hybrid 接线、前端审批 status）。下文 P0/P1 项标注 ✅ 表示完成；未标注者待实施（P3/后续）。
+> **实施进度**：P0 优先级项已于 2026-08-13 交付并合并至 main（`7653967..7cb63c9`，852 tests）：工作流真执行、双引擎合并、审查 LLM 通道、审批真等待、死代码清理。**P1 优先级项同日交付**（`3cf543c..b0132e8`）：路由自适应断链修复、DAG 依赖推断、技能闭环自动触发（项目隔离）、混合执行 roleLocations 真接线、杂项。**P2 优先级项同日交付**（`f2c6eb6..3f929b5` + vitest 修复 `c20989f`）：durable execution 基础版、审查确定性门禁、artifact 模式、模型 failover、杂项；**P2 遗留闭环同日完成**（`9800d46..1928042` 合并 + 文档 `9bdf06f`）：门禁通道感知、hybrid 生产接线、durable 读侧、failover 归因等 9 项，P2 零遗留。**P3 优先级两项同日交付**（`25404bd..d2ac9a7` 合并至 main@eecf1a8；backend 948 + orchestrator 154 + loop-engineering 16 + 前端 1632 全绿）：session log 真相源（append-only SessionEvent 事件流 + deriveMessages 投影 + 快照/审计并入）与快照评测门禁（keyless 快照 + 回放 + CI 门禁）。下文 ✅ 表示已完成；未标注者待实施。
 
 #### 支柱 1：意图识别引擎（CEO 拆解）
 
@@ -297,4 +298,6 @@ MDH 已实现一套复杂多智能体协作机制（6 层架构链、三执行�
 [39] Manus blog index ($100M ARR 2025-12-17; Joins Meta 2025-12-29) — https://manus.im/blog (accessed 2026-08-13)
 [40] Manus, "How Manus became 'James,' the AI chief of staff" — https://manus.im/blog/Ascendea-James-Customer-Story (2026-07-17)
 [41] Qian et al., "ChatDev: Communicative Agents for Software Development" — https://arxiv.org/abs/2307.07924 (2023-07)
-[42] 
+[42] ZDNet, "As AI agents multiply, IT becomes the new HR department" — https://www.zdnet.com/article/as-ai-agents-multiply-it-becomes-the-new-hr-department/ (2025-03-10)
+[43] Sam Altman, "Three Observations" — https://blog.samaltman.com/three-observations (2025-02-09)
+[44] DeepSeek Harness repository — https://github.com/deepseek-ai/deepseek-harness (公开于 2026-08-13，accessed 2026-08-13)
