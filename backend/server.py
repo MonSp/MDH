@@ -2374,9 +2374,11 @@ async def pause_workflow(execution_id: str):
 async def resume_workflow(execution_id: str):
     """恢复工作流
 
-    优先走内存中 PAUSED 态的暂停/恢复语义；否则（进程重启后执行实例不在内存中，
-    或处于 FAILED/中断态）从持久化目录加载后重新启动——FAILED/中断节点按重试语义
-    重跑、COMPLETED 节点跳过，与 execute 端点（start_workflow + await）结构对齐。
+    内存分支：PAUSED → resume_workflow（进程内暂停/恢复语义）；RUNNING → 报错；
+    内存终态（COMPLETED/FAILED/CANCELLED/CREATED）→ 报错，不覆盖内存状态。
+    否则（进程重启后执行实例不在内存中，或持久化目录中仍留有可恢复执行）走 durable
+    分支：从持久化目录加载后重新启动——FAILED/中断节点按重试语义重跑、COMPLETED 节点
+    跳过，与 execute 端点（start_workflow + await）结构对齐。
     """
     try:
         try:
@@ -2390,8 +2392,13 @@ async def resume_workflow(execution_id: str):
                 return {"success": True, "data": None}
             if in_memory.status == WorkflowExecutionStatus.RUNNING:
                 return {"success": False, "error": f"工作流正在运行中: {execution_id}"}
+            # 内存终态（COMPLETED/FAILED/CANCELLED/CREATED）：不覆盖内存状态，
+            # 报错而非落入 durable 重载（load_execution 会用磁盘副本覆盖内存中的
+            # _executions/_definitions，可能重跑已完成节点或与静默 persist 失败交互
+            # 产生重复副作用）。进程重启场景下内存中无该执行，仍走下方 durable 分支。
+            return {"success": False, "error": f"工作流已处于终态 {in_memory.status.value}，无法恢复"}
 
-        # durable resume：从磁盘加载并重新启动
+        # durable resume：从磁盘加载并重新启动（内存中不存在该执行，模拟进程重启场景）
         restored = workflow_engine.load_execution(execution_id)
         if restored is None:
             return {"success": False, "error": f"执行实例不存在或无法恢复: {execution_id}"}
