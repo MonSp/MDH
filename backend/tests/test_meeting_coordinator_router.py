@@ -73,7 +73,7 @@ if "fastapi" not in sys.modules:
 from dynamic_router import DynamicRouter, RouteEntry, RoutingDecision
 from meeting import MeetingSession
 from meeting_coordinator import MeetingCoordinator
-from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult
+from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, WorkflowNode
 
 
 SAMPLE_ROUTING_TABLE = {
@@ -856,6 +856,128 @@ async def test_get_model_refetches_after_failure(coordinator):
     model2 = coordinator._get_model(AgentRole.EXECUTOR)
     assert model1 is not model2
     assert coordinator._agent_pool.get_agent_by_role.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# failover 归因收窄：_run_agent_execution_loop 的 on_model_error 仅模型层触发
+# ---------------------------------------------------------------------------
+
+
+async def test_run_agent_execution_loop_model_error_triggers_on_model_error(coordinator):
+    """模型层异常：model.reply 抛异常 → on_model_error 被调用并 re-raise"""
+    calls = []
+
+    class ExplodingModel:
+        async def reply(self, conversation):
+            raise RuntimeError("model down")
+
+    with pytest.raises(RuntimeError):
+        await coordinator._run_agent_execution_loop(
+            ExplodingModel(), "请执行", None, on_model_error=lambda: calls.append("marked")
+        )
+    assert calls == ["marked"]
+
+
+async def test_run_agent_execution_loop_tool_error_skips_on_model_error(coordinator):
+    """工具层异常：agent_toolset.write_file 抛异常 → on_model_error 不被调用（归因收窄）"""
+    calls = []
+
+    class ToolExplodingModel:
+        async def reply(self, conversation):
+            return types.SimpleNamespace(
+                content=[{"type": "text", "text": "```out.txt\nhello\n```"}]
+            )
+
+    toolset = MagicMock()
+    toolset.write_file.side_effect = OSError("disk full")
+
+    with pytest.raises(OSError):
+        await coordinator._run_agent_execution_loop(
+            ToolExplodingModel(), "请执行", toolset, on_model_error=lambda: calls.append("marked")
+        )
+    # 工具层异常不归因于模型：回调不应被调用
+    assert calls == []
+
+
+async def test_execute_workflow_node_model_error_marks_model_failed(coordinator):
+    """_execute_workflow_node 模型层异常 → _mark_model_failed 被调用（failover 归因）"""
+    class ExplodingModel:
+        async def reply(self, conversation):
+            raise RuntimeError("model down")
+
+    coordinator._get_model = MagicMock(return_value=ExplodingModel())
+    coordinator._mark_model_failed = MagicMock()
+
+    node = WorkflowNode(node_id="n1", task_description="任务", dept_id="dept-frontend")
+    result = await coordinator._execute_workflow_node(node, {})
+    coordinator._mark_model_failed.assert_called_once_with(AgentRole.EXECUTOR)
+    # 异常被外层 except 兜底为 fallback 结果
+    assert result["node_id"] == "n1"
+    assert "执行结果" in result["result"]
+
+
+async def test_execute_workflow_node_tool_error_does_not_mark_model_failed(coordinator, tmp_path):
+    """_execute_workflow_node 工具层异常 → 不调用 _mark_model_failed（不驱逐健康模型）"""
+    class ToolExplodingModel:
+        async def reply(self, conversation):
+            return types.SimpleNamespace(
+                content=[{"type": "text", "text": "```out.txt\nhello\n```"}]
+            )
+
+    coordinator._get_model = MagicMock(return_value=ToolExplodingModel())
+    coordinator._mark_model_failed = MagicMock()
+    coordinator._workspace = types.SimpleNamespace(root_path=str(tmp_path))
+
+    toolset = MagicMock()
+    toolset.get_system_prompt.return_value = "工具说明"
+    toolset.write_file.side_effect = OSError("disk full")
+    with patch("agent_toolset.create_agent_toolset", return_value=toolset):
+        node = WorkflowNode(node_id="n1", task_description="任务", dept_id="dept-frontend")
+        result = await coordinator._execute_workflow_node(node, {})
+
+    coordinator._mark_model_failed.assert_not_called()
+    assert result["files_written"] == []
+
+
+# ---------------------------------------------------------------------------
+# 门禁接入 execute_and_review_task：review 前计算 gate_result 并传入
+# ---------------------------------------------------------------------------
+
+
+async def test_execute_and_review_task_passes_gate_result(coordinator):
+    """execute_and_review_task 在 review 前计算确定性门禁并传入 gate_result"""
+    coordinator.execute_assigned_tasks = AsyncMock(return_value=[
+        {"task_id": "t1", "agent_id": "a1", "result": "任务执行完成", "status": "completed"}
+    ])
+    review = AsyncMock(return_value={"structured_feedback": {"status": "approved", "issues": []}})
+    coordinator._review_pipeline.review = review
+
+    gate_result = {"passed": False, "failures": [{"type": "test_failure", "detail": "tests 失败"}]}
+    coordinator._run_deterministic_gate = MagicMock(return_value=gate_result)
+
+    await coordinator.execute_and_review_task("测试任务", AsyncMock())
+
+    # 无 workspace 时门禁以 None 运行（跳过工具），结果传入 review
+    coordinator._run_deterministic_gate.assert_called_once_with(None)
+    _, kwargs = review.call_args
+    assert kwargs.get("gate_result") == gate_result
+
+
+async def test_execute_and_review_task_gate_uses_workspace_root(coordinator, tmp_path):
+    """有 workspace 时门禁使用 workspace.root_path，且 review 收到 gate_result"""
+    coordinator._workspace = types.SimpleNamespace(root_path=str(tmp_path))
+    coordinator.execute_assigned_tasks = AsyncMock(return_value=[
+        {"task_id": "t1", "agent_id": "a1", "result": "任务执行完成", "status": "completed"}
+    ])
+    review = AsyncMock(return_value={"structured_feedback": {"status": "approved", "issues": []}})
+    coordinator._review_pipeline.review = review
+    coordinator._run_deterministic_gate = MagicMock(return_value={"passed": True, "failures": []})
+
+    await coordinator.execute_and_review_task("测试任务", AsyncMock())
+
+    coordinator._run_deterministic_gate.assert_called_once_with(str(tmp_path))
+    _, kwargs = review.call_args
+    assert kwargs.get("gate_result") == {"passed": True, "failures": []}
 
 
 if __name__ == "__main__":

@@ -194,8 +194,14 @@ class MeetingCoordinator:
         prompt: str,
         agent_toolset,
         max_tool_rounds: int = 5,
+        on_model_error: Optional[Callable[[], None]] = None,
     ) -> Dict[str, Any]:
-        """LLM + 工具执行循环：代码块写文件、工具调用、产物收集"""
+        """LLM + 工具执行循环：代码块写文件、工具调用、产物收集
+
+        on_model_error: 模型层异常回调。仅当 model.reply 抛异常时触发
+            （先回调再 re-raise）。工具层异常（写文件/工具调用失败）不触发
+            ——failover 归因收窄：工具层错误不归因于模型，避免驱逐健康模型。
+        """
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
         conversation = [msg]
         files_written: List[str] = []
@@ -205,7 +211,12 @@ class MeetingCoordinator:
         from code_extractor import extract_code_blocks
 
         for _ in range(max_tool_rounds + 1):
-            response = await model.reply(conversation)
+            try:
+                response = await model.reply(conversation)
+            except Exception:
+                if on_model_error:
+                    on_model_error()
+                raise
             last_text = _extract_text(response)
 
             code_blocks = extract_code_blocks(last_text)
@@ -328,12 +339,16 @@ class MeetingCoordinator:
         )
 
         try:
-            loop_result = await self._run_agent_execution_loop(model, prompt, agent_toolset)
+            loop_result = await self._run_agent_execution_loop(
+                model, prompt, agent_toolset,
+                on_model_error=lambda: self._mark_model_failed(role),
+            )
         except Exception as e:
             self.logger.warning("工作流节点执行失败: %s", e)
-            # 单点治理：模型调用异常视为坏模型，驱逐缓存 + 标记 pool 实例不健康，
-            # 下次 _get_model 重新获取健康实例（failover）
-            self._mark_model_failed(role)
+            # 单点治理：仅模型层异常触发 _mark_model_failed（loop 内 on_model_error
+            # 回调在 model.reply 抛错时先标记再 re-raise），驱逐缓存 + 标记 pool
+            # 实例不健康，下次 _get_model 重新获取健康实例（failover）。
+            # 工具层异常（写文件/工具调用失败）不归因于模型，不驱逐健康模型。
             loop_result = {
                 "result": LLM_FALLBACK_TEMPLATE.format(role=node.dept_id, content_type="执行结果"),
                 "files_written": [],
@@ -874,10 +889,10 @@ class MeetingCoordinator:
 
         WhyBuddy化：审查逻辑委托给ReviewPipeline，自动激活CriticAgent和GroundingAgent。
 
-        注意：本路径（execute_and_review_task）当前不接确定性门禁
-        （_run_deterministic_gate 仅在 process_user_message 的开发循环中调用），
-        后续统一时需补上门禁。
-        
+        本路径同样接入确定性门禁：review 调用前对工作区运行 _run_deterministic_gate，
+        测试/lint 真实失败强制 revision_required；工具缺失（基础设施不可用）由门禁
+        fail-open 记为 skipped，不触发 revision_required。
+
         Returns:
             Tuple[审查结果, 执行结果列表]
         """
@@ -888,8 +903,14 @@ class MeetingCoordinator:
         review_result = {}
         if task_results:
             execution_result = self._build_execution_artifact_text(task_results)
+            # 确定性门禁：与开发循环一致，门禁内部为同步 subprocess（lint/test），
+            # 通过 asyncio.to_thread 卸载到线程池，避免阻塞事件循环。
+            gate_result = await asyncio.to_thread(
+                self._run_deterministic_gate,
+                self._workspace.root_path if self._workspace else None,
+            )
             review_result = await self._review_pipeline.review(
-                task_description, execution_result, on_message
+                task_description, execution_result, on_message, gate_result=gate_result
             )
 
         return review_result, task_results
