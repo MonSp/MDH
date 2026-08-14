@@ -1,6 +1,6 @@
 """文档意图识别：速记文本 → 纪要 DAG（含把关节点）"""
-import pytest
 from minutes_workflow import MINUTES_KEYWORDS, build_minutes_workflow
+from semantic_analyzer import SemanticAnalyzer
 
 
 def test_build_minutes_workflow_structure():
@@ -30,3 +30,17 @@ def test_custom_approver():
     wf = build_minutes_workflow("内容", approver="emp-1")
     draft = next(n for n in wf.nodes if n.node_id == "draft")
     assert draft.gate == {"approver": "emp-1", "stage": "review"}
+
+
+async def test_analyzer_routes_minutes_to_workflow():
+    analyzer = SemanticAnalyzer(router=None, get_model_fn=lambda role: None)
+    result = await analyzer.analyze("请把速记整理成会议纪要并生成待办")
+    assert result.is_workflow is True
+    assert result.intent == "minutes"
+    assert [n.node_id for n in result.workflow_definition.nodes] == ["extract", "draft", "proofread"]
+
+
+def test_dev_request_not_misrouted_to_minutes():
+    analyzer = SemanticAnalyzer(router=None, get_model_fn=lambda role: None)
+    # 开发任务「生成待办事项页面」不含纪要家族关键词 → 不命中（走正常路由）
+    assert analyzer._detect_minutes_task("帮我生成待办事项页面") is False

@@ -15,7 +15,7 @@ from agentscope.message import Msg
 
 from agent import _extract_text
 from dynamic_router import DynamicRouter, RoutingDecision
-from minutes_workflow import MINUTES_KEYWORDS, build_minutes_workflow
+from minutes_workflow import build_minutes_workflow
 from protocol import AgentRole, SemanticAnalysisResult
 
 logger = logging.getLogger("semantic_analyzer")
@@ -157,10 +157,16 @@ class SemanticAnalyzer:
         )
     
     def _detect_minutes_task(self, user_message: str) -> bool:
-        """检测是否为文档型会议纪要任务（速记→纪要）"""
-        return any(k in user_message for k in MINUTES_KEYWORDS) and any(
-            v in user_message for v in ("整理", "生成", "撰写", "输出", "写")
-        )
+        """文档任务检测：纪要家族关键词为主触发；待办/行动项仅共现触发。
+
+        权衡：纪要+写作类表述（如"把纪要写进周报"）仍可能命中，属可接受偏差。
+        """
+        minutes_family = ("会议纪要", "会议记录", "速记", "纪要")
+        co_trigger = ("待办", "行动项")
+        has_verb = any(v in user_message for v in ("整理", "生成", "撰写", "输出", "写"))
+        has_minutes = any(k in user_message for k in minutes_family)
+        has_co_trigger = has_minutes and any(k in user_message for k in co_trigger)
+        return has_verb and (has_minutes or has_co_trigger)
 
     def _detect_complex_task(self, user_message: str) -> bool:
         """检测是否为跨部门复杂任务"""
