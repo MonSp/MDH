@@ -100,13 +100,13 @@ dsh 是 DeepSeek 开源的 **agent 运行时平台（harness）**：以 vendored
 - **P-1.8 waterfall `next()` 委托 = around-middleware**：核心默认行为都是链最内层 next，可被插件替换；模型选择是"装配时快照 + agent/request 覆盖"两 waterfall 协作（`packages/core/agent/src/dispatch.ts:107`、`packages/core/agent-loop/src/agent.ts:407`）。
 - **P-1.9 tools 注册与 per-agent 作用域隔离**：ScopedLayers 全局层 + per-scope 层，`agent.ctx` 注册即 per-agent，scoped 遮蔽全局，卸载随 fiber 自动拆除（`packages/core/tools/src/index.ts:1037,1204`、`packages/core/scope/src/store.ts:159`）。
 - **P-1.10 工具执行管线 pre/execute/post 三段 waterfall + 单调 guard**：审批/超时/审计做插件层，guard 只可拒绝不可放行，wrapper 只替换 signal（`packages/core/tools/src/index.ts:1463,1569,1742`）。
-- **P-1.11 工具调度器 exclusive barrier + parallel 有界池 + 模型序提交**：执行可重叠但 tool/call↔tool/result 按模型序落库，abort 补合成结果保重放有效（`packages/core/agent-loop/src/tool-calls.ts:62,116,30`）。
+- **P-1.11 工具调度器 exclusive barrier + parallel 有界池 + 模型序提交**：执行可重叠但 tool/call↔tool/result 按模型序落库，abort 补合成结果保重放有效（`packages/core/agent-loop/src/tool-calls.ts:59,121,146`）。
 - **P-1.12 scope = per-agent 注册原语**：createScope（scope=fiber 生命周期）+ scopeTarget（祖先链 filter）+ bindScopeParent（环检测）（`packages/core/scope/src/index.ts:137,170,72`）。
 
 #### 主线 2：subagent 委托（`packages/subagent/*`，11 包）
 
 - **P-2.1 三角色分包 + 多 Provider 注册表**：Service（`ctx.subagents` 注册表 + 校验 + 生命周期）与各 Provider（spawn/fork/codex/claude-code/acp/dsh-sdk）物理隔离，按名共存（`packages/subagent/subagent/src/index.ts:171,369,414`）。
-- **P-2.2 能力声明 + fail-loud 门禁**：Provider 声明 `SubagentCapabilities` 四旗标，缺失即 typed rejection，进程外一律 `NO_START_CAPABILITIES`（`packages/subagent/subagent/src/types.ts:86`、`packages/subagent/tool-subagent/src/index.ts:281`）。
+- **P-2.2 能力声明 + fail-loud 门禁**：Provider 声明 `SubagentCapabilities` 四旗标，缺失即 typed rejection，进程外一律 `NO_START_CAPABILITIES`（`packages/subagent/subagent/src/types.ts:86`、`packages/subagent/subagent/src/out-of-process.ts:25`、`packages/subagent/tool-subagent/src/index.ts:281`）。
 - **P-2.3 spawn vs fork 唯一差异是 seed**：fork 以父已完成 turn 前缀做 seed，`inheritsParentContext` 驱动模型面如实措辞（`packages/subagent/subagent-fork-in-process/src/index.ts:48`、`packages/subagent/tool-subagent/src/index.ts:211`）。
 - **P-2.4 one-shot run 契约**：发布即所有权转移；result 永不 reject（折叠成 stopReason），仅基础设施故障才 reject；dispose 幂等（`packages/subagent/subagent/src/types.ts:249`、`packages/subagent/subagent/src/out-of-process.ts:156`）。
 - **P-2.5 进程外桥接三姿势 + 共享 dispose 阶梯**：codex（自研 JSON-RPC）、claude-code（Agent SDK + spawn 接管）、acp（ndjson）；共享 EOF→SIGTERM→SIGKILL 与结果选择（`packages/subagent/subagent-codex/src/run.ts:116`、`packages/subagent/subagent-acp/src/run.ts:199`）。
@@ -119,19 +119,19 @@ dsh 是 DeepSeek 开源的 **agent 运行时平台（harness）**：以 vendored
 #### 主线 3：配置层插件化（`packages/{boot,bundle,preset,extensions}`）
 
 - **P-3.1 空根 + 全 patch 单次组合**：根 cordis.yml 恒为 `[]`，boot 把各层 patch 扁平化后一次 `applyEntryPatches` 组合，`--dump-config` 与真实挂载看到同一棵树（`packages/boot/app-boot/src/profile.ts:413-420`、`apps/cli/src/profile-boot.ts:60-64`）。
-- **P-3.2 分层后写赢 + structuredClone 隔离**：层序 bundle→profile→home→--patch；patch 按 id 整行替换 config 或 insert，reload 必须 clone 防用户 override 被烘焙进 bundle（`apps/cli/src/profile-boot.ts:122-129`）。
+- **P-3.2 分层后写赢 + structuredClone 隔离**：层序 bundle→profile→home→--patch；patch 按 id 整行替换 config 或 insert，reload 必须 clone 防用户 override 被烘焙进 bundle（`apps/cli/src/profile-boot.ts:122-129`、`packages/boot/app-boot/src/profile.ts:415`）。
 - **P-3.3 bundle 即 npm 包**：`dsh.bundle.patch` 指向包内 patch 文件，配置随版本发布；base bundle 的 src 是空壳（`packages/bundle/base/package.json:36-39`）。
-- **P-3.4 profile 自动初始化 + HMR 热重载**：首次使用按模板生成、幂等不覆盖；用户 patch 层 watcher 变更即事务性重组（`packages/boot/app-boot/src/profile.ts:104-111`）。
+- **P-3.4 profile 自动初始化 + HMR 热重载**：首次使用按 `PROFILE_TEMPLATES` 模板生成、幂等不覆盖；用户 patch 层 watcher 变更即事务性重组（`packages/boot/app-boot/src/profile.ts:113-117,152-168`、`packages/boot/app-boot/src/index.ts:232-265`）。
 - **P-3.5 flag 即 service**：启动器只解析少量 flag，其余参数经 `ctx.cmdlineArgs` 交给 app，行配置 `!!js` 延迟读取 service（`packages/boot/cmdline/src/index.ts:68-72`）。
 - **P-3.6 preset 会话级 standing mount**：每 preset 单飞挂载一次，agent 经 `bindScopeParent` 加入，子 agent 继承同代实例；文件 mtime+size 作代际 stamp（`packages/preset/agent-presets/src/index.ts:252,316-325`）。
-- **P-3.7 isolate realm 强制 + 挂载审计**：service 必须进 isolate realm；挂载后审计 inactive/leaked 行，任一非空整体回滚（`packages/preset/agent-presets/src/mount.ts:57-112`）。
+- **P-3.7 isolate realm 强制 + 挂载审计**：service 必须进 isolate realm；挂载后审计 inactive/leaked 行，任一非空整体回滚（`packages/preset/agent-presets/src/mount.ts:189,283`）。
 - **P-3.8 Registrations are effects**：一切注册是 fiber 可逆 effect，动态插件 stop/undefine 只需 `fiber.dispose()`（`docs/cordis-primer.md:13`、`packages/extensions/cordis-host-runner/src/lifecycle.ts:22-45`）。
 - **P-3.9 模型自修改运行时**：inspect→define→run 三段式，不可变 package 版本（append 不覆盖）、VM 沙箱求值、side effect 必须可逆——模型不改源码不重启就能扩展自己的工具与 UI（`packages/extensions/tool-cordis/src/index.ts:148-238`）。
 - **P-3.10 双半部插件**：宿主空 apply + 浏览器半部经 `exports["./client"]` 发布，host/client 经 package-private JSON-RPC 通信（`packages/extensions/cordis-client-runner/src/index.ts:1-9`）。
 
 #### 主线 4：执行世界（`packages/{fs,shell,subprocess,terminal,sandbox,e2b,code-runtime}`）
 
-- **P-4.1 seam 三角色 + 不透明目标身份**：抽象类 `FileSystem extends Service` 定义缝；`FsTargetKey`/`FsVersion` branded 不透明，消费唯一入口 `resolve()`（`packages/fs/fs/src/index.ts:86`、`vendor/cosmokit/src/types.ts:16,35`）。
+- **P-4.1 seam 三角色 + 不透明目标身份**：抽象类 `FileSystem extends Service` 定义缝；`FsTargetKey`/`FsVersion` branded 不透明，消费唯一入口 `resolve()`（`packages/fs/fs/src/index.ts:86`、`packages/fs/fs/src/types.ts:16,35`）。
 - **P-4.2 request/spec 分离**：`resolve(request): Spec` 把默认化/封顶收敛为单一显式步骤，"This seam applies no defaults"（`packages/shell/shell/src/index.ts:85-100`、`packages/subprocess/subprocess/src/types.ts:69-104`）。
 - **P-4.3 事件门实现"读后写"策略**：fs-observation-policy 零服务，纯 `fs/*` 事件监听记录观察状态，未见/过期即拒绝写（`packages/fs/fs-observation-policy/src/index.ts:28,106-130`）。
 - **P-4.4 原子写 + version CAS + 每键锁**：`dev:ino:size:mtimeNs` 版本令牌 + per-targetKey FIFO 尾链锁 + staging 独占写后 rename（`packages/fs/fs-local/src/fsio.ts:73-76,533-615`）。
@@ -179,7 +179,7 @@ dsh 是 DeepSeek 开源的 **agent 运行时平台（harness）**：以 vendored
 - **P-7.3 lookup/context 依赖倒置**：参数名决定 wire 身份，宿主 `configure()` 注入 resolver 覆盖默认 provider，卸载即恢复（`packages/typert/registry/src/service.ts:216-334`、`packages/api/remotes/src/agent-lookup.ts:121-211`）。
 - **P-7.4 无特权核心**：Connection 是唯一 RPC 载体，Gateway/ApiProxy 只是 `intercept('/api')` 拦截器，认领不到就回落；载体可整体替换（`packages/client/connection/src/rpc-host.ts:71-92`、`packages/api/gateway/src/index.ts:105-142`）。
 - **P-7.5 四象限 RPC 消息模型**：`client-request/server-response/server-request/client-response` 判别联合 + 发起方铸造 rpcId 应答回显，一套线格式覆盖单呼/下行流/应答式交互（`packages/host/apiproxy/src/api/rpc.ts:151-187`）。
-- **P-7.6 浏览器信任围栏**：Host 头绑定（DNS-rebinding）+ `sec-fetch-site` + Origin 三道防线；`PRIVILEGED_METHODS` 钉 loopback，明示"不是认证层"（`packages/client/connection/src/api-request-trust.ts:96-123`）。
+- **P-7.6 浏览器信任围栏**：Host 头绑定（DNS-rebinding）+ `sec-fetch-site` + Origin 三道防线；`PRIVILEGED_METHODS` 钉 loopback，明示"不是认证层"（`packages/client/connection/src/index.ts:89`、`packages/client/connection/src/api-request-trust.ts:96-123`）。
 - **P-7.7 hooks 桥 = 中立协议 + 方言适配器**：hook-protocol 归一化 HookOutput/matcher/merge（deny>ask>allow），CC/Codex 桥只做 payload 映射（`packages/hooks/hook-protocol/src/codec.ts:59-95`、`packages/hooks/hook-protocol/src/merge.ts:62-100`）。
 - **P-7.8 只提交已确认事实**：ACP/SDK 只转发 committed assistant text；prompt 经 messageId→turn→whenIdle 三阶结算；权限只给一次性选项（`packages/acp/acp/src/index.ts:155-213,277-336`）。
 - **P-7.9 UI 纯从 session/event 渲染**：事件窗口 + liveBuffer 拼接 + Host 计算投影（higher-seq-wins 缓存）+ Notifier 微任务批处理，客户端零领域折叠（`packages/client/runtime/src/client/sessions/session.ts:67-108`、`packages/client/runtime/src/client/sessions/notifier.ts:14-98`）。
