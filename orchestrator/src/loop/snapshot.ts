@@ -81,8 +81,8 @@ export function sha256(content: string): string {
  */
 export const EMPTY_FILE_THRESHOLD = 10;
 
-export function isFileEmpty(size: number): boolean {
-  return size <= EMPTY_FILE_THRESHOLD;
+export function isFileEmpty(chars: number): boolean {
+  return chars <= EMPTY_FILE_THRESHOLD;
 }
 
 /**
@@ -92,8 +92,10 @@ export function isFileEmpty(size: number): boolean {
  * - workspace 绝对路径替换为常量 `<WS>`（容器 /workspace ↔ 本地 workspace 路径可比）；
  *   仅当 workspace 后随 `/` 或行尾时替换（路径边界），避免误伤共享前缀的兄弟路径
  *   （如 /workspace2）与普通文本中的 workspace 字样
- * - 剥离 pytest 汇总时序片段（`passed|failed|errors? in 0.02s` / `in 12.3s` 等，
- *   随运行时长漂移）；非 pytest 汇总上下文中的 `in Xs` 保留
+ * - 剥离 pytest 汇总时序片段（`passed|failed|errors?|skipped|xfailed|xpassed|deselected|
+ *   warnings?|no tests ran` + `in 0.02s` / `in 12.3s` 等，随运行时长漂移；结尾为
+ *   skipped/xfailed/xpassed/deselected/warning/"no tests ran" 的汇总行同样剥离）；
+ *   非 pytest 汇总上下文中的 `in Xs` 保留
  * - `\r\n` / `\r` 归一为 `\n`
  */
 export function normalizeStdout(text: string, workspace?: string): string {
@@ -104,7 +106,7 @@ export function normalizeStdout(text: string, workspace?: string): string {
     const esc = workspace.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     out = out.replace(new RegExp(esc + '(?=/|$)', 'gm'), '<WS>');
   }
-  out = out.replace(/\b(passed|failed|errors?)\s+in\s+\d+(?:\.\d+)?s\b/g, '$1');
+  out = out.replace(/\b(passed|failed|errors?|skipped|xfailed|xpassed|deselected|warnings?|no tests ran)\s+in\s+\d+(?:\.\d+)?s\b/g, '$1');
   return out;
 }
 
@@ -118,6 +120,11 @@ export function normalizeStdout(text: string, workspace?: string): string {
  * find -exec 不传播被执行的命令退出码（pytest 失败 find 仍返回 0）、无匹配也返回 0，
  * 即使 pipefail 也测不出失败，旧形态不可信；xargs 在任一被调用命令失败时返回 123
  * （-r 防无匹配时运行），经 pipefail 传播为快照非零 exitCode。
+ *
+ * 命令形态：`{ find ... -print0 2>/dev/null || true; } | xargs ...`。find 的 stderr
+ * （权限拒绝/broken symlink）用 2>/dev/null 丢弃，避免混入 NUL 分隔流被 xargs 当参数；
+ * `|| true` 中和 find 因遍历错误产生的非零退出码（pipefail 下会误伤整条管道），
+ * 而 xargs 的失败退出码仍正常传播。
  */
 function runCommand(cmd: string, cwd: string): CommandRunResult {
   const wrapped = `bash -o pipefail -c ${JSON.stringify(cmd)}`;
@@ -256,6 +263,9 @@ export function runKeylessChecks(scenario: KeylessScenario, workspace: string): 
   }
 
   const verifyCommands: CommandSnapshot[] = (scenario.verifyCommands || []).map((command) => {
+    // 裸子串替换：命令中所有 /workspace 字样（含其作为前缀的兄弟路径，如 /workspace2）
+    // 都会被改写为本地 workspace 路径——当前场景命令仅用 /workspace 前缀路径，不触发
+    // 兄弟路径误伤；如需精确替换可改用与 normalizeStdout 一致的路径边界正则
     const effective = command.split('/workspace').join(workspace);
     const r = runCommand(effective, workspace);
     return {

@@ -71,7 +71,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建一个用户认证模块：auth.py（注册/登录/密码哈希），models.py（User dataclass），test_auth.py 测试所有功能。要求使用 hashlib 做密码哈希。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['auth.py', 'models.py', 'test_auth.py'],
-    verifyCommands: ['find /workspace -name "test_auth.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_auth.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: '讨论充分', check: r => r.phases.includes('discussing'), desc: '多角色应有讨论阶段' },
       { name: '审查参与', check: r => r.agents.includes('reviewer'), desc: 'reviewer 应参与审查' },
@@ -109,7 +109,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建 utils.py，实现：1) retry_with_backoff 装饰器（指数退避重试）2) safe_json_parse 函数（解析失败返回默认值）3) format_bytes 函数（字节数转可读格式）。创建 test_utils.py 测试。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['utils.py', 'test_utils.py'],
-    verifyCommands: ['find /workspace -name "test_utils.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_utils.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: '函数设计', check: r => r.agents.length >= 3, desc: '多角色协作' },
     ],
@@ -123,7 +123,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建 calculator.py 实现 Calculator 类（add/sub/mul/div/divide_by_zero_handling），创建 test_calculator.py 覆盖正常和边界情况。重点：div 必须处理除零，返回 None 而不是报错。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['calculator.py', 'test_calculator.py'],
-    verifyCommands: ['find /workspace -name "test_calculator.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_calculator.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: '审查通过', check: r => r.agents.includes('reviewer'), desc: 'reviewer 审查' },
     ],
@@ -137,7 +137,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建数据处理流水线：1) generator.py 生成 100 条模拟销售数据 (date, product, amount, region) 保存为 sales.csv 2) analyzer.py 读取 sales.csv 按地区汇总销售额 3) test_pipeline.py 测试生成+分析两个步骤。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['generator.py', 'analyzer.py', 'test_pipeline.py'],
-    verifyCommands: ['find /workspace -name "test_pipeline.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_pipeline.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: '多文件', check: r => r.filesCreated.length >= 3, desc: '至少创建3个文件' },
     ],
@@ -151,7 +151,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建 task_dispatcher.py，实现一个任务分发器：根据任务类型（"code"/"test"/"deploy"）分配给不同的处理函数。每种类型有不同的处理逻辑。创建 test_dispatcher.py 测试所有路径。',
     roles: ['planner', 'executor', 'reviewer'],
     verifyFiles: ['task_dispatcher.py', 'test_dispatcher.py'],
-    verifyCommands: ['find /workspace -name "test_dispatcher.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_dispatcher.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [],
     timeout: 120000,
   },
@@ -163,7 +163,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建 secure_input.py，实现：1) sanitize_filename 函数（防止路径穿越）2) validate_email 函数（正则验证）3) rate_limiter 装饰器（限制调用频率）。创建 test_security.py 测试所有边界情况。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['secure_input.py', 'test_security.py'],
-    verifyCommands: ['find /workspace -name "test_security.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_security.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: '安全审查', check: r => r.agents.includes('reviewer'), desc: 'reviewer 应参与安全审查' },
     ],
@@ -177,7 +177,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建 resilient_service.py，实现一个带降级的服务：主处理器失败时自动切换到备用处理器，备用也失败时返回缓存结果。使用装饰器模式实现。创建 test_resilient.py 测试正常、主失败、主备都失败三种场景。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['resilient_service.py', 'test_resilient.py'],
-    verifyCommands: ['find /workspace -name "test_resilient.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_resilient.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [],
     timeout: 120000,
   },
@@ -206,7 +206,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中使用 FastAPI 创建一个 REST API：1) main.py 定义 /items 和 /items/{id} 两个端点（CRUD）2) models.py 定义 Pydantic 模型 3) test_api.py 使用 httpx 测试所有端点。要求支持分页查询。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['main.py', 'models.py', 'test_api.py'],
-    verifyCommands: ['find /workspace -name "test_api.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_api.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: 'API 设计', check: r => r.filesCreated.length >= 3, desc: '至少创建3个文件' },
       { name: '审查参与', check: r => r.agents.includes('reviewer'), desc: 'reviewer 应参与 API 审查' },
@@ -221,7 +221,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建一个完整的博客系统，至少 6 个文件：1) models.py（Post, Comment dataclass）2) database.py（SQLite CRUD 操作）3) api.py（REST 端点）4) auth.py（简单 token 认证）5) config.py（配置管理）6) test_blog.py（测试核心功能）。要求模块间正确 import。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['models.py', 'database.py', 'api.py', 'auth.py', 'config.py', 'test_blog.py'],
-    verifyCommands: ['find /workspace -name "test_blog.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_blog.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: '大文件数', check: r => r.filesCreated.length >= 5, desc: '至少创建5个文件' },
       { name: '多角色', check: r => r.agents.length >= 3, desc: '多角色协作' },
@@ -236,7 +236,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建一个 SQLite 持久化层：1) db.py 实现连接管理、建表、CRUD 操作 2) migrations.py 实现简单的 schema 迁移 3) seed.py 填充测试数据 4) test_db.py 测试增删改查和迁移。要求使用 context manager 管理连接。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['db.py', 'migrations.py', 'seed.py', 'test_db.py'],
-    verifyCommands: ['find /workspace -name "test_db.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_db.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: '数据库文件', check: r => r.filesCreated.length >= 3, desc: '至少创建3个文件' },
     ],
@@ -250,7 +250,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建 role_selector.py，实现一个自动角色选择器：给定任务描述文本，自动判断需要哪些角色（planner/executor/reviewer/coordinator）。使用关键词匹配和简单规则。创建 test_role_selector.py 测试各种任务类型的自动选择结果。',
     roles: [],
     verifyFiles: ['role_selector.py', 'test_role_selector.py'],
-    verifyCommands: ['find /workspace -name "test_role_selector.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_role_selector.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: '空角色触发自动选择', check: r => r.agents.length >= 1, desc: '空 roles 应触发自动角色选择' },
     ],
@@ -267,7 +267,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建 robust_parser.py，实现一个健壮的配置文件解析器：1) 支持 JSON/YAML 两种格式 2) 文件不存在时返回默认配置 3) 格式错误时返回详细错误信息 4) 支持环境变量覆盖配置项。创建 test_robust_parser.py 测试所有异常场景。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['robust_parser.py', 'test_robust_parser.py'],
-    verifyCommands: ['find /workspace -name "test_robust_parser.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -15'],
+    verifyCommands: ['{ find /workspace -name "test_robust_parser.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -15'],
     qualityChecks: [
       { name: '错误处理', check: r => r.agents.includes('reviewer'), desc: 'reviewer 应参与错误处理审查' },
     ],
@@ -281,7 +281,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建一个任务管理系统：task_manager.py（核心逻辑）、storage.py（JSON持久化）、cli.py（命令行接口）、test_task_manager.py（集成测试）。要求：支持 add/list/delete/complete 四个命令，数据持久化到 tasks.json，测试覆盖所有命令和边界情况。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['task_manager.py', 'storage.py', 'cli.py', 'test_task_manager.py'],
-    verifyCommands: ['find /workspace -name "test_task_manager.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -15'],
+    verifyCommands: ['{ find /workspace -name "test_task_manager.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -15'],
     qualityChecks: [
       { name: '多文件', check: r => r.filesCreated.length >= 4, desc: '至少4个文件' },
       { name: '协作', check: r => r.agents.length >= 3, desc: '多角色协作' },
@@ -296,7 +296,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建 fibonacci.py，实现三种斐波那契计算方式：1) 递归（最慢）2) 带缓存的递归 3) 迭代（最快）。创建 benchmark.py 比较三种方式的性能差异（计算 fib(30)），创建 test_fibonacci.py 验证三种方式结果一致。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['fibonacci.py', 'benchmark.py', 'test_fibonacci.py'],
-    verifyCommands: ['find /workspace -name "test_fibonacci.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_fibonacci.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: '性能对比', check: r => r.filesCreated.length >= 3, desc: '至少3个文件' },
     ],
@@ -310,7 +310,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建 vulnerable_app.py，故意包含以下安全漏洞：1) SQL注入 2) 路径穿越 3) 硬编码密码 4) 命令注入。然后创建 fix_vulnerable_app.py 修复所有漏洞，创建 test_security.py 验证修复后不再存在漏洞。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['vulnerable_app.py', 'fix_vulnerable_app.py', 'test_security.py'],
-    verifyCommands: ['find /workspace -name "test_security.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_security.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: '安全审查', check: r => r.agents.includes('reviewer'), desc: 'reviewer 应参与安全审查' },
     ],
@@ -327,7 +327,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建一个 React 待办事项应用：1) TodoApp.tsx 主组件 2) TodoItem.tsx 单个待办项 3) AddTodo.tsx 添加待办表单 4) TodoApp.test.tsx 测试所有功能。要求：支持添加、删除、标记完成，使用 TypeScript。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['TodoApp.tsx', 'TodoItem.tsx', 'AddTodo.tsx', 'TodoApp.test.tsx'],
-    verifyCommands: ['find /workspace -name "TodoApp.test.tsx" -type f -print0 2>&1 | xargs -0 -r cat 2>&1 | head -20'],
+    verifyCommands: ['{ find /workspace -name "TodoApp.test.tsx" -type f -print0 2>/dev/null || true; } | xargs -0 -r cat 2>&1 | head -20'],
     qualityChecks: [
       { name: 'TypeScript', check: r => r.filesCreated.length >= 4, desc: '至少4个文件' },
     ],
@@ -341,7 +341,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建一个 SQLite 数据库应用：1) db.py 封装 SQLite 连接和基本操作 2) models.py 定义 User 和 Post 两个表 3) crud.py 实现增删改查操作 4) test_db.py 测试所有数据库操作。要求使用 Python 内置 sqlite3 模块。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['db.py', 'models.py', 'crud.py', 'test_db.py'],
-    verifyCommands: ['find /workspace -name "test_db.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_db.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: '数据库操作', check: r => r.filesCreated.length >= 4, desc: '至少4个文件' },
     ],
@@ -355,7 +355,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建一个 RESTful API：1) app.py 使用 Flask 创建 /users 和 /posts 两个资源的 CRUD 接口 2) models.py 定义数据模型 3) test_api.py 使用 pytest 测试所有接口。要求支持 JSON 格式，包含错误处理。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['app.py', 'models.py', 'test_api.py'],
-    verifyCommands: ['find /workspace -name "test_api.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_api.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: 'API设计', check: r => r.agents.includes('reviewer'), desc: 'reviewer 应参与API审查' },
     ],
@@ -369,7 +369,7 @@ const SCENARIOS: Scenario[] = [
     content: '在 workspace 中创建 legacy_code.py，包含一个 200 行的单体函数 process_data()，然后创建 refactored_code.py 将其重构为多个小函数，创建 test_refactored.py 验证重构后功能不变。要求：保持接口不变，提升可读性和可测试性。',
     roles: ['coordinator', 'planner', 'executor', 'reviewer'],
     verifyFiles: ['legacy_code.py', 'refactored_code.py', 'test_refactored.py'],
-    verifyCommands: ['find /workspace -name "test_refactored.py" -type f -print0 2>&1 | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
+    verifyCommands: ['{ find /workspace -name "test_refactored.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r python3 -m pytest -q 2>&1 | tail -10'],
     qualityChecks: [
       { name: '重构质量', check: r => r.agents.includes('reviewer'), desc: 'reviewer 应审查重构质量' },
     ],
@@ -498,6 +498,9 @@ function runScenario(s: Scenario, opts: RunScenarioOptions = {}): Promise<Result
           // find -exec 形态 verifyCommands 已迁移为 xargs 模式（find -exec 不传播被执行的
           // 命令退出码、无匹配返回 0，旧形态即使 pipefail 也测不出失败；xargs 在任一调用
           // 失败时返回 123 并经 pipefail 传播），故 keyless 的 exitCode 可信。
+          // verifyCommands 命令形态：`{ find ... -print0 2>/dev/null || true; } | xargs ...`
+          // ——find stderr 丢弃（不混入 NUL 流被 xargs 当参数），`|| true` 中和 find 因权限
+          // 拒绝等遍历错误产生的非零退出码（pipefail 下会误伤整条管道），xargs 失败仍传播。
           runResults.commands![cmd] = { exitCode: parsed.success ? 0 : 1, stdout: String(parsed.result || '') };
         } catch {
           runResults.commands![cmd] = { exitCode: -1, stdout: '' };

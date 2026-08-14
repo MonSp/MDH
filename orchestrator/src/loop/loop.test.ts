@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { execSync } from 'child_process';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, symlinkSync } from 'fs';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, symlinkSync, chmodSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { buildScenarioSnapshot, runKeylessChecks, sha256, normalizeStdout, isFileEmpty } from './snapshot.js';
@@ -27,7 +27,27 @@ afterEach(() => {
 
 /** 探测一个装有 pytest 的 python 解释器（真实 pytest 失败场景用例；无则跳过该用例） */
 function findPytestPython(): string | null {
-  const candidates = ['/home/test/miniconda3/envs/agentscope/bin/python', process.env.PYTEST_PYTHON];
+  // 不硬编码机器专属路径：优先 PYTEST_PYTHON 环境变量，其次运行时探测——PATH 上的
+  // python3/python 解释器，以及 `pytest` 命令（如 pipx 安装）的宿主解释器（读 shebang）
+  const candidates = [process.env.PYTEST_PYTHON];
+  for (const name of ['python3', 'python']) {
+    try {
+      const resolved = execSync(`command -v ${name}`, { encoding: 'utf-8' }).trim();
+      if (resolved) candidates.push(resolved);
+    } catch {
+      /* 该解释器不在 PATH 上 */
+    }
+  }
+  try {
+    const pytestBin = execSync('command -v pytest', { encoding: 'utf-8' }).trim();
+    const shebang = readFileSync(pytestBin, 'utf-8').split('\n')[0];
+    if (shebang.startsWith('#!')) {
+      const interp = shebang.slice(2).split(' ')[0].trim();
+      if (interp) candidates.push(interp);
+    }
+  } catch {
+    /* 无 pytest 命令 */
+  }
   for (const p of candidates) {
     if (!p) continue;
     try {
@@ -394,8 +414,9 @@ describe('scenario snapshot', () => {
     expect(oldForm.verifyCommands[0].exitCode).toBe(0);
     expect(oldForm.verifyCommands[0].passed).toBe(true);
     // xargs 新形态：任一被调用命令失败 → xargs 返回 123 → pipefail 传播为非零
+    // （find 侧 `{ ... || true; }`：权限拒绝等遍历错误不因 find 自身退出码误伤，见 I1 回归测试）
     const newForm = runKeylessChecks(
-      { id: 'xargs-form', verifyFiles: [], verifyCommands: ['find /workspace -name "fail.sh" -type f -print0 2>&1 | xargs -0 -r sh 2>&1 | tail -5'], qualityChecks: [] },
+      { id: 'xargs-form', verifyFiles: [], verifyCommands: ['{ find /workspace -name "fail.sh" -type f -print0 2>/dev/null || true; } | xargs -0 -r sh 2>&1 | tail -5'], qualityChecks: [] },
       dir,
     );
     expect(newForm.verifyCommands[0].exitCode).not.toBe(0);
@@ -421,7 +442,7 @@ describe('scenario snapshot', () => {
       {
         id: 'pytest-xargs',
         verifyFiles: [],
-        verifyCommands: [`find /workspace -name "test_fail.py" -type f -print0 2>&1 | xargs -0 -r ${PYTEST_PY} -m pytest -q 2>&1 | tail -5`],
+        verifyCommands: [`{ find /workspace -name "test_fail.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r ${PYTEST_PY} -m pytest -q 2>&1 | tail -5`],
         qualityChecks: [],
       },
       dir,
@@ -443,5 +464,69 @@ describe('scenario snapshot', () => {
     expect(normalizeStdout('=== 1 error in 0.10s ===', '/workspace')).toBe('=== 1 error ===');
     // 非 pytest 汇总上下文中的 `in Xs` 保留（旧正则 `\bin ... s` 会误删）
     expect(normalizeStdout('elapsed in 3s and in 5s elsewhere', '/workspace')).toBe('elapsed in 3s and in 5s elsewhere');
+  });
+
+  // ====== I2: 时序剥离关键词集扩展（skipped/xfailed/xpassed/deselected/warnings/no tests ran） ======
+
+  it('timing strip covers skipped/xfailed/xpassed/deselected/warnings/no-tests-ran endings', () => {
+    expect(normalizeStdout('=== 1 skipped in 0.03s ===', '/workspace')).toBe('=== 1 skipped ===');
+    expect(normalizeStdout('=== no tests ran in 0.01s ===', '/workspace')).toBe('=== no tests ran ===');
+    expect(normalizeStdout('=== 2 passed, 1 skipped in 0.41s ===', '/workspace')).toBe('=== 2 passed, 1 skipped ===');
+    expect(normalizeStdout('=== 1 xfailed in 0.02s ===', '/workspace')).toBe('=== 1 xfailed ===');
+    expect(normalizeStdout('=== 1 xpassed, 1 deselected in 0.3s ===', '/workspace')).toBe('=== 1 xpassed, 1 deselected ===');
+    expect(normalizeStdout('=== 2 warnings in 0.20s ===', '/workspace')).toBe('=== 2 warnings ===');
+    expect(normalizeStdout('=== 1 warning in 0.2s ===', '/workspace')).toBe('=== 1 warning ===');
+    // 非 pytest 汇总上下文（无关键词紧跟 `in <dur>s`）不受影响
+    expect(normalizeStdout('deployed in 5s and verified later', '/workspace'))
+      .toBe('deployed in 5s and verified later');
+  });
+
+  it('timing-strip hash is stable for skipped and no-tests-ran summaries', () => {
+    expect(sha256(normalizeStdout('=== 1 skipped in 0.03s ===', '/workspace')))
+      .toBe(sha256(normalizeStdout('=== 1 skipped in 8.41s ===', '/workspace')));
+    expect(sha256(normalizeStdout('=== no tests ran in 0.01s ===', '/workspace')))
+      .toBe(sha256(normalizeStdout('=== no tests ran in 12.3s ===', '/workspace')));
+    expect(sha256(normalizeStdout('=== 2 passed, 1 skipped in 0.41s ===', '/workspace')))
+      .toBe(sha256(normalizeStdout('=== 2 passed, 1 skipped in 9.02s ===', '/workspace')));
+  });
+
+  // ====== I1: find stderr 不灌入 xargs 输入流（权限拒绝子目录不虚假失败） ======
+
+  it.skipIf(!PYTEST_PY)('xargs verifyCommand does not feed find stderr to xargs input (permission-denied subdir)', () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, 'test_ok.py'), 'def test_ok():\n    assert True\n');
+    const noperm = join(dir, 'noperm');
+    mkdirSync(noperm);
+    chmodSync(noperm, 0o000);
+    try {
+      // 修复前形态：`-print0 2>&1` 把 find 的 stderr（Permission denied）混入 NUL 分隔流，
+      // xargs 把它当参数传给 pytest → 被测文件存在也虚假失败
+      const oldForm = runKeylessChecks(
+        {
+          id: 'stderr-into-xargs-old',
+          verifyFiles: [],
+          verifyCommands: [`find /workspace -name "test_ok.py" -type f -print0 2>&1 | xargs -0 -r ${PYTEST_PY} -m pytest -q 2>&1 | tail -5`],
+          qualityChecks: [],
+        },
+        dir,
+      );
+      expect(oldForm.verifyCommands[0].passed).toBe(false);
+      // 修复后形态：find stderr 丢弃（2>/dev/null），且 `{ ... || true; }` 中和 find 自身因
+      // 遍历权限拒绝产生的非零退出码（pipefail 下 find 退出码会误伤整条管道）——
+      // 只有 NUL 分隔的文件列表进 xargs，被测文件存在时不再虚假失败
+      const newForm = runKeylessChecks(
+        {
+          id: 'stderr-into-xargs-new',
+          verifyFiles: [],
+          verifyCommands: [`{ find /workspace -name "test_ok.py" -type f -print0 2>/dev/null || true; } | xargs -0 -r ${PYTEST_PY} -m pytest -q 2>&1 | tail -5`],
+          qualityChecks: [],
+        },
+        dir,
+      );
+      expect(newForm.verifyCommands[0].exitCode).toBe(0);
+      expect(newForm.verifyCommands[0].passed).toBe(true);
+    } finally {
+      chmodSync(noperm, 0o755); // 恢复权限，保证 afterEach 临时目录清理
+    }
   });
 });
