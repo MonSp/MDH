@@ -1,16 +1,29 @@
 ---
 feature: deepseek-harness-code-principles
-status: in-progress
+status: delivered
 updated: 2026-08-14
 branch: analysis/dsh-code-principles
-commits: <base-sha>..<head-sha> # filled at delivery
+commits: fbf5609..61a5969
 ---
 
 # DeepSeek Harness 深层代码原理挖掘
 
 ## Report
 
-（交付时填写）
+**What was built** — 一份约 270 行的深层代码原理分析文档，对 DeepSeek Harness（`/home/test/deepseek-harness` @ 47f943859b，0.1.0-rc.5，约 130 包 / 19 万行 TS）做**全库原理挖掘**，为 MDH P3 阶段提供代码级借鉴依据（只借鉴原理、不依赖其 API）。正文四部分：(1) 架构总览——组合层（空根 + 分层 patch 单次组合）/能力缝（Service Definition/Provider/Consumer 三角色分包）/事件三域/turn-step 循环，外加四条贯穿不变量（model-visible ⟺ logged、Registrations are effects、无特权核心、失败即数据）；(2) 十组主线深挖——核心主轴、subagent 委托、配置插件化、执行世界、模型层与上下文、会话持久化、协议与宿主、任务形态、安全交互、工程纪律，共 104 条原理，全部带真实 `file:line` 引用；(3) 深层原理提炼——归并为 12 个主题（真相源单一化、无特权核心、capability seam、模型-可见/logged 分界、上下文工程、确定性验证纪律、失败即数据、安全横切、HITL 两范式、持久化工程、委托预算、门禁机械化），每条标注 MDH 关系（借鉴/对照/警示）；(4) 对 MDH P3 实施的启示——5 项已定 dsh 借鉴方向的代码级落点 + 8 项全库挖掘新发现的 P3 候选机制 + 4 条对照/警示（外部 agent 桥接成本、两档威胁模型、格式版本 fail-loud、覆盖率门槛）。
+
+**Verification** —
+- PASS 引用完整性：164 处唯一 file:line 引用全部存在且行号在范围内（`python3 research/dsh-code-principles/verify-dsh-refs.py`，脚本未提交）
+- PASS 独立评审（general-11，约 60 处行级抽查）：规格结构/任务状态/风格合规；发现 4 处 Critical 引用错位（1 路径 + 3 行号，源自 findins 与主文档间的路径缩写改写）→ 已修复
+- PASS 聚焦复审（general-12）：7/7 修复逐处对照 dsh 源码确认一致，未引入新错误
+- PASS 无 TBD/占位符（frontmatter commits 已填；Report 交付时填写占位符已替换）
+
+**Journey log** —
+- 全库原理挖掘的产出形态：10 个并行 general 子代理（每代理一组包、约 15-20k 行）比"主代理通读"效率高一个量级；子代理把完整取证写入 `research/` findings 文件、只回传摘要，主代理上下文保持干净。
+- 路径缩写是引用漂移的温床：主文档综合时把 findings 的完整 `packages/<group>/<pkg>/...` 路径简写，自动补全脚本按"尾部唯一匹配"解析时把 `types.ts`/`index.ts` 误解析到 vendor 目录——教训：跨文档引用一律保留完整仓库相对路径，勿缩写；自动改写须排除 vendor/。
+- 评审价值实证：T12 脚本只验证"存在 + 行号在界"，评审子代理的 60 处"行内容与断言相符"抽查抓到了脚本测不出的 4 处错位（引用的行确实存在但内容不符）——行号校验必须内容级，不能只看边界。
+- 行号漂移根源：findings 自身有少量邻近行引用（如 62/116 vs 实际 59/121），综合时未逐处回源核对；修复以 dsh 仓库 `git show HEAD:<path>` 为准逐条确认。
+- 复用既有模式：文档沿用 `multi-agent-architecture-future-analysis.md` 的规格模板（frontmatter/[S1]-[S3]/Tasks/Report/正文 P-x.y 编号），与 P3 小节 5 项借鉴一一对应无冲突。
 
 ## [S1] Problem
 
@@ -61,9 +74,9 @@ MDH 的 P3 方向已吸收 5 项 dsh 理念（session log 上下文真相源、s
 - [x] T8: 主线 8 任务形态深挖 — findings/08-task-shapes.md，10 条原理（covers: S2.2-8）
 - [x] T9: 主线 9 安全与交互深挖 — findings/09-safety-interaction.md，10 条原理（covers: S2.2-9）
 - [x] T10: 主线 10 工程纪律与门禁深挖 — findings/10-engineering-discipline.md，8 条原理（covers: S2.2-10）
-- [ ] T11: 综合撰写分析文档（S2.1/S2.3/S2.4 + 十组主线整合）— acceptance: 正文完成，每条论断带可解析 file:line，原理提炼与 P3 启示章节完整（covers: S2.1, S2.2, S2.3, S2.4; depends: T1-T10）
-- [ ] T12: 引用完整性验证 — acceptance: 全部 file:line 引用存在且行号在范围内，无 TBD/占位符，任务勾选与状态一致（covers: S2; depends: T11）
-- [ ] T13: 独立子代理评审 — acceptance: 评审三项结论（规格合规/事实正确/风格一致）全部通过或差异已解决（covers: S2; depends: T12）
+- [x] T11: 综合撰写分析文档（S2.1/S2.3/S2.4 + 十组主线整合）— 正文完成，每条论断带可解析 file:line，原理提炼与 P3 启示章节完整（covers: S2.1, S2.2, S2.3, S2.4; depends: T1-T10）
+- [x] T12: 引用完整性验证 — 164 处唯一引用全部存在且行号在界，无 TBD/占位符，任务勾选与状态一致（covers: S2; depends: T11）
+- [x] T13: 独立子代理评审 — 首轮 4 Critical + 3 Minor 已修复并聚焦复审 7/7 通过，三项结论全部闭环（covers: S2; depends: T12）
 
 ---
 
