@@ -488,16 +488,34 @@ class WorkflowEngine:
             # 执行节点
             result = await executor(node, input_data)
 
-            # 保存结果
-            execution.results[node.node_id] = result
-            execution.node_states[node.node_id] = WorkflowNodeStatus.COMPLETED
-            node.status = WorkflowNodeStatus.COMPLETED
-            node.result = result
+            # 把关强制力：executor 返回结果含 gate.status == "rejected" 时节点置 FAILED
+            # （结果原样入 results），复用既有 FAILED 机制收尾：下游 SKIPPED、
+            # execution FAILED、可经 retry_node 重试。拒绝路径不抛异常。
+            gate_rejected = (
+                isinstance(result, dict)
+                and isinstance(result.get("gate"), dict)
+                and result["gate"].get("status") == "rejected"
+            )
+            if gate_rejected:
+                execution.results[node.node_id] = result
+                execution.node_states[node.node_id] = WorkflowNodeStatus.FAILED
+                node.status = WorkflowNodeStatus.FAILED
+                node.result = result
 
-            # 同步状态到agentscope Task
-            self._task_bridge.update_node_status(node.node_id, WorkflowNodeStatus.COMPLETED)
+                # 同步状态到agentscope Task
+                self._task_bridge.update_node_status(node.node_id, WorkflowNodeStatus.FAILED)
 
-            logger.info("节点 %s 执行完成", node.node_id)
+                logger.info("节点 %s 把关拒绝，置 FAILED: %s", node.node_id, result["gate"].get("reason", ""))
+            else:
+                execution.results[node.node_id] = result
+                execution.node_states[node.node_id] = WorkflowNodeStatus.COMPLETED
+                node.status = WorkflowNodeStatus.COMPLETED
+                node.result = result
+
+                # 同步状态到agentscope Task
+                self._task_bridge.update_node_status(node.node_id, WorkflowNodeStatus.COMPLETED)
+
+                logger.info("节点 %s 执行完成", node.node_id)
 
         except asyncio.CancelledError:
             execution.node_states[node.node_id] = WorkflowNodeStatus.FAILED
