@@ -6,10 +6,10 @@
  * 执行 + qualityChecks），以及"非确定性输出不入快照"的归一化约束。
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'fs';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, symlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { buildScenarioSnapshot, runKeylessChecks, sha256 } from './snapshot.js';
+import { buildScenarioSnapshot, runKeylessChecks, sha256, normalizeStdout, isFileEmpty } from './snapshot.js';
 import type { Snapshot, KeylessScenario } from './snapshot.js';
 
 const tmpDirs: string[] = [];
@@ -198,5 +198,147 @@ describe('scenario snapshot', () => {
     expect(snapshot.files['app.py'].hash).toBe(sha256('print("hi")'));
     expect(snapshot.verifyCommands[0].stdoutHash).toBe(sha256('hi\n'));
     expect(snapshot.qualityChecks[0].passed).toBe(true);
+  });
+
+  // ====== I1: pipefail —— 管道遮蔽 exit code 修复 ======
+
+  it('runKeylessChecks fails a pipeline whose head fails (no tail masking under pipefail)', () => {
+    const dir = makeTmpDir();
+    const scenario: KeylessScenario = {
+      id: 'pipefail',
+      verifyFiles: [],
+      verifyCommands: ['python3 -c "import sys; sys.exit(3)" 2>&1 | tail -5'],
+      qualityChecks: [],
+    };
+    const snapshot = runKeylessChecks(scenario, dir);
+    expect(snapshot.verifyCommands[0].exitCode).not.toBe(0);
+    expect(snapshot.verifyCommands[0].passed).toBe(false);
+  });
+
+  it('runKeylessChecks still passes a successful pipeline', () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, 'app.py'), 'print(1)\n');
+    const scenario: KeylessScenario = {
+      id: 'pipefail-ok',
+      verifyFiles: [],
+      verifyCommands: ['python3 -m py_compile app.py 2>&1 | tail -5'],
+      qualityChecks: [],
+    };
+    const snapshot = runKeylessChecks(scenario, dir);
+    expect(snapshot.verifyCommands[0].passed).toBe(true);
+    expect(snapshot.verifyCommands[0].exitCode).toBe(0);
+  });
+
+  // ====== I2: stdoutHash 跨生产者/运行可比 ======
+
+  it('normalizeStdout makes timing/path-bearing stdout comparable', () => {
+    const a = sha256(normalizeStdout('=== 1 passed in 0.02s ===\n/workspace/src/app.py .\n', '/workspace'));
+    const b = sha256(normalizeStdout('=== 1 passed in 12.34s ===\n/workspace/src/app.py .\n', '/workspace'));
+    // 不同 workspace 路径归一后 hash 相等
+    const c = sha256(normalizeStdout('=== 1 passed in 0.02s ===\n/home/user/ws/src/app.py .\n', '/home/user/ws'));
+    expect(a).toBe(b);
+    expect(a).toBe(c);
+    // \r / \r\n 归一
+    expect(normalizeStdout('a\r\nb\r', '/workspace')).toBe('a\nb\n');
+  });
+
+  it('runKeylessChecks stdoutHash is stable across runs with varying timing', () => {
+    const dir = makeTmpDir();
+    const cmd = `python3 -c "import time;time.sleep(0.01);print('=== 1 passed in %.2fs ===' % (time.perf_counter()-time.perf_counter()))"`;
+    const scenario: KeylessScenario = {
+      id: 'hash-stable',
+      verifyFiles: [],
+      verifyCommands: [cmd],
+      qualityChecks: [],
+    };
+    const s1 = runKeylessChecks(scenario, dir);
+    const s2 = runKeylessChecks(scenario, dir);
+    expect(s1.verifyCommands[0].passed).toBe(true);
+    expect(s1.verifyCommands[0].stdoutHash).toBe(s2.verifyCommands[0].stdoutHash);
+  });
+
+  it('buildScenarioSnapshot and runKeylessChecks produce the same stdoutHash for the same logical output', () => {
+    // LLM 路径输出带容器 /workspace 路径；keyless 输出带本地路径——归一后 hash 一致
+    const dir = makeTmpDir();
+    const llmSnapshot = buildScenarioSnapshot(
+      { id: 'cross', verifyFiles: [], verifyCommands: ['pytest -q'], qualityChecks: [] },
+      { commands: { 'pytest -q': { exitCode: 0, stdout: '=== 1 passed in 0.02s ===\n/workspace/src/app.py .\n' } } },
+    );
+    const keylessSnapshot = runKeylessChecks(
+      { id: 'cross', verifyFiles: [], verifyCommands: ['printf "=== 1 passed in 0.02s ===\\n/workspace/src/app.py .\\n"'], qualityChecks: [] },
+      dir,
+    );
+    expect(llmSnapshot.verifyCommands[0].stdoutHash).toBe(keylessSnapshot.verifyCommands[0].stdoutHash);
+  });
+
+  // ====== I3: keyless workspace 存在性守卫 ======
+
+  it('runKeylessChecks throws when workspace does not exist', () => {
+    const missing = join(tmpdir(), 'definitely-missing-ws-' + Date.now());
+    const scenario: KeylessScenario = { id: 'guard', verifyFiles: [], verifyCommands: [], qualityChecks: [] };
+    expect(() => runKeylessChecks(scenario, missing)).toThrow(/workspace 不存在/);
+  });
+
+  // ====== I4: findFile 符号链接穿越 + 深度上限 ======
+
+  it('runKeylessChecks does not traverse self-referencing symlinks (no ELOOP, no hang)', () => {
+    const dir = makeTmpDir();
+    mkdirSync(join(dir, 'sub'), { recursive: true });
+    writeFileSync(join(dir, 'sub', 'config.json'), '{"a":1}\n');
+    try {
+      symlinkSync(dir, join(dir, 'selfloop')); // 自引用 symlink
+    } catch {
+      /* 平台 symlink 权限受限则跳过 */
+    }
+    const scenario: KeylessScenario = {
+      id: 'symlink-safe',
+      verifyFiles: ['config.json'],
+      verifyCommands: [],
+      qualityChecks: [],
+    };
+    const snapshot = runKeylessChecks(scenario, dir);
+    expect(snapshot.files['config.json'].exists).toBe(true);
+  });
+
+  it('runKeylessChecks skips a symlinked file in recursive find (find -name default)', () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, 'real.txt'), 'real\n');
+    mkdirSync(join(dir, 'sub'), { recursive: true });
+    try {
+      symlinkSync(join(dir, 'real.txt'), join(dir, 'sub', 'real.txt'));
+    } catch {
+      /* 平台限制则跳过 */
+    }
+    const scenario: KeylessScenario = {
+      id: 'symlink-file',
+      verifyFiles: ['real.txt'],
+      verifyCommands: [],
+      qualityChecks: [],
+    };
+    const snapshot = runKeylessChecks(scenario, dir);
+    expect(snapshot.files['real.txt'].exists).toBe(true); // 真实文件直接命中，symlink 不影响
+  });
+
+  // ====== I5: 空文件阈值与 LLM 路径对齐（size < 10） ======
+
+  it('empty-file threshold aligned with LLM path (size < 10 counts as empty)', () => {
+    expect(isFileEmpty(0)).toBe(true);
+    expect(isFileEmpty(9)).toBe(true);
+    expect(isFileEmpty(10)).toBe(false);
+    expect(isFileEmpty(1024)).toBe(false);
+  });
+
+  it('runKeylessChecks records tiny file size so keyless empty check can apply <10 threshold', () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, 'tiny.txt'), 'abc'); // size 3 < EMPTY_FILE_THRESHOLD
+    const scenario: KeylessScenario = {
+      id: 'tiny',
+      verifyFiles: ['tiny.txt'],
+      verifyCommands: [],
+      qualityChecks: [],
+    };
+    const snapshot = runKeylessChecks(scenario, dir);
+    expect(snapshot.files['tiny.txt'].exists).toBe(true);
+    expect(snapshot.files['tiny.txt'].size).toBe(3);
   });
 });

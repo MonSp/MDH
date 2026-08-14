@@ -20,7 +20,7 @@ import { WebSocket } from 'ws';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import { buildScenarioSnapshot, runKeylessChecks } from './snapshot.js';
+import { buildScenarioSnapshot, runKeylessChecks, isFileEmpty } from './snapshot.js';
 import type { Snapshot, ScenarioRunResults } from './snapshot.js';
 
 const MDH_ROOT = process.env.MDH_ROOT || '/home/test/MDH';
@@ -418,7 +418,8 @@ function runScenario(s: Scenario, opts: RunScenarioOptions = {}): Promise<Result
       const issues: { type: string; severity: string; desc: string }[] = [];
       for (const f of Object.values(snapshot.files)) {
         if (!f.exists) issues.push({ type: 'quality', severity: 'high', desc: `文件未创建: ${f.path}` });
-        else if (f.size === 0) issues.push({ type: 'quality', severity: 'high', desc: `文件为空: ${f.path}` });
+        // 空文件阈值与 LLM 路径对齐（size < 10 视为空，EMPTY_FILE_THRESHOLD）
+        else if (isFileEmpty(f.size)) issues.push({ type: 'quality', severity: 'high', desc: `文件为空: ${f.path}` });
       }
       for (const c of snapshot.verifyCommands) {
         if (!c.passed) issues.push({ type: 'quality', severity: 'high', desc: `校验命令失败: ${c.command}` });
@@ -488,7 +489,10 @@ function runScenario(s: Scenario, opts: RunScenarioOptions = {}): Promise<Result
         try {
           const parsed = JSON.parse(r);
           testOutput += parsed.result || '';
-          // executor 无显式 exitCode，以 success（returncode==0）映射 0/1
+          // executor 无显式 exitCode，以 success（returncode==0）映射 0/1；
+          // 且命令可能含管道（`... | tail -10`）——executor 端无 pipefail 时退出码会被
+          // 尾命令遮蔽，因此 LLM 路径快照的 verifyCommands.passed 为近似值，
+          // T5 回放以 keyless 快照为准（keyless 用 bash -o pipefail 执行，exitCode 可信）。
           runResults.commands![cmd] = { exitCode: parsed.success ? 0 : 1, stdout: String(parsed.result || '') };
         } catch {
           runResults.commands![cmd] = { exitCode: -1, stdout: '' };
