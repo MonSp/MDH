@@ -4,6 +4,7 @@ import re
 import subprocess
 from typing import Any, Dict
 
+from doc_tools.seam import DocSpec, get_doc_builder
 from tool_registry import (
     SHELL_BLACKLIST_PATTERNS,
     ToolCall,
@@ -211,6 +212,14 @@ class ToolExecutor:
                     parameters=[
                         ToolParameter(name="path", type="string", description="文件路径"),
                         ToolParameter(name="content", type="string", description="文档内容"),
+                        ToolParameter(
+                            name="format",
+                            type="string",
+                            description="文档格式：text 纯文本（默认），docx 生成 Word 文档",
+                            required=False,
+                            default="text",
+                            enum=["text", "docx"],
+                        ),
                     ],
                     category="document",
                 ),
@@ -689,8 +698,18 @@ class ToolExecutor:
         resolved = self._resolve_path(path)
         try:
             os.makedirs(os.path.dirname(resolved), exist_ok=True)
-            with open(resolved, "w", encoding="utf-8") as f:
-                f.write(content)
+            if tool_call.arguments.get("format") == "docx":
+                # docx 走 doc_tools seam：首行作标题、其余行作段落
+                lines = content.splitlines()
+                title = lines[0] if lines else ""
+                paragraphs = lines[1:]
+                spec = DocSpec(title=title, paragraphs=paragraphs)
+                data = get_doc_builder("stdlib").build(spec)
+                with open(resolved, "wb") as f:
+                    f.write(data)
+            else:
+                with open(resolved, "w", encoding="utf-8") as f:
+                    f.write(content)
             return ToolResult(
                 success=True,
                 output=f"文档已创建: {path}",
