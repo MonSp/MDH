@@ -30,12 +30,24 @@ class ReviewPipeline:
         planner: Optional[PlannerAgent] = None,
         critic: Optional[CriticAgent] = None,
         grounding: Optional[GroundingAgent] = None,
+        on_model_error: Optional[Callable[[AgentRole], None]] = None,
     ):
         self._get_model = get_model_fn
         self._meeting = meeting
         self._planner = planner or PlannerAgent(name="review_planner")
         self._critic = critic or CriticAgent()
         self._grounding = grounding or GroundingAgent()
+        # 模型层异常回调（failover 接入）：LLM 调用点 except 时通知，
+        # 由构造方（MeetingCoordinator）注入 _mark_model_failed 驱逐坏模型
+        self._on_model_error = on_model_error
+
+    def _safe_notify_model_error(self, role: AgentRole) -> None:
+        """模型失败通知：回调自身异常不顶掉原模型异常（fallback 契约异常安全）"""
+        try:
+            if self._on_model_error:
+                self._on_model_error(role)
+        except Exception as e:
+            logger.warning("模型失败通知回调异常: %s", e)
     
     async def review(
         self,
@@ -170,6 +182,7 @@ class ReviewPipeline:
             feedback = _extract_text(response)
         except Exception as e:
             logger.warning("Reviewer LLM调用失败: %s", e)
+            self._safe_notify_model_error(AgentRole.REVIEWER)
             feedback = LLM_FALLBACK_TEMPLATE.format(role="reviewer", content_type="审查意见")
         await on_message(reviewer_id, feedback, "")
         self._meeting.add_message("agent", feedback, reviewer_id)
@@ -211,6 +224,7 @@ class ReviewPipeline:
             feedback = _extract_text(response)
         except Exception as e:
             logger.warning("Monitor LLM调用失败: %s", e)
+            self._safe_notify_model_error(AgentRole.MONITOR)
             feedback = LLM_FALLBACK_TEMPLATE.format(role="monitor", content_type="评估")
         await on_message(monitor_id, feedback, "")
         self._meeting.add_message("agent", feedback, monitor_id)
@@ -246,6 +260,7 @@ class ReviewPipeline:
             summary = _extract_text(response)
         except Exception as e:
             logger.warning("Coordinator LLM调用失败: %s", e)
+            self._safe_notify_model_error(AgentRole.COORDINATOR)
             summary = LLM_FALLBACK_TEMPLATE.format(role="coordinator", content_type="总结")
         await on_message(coordinator_id, summary, "")
         self._meeting.add_message("agent", summary, coordinator_id)

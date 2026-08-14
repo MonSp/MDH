@@ -159,7 +159,8 @@ def test_resume_durable_reloads_from_disk(api, tmp_path):
     execution = engine1.create_workflow(_definition_chain("wf-durable"))
     execution.node_states["n1"] = WorkflowNodeStatus.COMPLETED
     execution.results["n1"] = {"result": "done-n1"}
-    engine1.persist_execution(execution.execution_id)
+    # 同步测试内无法 await：直接调同步原子写核心（等价于 async persist_execution 锁内路径）
+    engine1._persist_execution_sync(execution.execution_id)
 
     # 第二个引擎（等价于进程重启后内存为空），替换 server 全局引擎
     engine2 = WorkflowEngine(persistence_dir=str(tmp_path))

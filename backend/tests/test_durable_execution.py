@@ -66,7 +66,7 @@ async def test_reloaded_execution_skips_completed_nodes(tmp_path):
     # 手动推进 n1 完成并落盘（模拟进程中断在 n1 之后）
     execution.node_states["n1"] = WorkflowNodeStatus.COMPLETED
     execution.results["n1"] = {"result": "done-n1"}
-    first_engine.persist_execution(execution.execution_id)
+    await first_engine.persist_execution(execution.execution_id)
 
     second_engine = WorkflowEngine(persistence_dir=str(tmp_path))
     second_engine.register_node_executor("dept-frontend", exec1)
@@ -127,7 +127,7 @@ async def test_recovery_parallel_skips_completed_nodes(tmp_path):
     execution.node_states["p2"] = WorkflowNodeStatus.COMPLETED
     execution.results["p1"] = {"result": "done-p1"}
     execution.results["p2"] = {"result": "done-p2"}
-    first_engine.persist_execution(execution.execution_id)
+    await first_engine.persist_execution(execution.execution_id)
 
     second_engine = WorkflowEngine(persistence_dir=str(tmp_path))
     for dept in ("dept-frontend", "dept-backend", "dept-qa"):
@@ -172,7 +172,7 @@ async def test_recovery_mixed_skips_completed_nodes(tmp_path):
     # 模拟进程中断：A 已完成，B、D 未执行
     execution.node_states["A"] = WorkflowNodeStatus.COMPLETED
     execution.results["A"] = {"result": "done-A"}
-    first_engine.persist_execution(execution.execution_id)
+    await first_engine.persist_execution(execution.execution_id)
 
     second_engine = WorkflowEngine(persistence_dir=str(tmp_path))
     for dept in ("dept-frontend", "dept-backend", "dept-qa"):
@@ -212,7 +212,7 @@ async def test_persist_execution_atomic_leaves_no_tmp(tmp_path):
     """原子写：持久化后不残留 .tmp 文件，目标文件完整可读"""
     engine = WorkflowEngine(persistence_dir=str(tmp_path))
     execution = engine.create_workflow(_make_definition("wf-atomic"))
-    engine.persist_execution(execution.execution_id)
+    await engine.persist_execution(execution.execution_id)
 
     assert not [p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp")]
     data = json.loads((tmp_path / f"{execution.execution_id}.json").read_text())
@@ -257,7 +257,7 @@ async def test_reloaded_execution_reruns_failed_nodes(tmp_path):
     execution.results["n1"] = {"result": "ok"}
     execution.node_states["n2"] = WorkflowNodeStatus.FAILED
     execution.results["n2"] = {"error": "boom"}
-    engine1.persist_execution(execution.execution_id)
+    await engine1.persist_execution(execution.execution_id)
 
     engine2 = WorkflowEngine(persistence_dir=str(tmp_path))
     engine2.register_node_executor("dept-frontend", exec1)
@@ -276,7 +276,7 @@ async def test_reloaded_execution_reruns_failed_nodes(tmp_path):
     assert status.node_states["n2"] == WorkflowNodeStatus.COMPLETED
 
 
-def test_persist_execution_unserializable_result_returns_false(tmp_path):
+async def test_persist_execution_unserializable_result_returns_false(tmp_path):
     """executor 结果含不可序列化对象时 persist_execution 返回 False 而非抛 TypeError"""
     engine = WorkflowEngine(persistence_dir=str(tmp_path))
     execution = engine.create_workflow(_make_definition("wf-typeerror"))
@@ -284,7 +284,7 @@ def test_persist_execution_unserializable_result_returns_false(tmp_path):
     execution.node_states["n1"] = WorkflowNodeStatus.COMPLETED
     execution.results["n1"] = {"bad": lambda x: x}
 
-    assert engine.persist_execution(execution.execution_id) is False
+    assert await engine.persist_execution(execution.execution_id) is False
 
 
 async def test_parallel_execution_persists_all_node_states(tmp_path):
@@ -312,3 +312,44 @@ async def test_parallel_execution_persists_all_node_states(tmp_path):
     data = json.loads((tmp_path / f"{execution.execution_id}.json").read_text())
     assert data["node_states"]["p1"] == WorkflowNodeStatus.COMPLETED.value
     assert data["node_states"]["p2"] == WorkflowNodeStatus.COMPLETED.value
+
+
+async def test_persist_execution_is_async_locked(tmp_path):
+    """并发落盘：两个 task 同时 await persist_execution → 都成功、最终落盘含两节点状态
+
+    覆盖 per-execution 异步锁：并行节点完成引发的并发 persist_execution 被
+    _persist_locks 串行化，磁盘快照最终含两个节点状态（消除 last-writer-wins 竞态）。
+    """
+    engine = WorkflowEngine(persistence_dir=str(tmp_path))
+
+    # p1、p2 无依赖（同一层并行，模拟并发节点完成）
+    nodes = [
+        WorkflowNode(node_id="p1", task_description="t1", dept_id="dept-frontend"),
+        WorkflowNode(node_id="p2", task_description="t2", dept_id="dept-backend"),
+    ]
+    definition = WorkflowDefinition(
+        workflow_id="wf-locked-persist", name="并发落盘", description="",
+        nodes=nodes, edges=[], execution_strategy="parallel",
+    )
+    execution = engine.create_workflow(definition)
+
+    async def complete_and_persist(node_id):
+        execution.node_states[node_id] = WorkflowNodeStatus.COMPLETED
+        execution.results[node_id] = {"result": f"done-{node_id}"}
+        return await engine.persist_execution(execution.execution_id)
+
+    results = await asyncio.gather(
+        complete_and_persist("p1"),
+        complete_and_persist("p2"),
+    )
+    assert results == [True, True]
+
+    data = json.loads((tmp_path / f"{execution.execution_id}.json").read_text())
+    assert data["node_states"]["p1"] == WorkflowNodeStatus.COMPLETED.value
+    assert data["node_states"]["p2"] == WorkflowNodeStatus.COMPLETED.value
+    # 锁条目由首次 async persist 惰性创建（create_workflow 走同步写不建锁）；
+    # 条目保留策略：再次落盘复用同一把锁，不重复创建
+    lock = engine._persist_locks[execution.execution_id]
+    assert isinstance(lock, asyncio.Lock)
+    assert await engine.persist_execution(execution.execution_id) is True
+    assert engine._persist_locks[execution.execution_id] is lock
