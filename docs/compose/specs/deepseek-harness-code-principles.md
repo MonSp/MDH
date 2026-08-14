@@ -1,6 +1,6 @@
 ---
 feature: deepseek-harness-code-principles
-status: designed
+status: in-progress
 updated: 2026-08-14
 branch: analysis/dsh-code-principles
 commits: <base-sha>..<head-sha> # filled at delivery
