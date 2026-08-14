@@ -48,7 +48,7 @@ class ApprovalManager:
         self._pending: Dict[str, PendingApproval] = {}
         self._history: list[PendingApproval] = []
         self._default_timeout = default_timeout
-        self._gate_audit: list = []
+        self._gate_audit: list[dict] = []
 
     async def request_approval(
         self,
@@ -244,8 +244,15 @@ class ApprovalManager:
         reason: str = "",
         send_fn: Optional[Callable[[dict], Awaitable[None]]] = None,
     ) -> bool:
-        """把关点决定：复用 handle_response，并记录 gate/decided 审计事件。"""
+        """把关点决定：复用 handle_response，并记录 gate/decided 审计事件。
+
+        仅当 handle_response 真正解析了请求（request 存在且处于 PENDING）时才
+        记录 decided 审计事件，保持 requested/decided 成对不变量；失败路径
+        （request 不存在 / 已处理 / 已过期）直接返回 False，不写审计。
+        """
         resolved = await self.handle_response(request_id, approved, reason=reason, send_fn=send_fn)
+        if not resolved:
+            return False
         gate_id, task_id = "", ""
         for req in self._history:
             if req.id == request_id:
@@ -259,13 +266,16 @@ class ApprovalManager:
             "approved": approved,
             "reason": reason,
         })
-        return resolved
+        return True
 
-    def get_gate_audit(self, gate_id: str = "") -> list:
-        """把关点审计事件（requested/decided 成对）；gate_id 为空返回全部。"""
+    def get_gate_audit(self, gate_id: str = "") -> list[dict]:
+        """把关点审计事件（requested/decided 成对）；gate_id 为空返回全部。
+
+        返回元素级拷贝，防止调用方篡改内部审计日志。
+        """
         if not gate_id:
-            return list(self._gate_audit)
-        return [e for e in self._gate_audit if e.get("gate_id") == gate_id]
+            return [dict(e) for e in self._gate_audit]
+        return [dict(e) for e in self._gate_audit if e.get("gate_id") == gate_id]
 
     def get_pending_requests(self) -> list[dict]:
         """获取所有待审批请求"""
