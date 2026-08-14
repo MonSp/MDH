@@ -14,6 +14,7 @@ from agent_pool import AgentPool, AgentConfig
 from agenda import AgendaStateMachine, AgendaPhase
 from approval_manager import ApprovalManager
 from collaboration.planner_agent import PlannerAgent
+from discussion_utils import parse_stance_from_content, resolve_agent_role, strip_stance_tags
 from dynamic_router import DynamicRouter
 from meeting import MeetingSession
 from negotiation import NegotiationEngine, ConsensusStrategy, Stance
@@ -1614,11 +1615,11 @@ class MeetingCoordinator:
             content = m.get("content", "") or ""
             if not content:
                 continue
-            stance = self._parse_stance_from_content(content)
+            stance = parse_stance_from_content(content)
             if stance not in ("support", "modify"):
                 continue
-            role = self._resolve_agent_role(m.get("agent_id"))
-            core = self._strip_stance_tags(content)
+            role = resolve_agent_role(self.meeting, m.get("agent_id"))
+            core = strip_stance_tags(content)
             if len(core) > 120:
                 core = core[:120] + "..."
             icon = "+" if stance == "support" else "~"
@@ -1627,26 +1628,6 @@ class MeetingCoordinator:
         if not decisions:
             return None
         return "团队讨论确定的方案与约束：\n" + "\n".join(decisions[:8])
-
-    def _resolve_agent_role(self, agent_id: Optional[str]) -> str:
-        """从 agent_id 解析角色名（回退为 agent_id 本身）"""
-        if not agent_id:
-            return ""
-        agent = self.meeting.get_agent(agent_id)
-        return agent.role.value if agent else agent_id
-
-    def _parse_stance_from_content(self, content: str) -> str:
-        """从内容中解析 STANCE 标签（缺失视为 neutral）"""
-        match = re.search(r'\[STANCE:(support|oppose|modify|neutral)\]', content, re.IGNORECASE)
-        return match.group(1).lower() if match else "neutral"
-
-    def _strip_stance_tags(self, text: str) -> str:
-        """剥离 STANCE/CONFIDENCE 标签（含未闭合的残留片段）"""
-        core = re.sub(r'\[STANCE:.*?\]', '', text)
-        core = re.sub(r'\[CONFIDENCE:.*?\]', '', core)
-        core = re.sub(r'\[STANCE:[^\]]*$', '', core)
-        core = re.sub(r'\[CONFIDENCE:[^\]]*$', '', core)
-        return core.strip()
 
     def _infer_target_agent(self, discussion_results: list) -> str:
         """从讨论结果中推断目标 Agent

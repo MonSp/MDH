@@ -20,22 +20,12 @@ from agentscope.message import Msg
 
 from agent import _extract_text
 from agenda import AgendaStateMachine
+from discussion_utils import is_coordinator_agent, strip_stance_tags
 from negotiation import NegotiationEngine, ConsensusStrategy, Stance
 from protocol import AgentRole, MeetingAgentStatus, LLM_FALLBACK_TEMPLATE
 from team import Team, TeamMember, AgentLocation
 
 logger = logging.getLogger("mixed_location_discussion")
-
-
-def _strip_stance_tags(text: str) -> str:
-    """剥离 STANCE/CONFIDENCE 标签（含 deriveMessages 先截断内容后残留的未闭合标签）。"""
-    core = re.sub(r'\[STANCE:.*?\]', '', text)
-    core = re.sub(r'\[CONFIDENCE:.*?\]', '', core)
-    # 内容被截断在标签中间时（如 "[STANCE:su"）无闭合括号，上面的正则匹配不到，
-    # 这里兜底剥离残留片段，避免下游 prompt 出现残缺标签。
-    core = re.sub(r'\[STANCE:[^\]]*$', '', core)
-    core = re.sub(r'\[CONFIDENCE:[^\]]*$', '', core)
-    return core.strip()
 
 
 @dataclass
@@ -322,7 +312,10 @@ class MixedLocationDiscussion:
         return self._build_legacy_previous_context(discussions)
 
     def _project_previous_context(self) -> Optional[str]:
-        """从 SessionEvent 事件流投影 previous_context（window=10, max_content_len=80）。
+        """从 SessionEvent 事件流投影 previous_context（event_types=agent_message, window=10, max_content_len=80）。
+
+        P3-T2 I2：仅投影 agent_message 讨论发言并排除协调者状态消息，避免
+        coordinator 状态消息（analysis_text/plan_text/组织团队讨论 等）占用窗口。
 
         Returns:
             投影文本；无 meeting 引用或事件流为空时返回 None（由调用方回退）。
@@ -330,7 +323,9 @@ class MixedLocationDiscussion:
         if self._meeting is None:
             return None
         try:
-            projected = self._meeting.deriveMessages(window=10, max_content_len=80)
+            projected = self._meeting.deriveMessages(
+                event_types=["agent_message"], window=10, max_content_len=80
+            )
         except Exception as e:
             logger.warning("previous_context 事件投影失败，回退既有实现: %s", e)
             return None
@@ -342,6 +337,11 @@ class MixedLocationDiscussion:
             content = m.get("content", "") or ""
             agent_id = m.get("agent_id")
             member = self._member_info.get(agent_id) if agent_id else None
+            # 协调者状态消息不混入讨论上下文（P3-T2 I2）
+            if member and member.team_role == "Coordinator":
+                continue
+            if is_coordinator_agent(self._meeting, agent_id):
+                continue
             if member:
                 agent_name = member.role_name
                 location = "local" if member.location == AgentLocation.LOCAL else "remote"
@@ -350,7 +350,7 @@ class MixedLocationDiscussion:
                 location = "unknown"
             location_icon = "💻" if location == "local" else "☁️"
             # 截取核心观点，去掉STANCE/CONFIDENCE标签（截断由 deriveMessages 的 80 字限制承担）
-            core = _strip_stance_tags(content)
+            core = strip_stance_tags(content)
             if core:
                 context_parts.append(f"{location_icon} {agent_name}: {core}")
         if not context_parts:

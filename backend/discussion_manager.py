@@ -15,21 +15,16 @@ from agentscope.message import Msg
 
 from agent import _extract_text
 from agenda import AgendaStateMachine
+from discussion_utils import (
+    is_coordinator_agent,
+    parse_stance_from_content,
+    resolve_agent_role,
+    strip_stance_tags,
+)
 from negotiation import NegotiationEngine, ConsensusStrategy, Stance
 from protocol import AgentRole, MeetingAgentStatus, LLM_FALLBACK_TEMPLATE
 
 logger = logging.getLogger("discussion_manager")
-
-
-def _strip_stance_tags(text: str) -> str:
-    """剥离 STANCE/CONFIDENCE 标签（含 deriveMessages 先截断内容后残留的未闭合标签）。"""
-    core = re.sub(r'\[STANCE:.*?\]', '', text)
-    core = re.sub(r'\[CONFIDENCE:.*?\]', '', core)
-    # 内容被截断在标签中间时（如 "[STANCE:su"）无闭合括号，上面的正则匹配不到，
-    # 这里兜底剥离残留片段，避免下游 prompt 出现残缺标签。
-    core = re.sub(r'\[STANCE:[^\]]*$', '', core)
-    core = re.sub(r'\[CONFIDENCE:[^\]]*$', '', core)
-    return core.strip()
 
 
 class DiscussionManager:
@@ -228,7 +223,12 @@ class DiscussionManager:
         return self._build_legacy_previous_context(results)
 
     def _project_previous_context(self) -> Optional[str]:
-        """从 SessionEvent 事件流投影 previous_context（window=10, max_content_len=80）。
+        """从 SessionEvent 事件流投影 previous_context（event_types=agent_message, window=10）。
+
+        对每条发言先于截断从完整内容解析 STANCE——>80 字发言的尾标签不再因
+        deriveMessages 截断而丢失，图标不退化（P3-T2 I1）；剥标签后再截断到
+        80 字展示（P3-T2 I2：仅投影 agent_message 讨论发言，协调者状态消息
+        不占用窗口）。
 
         Returns:
             投影文本；无 meeting 引用或事件流为空时返回 None（由调用方回退）。
@@ -236,7 +236,9 @@ class DiscussionManager:
         if self._meeting is None:
             return None
         try:
-            projected = self._meeting.deriveMessages(window=10, max_content_len=80)
+            projected = self._meeting.deriveMessages(
+                event_types=["agent_message"], window=10
+            )
         except Exception as e:
             logger.warning("previous_context 事件投影失败，回退既有实现: %s", e)
             return None
@@ -247,27 +249,20 @@ class DiscussionManager:
         for m in projected:
             content = m.get("content", "") or ""
             agent_id = m.get("agent_id")
-            role = self._resolve_agent_role(agent_id, m.get("role"))
-            # 截取核心观点，去掉STANCE/CONFIDENCE标签（截断由 deriveMessages 的 80 字限制承担）
-            core = _strip_stance_tags(content)
-            stance = self._parse_stance_from_content(content)
+            # 协调者状态消息（analysis/plan/组织讨论等）不混入讨论上下文
+            if is_coordinator_agent(self._meeting, agent_id):
+                continue
+            role = resolve_agent_role(self._meeting, agent_id, m.get("role"))
+            # 先于截断从完整内容解析 stance，再剥标签、截断展示
+            stance = parse_stance_from_content(content)
+            core = strip_stance_tags(content)
+            if len(core) > 80:
+                core = core[:80] + "..."
             stance_icon = {"support": "+", "oppose": "-", "modify": "~"}.get(stance, "=")
             lines.append(f"[{role}]({stance_icon}) {core}")
         if not lines:
             return None
         return "\n".join(lines)
-
-    def _resolve_agent_role(self, agent_id: Optional[str], msg_role: Optional[str] = None) -> str:
-        """从 agent_id 解析角色名（回退为消息 role / agent_id 本身）"""
-        if not agent_id:
-            return msg_role or "?"
-        agent = self._meeting.get_agent(agent_id) if self._meeting else None
-        return agent.role.value if agent else (msg_role or agent_id)
-
-    def _parse_stance_from_content(self, content: str) -> str:
-        """从内容中解析 STANCE 标签（截断后可能缺失，缺失视为 neutral）"""
-        match = re.search(r'\[STANCE:(support|oppose|modify|neutral)\]', content, re.IGNORECASE)
-        return match.group(1).lower() if match else "neutral"
 
     def _build_legacy_previous_context(self, results: List[Dict[str, Any]]) -> str:
         """既有实现：从讨论结果列表拼装（无事件流时的回退路径）"""
@@ -279,8 +274,7 @@ class DiscussionManager:
             content = r.get('content', '')
             stance = r.get('parsed_stance', 'neutral')
             # 截取核心观点（前80字），去掉STANCE/CONFIDENCE标签
-            core = re.sub(r'\[STANCE:.*?\]', '', content)
-            core = re.sub(r'\[CONFIDENCE:.*?\]', '', core).strip()
+            core = strip_stance_tags(content)
             if len(core) > 80:
                 core = core[:80] + "..."
             stance_icon = {"support": "+", "oppose": "-", "modify": "~"}.get(stance, "=")
