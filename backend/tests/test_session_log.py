@@ -183,3 +183,101 @@ def test_session_event_dataclass_defaults():
     assert ev.timestamp > 0
     d = ev.to_dict()
     assert d["event_type"] == "agent_message"
+
+
+# === 会议快照投影（save_meeting_snapshot 使用 deriveMessages(window=50)）===
+
+def test_snapshot_projection_contains_last_n_events(tmp_path):
+    """快照投影含最近 N 事件：60 条消息投影 window=50 → 最近 50 条。"""
+    m = MeetingSession("snap1", session_log_dir=str(tmp_path))
+    for i in range(60):
+        m.add_message("agent", f"msg-{i:02d}", "agent-1")
+    projected = m.deriveMessages(window=50)
+    assert len(projected) == 50
+    # 最近 50 条即第 11~60 条
+    assert projected[0]["content"] == "msg-10"
+    assert projected[-1]["content"] == "msg-59"
+    # 结构与既有 messages 元素一致（快照 payload 结构不变）
+    assert set(projected[0]) == {"id", "role", "content", "agent_id", "timestamp"}
+    # 与 messages[-50:] 逐条对齐（event_id == 消息 id）
+    assert [p["id"] for p in projected] == [msg["id"] for msg in m.messages[-50:]]
+
+
+def test_snapshot_projection_under_window_returns_all(tmp_path):
+    """少于 window 时返回全部（与 messages[-50:] 语义一致）。"""
+    m = MeetingSession("snap2", session_log_dir=str(tmp_path))
+    for i in range(3):
+        m.add_message("user", f"q{i}", None)
+    projected = m.deriveMessages(window=50)
+    assert len(projected) == 3
+
+
+# === 安全审计事件持久化（SecurityMiddleware._log_audit → audit.jsonl）===
+
+def test_audit_event_persisted_to_jsonl(tmp_path):
+    """_log_audit 在内存 append 外追加写入 audit.jsonl（event_type="audit"）。"""
+    from security import SecurityMiddleware, RiskLevel
+
+    mw = SecurityMiddleware(audit_log_dir=str(tmp_path))
+    mw._log_audit(
+        "agent-exec", "bash", "run pytest", "file_operation",
+        False, "High-risk tool requires approval", ["reviewer-1"],
+    )
+    log_file = tmp_path / "audit.jsonl"
+    assert log_file.exists()
+    lines = [l for l in log_file.read_text(encoding="utf-8").strip().splitlines() if l.strip()]
+    assert len(lines) == 1
+    entry = json.loads(lines[0])
+    assert entry["event_type"] == "audit"
+    assert entry["agent_id"] == "agent-exec"
+    assert entry["operation"] == "bash"
+    assert entry["target"] == "run pytest"
+    assert entry["risk_level"] in (RiskLevel.HIGH.value, RiskLevel.LOW.value)
+    assert entry["allowed"] is False
+    assert entry["reason"] == "High-risk tool requires approval"
+    assert entry["timestamp"] > 0
+    assert entry["signers"] == ["reviewer-1"]
+
+
+def test_audit_events_reload_from_disk(tmp_path):
+    """审计事件持久化可重载：新实例/读取端可从 audit.jsonl 重放全部事件。"""
+    from security import SecurityMiddleware
+
+    mw = SecurityMiddleware(audit_log_dir=str(tmp_path))
+    mw._log_audit("a1", "read_file", "x.py", "file_operation", True, "ok", [])
+    mw._log_audit("a2", "write_file", "y.py", "file_operation", False, "denied", [])
+
+    lines = [l for l in (tmp_path / "audit.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(lines) == 2
+    reloaded = [json.loads(l) for l in lines]
+    assert [e["agent_id"] for e in reloaded] == ["a1", "a2"]
+    assert [e["operation"] for e in reloaded] == ["read_file", "write_file"]
+    assert all(e["event_type"] == "audit" for e in reloaded)
+    assert all(e["timestamp"] > 0 for e in reloaded)
+
+
+def test_audit_ioerror_falls_back_to_memory(tmp_path, monkeypatch):
+    """audit.jsonl 写入 IOError 时降级为纯内存，不破坏 _log_audit 行为。"""
+    from security import SecurityMiddleware
+
+    mw = SecurityMiddleware(audit_log_dir=str(tmp_path))
+    import builtins
+
+    real_open = builtins.open
+
+    def fail_open(*args, **kwargs):
+        if args and "audit.jsonl" in str(args[0]):
+            raise OSError("disk full (simulated)")
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", fail_open)
+    mw._log_audit("a1", "bash", "ls", "file_operation", True, "ok", [])
+    monkeypatch.undo()
+    # 不抛异常，内存审计日志仍在
+    assert len(mw._audit_log) == 1
+    assert mw._audit_log[0].id
+
+
+def test_audit_event_uses_audit_event_type():
+    """审计事件复用 SessionEvent 事件结构判别字段 event_type='audit'。"""
+    assert SessionEventType.AUDIT.value == "audit"

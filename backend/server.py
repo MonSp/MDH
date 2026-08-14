@@ -2029,7 +2029,8 @@ async def ws_handler(ws: WebSocket):
                     "meeting_id": meeting.meeting_id,
                     "agents": meeting.get_agents_dict(),
                     "tasks": meeting.get_tasks_dict(),
-                    "messages": meeting.messages[-50:],  # 最近50条消息
+                    # 事件投影：最近 50 条（结构保持 {id, role, content, agent_id, timestamp}）
+                    "messages": meeting.deriveMessages(window=50),
                     "phase": session._agenda.get_phase().value if session._agenda else "idle",
                 }
                 if not session._checkpoint_manager:
