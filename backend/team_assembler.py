@@ -100,3 +100,26 @@ class TeamAssembler:
                 team.set_leader(agent_id)
         logger.info("Team %s 组装完成，共 %d 个成员", team_id, len(team.members))
         return team
+
+    def assemble_hybrid_team(
+        self,
+        dag: dict,
+        project_id: str,
+        runtime: TeamRuntime,
+        humans: list[dict],
+    ) -> Team:
+        """组混合团队：agent 成员按既有逻辑选取，human 成员作为把关人加入。
+
+        humans 元素: {"employee_id": str, "name": str, "approver_for": [task_id, ...]}
+        """
+        team = self.assemble_from_dag(dag, project_id, runtime)
+        for h in humans:
+            team.add_member(TeamMember(
+                agent_id=h["employee_id"],
+                role_name="employee",
+                team_role="",  # human 成员不参与 team_role 查询
+                location=AgentLocation.LOCAL,
+                member_type="human",
+                approver_for=tuple(h.get("approver_for", [])),
+            ))
+        return team
