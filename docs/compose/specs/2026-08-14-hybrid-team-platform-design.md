@@ -1,6 +1,6 @@
 # MDH 演进：人+agent 混合团队协作平台（办公垂直）设计
 
-> 产品定义头脑风暴产物（2026-08-14）。基于两份研究：`multi-agent-architecture-future-analysis.md`（行业方向 43 来源）与 `deepseek-harness-code-principles.md`（dsh 全库 104 条原理）。本设计经用户逐节确认。
+> 产品定义头脑风暴产物（2026-08-14）。基于两份研究：`multi-agent-architecture-future-analysis.md`（行业方向 43 来源）与 `deepseek-harness-code-principles.md`（dsh 全库 104 条原理）。本设计经用户逐节确认；2026-08-14 增补 Palantir AIP 对标（[S6]）并纳入两条强化（对照确认、资产评测）。
 
 ## [S1] 产品定位与价值主张
 
@@ -36,7 +36,7 @@ MDH 从"多智能体协作平台"演进为 **"人+agent 混合团队协作平台
 1. 需求进入   员工/领导提交（上传速记/录音转写）→ 意图识别判为「会议纪要+待办」任务
 2. 混合组队   TeamAssembler 组装：执行 agent{纪要撰写员, 待办提取员} + 把关人{提交者, 部门负责人*}
 3. DAG 执行   提取要点/决策/行动项 → 撰写纪要初稿+待办清单(docx) → 校对(遗漏/冲突检查, 规则+LLM)
-4. 员工把关   提交者收把关请求 → 修改/通过 → 确认分发范围          (*关键节点审批复用 ApprovalManager)
+4. 员工把关   提交者收把关请求 → **对照确认**（提取结果与速记原文对照核验，仿 Palantir Document Intelligence 确认闭环）→ 修改/通过 → 确认分发范围          (*关键节点审批复用 ApprovalManager)
 5. 分发       邮件/IM 分发（适配器），分发记录入日志
 6. 沉淀       产出物入库(知识库) · 优质纪要固化为模板(需员工确认) · 把关修改差异提炼经验规则→技能 CoW 增量
 7. 资产复用   下次同类任务：意图识别时检索知识库/模板/技能注入（复用经验注入机制）
@@ -91,6 +91,19 @@ MDH 从"多智能体协作平台"演进为 **"人+agent 混合团队协作平台
 |---|---|---|
 | M1（1-4 周） | 引擎底座：员工身份 + 把关点引擎、混合团队组装（human/agent）、文档工具 seam（docx 生成） | 单测 + 集成测试绿；API 可演示组队与把关 |
 | M2（5-8 周） | 会议纪要全链路：文档意图识别、DAG 流水线（提取→撰写→校对）、把关 UI、邮件分发适配器 | 试点部门真实纪要任务跑通，员工把关闭环 |
-| M3（9-12 周） | 沉淀闭环：知识库入库、模板固化（员工确认）、技能进化（把关差异提炼）、资产复用注入 | 试点部门 50%+ 纪要任务走平台；资产复用率可感知 |
+| M3（9-12 周） | 沉淀闭环：知识库入库、模板固化（员工确认 + **资产评测把关**：新模板/技能沉淀前经评测（LLM judge + 确定性检查）通过才入库，仿 AIP Evals，与录制回放结合）、技能进化（把关差异提炼）、资产复用注入 | 试点部门 50%+ 纪要任务走平台；资产复用率可感知 |
 
 **非目标（本期不做）**：第三方 agent 接入、公司级多租户、实时录音转写、IM 深度集成（先邮件分发）。
+
+## [S6] 对标：Palantir AIP（2026-08-14 核验，来源：palantir.com 官方文档）
+
+**Palantir AIP 事实**：AIP = "连接 AI 与你的数据与运营"的企业平台，构建在 Foundry（数据运营平台）+ Ontology（语义数据层）之上。产品族：AIP Assist（chat + RAG 自定义内容源）、**AIP Chatbot Studio（原 AIP Agent Studio / AIP Agents，2026 已更名）**、AIP Analyst、**AIP Document Intelligence**（文档提取：OCR/布局感知/VLM 策略 + 快速确认闭环 + 评测 + 一键部署为 Python transform）、**AIP Evals**（评测套件、LLM-as-judge、指标面板）、AIP Logic（无代码块工作流 + staged writes + branching）、AIP Threads、Model Catalog、AI FDE。强调 security/governance/audit/lineage，面向大企业/政府。
+
+**逐维对比结论**：
+1. **方向被巨头验证**：Palantir 重投文档提取 + 确认闭环 + 评测——本设计的办公垂直、关键把关、评测纪律三个核心决策均有市场印证。
+2. **"Agents→Chatbots"更名是行业信号**：Palantir 把"自主多 agent"收敛为"可部署能力单元 + 确定性流程 + 人确认"，与本设计不做自由并发多 agent 的判断一致。
+3. **差异化空间**：Palantir 护城河 = Ontology 数据治理 + 大客户渠道；其空白 = 员工自有 agent 资产 + 技能随用随进化 + 组织记忆沉淀 + 部门级轻量部署——即本设计的定位象限，不正面竞争。
+
+**纳入本设计的两条强化**（对应上述事实）：
+- **对照确认**（仿 Document Intelligence 确认闭环）：M2 把关环节，提取/撰写结果与速记原文对照核验后才通过（[S2] 步骤 4）。
+- **资产评测把关**（仿 AIP Evals）：M3 沉淀环节，新模板/技能沉淀前经评测（LLM judge + 确定性检查）通过才入库（[S5] M3）。
