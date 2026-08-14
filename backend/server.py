@@ -33,6 +33,8 @@ from agent_pool import AgentPool
 from key_manager import KeyManager
 from agent_bridge import AgentBridge
 from approval_manager import ApprovalManager
+from team import RuntimeType, TeamRuntime
+from team_assembler import TeamAssembler
 
 logger = logging.getLogger("server")
 
@@ -76,6 +78,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# M1 演示：把关点引擎（仅演示用；会话内审批接线保持不变）
+_demo_gate_manager = ApprovalManager()
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -2462,6 +2467,78 @@ async def get_workflow_visualization(execution_id: str):
         return {"success": True, "data": vis}
     except KeyError as e:
         return {"success": False, "error": str(e)}
+
+
+# ──────────────────── M1 演示：混合组队 + 把关点 ────────────────────
+
+
+@app.post("/api/hybrid/team")
+async def api_hybrid_team(body: dict):
+    """演示：组装人+agent 混合团队。body: {project_id, dag, humans}"""
+    dag = body["dag"]
+    runtime = TeamRuntime(
+        runtime_id=f"rt-{body.get('project_id', 'demo')}",
+        runtime_type=RuntimeType.LOCAL_DOCKER,
+        root_path="/tmp/workspace",
+    )
+    team = TeamAssembler().assemble_hybrid_team(
+        dag, body.get("project_id", "demo"), runtime, body.get("humans", []),
+    )
+    return {
+        "team_id": team.team_id,
+        "members": [
+            {
+                "agentId": m.agent_id,
+                "roleName": m.role_name,
+                "teamRole": m.team_role,
+                "memberType": m.member_type,
+                "approverFor": list(m.approver_for),
+            }
+            for m in team.members
+        ],
+    }
+
+
+@app.post("/api/gates")
+async def api_gate_create(body: dict):
+    """演示：创建把关点请求（等价于会议内的审批请求）"""
+    approval = await _demo_gate_manager.request_gate(
+        requester_id=body.get("requesterId", "agent-demo"),
+        operation=body.get("operation", "unknown_operation"),
+        description=body.get("description", ""),
+        task_id=body.get("taskId", ""),
+        gate_id=body.get("gateId", ""),
+    )
+    return {
+        "id": approval.id,
+        "taskId": approval.task_id,
+        "gateId": approval.gate_id,
+        "status": approval.status.value,
+    }
+
+
+@app.get("/api/gates/pending")
+async def api_gates_pending():
+    """演示：查看待处理把关请求"""
+    return [
+        {
+            "id": r["id"],
+            "requesterId": r["requesterId"],
+            "operation": r["operation"],
+            "description": r["description"],
+            "status": r["status"],
+        }
+        for r in _demo_gate_manager.get_pending_requests()
+    ]
+
+
+@app.post("/api/gates/{request_id}/decide")
+async def api_gate_decide(request_id: str, body: dict):
+    """演示：对把关请求做出决定"""
+    resolved = await _demo_gate_manager.handle_gate_response(
+        request_id, bool(body.get("approved", False)), reason=body.get("reason", ""),
+    )
+    return {"resolved": resolved}
 
 
 @app.get("/health")
