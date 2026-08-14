@@ -2502,6 +2502,43 @@ async def api_hybrid_team(body: dict):
     }
 
 
+@app.post("/api/minutes")
+async def api_minutes_plan(body: dict):
+    """演示：速记 → 会议纪要 DAG 规划 + 混合团队组装（把关经 /api/gates）。"""
+    from minutes_workflow import build_minutes_workflow
+    from mailer.seam import MailMessage, get_mailer
+
+    transcript = body.get("transcript", "")
+    submitter = body.get("submitter", "submitter")
+    if not transcript:
+        return _fail("缺少必填字段: transcript")
+    wf = build_minutes_workflow(transcript, approver=submitter)
+    dag = {"tasks": [
+        {"task_id": n.node_id, "name": n.node_id, "required_skills": ["frontend_dev"],
+         "description": n.task_description}
+        for n in wf.nodes
+    ]}
+    team = TeamAssembler().assemble_hybrid_team(
+        dag, body.get("project_id", "proj-minutes"),
+        TeamRuntime(runtime_id="rt-minutes", runtime_type=RuntimeType.LOCAL_DOCKER, root_path="/tmp/workspace"),
+        humans=[{"employee_id": submitter, "name": submitter, "approver_for": ["draft"]}],
+    )
+    get_mailer("file").send(MailMessage(title="会议纪要", to=[submitter], body=transcript))
+    return {
+        "workflow": {
+            "workflow_id": wf.workflow_id,
+            "strategy": wf.execution_strategy,
+            "nodes": [{"node_id": n.node_id, "task_description": n.task_description, "gate": n.gate} for n in wf.nodes],
+            "edges": [{"source": e.source_node_id, "target": e.target_node_id} for e in wf.edges],
+        },
+        "team": {
+            "team_id": team.team_id,
+            "members": [{"agentId": m.agent_id, "memberType": m.member_type, "approverFor": list(m.approver_for)} for m in team.members],
+        },
+        "plan": "把关经 /api/gates 完成；纪要经 mailer seam 分发",
+    }
+
+
 @app.post("/api/gates")
 async def api_gate_create(body: dict):
     """演示：创建把关点请求（等价于会议内的审批请求）"""
