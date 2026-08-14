@@ -29,6 +29,7 @@ commits: 7982912..1748522
 - P2 实施交付（2026-08-13）：durable execution 基础版/审查确定性门禁/artifact 模式/模型 failover/杂项 5 项落地（11 commits + vitest 修复合并至 main，backend 891 + orchestrator 118 + 前端 1632 tests 全绿）。评审驱动的关键修正：① durable execution 落盘采用原子写 + 容错加载 + execution-id 过滤（防 checkpoints.json 混淆），恢复仅跳过 COMPLETED（FAILED 按重试语义）；② 审查门禁对工具缺失 fail-open（信号集经真实错误文本实测对齐），真实失败 fail-closed，经 asyncio.to_thread 避免阻塞事件循环；③ main 上发现 orchestrator 陈旧编译产物 .js 遮蔽 .ts 导致新测试套件失败——以 vitest 正则 alias 非破坏性修复。
 - P3 方向融合（2026-08-13）：研究 DeepSeek Harness（dsh，agent 运行时平台）后确认其"强单 agent + subagent 轻协作 + 插件化 + session log 真相源 + 评测门禁"与本文档方向同向；决定不落盘对比文档，改为将 5 项 dsh 理念（session log 真相源、subagent 委托、配置层插件化、快照/评测门禁、守卫/沙箱系统化）直接吸收进"四、产品发展方向"的 P3 小节，与既有评审遗留项合并为连贯后续计划。
 - P2 遗留闭环（2026-08-13）：按"先补完 P2 遗留再进 P3"的决定，将 9 项评审遗留全部闭环（7 commits 合并至 main，backend 913 + orchestrator 125 全绿）：门禁通道感知+工具特定信号、hybrid 生产接线+profile 校验+local 分支 executor 连接、durable 读侧（executions 列表 + resume 端点含内存终态守卫）、persist 捕获加宽、FAILED 重跑测试、failover 归因收窄（on_model_error 仅模型层）、门禁接入 execute_and_review_task、planner issues setdefault。刻意保留两项（failover 扩展到全部消费点、per-execution 异步锁）并记录理由。
+- P3 实施交付（2026-08-13）：两项 dsh 理念落地（13 commits 合并至 main@eecf1a8，backend 948 + orchestrator 154 + loop-engineering 16 + 前端 1632 全绿）。① session log 真相源：`MeetingSession.add_message` 为唯一写入口追加 SessionEvent（JSONL 持久化）+ `deriveMessages` 投影接入串行/并行讨论与审查决策（含 stance 截断前解析、协调者过滤、`discussion_utils` 共享辅助）+ 快照/审计并入事件流；评审驱动修复：重载事件回写与 add-first 回填防历史丢失（两种调用顺序）。② 快照评测门禁：orchestrator `runKeylessChecks` 确定性快照（sha256+归一化）+ loop-engineering 回放层（diffSnapshot/replayScenario 跨包复用）+ `runCiGate` replay-gate-first；评审驱动修复：xargs 迁移使测试失败退出码 123 可传播、find stderr 隔离与 exit-1 中和、阈值/时序/workspace 契约收敛。
 
 ## [S1] Problem
 
@@ -237,9 +238,9 @@ MDH 已实现一套复杂多智能体协作机制（6 层架构链、三执行�
 
 | 方向 | 来源 | 说明 |
 |------|------|------|
-| **session log 作为上下文真相源**：会议/执行记录升级为 append-only log，模型上下文从 log 投影（fork/resume/transcript），替代散落的 `meeting.add_message`/审计 | **dsh 借鉴**（最高优先级） | 对齐 context engineering 落地 [31]；与 P2 检查点/artifact 模式衔接 |
+| ✅ **session log 作为上下文真相源**（完成：append-only SessionEvent 事件流 + `deriveMessages` 投影接入讨论/审查决策 + 快照/审计并入） | **dsh 借鉴** | 对齐 context engineering 落地 [31]；生产接线 session_log_dir 与经验注入事件化列后续 |
+| ✅ **快照/评测门禁**（完成：orchestrator keyless 快照 + loop-engineering 回放层 + runCiGate 串联） | **dsh 借鉴** | keyless snapshot replay；backend pytest 适配器与 baseline 合并列后续 |
 | **subagent 委托模式**：TS orchestrator 角色 agent 支持 spawn/fork/ACP 子进程委托（可选外部 agent 子进程），并行执行演进为 orchestrator-worker 工业形态 | **dsh 借鉴** | 对应 dsh subagent 能力族；承接调研结论 [20] |
-| **快照回放测试 + 场景评测门禁**：keyless snapshot replay 引入 loop-engineering，配合场景评测（对齐 dsh BENCHMARK 思路） | **dsh 借鉴** | dsh 工程纪律的核心可迁移项 |
 | **配置层插件化**：角色模板/技能包升级为可 patch 的组合层（profile/bundle/patch 思想；现有 roles_config + CoW 增量为雏形） | **dsh 借鉴** | 支柱 2/5 关联 |
 | **守卫/超时系统化**：工具超时、loop 卫生（对齐 dsh guard 包） | **dsh 借鉴** | 与 HITL 分级、沙箱增强合并推进 |
 | **技能 provider 中立目录 + loader**：多来源（本地/远程）技能发现，对齐 Agent Skills [30] 与 dsh skill 能力族 | **dsh 借鉴** + 原 P2 | 支柱 5 |
@@ -247,8 +248,8 @@ MDH 已实现一套复杂多智能体协作机制（6 层架构链、三执行�
 | 判定结果结构化回传 UI（复杂度+路由理由可解释化） | 评审遗留 | 支柱 1 |
 | 审查报告闭环（审查意见全程结构化，形成"审查报告→迭代"可见闭环） | 原 P2 | 支柱 4 |
 | ✅ 门禁通道感知匹配（工具缺失在 error 通道、真实失败在 output 通道，信号工具特定化）——**已于 P2 遗留闭环完成（2026-08-13）** | 评审遗留 | 支柱 4 |
-| ✅ durable execution 读侧入口（`GET /api/workflow/executions` + resume 端点含终态守卫）——**已完成**；per-execution 持久化加锁以"同步原子写+竞态文档化"替代（async 化会连锁同步调用点，已评估） | 评审遗留 | 支柱 3 |
-| ✅ hybrid 生产接线（CoordinatorConfig.hybridProfiles → runtime.hybrid，local 分支携 executor 连接）+ ExecutionProfile 校验——**已完成**；failover 扩展到 review/discussion 消费点维持"明确不做"（各消费点已有 fallback，成本高收益低） | 评审遗留 | 横向 |
+| ✅ durable execution 读侧入口（`GET /api/workflow/executions` + resume 端点含终态守卫）——**已完成**；✅ per-execution 持久化异步锁——**已完成**（`persist_execution` async + `asyncio.Lock` 串行化并发落盘，2026-08-13 P2 残余补完） | 评审遗留 | 支柱 3 |
+| ✅ hybrid 生产接线（CoordinatorConfig.hybridProfiles → runtime.hybrid，local 分支携 executor 连接）+ ExecutionProfile 校验——**已完成**；✅ failover 扩展到全部可达 LLM 消费点（decompose_task/handle_critical_blocker/ReviewPipeline 三站点，经 `on_model_error`/`_safe_mark_model_failed` 回调；semantic/discussion 经 `get_model_fn` 无可达性标注不适用）——**已完成**（2026-08-13 P2 残余补完） | 评审遗留 | 横向 |
 | MCP client 兼容 [11]（dsh 已内置 mcp 包，必要性强化）；A2A 跨产品边界 [15] | 原 P2（强化） | 横向 |
 | HITL 分级（白名单+分级+分类器 [27]）+ 沙箱系统化（对齐 dsh landlock/e2b） | 原 P0/P1 + **dsh 借鉴** | 横向 |
 | 技能市场/跨项目经验融合；技能打包人工审核 UI | 原 P2 | 支柱 5 |
