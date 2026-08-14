@@ -8,6 +8,9 @@ interface PendingApproval {
   riskLevel: string
   confidence: number
   createdAt: number
+  taskId?: string
+  gateId?: string
+  approver?: string
 }
 
 interface ApprovalPanelProps {
@@ -65,6 +68,14 @@ export default function ApprovalPanel({
             </span>
             <span style={styles.operation}>{approval.operation}</span>
             <span style={styles.requester}>{approval.requesterId}</span>
+          </div>
+
+          <div style={styles.gateContext}>
+            <span style={styles.gateBadge}>
+              {approval.approver ? `由 ${approval.approver} 把关` : '系统把关'}
+            </span>
+            {approval.taskId ? <span style={styles.gateTag}>任务: {approval.taskId}</span> : null}
+            {approval.gateId ? <span style={styles.gateTag}>把关点: {approval.gateId}</span> : null}
           </div>
 
           <div style={styles.description}>{approval.description}</div>
@@ -151,6 +162,29 @@ const styles: Record<string, React.CSSProperties> = {
   requester: {
     fontSize: '11px',
     color: '#94a3b8',
+  },
+  gateContext: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '8px',
+    marginBottom: '8px',
+  },
+  gateBadge: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#fbbf24',
+    background: 'rgba(251, 191, 36, 0.12)',
+    padding: '2px 8px',
+    borderRadius: '4px',
+  },
+  gateTag: {
+    fontSize: '10px',
+    color: '#94a3b8',
+    background: 'rgba(255, 255, 255, 0.06)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    padding: '2px 6px',
+    borderRadius: '4px',
   },
   description: {
     fontSize: '12px',
