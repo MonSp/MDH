@@ -22,6 +22,7 @@ def build_minutes_workflow(transcript: str, approver: str = "submitter") -> Work
             node_id=nid,
             task_description=desc,
             dept_id="dept-docs",
+            input_spec={"transcript": transcript},
             gate={"approver": approver, "stage": "review"} if nid == "draft" else None,
         )
         for nid, desc in _NODES

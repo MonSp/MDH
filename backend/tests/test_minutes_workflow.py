@@ -54,3 +54,9 @@ def test_dev_request_not_misrouted_to_minutes():
     analyzer = SemanticAnalyzer(router=None, get_model_fn=lambda role: None)
     # 开发任务「生成待办事项页面」不含纪要家族关键词 → 不命中（走正常路由）
     assert analyzer._detect_minutes_task("帮我生成待办事项页面") is False
+
+
+def test_nodes_carry_transcript_input():
+    wf = build_minutes_workflow("速记内容A", approver="emp-1")
+    for n in wf.nodes:
+        assert n.input_spec.get("transcript") == "速记内容A"
