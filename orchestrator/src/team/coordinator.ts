@@ -410,7 +410,9 @@ export class TeamCoordinator {
   // roleLocations 按角色指定执行位置（local/remote），未指定则默认 local。
   // member.location 决定 RouterFactory 返回 local 还是 remote router（见 toolkit/router.ts）；
   // 但若 hybridProfiles[roleId] 存在，runtime.hybrid.profile 优先于 location —— router.ts
-  // 的 getRouterForMember 先查 runtime.hybrid（local/remote 分支均支持混合路由）。
+  // 的 getRouterForMember 先查 runtime.hybrid。local/remote 分支均支持混合路由：local 分支在
+  // 配置 hybrid 时同样携带 executorUrl/executorToken（镜像 remote 分支），保证 hybrid 的远端
+  // 腿有 executor 连接信息，不会静默回落为全本地执行。
   private createTeam(
     roleIds: string[],
     task: string,
@@ -434,7 +436,15 @@ export class TeamCoordinator {
             }
           : defaultRuntime
             ? { type: 'local' as const, workspace: defaultRuntime.workspace, executorUrl: defaultRuntime.executorUrl, executorToken: defaultRuntime.executorToken, ...hybrid }
-            : { type: 'local' as const, workspace: this.config.workspace, ...hybrid };
+            : {
+                type: 'local' as const,
+                workspace: this.config.workspace,
+                // 配置了 hybrid profile 时同样携带 executor 连接（镜像 remote 分支），
+                // 保证 router.ts 中 member.runtime.executorUrl 有值 —— 否则 hybrid 的
+                // 远端腿会因 remote 配置为空而静默回落为全本地执行。
+                ...(hybridProfiles[roleId] ? { executorUrl: this.config.executorUrl ?? '', executorToken: this.config.executorToken } : {}),
+                ...hybrid,
+              };
       return {
         id: `member-${i}`,
         name: template.name,

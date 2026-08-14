@@ -225,4 +225,51 @@ describe('TeamCoordinator roleLocations', () => {
     expect((team.members.find((m: any) => m.role === 'reviewer')!.runtime as any).hybrid)
       .toBeUndefined();
   });
+
+  it('carries executor connection for local hybrid members via execute (production signature, no defaultRuntime)', async () => {
+    // 回归防护：R1 —— 生产默认路径（createTeam 无 defaultRuntime）下，local 成员配置了
+    // hybrid profile 时必须携带 executorUrl/executorToken，否则 hybrid 远端腿静默失效。
+    const coordinator = makeCoordinator({
+      executorUrl: 'http://executor:8767',
+      executorToken: 'tok-secret',
+      hybridProfiles: { reviewer: 'remote-full' },
+    });
+    stubLlmPaths(coordinator, makeFakeAgents());
+
+    await coordinator.execute(
+      '任务',
+      ['executor', 'reviewer'],
+      undefined,
+      { reviewer: 'local' },
+    );
+
+    const revMember = coordinator['team']!.members.find((m) => m.role === 'reviewer')!;
+    expect(revMember.location).toBe('local');
+    expect(revMember.runtime.type).toBe('local');
+    // hybrid 远端腿所需的 executor 连接已随 runtime 携带
+    expect(revMember.runtime.executorUrl).toBe('http://executor:8767');
+    expect((revMember.runtime as any).executorToken).toBe('tok-secret');
+    expect((revMember.runtime as any).hybrid).toEqual({ profile: 'remote-full' });
+  });
+
+  it('omits executor fields for local members without hybrid profile', async () => {
+    const coordinator = makeCoordinator({
+      executorUrl: 'http://executor:8767',
+      hybridProfiles: { reviewer: 'remote-full' },
+    });
+    stubLlmPaths(coordinator, makeFakeAgents());
+
+    await coordinator.execute(
+      '任务',
+      ['executor', 'reviewer'],
+      undefined,
+      { reviewer: 'local' },
+    );
+
+    // executor（无 hybrid profile）是纯 local 成员，不应携带 executor 连接
+    const execMember = coordinator['team']!.members.find((m) => m.role === 'executor')!;
+    expect(execMember.location).toBe('local');
+    expect((execMember.runtime as any).hybrid).toBeUndefined();
+    expect((execMember.runtime as any).executorUrl).toBeUndefined();
+  });
 });

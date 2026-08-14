@@ -25,6 +25,25 @@ describe('RouterFactory hybrid', () => {
     expect(router.constructor.name).toBe('HybridToolkitRouter');
   });
 
+  it('returns HybridToolkitRouter for local hybrid member carrying executor connection', () => {
+    // R1 回归防护：local 成员 + hybrid profile + executorUrl（coordinator 生产路径产物）
+    // → getRouterForMember 必须返回 HybridToolkitRouter 且 hybrid 远端腿配置到位。
+    const factory = new RouterFactory();
+    const router = factory.getRouterForMember(makeMember({
+      location: 'local',
+      runtime: {
+        type: 'local',
+        workspace: '/tmp/ws',
+        executorUrl: 'http://e:8767',
+        executorToken: 'tok',
+        hybrid: { profile: 'remote-full' },
+      } as any,
+    }));
+    expect(router.constructor.name).toBe('HybridToolkitRouter');
+    // hybrid 远端腿必须真实挂载（executorUrl 有值），否则 remote-full 会静默回落全本地
+    expect((router as any).remote).not.toBeNull();
+  });
+
   it('returns RemoteToolkitRouter for remote member without hybrid config', () => {
     const factory = new RouterFactory();
     const router = factory.getRouterForMember(makeMember());
