@@ -276,6 +276,7 @@ class ReviewPipeline:
                 critical_signals = ["严重", "致命", "阻塞", "critical", "fatal", "blocker", "必须修复", "不能发布"]
                 if any(sig in reviewer_feedback.lower() for sig in critical_signals):
                     result["status"] = "revision_required"
+                    result.setdefault("issues", [])
                     result["issues"].append({
                         "type": "logic_error",
                         "location": "reviewer",
@@ -289,6 +290,7 @@ class ReviewPipeline:
         # 工具缺失被门禁标记为 skipped（fail-open），不会进入 failures，因此不强制 revision。
         if gate_result and not gate_result.get("passed", True):
             result["status"] = "revision_required"
+            result.setdefault("issues", [])
             for failure in gate_result.get("failures", []):
                 result["issues"].append({
                     "type": failure.get("type", "gate_failure"),

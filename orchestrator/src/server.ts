@@ -5,6 +5,7 @@ import { resolve, extname, join } from 'path';
 import { TeamCoordinator } from './team/coordinator.js';
 import type { IToolkitRouter } from './toolkit/router.js';
 import { RouterFactory } from './toolkit/router.js';
+import type { ExecutionProfile } from './toolkit/hybrid.js';
 import { LLMConfig } from './llm/types.js';
 import { resolveConfig } from './llm/openai.js';
 import { getAvailableRoles } from './team/templates.js';
@@ -26,7 +27,7 @@ const CONTENT_TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-export async function startServer(port: number, routerFactory: RouterFactory, defaultRouter: IToolkitRouter, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>, executorUrl?: string, executorToken?: string) {
+export async function startServer(port: number, routerFactory: RouterFactory, defaultRouter: IToolkitRouter, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>, executorUrl?: string, executorToken?: string, hybridProfile?: ExecutionProfile) {
   const distDir = process.env.DIST_DIR || resolve(process.cwd(), '../dist');
 
   const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -92,7 +93,7 @@ export async function startServer(port: number, routerFactory: RouterFactory, de
     ws.on('message', async (data: Buffer) => {
       try {
         const msg = JSON.parse(data.toString());
-        await handleMessage(ws, session, msg, routerFactory, defaultRouter, executorUrl, executorToken);
+        await handleMessage(ws, session, msg, routerFactory, defaultRouter, executorUrl, executorToken, hybridProfile);
       } catch (err: any) {
         ws.send(JSON.stringify({ type: 'error', message: err.message }));
       }
@@ -118,6 +119,7 @@ async function handleMessage(
   defaultRouter: IToolkitRouter,
   executorUrl?: string,
   executorToken?: string,
+  hybridProfile?: ExecutionProfile,
 ) {
   switch (msg.type) {
     case 'config': {
@@ -147,6 +149,12 @@ async function handleMessage(
         return;
       }
 
+      // CLI --profile / MDH_PROFILE：默认应用到所有角色（全角色映射），
+      // 使 createTeam 为每个成员写入 runtime.hybrid → HybridToolkitRouter。
+      const hybridProfiles = hybridProfile
+        ? Object.fromEntries(getAvailableRoles().map((r) => [r, hybridProfile]))
+        : undefined;
+
       const coordinator = new TeamCoordinator({
         llm: llmConfig,
         routerFactory,
@@ -154,6 +162,7 @@ async function handleMessage(
         workspace: session.workspace,
         executorUrl,
         executorToken,
+        hybridProfiles,
         onWorkspaceConfirm: (request) => {
           return new Promise((resolve) => {
             // 发送工作区确认请求给前端

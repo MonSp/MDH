@@ -194,8 +194,14 @@ class MeetingCoordinator:
         prompt: str,
         agent_toolset,
         max_tool_rounds: int = 5,
+        on_model_error: Optional[Callable[[], None]] = None,
     ) -> Dict[str, Any]:
-        """LLM + 工具执行循环：代码块写文件、工具调用、产物收集"""
+        """LLM + 工具执行循环：代码块写文件、工具调用、产物收集
+
+        on_model_error: 模型层异常回调。仅当 model.reply 抛异常时触发
+            （先回调再 re-raise）。工具层异常（写文件/工具调用失败）不触发
+            ——failover 归因收窄：工具层错误不归因于模型，避免驱逐健康模型。
+        """
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
         conversation = [msg]
         files_written: List[str] = []
@@ -205,7 +211,12 @@ class MeetingCoordinator:
         from code_extractor import extract_code_blocks
 
         for _ in range(max_tool_rounds + 1):
-            response = await model.reply(conversation)
+            try:
+                response = await model.reply(conversation)
+            except Exception:
+                if on_model_error:
+                    on_model_error()
+                raise
             last_text = _extract_text(response)
 
             code_blocks = extract_code_blocks(last_text)
@@ -328,12 +339,16 @@ class MeetingCoordinator:
         )
 
         try:
-            loop_result = await self._run_agent_execution_loop(model, prompt, agent_toolset)
+            loop_result = await self._run_agent_execution_loop(
+                model, prompt, agent_toolset,
+                on_model_error=lambda: self._mark_model_failed(role),
+            )
         except Exception as e:
             self.logger.warning("工作流节点执行失败: %s", e)
-            # 单点治理：模型调用异常视为坏模型，驱逐缓存 + 标记 pool 实例不健康，
-            # 下次 _get_model 重新获取健康实例（failover）
-            self._mark_model_failed(role)
+            # 单点治理：仅模型层异常触发 _mark_model_failed（loop 内 on_model_error
+            # 回调在 model.reply 抛错时先标记再 re-raise），驱逐缓存 + 标记 pool
+            # 实例不健康，下次 _get_model 重新获取健康实例（failover）。
+            # 工具层异常（写文件/工具调用失败）不归因于模型，不驱逐健康模型。
             loop_result = {
                 "result": LLM_FALLBACK_TEMPLATE.format(role=node.dept_id, content_type="执行结果"),
                 "files_written": [],
@@ -874,10 +889,10 @@ class MeetingCoordinator:
 
         WhyBuddy化：审查逻辑委托给ReviewPipeline，自动激活CriticAgent和GroundingAgent。
 
-        注意：本路径（execute_and_review_task）当前不接确定性门禁
-        （_run_deterministic_gate 仅在 process_user_message 的开发循环中调用），
-        后续统一时需补上门禁。
-        
+        本路径同样接入确定性门禁：review 调用前对工作区运行 _run_deterministic_gate，
+        测试/lint 真实失败强制 revision_required；工具缺失（基础设施不可用）由门禁
+        fail-open 记为 skipped，不触发 revision_required。
+
         Returns:
             Tuple[审查结果, 执行结果列表]
         """
@@ -888,36 +903,56 @@ class MeetingCoordinator:
         review_result = {}
         if task_results:
             execution_result = self._build_execution_artifact_text(task_results)
+            # 确定性门禁：与开发循环一致，门禁内部为同步 subprocess（lint/test），
+            # 通过 asyncio.to_thread 卸载到线程池，避免阻塞事件循环。
+            gate_result = await asyncio.to_thread(
+                self._run_deterministic_gate,
+                self._workspace.root_path if self._workspace else None,
+            )
             review_result = await self._review_pipeline.review(
-                task_description, execution_result, on_message
+                task_description, execution_result, on_message, gate_result=gate_result
             )
 
         return review_result, task_results
 
-    # 工具缺失信号：基础设施不可用（pylint/pytest 未安装等）而非真实检查失败。
-    # 仅保留确定性的缺失文本信号：实测 _exec_run_tests 在 python -m pytest 缺模块且
-    # pytest 不在 PATH 时返回 "[Errno 2] No such file or directory: 'pytest'"，
-    # _exec_run_linter 在 python -m pylint 缺模块时返回 "<python路径>: No module named pylint"。
-    # 不使用裸 "not found"，避免误伤真实失败（如 pytest 的
-    # "AssertionError: config key not found"）而错误地 fail-open。
-    _GATE_TOOL_MISSING_SIGNALS = (
-        "no module named",
-        "no such file or directory",
-        "command not found",
+    # 工具缺失信号（通道感知 + 工具特定）：门禁只跑 run_linter（pylint）与 run_tests（pytest）
+    # 两个工具，故 error 通道只匹配这两个工具的缺失文本，不做通用匹配。
+    # error 通道承载 spawn OSError / import stderr（实测 _exec_run_tests 在 python -m pytest
+    # 缺模块且 pytest 不在 PATH 时 error 为 "[Errno 2] No such file or directory: 'pytest'"，
+    # _exec_run_linter 在 python -m pylint 缺模块时 error 为 "<python路径>: No module named pylint"）；
+    # output 通道承载命令 stdout（真实检查失败、未收集到测试均出现在此处）。
+    # 工具特定匹配使 conftest/插件导入错误（如 "ModuleNotFoundError: No module named foo"）
+    # 不再被误判为工具缺失 → fail-closed，暴露真实项目缺陷。
+    _GATE_ERROR_CHANNEL_SIGNALS = (
+        "no module named pytest",
+        "no module named pylint",
+        "no such file or directory: 'pytest'",
+        "no such file or directory: 'pylint'",
+    )
+    _GATE_OUTPUT_CHANNEL_SIGNALS = (
         "no tests were collected",
         "no tests ran",
     )
 
-    def _gate_check_unavailable(self, tool_result: Any) -> bool:
+    @staticmethod
+    def _gate_check_unavailable(error: str, output: str) -> bool:
         """判断 lint/test 工具结果为工具缺失（基础设施不可用）
 
-        匹配 output/error 中的工具缺失信号（pylint/pytest 未安装、测试未收集等）。
+        通道感知 + 工具特定：error 通道只匹配 pytest/pylint 的缺失文本
+        （未安装、spawn OSError），不做通用 "no module named / no such file"
+        匹配——conftest/插件导入错误（如 "ModuleNotFoundError: No module
+        named 'conftest_dep'"）不会被误判为工具缺失，保持 fail-closed；
+        无测试信号（未收集到测试）出现在 output 通道。真实检查失败（如 pytest
+        输出 "FileNotFoundError: No such file or directory: 'missing_data.csv'"）
+        位于 output 通道，不匹配 error 通道信号 → 不会被误判为工具缺失而
+        fail-open。返回 True 表示工具缺失/无测试（→ skipped）。
         """
-        text = (
-            f"{getattr(tool_result, 'error', '') or ''}\n"
-            f"{getattr(tool_result, 'output', '') or ''}"
-        ).strip().lower()
-        return any(sig in text for sig in self._GATE_TOOL_MISSING_SIGNALS)
+        error_text = (error or "").strip().lower()
+        output_text = (output or "").strip().lower()
+        return (
+            any(sig in error_text for sig in MeetingCoordinator._GATE_ERROR_CHANNEL_SIGNALS)
+            or any(sig in output_text for sig in MeetingCoordinator._GATE_OUTPUT_CHANNEL_SIGNALS)
+        )
 
     def _run_deterministic_gate(self, workspace_root: Optional[str] = None) -> Dict[str, Any]:
         """确定性门禁：对工作区运行测试与代码检查，失败即 revision_required
@@ -938,7 +973,7 @@ class MeetingCoordinator:
             )
             lint = toolset.run_linter(".")
             if not lint.success:
-                if self._gate_check_unavailable(lint):
+                if self._gate_check_unavailable(lint.error or "", lint.output or ""):
                     # 基础设施不可用（如 pylint 未安装）→ fail-open：跳过并记录，不产生失败
                     lint_detail = (lint.error or lint.output or "lint 工具不可用")[:200]
                     result["skipped"].append({
@@ -954,7 +989,7 @@ class MeetingCoordinator:
                     })
             tests = toolset.run_tests(verbose=False)
             if not tests.success:
-                if self._gate_check_unavailable(tests):
+                if self._gate_check_unavailable(tests.error or "", tests.output or ""):
                     # 基础设施不可用（如 pytest 未安装 / 未收集到测试）→ fail-open：跳过并记录
                     test_detail = (tests.error or tests.output or "测试工具不可用")[:200]
                     result["skipped"].append({

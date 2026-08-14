@@ -317,3 +317,36 @@ async def test_gate_no_skipped_key_absent(pipeline):
         gate_result={"passed": True, "failures": []},
     )
     assert "gate_skipped" not in result["structured_feedback"]
+
+
+# ── planner issues 加固：result 无 issues 键时 setdefault 兜底 ──
+
+
+def test_gate_failure_without_planner_issues_key_no_keyerror(pipeline):
+    """planner 返回无 issues 键的 result + gate 失败 → 不 KeyError，status revision_required"""
+    pipeline._planner.generate_review_feedback = MagicMock(return_value={
+        "status": "approved", "max_iterations": 3,
+    })
+    gate_result = {
+        "passed": False,
+        "failures": [
+            {"type": "test_failure", "location": ".", "detail": "tests/test_x.py 失败"},
+        ],
+    }
+    result = pipeline._generate_structured_feedback(
+        "任务", "产出", reviewer_feedback="实现正确", gate_result=gate_result,
+    )
+    assert result["status"] == "revision_required"
+    assert any(i["type"] == "test_failure" for i in result["issues"])
+
+
+def test_critical_reviewer_without_planner_issues_key_no_keyerror(pipeline):
+    """planner result 无 issues 键 + reviewer 严重反馈 → 不 KeyError，revision_required"""
+    pipeline._planner.generate_review_feedback = MagicMock(return_value={
+        "status": "approved", "max_iterations": 3,
+    })
+    result = pipeline._generate_structured_feedback(
+        "任务", "产出", reviewer_feedback="存在致命缺陷，不能发布",
+    )
+    assert result["status"] == "revision_required"
+    assert any(i["type"] == "logic_error" for i in result["issues"])
