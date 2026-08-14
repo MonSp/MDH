@@ -30,7 +30,7 @@
 
 **Interfaces:**
 - Consumes: `MeetingSession.add_message(role, content, agent_id=None)`（meeting.py:245-254）、`uuid`/`time`（已 import）
-- Produces: `SessionEvent` dataclass（`event_id/event_type/role/content/agent_id/phase/actor/span_id/timestamp`）；`SessionEventType` 枚举（`user_message/agent_message/discussion/execution/review/approval/experience_injection/tool/audit` 等最小集）；`MeetingSession.__init__(meeting_id, session_log_dir: Optional[str] = None)`；`add_message(...)` 追加事件并 JSONL 持久化（append 一行，崩溃安全用"append 即写"而非原子替换——JSONL append 天然可断点续读）；`deriveMessages(event_types=None, window=None, max_content_len=None) -> List[dict]`（从事件流投影为消息列表，兼容现有 `messages` 结构 `{id, role, content, agent_id, timestamp}`）；`load_events()` 静态/类方法（重载持久化事件）；`messages` 属性保持（投影或内存镜像）
+- Produces: `SessionEvent` dataclass（`event_id/event_type/role/content/agent_id/phase/actor/span_id/timestamp`）；`SessionEventType` 枚举（`user_message/agent_message/discussion/execution/review/approval/experience_injection/tool/audit`，另含 `system` 供非 user/agent 角色推断回退——见 Step 3b，共 10 成员）；`MeetingSession.__init__(meeting_id, session_log_dir: Optional[str] = None)`；`add_message(...)` 追加事件并 JSONL 持久化（append 即写，断点可续读）；`deriveMessages(event_types=None, window=None, max_content_len=None) -> List[dict]`（从事件流投影为消息列表，兼容现有 `messages` 结构 `{id, role, content, agent_id, timestamp}`）；`load_events()` 静态/类方法（重载持久化事件）；`messages` 属性保持（投影或内存镜像）
 
 - [ ] **Step 1: 写失败测试**（新建 `backend/tests/test_session_log.py`）
 
