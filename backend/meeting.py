@@ -323,6 +323,11 @@ class MeetingSession:
 
     def _append_event(self, message: dict) -> None:
         """将消息追加为结构化 SessionEvent（内存镜像 + JSONL append）。"""
+        if not self._events and self._session_log_dir:
+            # 重载会话先 add_message 后 deriveMessages（续会自然顺序）时，
+            # _events 已被新消息填为非空导致 deriveMessages 的磁盘回填短路；
+            # 这里在首次 append 前先回填磁盘历史，防丢失。
+            self._events = self.load_events()
         event = SessionEvent(
             event_id=message["id"],
             event_type=self._infer_event_type(message["role"]),

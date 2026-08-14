@@ -130,6 +130,18 @@ def test_reload_then_append_keeps_history(tmp_path):
     assert [x["content"] for x in second] == ["A1", "A2", "B1"]
 
 
+def test_add_before_derive_keeps_history(tmp_path):
+    """重载会话先 add_message 再 deriveMessages 仍含磁盘历史（续会顺序）"""
+    m1 = MeetingSession("m1", session_log_dir=str(tmp_path))
+    m1.add_message("agent", "A1", "a")
+    m1.add_message("agent", "A2", "b")
+
+    m2 = MeetingSession("m1", session_log_dir=str(tmp_path))
+    m2.add_message("agent", "B1", "c")   # 先 add
+    msgs = m2.deriveMessages()
+    assert [x["content"] for x in msgs] == ["A1", "A2", "B1"]
+
+
 def test_load_events_skips_non_dict_json_lines(tmp_path):
     """合法 JSON 非 dict 行（如 123）被跳过而非引发 AttributeError"""
     m = MeetingSession("m1", session_log_dir=str(tmp_path))
