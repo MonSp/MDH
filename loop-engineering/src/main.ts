@@ -13,8 +13,12 @@ Commands:
   metrics    Collect and analyze codebase metrics
   evolve     Run prompt evolution cycles
   ci         CI integration and regression detection
+             (replay gate runs first; 需设置 LOOP_WORKSPACE 或 --workspace=DIR
+             指向回放工作区——有快照时缺省会 FAIL)
   coverage   Show scenario coverage report
   replay     Keyless snapshot replay (diff checkpoints vs workspace)
+             (需设置 LOOP_WORKSPACE 或 --workspace=DIR 指向回放工作区；
+             有快照时缺省会 FAIL，且工作区须恢复到各迭代记录时的状态)
 
 Options:
   --help             Show this help message
@@ -22,6 +26,7 @@ Options:
   --component=X      (evolve) Evolve a specific component
   --threshold=N      (ci) Set quality score threshold (default: 80)
   --workspace=DIR    (ci/replay) Workspace dir to replay snapshots against
+                     (优先于 LOOP_WORKSPACE 环境变量)
 `);
 }
 

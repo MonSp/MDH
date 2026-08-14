@@ -127,6 +127,10 @@ interface CheckpointFile {
  * - 无检查点目录 / 无 json / 无含 snapshot 的 result → 无事可做，pass（exit 0）
  * - 有 snapshot 但未提供 workspace → 无法回放，fail（提示 --workspace=<dir>）
  * - 任一 snapshot 回放 diff 非空或回放异常 → fail（exit 1）
+ *
+ * 范围契约：replay 覆盖**全部已记录快照**（保守 fail-safe），区别于 runCiGate 其余
+ * 门禁只评估最新迭代——因此回放工作区必须恢复到各迭代记录时的状态。容器流程每场景
+ * 清空工作区（无跨迭代漂移）；宿主持久工作区需注意旧快照漂移会触发假阳性 diff。
  */
 export function runReplay(workspacePath: string, checkpointsDir: string = DEFAULT_CHECKPOINTS_DIR): boolean {
   if (!existsSync(checkpointsDir)) {
