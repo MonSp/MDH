@@ -69,3 +69,35 @@ def test_gate_create_pending_and_decide():
 
     pending_after = client.get("/api/gates/pending").json()
     assert all(r["id"] != request_id for r in pending_after)
+
+
+def test_gate_decide_string_false_is_rejected():
+    """字符串 "false" 不是布尔 True，必须 fail-closed：resolved 为 False，请求保持未批准。"""
+    resp = client.post("/api/gates", json={
+        "requesterId": "agent-minutes",
+        "operation": "minutes_review",
+        "description": "纪要待确认",
+        "taskId": "task-2",
+        "gateId": "gate-2",
+    })
+    assert resp.status_code == 200
+    request_id = resp.json()["id"]
+
+    decided = client.post(
+        f"/api/gates/{request_id}/decide",
+        json={"approved": "false", "reason": "字符串非布尔"},
+    )
+    assert decided.status_code == 200
+    # 非布尔 approved 一律视为未批准（fail-closed），不得解析为 True
+    assert decided.json()["resolved"] is False
+
+
+def test_hybrid_team_missing_dag_returns_error():
+    """缺 dag 字段时返回错误响应而非 HTTP 500。"""
+    resp = client.post("/api/hybrid/team", json={
+        "project_id": "proj-demo",
+        "humans": [],
+    })
+    assert resp.status_code != 500
+    body = resp.json()
+    assert body.get("error")

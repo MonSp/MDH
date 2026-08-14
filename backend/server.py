@@ -2475,7 +2475,10 @@ async def get_workflow_visualization(execution_id: str):
 @app.post("/api/hybrid/team")
 async def api_hybrid_team(body: dict):
     """演示：组装人+agent 混合团队。body: {project_id, dag, humans}"""
-    dag = body["dag"]
+    try:
+        dag = body["dag"]
+    except KeyError:
+        return _fail("缺少必填字段: dag")
     runtime = TeamRuntime(
         runtime_id=f"rt-{body.get('project_id', 'demo')}",
         runtime_type=RuntimeType.LOCAL_DOCKER,
@@ -2534,11 +2537,17 @@ async def api_gates_pending():
 
 @app.post("/api/gates/{request_id}/decide")
 async def api_gate_decide(request_id: str, body: dict):
-    """演示：对把关请求做出决定"""
-    resolved = await _demo_gate_manager.handle_gate_response(
-        request_id, bool(body.get("approved", False)), reason=body.get("reason", ""),
+    """演示：对把关请求做出决定（fail-closed：仅 approved 严格等于 True 视为批准）"""
+    approved = body.get("approved")
+    if approved is True:
+        return {"resolved": await _demo_gate_manager.handle_gate_response(
+            request_id, True, reason=body.get("reason", ""),
+        )}
+    # 缺失 / False / 非布尔（如字符串 "false"）一律视为拒绝，fail-closed
+    await _demo_gate_manager.handle_gate_response(
+        request_id, False, reason=body.get("reason", ""),
     )
-    return {"resolved": resolved}
+    return {"resolved": False}
 
 
 @app.get("/health")
