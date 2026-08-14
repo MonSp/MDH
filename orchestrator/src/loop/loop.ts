@@ -20,6 +20,8 @@ import { WebSocket } from 'ws';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
+import { buildScenarioSnapshot, runKeylessChecks } from './snapshot.js';
+import type { Snapshot, ScenarioRunResults } from './snapshot.js';
 
 const MDH_ROOT = process.env.MDH_ROOT || '/home/test/MDH';
 const LOOP_DIR = join(MDH_ROOT, 'orchestrator');
@@ -387,6 +389,12 @@ interface Result {
   filesCreated: string[];
   testOutput: string;
   issues: { type: string; severity: string; desc: string }[];
+  snapshot?: Snapshot;   // 确定性快照（keyless 重放用；向后兼容，旧检查点无此字段）
+}
+
+interface RunScenarioOptions {
+  keyless?: boolean;    // 跳过模型循环，只做确定性校验
+  workspace?: string;   // keyless 模式校验的工作区目录（默认 /workspace）
 }
 
 async function exec(cmd: string): Promise<string> {
@@ -398,15 +406,46 @@ async function cleanWorkspace() {
   await exec(`curl -s -X POST http://localhost:8767/execute -H "Content-Type: application/json" -H "Authorization: Bearer mdh-executor-secret-2026" -d '{"tool_name":"bash","arguments":{"command":"cd /workspace && find . -maxdepth 1 -not -name . -not -name .git -exec rm -rf {} + 2>/dev/null; echo clean"},"call_id":"clean","permission_token":"loop"}'`);
 }
 
-function runScenario(s: Scenario): Promise<Result> {
+function runScenario(s: Scenario, opts: RunScenarioOptions = {}): Promise<Result> {
   return new Promise(async (resolve) => {
     const start = Date.now();
+
+    if (opts.keyless) {
+      // keyless：跳过模型循环与 WebSocket，只跑确定性校验（无 key 可重放）
+      const workspace = opts.workspace || '/workspace';
+      const snapshot = runKeylessChecks(s, workspace);
+      const filesCreated = Object.values(snapshot.files).filter(f => f.exists).map(f => f.path);
+      const issues: { type: string; severity: string; desc: string }[] = [];
+      for (const f of Object.values(snapshot.files)) {
+        if (!f.exists) issues.push({ type: 'quality', severity: 'high', desc: `文件未创建: ${f.path}` });
+        else if (f.size === 0) issues.push({ type: 'quality', severity: 'high', desc: `文件为空: ${f.path}` });
+      }
+      for (const c of snapshot.verifyCommands) {
+        if (!c.passed) issues.push({ type: 'quality', severity: 'high', desc: `校验命令失败: ${c.command}` });
+      }
+      for (const qc of snapshot.qualityChecks) {
+        if (!qc.passed) issues.push({ type: 'quality', severity: 'medium', desc: `${qc.name}: ${qc.desc}` });
+      }
+      const result: Result = {
+        scenarioId: s.id,
+        success: issues.filter(i => i.severity === 'high').length === 0,
+        duration: Date.now() - start,
+        phases: [], agents: [], toolsUsed: [],
+        filesCreated, testOutput: '', issues,
+        snapshot,
+      };
+      resolve(result);
+      return;
+    }
+
     const issues: { type: string; severity: string; desc: string }[] = [];
     const phases: string[] = [];
     const agents = new Set<string>();
     const toolsUsed = new Set<string>();
     const filesCreated: string[] = [];
     let testOutput = '';
+    // 确定性校验结果收集（文件内容 / 命令执行结果 / 质量校验），写检查点前序列化为快照
+    const runResults: ScenarioRunResults = { files: {}, commands: {}, qualityChecks: {} };
 
     await cleanWorkspace();
 
@@ -430,8 +469,13 @@ function runScenario(s: Scenario): Promise<Result> {
             const readCheck = await exec(`curl -s -X POST http://localhost:8767/execute -H "Content-Type: application/json" -H "Authorization: Bearer mdh-executor-secret-2026" -d '{"tool_name":"read_file","arguments":{"path":"${foundPath}"},"call_id":"r"}'`);
             const rd = JSON.parse(readCheck);
             console.log(`    [verify] read ${foundPath}: ${rd.success ? 'OK' : 'FAIL'} len=${String(rd.result || '').length}`);
-            if (rd.success && rd.result && String(rd.result).length > 10) filesCreated.push(file);
-            else issues.push({ type: 'quality', severity: 'high', desc: `文件为空: ${file}` });
+            if (rd.success && rd.result && String(rd.result).length > 10) {
+              filesCreated.push(file);
+              runResults.files![file] = String(rd.result);
+            } else {
+              if (rd.success && rd.result) runResults.files![file] = String(rd.result);
+              issues.push({ type: 'quality', severity: 'high', desc: `文件为空: ${file}` });
+            }
           } else {
             issues.push({ type: 'quality', severity: 'high', desc: `文件未创建: ${file}` });
           }
@@ -441,7 +485,14 @@ function runScenario(s: Scenario): Promise<Result> {
       // 测试执行
       for (const cmd of s.verifyCommands) {
         const r = await exec(`curl -s -X POST http://localhost:8767/execute -H "Content-Type: application/json" -H "Authorization: Bearer mdh-executor-secret-2026" -d '{"tool_name":"bash","arguments":{"command":"${cmd.replace(/"/g, '\\"')}"},"call_id":"t"}'`);
-        try { testOutput += JSON.parse(r).result || ''; } catch {}
+        try {
+          const parsed = JSON.parse(r);
+          testOutput += parsed.result || '';
+          // executor 无显式 exitCode，以 success（returncode==0）映射 0/1
+          runResults.commands![cmd] = { exitCode: parsed.success ? 0 : 1, stdout: String(parsed.result || '') };
+        } catch {
+          runResults.commands![cmd] = { exitCode: -1, stdout: '' };
+        }
       }
 
       const result: Result = {
@@ -451,10 +502,14 @@ function runScenario(s: Scenario): Promise<Result> {
       };
 
       for (const qc of s.qualityChecks) {
-        if (!qc.check(result)) issues.push({ type: 'quality', severity: 'medium', desc: `${qc.name}: ${qc.desc}` });
+        const passed = qc.check(result);
+        runResults.qualityChecks![qc.name] = passed;
+        if (!passed) issues.push({ type: 'quality', severity: 'medium', desc: `${qc.name}: ${qc.desc}` });
       }
       result.issues = issues;
       result.success = issues.filter(i => i.severity === 'high').length === 0;
+      // 校验结果序列化为确定性快照（hash/exitCode/passed，不含时间戳/时长/LLM 文本）
+      result.snapshot = buildScenarioSnapshot(s, runResults);
       resolve(result);
     };
 
@@ -486,6 +541,8 @@ function runScenario(s: Scenario): Promise<Result> {
 async function main() {
   const args = process.argv.slice(2);
   const retryFailed = args.includes('--retry-failed');
+  const keyless = args.includes('--keyless');
+  const workspaceArg = args.find(a => a.startsWith('--workspace='))?.split('=')[1];
   const singleScenario = args.find(a => a.startsWith('--scenario='))?.split('=')[1];
 
   const checkpointFile = join(CHECKPOINTS_DIR, 'latest.json');
@@ -512,7 +569,7 @@ async function main() {
     }
   }
 
-  const label = retryFailed ? '重测失败场景' : singleScenario ? `单场景: ${singleScenario}` : '全量测试';
+  const label = retryFailed ? '重测失败场景' : singleScenario ? `单场景: ${singleScenario}` : keyless ? '全量 keyless 校验' : '全量测试';
   console.log('╔══════════════════════════════════════════════════════╗');
   console.log('║  Loop Engineering v5 — Full System Coverage          ║');
   console.log('╚══════════════════════════════════════════════════════╝');
@@ -523,7 +580,7 @@ async function main() {
   for (let i = 0; i < scenariosToRun.length; i++) {
     const s = scenariosToRun[i];
     console.log(`[${i + 1}/${scenariosToRun.length}] ${s.name} (${s.subsystem})`);
-    const r = await runScenario(s);
+    const r = await runScenario(s, { keyless, workspace: workspaceArg });
     results.push(r);
     console.log(`  ${r.success ? '✅' : '❌'} ${(r.duration / 1000).toFixed(1)}s | ${r.agents.length} agents | ${r.toolsUsed.length} tools | ${r.filesCreated.length} files`);
     console.log(`  Phases: ${r.phases.join(' → ')}`);
