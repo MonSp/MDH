@@ -506,6 +506,7 @@ class MeetingCoordinator:
                         agenda=self.agenda,
                         negotiation=self.negotiation,
                         get_model_fn=self._get_model,
+                        meeting=self.meeting,
                     )
                 return await self._mixed_discussion.run(topic, on_message, max_rounds)
             except Exception as e:
@@ -1179,7 +1180,7 @@ class MeetingCoordinator:
         self.logger.info("串行流程 - 任务描述已整合讨论结果: 原始长度=%d, 增强后长度=%d",
                         len(original_description), len(enhanced_description))
 
-        # 注入历史经验：从过往项目中检索相关规则，注入任务描述
+        # 注入历史经验（本期保留现有实现，P3 后续可事件化）
         try:
             from experience_extractor import ExperienceExtractor
             import os
@@ -1558,13 +1559,19 @@ class MeetingCoordinator:
 
     def _extract_discussion_decisions(self, discussion_results: list) -> str:
         """从讨论结果中提取结构化决策摘要
-        
+        P3：优先从 SessionEvent 事件流投影（保留 support/modify 过滤与 8 条/120 字语义）；
+        无事件流时回退到 discussion_results 既有实现。
+
         Args:
-            discussion_results: 讨论结果列表
-            
+            discussion_results: 讨论结果列表（回退路径使用）
+
         Returns:
             决策摘要文本（供审查阶段使用）
         """
+        projected = self._project_discussion_decisions()
+        if projected is not None:
+            return projected
+
         if not discussion_results:
             return ""
         
@@ -1584,6 +1591,62 @@ class MeetingCoordinator:
         if not decisions:
             return ""
         return "团队讨论确定的方案与约束：\n" + "\n".join(decisions[:8])
+
+    def _project_discussion_decisions(self) -> Optional[str]:
+        """从 SessionEvent 事件流投影讨论决策摘要。
+
+        保留 support/modify 过滤与 8 条/120 字语义：对投影到的 agent_message 事件
+        解析内容中的 [STANCE:] 标签（先于截断），仅保留 support/modify，每条剥标签后
+        截断到 120 字，最多取前 8 条。返回 None 时由调用方回退既有实现。
+        """
+        try:
+            projected = self.meeting.deriveMessages(
+                event_types=["agent_message"], window=50
+            )
+        except Exception as e:
+            self.logger.warning("讨论决策事件投影失败，回退既有实现: %s", e)
+            return None
+        if not projected:
+            return None
+
+        decisions = []
+        for m in projected:
+            content = m.get("content", "") or ""
+            if not content:
+                continue
+            stance = self._parse_stance_from_content(content)
+            if stance not in ("support", "modify"):
+                continue
+            role = self._resolve_agent_role(m.get("agent_id"))
+            core = self._strip_stance_tags(content)
+            if len(core) > 120:
+                core = core[:120] + "..."
+            icon = "+" if stance == "support" else "~"
+            decisions.append(f"  {icon} [{role}] {core}")
+
+        if not decisions:
+            return None
+        return "团队讨论确定的方案与约束：\n" + "\n".join(decisions[:8])
+
+    def _resolve_agent_role(self, agent_id: Optional[str]) -> str:
+        """从 agent_id 解析角色名（回退为 agent_id 本身）"""
+        if not agent_id:
+            return ""
+        agent = self.meeting.get_agent(agent_id)
+        return agent.role.value if agent else agent_id
+
+    def _parse_stance_from_content(self, content: str) -> str:
+        """从内容中解析 STANCE 标签（缺失视为 neutral）"""
+        match = re.search(r'\[STANCE:(support|oppose|modify|neutral)\]', content, re.IGNORECASE)
+        return match.group(1).lower() if match else "neutral"
+
+    def _strip_stance_tags(self, text: str) -> str:
+        """剥离 STANCE/CONFIDENCE 标签（含未闭合的残留片段）"""
+        core = re.sub(r'\[STANCE:.*?\]', '', text)
+        core = re.sub(r'\[CONFIDENCE:.*?\]', '', core)
+        core = re.sub(r'\[STANCE:[^\]]*$', '', core)
+        core = re.sub(r'\[CONFIDENCE:[^\]]*$', '', core)
+        return core.strip()
 
     def _infer_target_agent(self, discussion_results: list) -> str:
         """从讨论结果中推断目标 Agent

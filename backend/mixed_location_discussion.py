@@ -27,6 +27,17 @@ from team import Team, TeamMember, AgentLocation
 logger = logging.getLogger("mixed_location_discussion")
 
 
+def _strip_stance_tags(text: str) -> str:
+    """剥离 STANCE/CONFIDENCE 标签（含 deriveMessages 先截断内容后残留的未闭合标签）。"""
+    core = re.sub(r'\[STANCE:.*?\]', '', text)
+    core = re.sub(r'\[CONFIDENCE:.*?\]', '', core)
+    # 内容被截断在标签中间时（如 "[STANCE:su"）无闭合括号，上面的正则匹配不到，
+    # 这里兜底剥离残留片段，避免下游 prompt 出现残缺标签。
+    core = re.sub(r'\[STANCE:[^\]]*$', '', core)
+    core = re.sub(r'\[CONFIDENCE:[^\]]*$', '', core)
+    return core.strip()
+
+
 @dataclass
 class DiscussionEntry:
     """单条讨论记录"""
@@ -59,6 +70,7 @@ class MixedLocationDiscussion:
         agenda: AgendaStateMachine,
         negotiation: NegotiationEngine,
         get_model_fn: Callable[[str], Agent],
+        meeting: Optional[Any] = None,
         max_concurrent: int = 6,
         timeout: float = 30.0,
     ):
@@ -70,6 +82,7 @@ class MixedLocationDiscussion:
             agenda: 议程状态机
             negotiation: 协商引擎
             get_model_fn: 获取模型的函数
+            meeting: MeetingSession 实例（P3：previous_context 从 SessionEvent 事件流投影）
             max_concurrent: 最大并发数
             timeout: 单个Agent响应超时时间（秒）
         """
@@ -77,6 +90,7 @@ class MixedLocationDiscussion:
         self._agenda = agenda
         self._negotiation = negotiation
         self._get_model = get_model_fn
+        self._meeting = meeting
         self._max_concurrent = max_concurrent
         self._timeout = timeout
         self._semaphore = asyncio.Semaphore(max_concurrent)
@@ -189,6 +203,15 @@ class MixedLocationDiscussion:
                 
                 round_results.append(entry.__dict__)
                 all_discussions.append(entry.__dict__)
+
+                # P3 统一写入口：讨论发言同步写入 SessionEvent 事件流（与串行
+                # DiscussionManager 一致），使 previous_context 的 deriveMessages
+                # 投影能看到本轮讨论内容（否则并行讨论的后续轮次将丢失前序发言）。
+                if self._meeting is not None:
+                    try:
+                        self._meeting.add_message("agent", entry.content, member.agent_id)
+                    except Exception as e:
+                        logger.warning("讨论发言写入会议事件流失败: %s", e)
             
             round_elapsed = time.time() - round_start_time
             logger.info("第 %d 轮讨论完成，耗时 %.2f 秒", current_round, round_elapsed)
@@ -290,7 +313,52 @@ class MixedLocationDiscussion:
     def _build_previous_context(self, discussions: List[Dict[str, Any]]) -> str:
         """
         构建之前的讨论上下文
+        P3：优先从 SessionEvent 事件流投影（保留既有 10 条/80 字语义）；
+        无事件流时回退到既有讨论列表拼装。
         """
+        projected = self._project_previous_context()
+        if projected is not None:
+            return projected
+        return self._build_legacy_previous_context(discussions)
+
+    def _project_previous_context(self) -> Optional[str]:
+        """从 SessionEvent 事件流投影 previous_context（window=10, max_content_len=80）。
+
+        Returns:
+            投影文本；无 meeting 引用或事件流为空时返回 None（由调用方回退）。
+        """
+        if self._meeting is None:
+            return None
+        try:
+            projected = self._meeting.deriveMessages(window=10, max_content_len=80)
+        except Exception as e:
+            logger.warning("previous_context 事件投影失败，回退既有实现: %s", e)
+            return None
+        if not projected:
+            return None
+
+        context_parts = []
+        for m in projected:
+            content = m.get("content", "") or ""
+            agent_id = m.get("agent_id")
+            member = self._member_info.get(agent_id) if agent_id else None
+            if member:
+                agent_name = member.role_name
+                location = "local" if member.location == AgentLocation.LOCAL else "remote"
+            else:
+                agent_name = "用户" if m.get("role") == "user" else (agent_id or "未知")
+                location = "unknown"
+            location_icon = "💻" if location == "local" else "☁️"
+            # 截取核心观点，去掉STANCE/CONFIDENCE标签（截断由 deriveMessages 的 80 字限制承担）
+            core = _strip_stance_tags(content)
+            if core:
+                context_parts.append(f"{location_icon} {agent_name}: {core}")
+        if not context_parts:
+            return None
+        return "\n".join(context_parts)
+
+    def _build_legacy_previous_context(self, discussions: List[Dict[str, Any]]) -> str:
+        """既有实现：从讨论结果列表拼装（无事件流时的回退路径）"""
         if not discussions:
             return "（暂无讨论）"
         

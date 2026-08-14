@@ -21,6 +21,17 @@ from protocol import AgentRole, MeetingAgentStatus, LLM_FALLBACK_TEMPLATE
 logger = logging.getLogger("discussion_manager")
 
 
+def _strip_stance_tags(text: str) -> str:
+    """剥离 STANCE/CONFIDENCE 标签（含 deriveMessages 先截断内容后残留的未闭合标签）。"""
+    core = re.sub(r'\[STANCE:.*?\]', '', text)
+    core = re.sub(r'\[CONFIDENCE:.*?\]', '', core)
+    # 内容被截断在标签中间时（如 "[STANCE:su"）无闭合括号，上面的正则匹配不到，
+    # 这里兜底剥离残留片段，避免下游 prompt 出现残缺标签。
+    core = re.sub(r'\[STANCE:[^\]]*$', '', core)
+    core = re.sub(r'\[CONFIDENCE:[^\]]*$', '', core)
+    return core.strip()
+
+
 class DiscussionManager:
     """讨论管理器"""
     
@@ -207,6 +218,59 @@ class DiscussionManager:
         return None
     
     def _build_previous_context(self, results: List[Dict[str, Any]]) -> str:
+        """构建之前的讨论上下文
+        P3：优先从 SessionEvent 事件流投影（保留既有 10 条/80 字语义）；
+        无事件流时回退到既有讨论结果拼装。
+        """
+        projected = self._project_previous_context()
+        if projected is not None:
+            return projected
+        return self._build_legacy_previous_context(results)
+
+    def _project_previous_context(self) -> Optional[str]:
+        """从 SessionEvent 事件流投影 previous_context（window=10, max_content_len=80）。
+
+        Returns:
+            投影文本；无 meeting 引用或事件流为空时返回 None（由调用方回退）。
+        """
+        if self._meeting is None:
+            return None
+        try:
+            projected = self._meeting.deriveMessages(window=10, max_content_len=80)
+        except Exception as e:
+            logger.warning("previous_context 事件投影失败，回退既有实现: %s", e)
+            return None
+        if not projected:
+            return None
+
+        lines = []
+        for m in projected:
+            content = m.get("content", "") or ""
+            agent_id = m.get("agent_id")
+            role = self._resolve_agent_role(agent_id, m.get("role"))
+            # 截取核心观点，去掉STANCE/CONFIDENCE标签（截断由 deriveMessages 的 80 字限制承担）
+            core = _strip_stance_tags(content)
+            stance = self._parse_stance_from_content(content)
+            stance_icon = {"support": "+", "oppose": "-", "modify": "~"}.get(stance, "=")
+            lines.append(f"[{role}]({stance_icon}) {core}")
+        if not lines:
+            return None
+        return "\n".join(lines)
+
+    def _resolve_agent_role(self, agent_id: Optional[str], msg_role: Optional[str] = None) -> str:
+        """从 agent_id 解析角色名（回退为消息 role / agent_id 本身）"""
+        if not agent_id:
+            return msg_role or "?"
+        agent = self._meeting.get_agent(agent_id) if self._meeting else None
+        return agent.role.value if agent else (msg_role or agent_id)
+
+    def _parse_stance_from_content(self, content: str) -> str:
+        """从内容中解析 STANCE 标签（截断后可能缺失，缺失视为 neutral）"""
+        match = re.search(r'\[STANCE:(support|oppose|modify|neutral)\]', content, re.IGNORECASE)
+        return match.group(1).lower() if match else "neutral"
+
+    def _build_legacy_previous_context(self, results: List[Dict[str, Any]]) -> str:
+        """既有实现：从讨论结果列表拼装（无事件流时的回退路径）"""
         if not results:
             return "（尚无发言）"
         lines = []

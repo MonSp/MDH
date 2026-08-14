@@ -980,5 +980,67 @@ async def test_execute_and_review_task_gate_uses_workspace_root(coordinator, tmp
     assert kwargs.get("gate_result") == {"passed": True, "failures": []}
 
 
+# ---------------------------------------------------------------------------
+# P3: _extract_discussion_decisions 从 SessionEvent 事件流投影
+# ---------------------------------------------------------------------------
+
+class TestExtractDiscussionDecisionsProjection:
+    def test_projects_from_events_with_stance_filter(self, coordinator):
+        """决策从事件流投影：保留 support/modify，过滤 oppose/neutral"""
+        coordinator.meeting.add_message("agent", "采用事件驱动架构 [STANCE:support] [CONFIDENCE:0.9]", "agent-planner")
+        coordinator.meeting.add_message("agent", "反对该方案 [STANCE:oppose] [CONFIDENCE:0.7]", "agent-reviewer")
+        coordinator.meeting.add_message("agent", "补充安全约束 [STANCE:modify] [CONFIDENCE:0.8]", "agent-monitor")
+        coordinator.meeting.add_message("agent", "无立场发言", "agent-executor")
+
+        result = coordinator._extract_discussion_decisions([])
+
+        assert "团队讨论确定的方案与约束：" in result
+        assert "事件驱动架构" in result        # support 保留
+        assert "安全约束" in result            # modify 保留
+        assert "反对该方案" not in result      # oppose 过滤
+        assert "无立场发言" not in result      # neutral 过滤
+        # 形状与既有实现一致：icon + [role]
+        assert "+ [planner]" in result
+        assert "~ [monitor]" in result
+        assert "[STANCE:" not in result
+        assert "[CONFIDENCE:" not in result
+
+    def test_truncates_to_120_chars(self, coordinator):
+        """每条决策截断到 120 字（保留 ... 后缀）"""
+        long_content = "方案内容" * 60  # 240 字
+        coordinator.meeting.add_message("agent", f"{long_content} [STANCE:support] [CONFIDENCE:0.9]", "agent-planner")
+
+        result = coordinator._extract_discussion_decisions([])
+
+        assert "..." in result
+        assert ("方案内容" * 60) not in result
+        assert len(result) < 240
+
+    def test_limits_to_8_decisions(self, coordinator):
+        """只保留前 8 条 support/modify 决策"""
+        for i in range(12):
+            coordinator.meeting.add_message(
+                "agent", f"决策观点{i} [STANCE:support] [CONFIDENCE:0.9]", f"agent-planner-{i}"
+            )
+        result = coordinator._extract_discussion_decisions([])
+
+        assert result.count("  + [") == 8  # 仅 8 条
+        assert "决策观点11" not in result   # 超出 8 条被截断
+
+    def test_falls_back_to_results_without_events(self, coordinator):
+        """事件流为空时回退到 discussion_results 既有实现"""
+        discussion_results = [
+            {"agent_id": "agent-planner", "role": "planner",
+             "content": "既有方案 [STANCE:support]", "parsed_stance": "support"},
+            {"agent_id": "agent-reviewer", "role": "reviewer",
+             "content": "既有反对", "parsed_stance": "oppose"},
+        ]
+        result = coordinator._extract_discussion_decisions(discussion_results)
+
+        assert "既有方案" in result
+        assert "既有反对" not in result
+        assert "+ [planner]" in result
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -486,7 +486,9 @@ class TaskOrchestrator:
         return plan if len(plan) > 10 else ""
 
     def _get_experience_context(self, task_description: str) -> str:
-        """从经验库中检索相关规则，格式化为提示上下文"""
+        """从经验库中检索相关规则，格式化为提示上下文
+        （本期保留现有实现，P3 后续可事件化）
+        """
         try:
             import os
             data_dir = os.path.join(os.path.dirname(__file__), "data")
