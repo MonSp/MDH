@@ -76,6 +76,11 @@ def _build_approval_send_fn(on_message: Callable[[str, str, str], Awaitable[None
     return lambda payload: on_message("coordinator", payload, "approval")
 
 
+async def _noop_on_message(*args, **kwargs) -> None:
+    """异步空操作 on_message 兜底：无 _on_message 时静默丢弃审批推送。"""
+    return None
+
+
 class MeetingCoordinator:
     def __init__(
         self,
@@ -360,13 +365,48 @@ class MeetingCoordinator:
                 "tool_outputs": [],
             }
 
-        return {
+        node_result = {
             "result": loop_result["result"],
             "node_id": node.node_id,
             "dept_id": node.dept_id,
             "files_written": loop_result["files_written"],
             "tool_outputs": loop_result["tool_outputs"],
         }
+
+        # 节点把关钩子：节点执行成功后、返回前经 M1 把关引擎发起把关
+        gate_result = await self._run_node_gate(node)
+        if gate_result:
+            return {**node_result, "gate": gate_result}
+        return node_result
+
+    async def _run_node_gate(self, node: WorkflowNode) -> Optional[dict]:
+        """节点把关：node.gate 非空且已注入 approval_manager 时发起把关。
+
+        返回 None=通过（含超时默认通过）；否则 rejected 详情。
+        """
+        gate = node.gate
+        if not gate or self._approval_manager is None:
+            return None
+        gate_id = f"{node.node_id}:{gate.get('stage', 'review')}"
+        approval = await self._approval_manager.request_gate(
+            requester_id=getattr(getattr(self, "meeting", None), "host_id", "agent"),
+            operation="node_gate",
+            description=gate.get("reason") or f"节点 {node.node_id} 待把关",
+            task_id=node.node_id,
+            gate_id=gate_id,
+            send_fn=_build_approval_send_fn(
+                getattr(self, "_on_message", None) or _noop_on_message,
+            ),
+        )
+        try:
+            decision = await self._approval_manager.wait_for_decision(
+                approval.id, timeout=self._approval_timeout
+            )
+        except asyncio.TimeoutError:
+            return None  # 超时默认通过（与既有串行审批语义一致）
+        if decision.get("approved") is False:
+            return {"status": "rejected", "reason": decision.get("reason", "")}
+        return None
 
     async def _on_workflow_status_change(self, execution):
         """工作流状态变化回调 — 推送到前端"""
