@@ -395,5 +395,85 @@ class TestBuildPreviousContext:
         assert "Agent-0" not in result  # 最早的应被排除
 
 
+# ── P3: previous_context 从 SessionEvent 事件流投影 ──
+
+def _discussion_with_meeting(meeting):
+    """构造带 meeting 引用的 MixedLocationDiscussion"""
+    return MixedLocationDiscussion(
+        team=create_test_team(),
+        agenda=AgendaStateMachine(),
+        negotiation=NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY),
+        get_model_fn=lambda role: MagicMock(),
+        meeting=meeting,
+    )
+
+
+def test_parallel_discussion_context_from_events(tmp_path):
+    """并行讨论 previous_context 从 SessionEvent 投影（保留最近 10 条/80 字语义）"""
+    from meeting import MeetingSession
+
+    meeting = MeetingSession("m-ctx", session_log_dir=str(tmp_path))
+    long_text = "讨论观点一" * 30  # 150 字 > 80
+    meeting.add_message("agent", long_text, "agent-planner")
+    meeting.add_message("agent", "讨论观点二 [STANCE:support] [CONFIDENCE:0.9]", "agent-executor")
+
+    discussion = _discussion_with_meeting(meeting)
+    context = discussion._build_previous_context([])
+
+    # 投影自事件流：含第二条发言与成员名
+    assert "讨论观点二" in context
+    assert "executor" in context
+    # 长内容截断到 80 字（不含 150 字完整内容）
+    assert long_text not in context
+    # STANCE/CONFIDENCE 标签被剥离
+    assert "[STANCE:" not in context
+    assert "[CONFIDENCE:" not in context
+
+
+def test_parallel_discussion_context_window_limits_to_10(tmp_path):
+    """投影保留最近 10 条事件（最早的事件被排除）"""
+    from meeting import MeetingSession
+
+    meeting = MeetingSession("m-win", session_log_dir=str(tmp_path))
+    for i in range(15):
+        meeting.add_message("agent", f"发言{i}", f"agent-{i}")
+
+    discussion = _discussion_with_meeting(meeting)
+    context = discussion._build_previous_context([])
+    assert "发言14" in context
+    assert "发言0" not in context
+
+
+@pytest.mark.asyncio
+async def test_parallel_discussion_logs_entries_to_meeting(tmp_path):
+    """并行讨论发言应同步写入事件流，供后续轮次投影（与串行 DiscussionManager 一致）"""
+    from meeting import MeetingSession
+
+    meeting = MeetingSession("m-log", session_log_dir=str(tmp_path))
+    team = create_test_team()
+
+    discussion = MixedLocationDiscussion(
+        team=team,
+        agenda=AgendaStateMachine(),
+        negotiation=NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY),
+        get_model_fn=lambda role: create_mock_model(content="我的讨论观点 [STANCE:support] [CONFIDENCE:0.8]"),
+        meeting=meeting,
+    )
+
+    async def on_message(agent_id, text, delta, **kwargs):
+        pass
+
+    await discussion.run(
+        topic="测试事件流写入",
+        on_message=on_message,
+        max_rounds=1,
+    )
+
+    projected = meeting.deriveMessages(window=10, max_content_len=80)
+    assert any("我的讨论观点" in (m.get("content") or "") for m in projected)
+    # 讨论前 meetings 无发言 → 写入后事件流非空
+    assert len(meeting.messages) >= 3  # planner/executor/reviewer 各一条
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

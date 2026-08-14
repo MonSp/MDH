@@ -14,6 +14,7 @@ from agent_pool import AgentPool, AgentConfig
 from agenda import AgendaStateMachine, AgendaPhase
 from approval_manager import ApprovalManager
 from collaboration.planner_agent import PlannerAgent
+from discussion_utils import parse_stance_from_content, resolve_agent_role, strip_stance_tags
 from dynamic_router import DynamicRouter
 from meeting import MeetingSession
 from negotiation import NegotiationEngine, ConsensusStrategy, Stance
@@ -506,6 +507,7 @@ class MeetingCoordinator:
                         agenda=self.agenda,
                         negotiation=self.negotiation,
                         get_model_fn=self._get_model,
+                        meeting=self.meeting,
                     )
                 return await self._mixed_discussion.run(topic, on_message, max_rounds)
             except Exception as e:
@@ -1179,7 +1181,7 @@ class MeetingCoordinator:
         self.logger.info("串行流程 - 任务描述已整合讨论结果: 原始长度=%d, 增强后长度=%d",
                         len(original_description), len(enhanced_description))
 
-        # 注入历史经验：从过往项目中检索相关规则，注入任务描述
+        # 注入历史经验（本期保留现有实现，P3 后续可事件化）
         try:
             from experience_extractor import ExperienceExtractor
             import os
@@ -1558,13 +1560,19 @@ class MeetingCoordinator:
 
     def _extract_discussion_decisions(self, discussion_results: list) -> str:
         """从讨论结果中提取结构化决策摘要
-        
+        P3：优先从 SessionEvent 事件流投影（保留 support/modify 过滤与 8 条/120 字语义）；
+        无事件流时回退到 discussion_results 既有实现。
+
         Args:
-            discussion_results: 讨论结果列表
-            
+            discussion_results: 讨论结果列表（回退路径使用）
+
         Returns:
             决策摘要文本（供审查阶段使用）
         """
+        projected = self._project_discussion_decisions()
+        if projected is not None:
+            return projected
+
         if not discussion_results:
             return ""
         
@@ -1583,6 +1591,42 @@ class MeetingCoordinator:
         
         if not decisions:
             return ""
+        return "团队讨论确定的方案与约束：\n" + "\n".join(decisions[:8])
+
+    def _project_discussion_decisions(self) -> Optional[str]:
+        """从 SessionEvent 事件流投影讨论决策摘要。
+
+        保留 support/modify 过滤与 8 条/120 字语义：对投影到的 agent_message 事件
+        解析内容中的 [STANCE:] 标签（先于截断），仅保留 support/modify，每条剥标签后
+        截断到 120 字，最多取前 8 条。返回 None 时由调用方回退既有实现。
+        """
+        try:
+            projected = self.meeting.deriveMessages(
+                event_types=["agent_message"], window=50
+            )
+        except Exception as e:
+            self.logger.warning("讨论决策事件投影失败，回退既有实现: %s", e)
+            return None
+        if not projected:
+            return None
+
+        decisions = []
+        for m in projected:
+            content = m.get("content", "") or ""
+            if not content:
+                continue
+            stance = parse_stance_from_content(content)
+            if stance not in ("support", "modify"):
+                continue
+            role = resolve_agent_role(self.meeting, m.get("agent_id"))
+            core = strip_stance_tags(content)
+            if len(core) > 120:
+                core = core[:120] + "..."
+            icon = "+" if stance == "support" else "~"
+            decisions.append(f"  {icon} [{role}] {core}")
+
+        if not decisions:
+            return None
         return "团队讨论确定的方案与约束：\n" + "\n".join(decisions[:8])
 
     def _infer_target_agent(self, discussion_results: list) -> str:

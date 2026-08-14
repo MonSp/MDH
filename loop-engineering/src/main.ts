@@ -1,4 +1,4 @@
-const COMMANDS = ["metrics", "evolve", "ci", "coverage"] as const;
+const COMMANDS = ["metrics", "evolve", "ci", "coverage", "replay"] as const;
 
 type Command = (typeof COMMANDS)[number];
 
@@ -13,13 +13,20 @@ Commands:
   metrics    Collect and analyze codebase metrics
   evolve     Run prompt evolution cycles
   ci         CI integration and regression detection
+             (replay gate runs first; 需设置 LOOP_WORKSPACE 或 --workspace=DIR
+             指向回放工作区——有快照时缺省会 FAIL)
   coverage   Show scenario coverage report
+  replay     Keyless snapshot replay (diff checkpoints vs workspace)
+             (需设置 LOOP_WORKSPACE 或 --workspace=DIR 指向回放工作区；
+             有快照时缺省会 FAIL，且工作区须恢复到各迭代记录时的状态)
 
 Options:
   --help             Show this help message
   --trend            (metrics) Show quality trend across iterations
   --component=X      (evolve) Evolve a specific component
   --threshold=N      (ci) Set quality score threshold (default: 80)
+  --workspace=DIR    (ci/replay) Workspace dir to replay snapshots against
+                     (优先于 LOOP_WORKSPACE 环境变量)
 `);
 }
 
@@ -42,7 +49,15 @@ async function runCommand(cmd: Command, args: string[]): Promise<void> {
       const { runCiGate } = await import("./ci/gate.js");
       const thresholdArg = args.find((a) => a.startsWith("--threshold="));
       const threshold = thresholdArg ? parseInt(thresholdArg.split("=")[1]) : 80;
-      const passed = await runCiGate(threshold);
+      const workspace = args.find((a) => a.startsWith("--workspace="))?.split("=")[1] || process.env.LOOP_WORKSPACE || "";
+      const passed = await runCiGate(threshold, workspace);
+      process.exit(passed ? 0 : 1);
+      break;
+    }
+    case "replay": {
+      const { runReplay } = await import("./replay/replay.js");
+      const workspace = args.find((a) => a.startsWith("--workspace="))?.split("=")[1] || process.env.LOOP_WORKSPACE || "";
+      const passed = runReplay(workspace);
       process.exit(passed ? 0 : 1);
       break;
     }

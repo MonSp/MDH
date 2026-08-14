@@ -2029,7 +2029,12 @@ async def ws_handler(ws: WebSocket):
                     "meeting_id": meeting.meeting_id,
                     "agents": meeting.get_agents_dict(),
                     "tasks": meeting.get_tasks_dict(),
-                    "messages": meeting.messages[-50:],  # 最近50条消息
+                    # 事件投影：仅消息类事件、最近 50 条（结构保持 {id, role, content, agent_id, timestamp}）
+                    # 显式限定 event_types 免疫未来非消息事件污染投影
+                    "messages": meeting.deriveMessages(
+                        event_types=["user_message", "agent_message", "system"],
+                        window=50,
+                    ),
                     "phase": session._agenda.get_phase().value if session._agenda else "idle",
                 }
                 if not session._checkpoint_manager:
@@ -2069,7 +2074,12 @@ async def ws_handler(ws: WebSocket):
                             pass
 
                     # 恢复消息
-                    meeting.messages = state.get("messages", [])
+                    restored_messages = state.get("messages", [])
+                    meeting.messages = restored_messages
+                    # 回填事件流：恢复的消息重建为 SessionEvent（角色推断 event_type），
+                    # 使 restore 后 deriveMessages 与 messages 完全一致，不再携带快照前
+                    # 的完整历史事件（非消息事件进入后投影保持一致）
+                    meeting.rebuild_events_from_messages(restored_messages)
 
                 await session.send_and_buffer({
                     "type": "meeting_snapshot_restored",

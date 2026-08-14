@@ -15,6 +15,12 @@ from agentscope.message import Msg
 
 from agent import _extract_text
 from agenda import AgendaStateMachine
+from discussion_utils import (
+    is_coordinator_agent,
+    parse_stance_from_content,
+    resolve_agent_role,
+    strip_stance_tags,
+)
 from negotiation import NegotiationEngine, ConsensusStrategy, Stance
 from protocol import AgentRole, MeetingAgentStatus, LLM_FALLBACK_TEMPLATE
 
@@ -207,6 +213,59 @@ class DiscussionManager:
         return None
     
     def _build_previous_context(self, results: List[Dict[str, Any]]) -> str:
+        """构建之前的讨论上下文
+        P3：优先从 SessionEvent 事件流投影（保留既有 10 条/80 字语义）；
+        无事件流时回退到既有讨论结果拼装。
+        """
+        projected = self._project_previous_context()
+        if projected is not None:
+            return projected
+        return self._build_legacy_previous_context(results)
+
+    def _project_previous_context(self) -> Optional[str]:
+        """从 SessionEvent 事件流投影 previous_context（event_types=agent_message, window=10）。
+
+        对每条发言先于截断从完整内容解析 STANCE——>80 字发言的尾标签不再因
+        deriveMessages 截断而丢失，图标不退化（P3-T2 I1）；剥标签后再截断到
+        80 字展示（P3-T2 I2：仅投影 agent_message 讨论发言，协调者状态消息
+        不占用窗口）。
+
+        Returns:
+            投影文本；无 meeting 引用或事件流为空时返回 None（由调用方回退）。
+        """
+        if self._meeting is None:
+            return None
+        try:
+            projected = self._meeting.deriveMessages(
+                event_types=["agent_message"], window=10
+            )
+        except Exception as e:
+            logger.warning("previous_context 事件投影失败，回退既有实现: %s", e)
+            return None
+        if not projected:
+            return None
+
+        lines = []
+        for m in projected:
+            content = m.get("content", "") or ""
+            agent_id = m.get("agent_id")
+            # 协调者状态消息（analysis/plan/组织讨论等）不混入讨论上下文
+            if is_coordinator_agent(self._meeting, agent_id):
+                continue
+            role = resolve_agent_role(self._meeting, agent_id, m.get("role"))
+            # 先于截断从完整内容解析 stance，再剥标签、截断展示
+            stance = parse_stance_from_content(content)
+            core = strip_stance_tags(content)
+            if len(core) > 80:
+                core = core[:80] + "..."
+            stance_icon = {"support": "+", "oppose": "-", "modify": "~"}.get(stance, "=")
+            lines.append(f"[{role}]({stance_icon}) {core}")
+        if not lines:
+            return None
+        return "\n".join(lines)
+
+    def _build_legacy_previous_context(self, results: List[Dict[str, Any]]) -> str:
+        """既有实现：从讨论结果列表拼装（无事件流时的回退路径）"""
         if not results:
             return "（尚无发言）"
         lines = []
@@ -215,8 +274,7 @@ class DiscussionManager:
             content = r.get('content', '')
             stance = r.get('parsed_stance', 'neutral')
             # 截取核心观点（前80字），去掉STANCE/CONFIDENCE标签
-            core = re.sub(r'\[STANCE:.*?\]', '', content)
-            core = re.sub(r'\[CONFIDENCE:.*?\]', '', core).strip()
+            core = strip_stance_tags(content)
             if len(core) > 80:
                 core = core[:80] + "..."
             stance_icon = {"support": "+", "oppose": "-", "modify": "~"}.get(stance, "=")

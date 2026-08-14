@@ -1,6 +1,10 @@
+import json
 import logging
+import os
 import time
 import uuid
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Optional
 
 from protocol import (
@@ -15,6 +19,64 @@ from protocol import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class SessionEventType(str, Enum):
+    """SessionEvent 事件类型最小集。
+
+    会话消息（add_message 汇入）映射到 user_message / agent_message /
+    system；其余类型供后续 LLM 上下文投影、快照与审计扩展使用。
+    """
+
+    USER_MESSAGE = "user_message"
+    AGENT_MESSAGE = "agent_message"
+    SYSTEM = "system"
+    DISCUSSION = "discussion"
+    EXECUTION = "execution"
+    REVIEW = "review"
+    APPROVAL = "approval"
+    EXPERIENCE_INJECTION = "experience_injection"
+    TOOL = "tool"
+    AUDIT = "audit"
+
+
+@dataclass
+class SessionEvent:
+    """结构化会话事件（append-only 事件流的基本单元）。
+
+    event_id 与 add_message 返回消息的 ``id`` 对齐，便于从事件流追溯
+    到既有消息；phase/actor/span_id 为扩展字段，默认空。
+    """
+
+    event_id: str
+    event_type: SessionEventType = SessionEventType.AGENT_MESSAGE
+    role: str = ""
+    content: str = ""
+    agent_id: Optional[str] = None
+    phase: Optional[str] = None
+    actor: Optional[str] = None
+    span_id: Optional[str] = None
+    timestamp: float = field(default_factory=time.time)
+
+    def to_dict(self) -> dict:
+        """转为可 JSON 序列化的 dict（event_type 落为字符串值）。"""
+        event_type = (
+            self.event_type.value
+            if isinstance(self.event_type, SessionEventType)
+            else str(self.event_type)
+        )
+        return {
+            "event_id": self.event_id,
+            "event_type": event_type,
+            "role": self.role,
+            "content": self.content,
+            "agent_id": self.agent_id,
+            "phase": self.phase,
+            "actor": self.actor,
+            "span_id": self.span_id,
+            "timestamp": self.timestamp,
+        }
+
 
 DEFAULT_MEETING_AGENTS = [
     {
@@ -147,13 +209,18 @@ def create_team_from_roles(selected_role_ids: list[str], roles_config: dict) -> 
 
 
 class MeetingSession:
-    def __init__(self, meeting_id: str):
+    def __init__(self, meeting_id: str, session_log_dir: Optional[str] = None):
         self.meeting_id = meeting_id
         self.agents: list[MeetingAgentInfo] = []
         self.tasks: list[MeetingTaskInfo] = []
         self.messages: list[dict] = []
         self._running: bool = False
         self._created_at: float = time.time()
+        # SessionEvent 事件流：内存镜像 + 可选 JSONL 持久化
+        self._session_log_dir: Optional[str] = session_log_dir
+        self._events: list[dict] = []
+        if session_log_dir:
+            os.makedirs(session_log_dir, exist_ok=True)
 
     def start(self, team_template: list = None) -> None:
         """启动会议，初始化团队成员。
@@ -251,7 +318,139 @@ class MeetingSession:
             "timestamp": time.time(),
         }
         self.messages.append(message)
+        self._append_event(message)
         return message
+
+    def _append_event(self, message: dict) -> None:
+        """将消息追加为结构化 SessionEvent（内存镜像 + JSONL append）。"""
+        if not self._events and self._session_log_dir:
+            # 重载会话先 add_message 后 deriveMessages（续会自然顺序）时，
+            # _events 已被新消息填为非空导致 deriveMessages 的磁盘回填短路；
+            # 这里在首次 append 前先回填磁盘历史，防丢失。
+            self._events = self.load_events()
+        event = SessionEvent(
+            event_id=message["id"],
+            event_type=self._infer_event_type(message["role"]),
+            role=message["role"],
+            content=message["content"],
+            agent_id=message.get("agent_id"),
+            timestamp=message["timestamp"],
+        )
+        event_dict = event.to_dict()
+        self._events.append(event_dict)
+        if self._session_log_dir:
+            try:
+                path = os.path.join(self._session_log_dir, f"{self.meeting_id}.jsonl")
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(event_dict, ensure_ascii=False) + "\n")
+            except (IOError, OSError):
+                # IOError 静默降级为纯内存模式，不破坏 add_message 行为
+                logger.warning(
+                    "SessionEvent JSONL 追加失败（降级为内存模式）: %s/%s.jsonl",
+                    self._session_log_dir,
+                    self.meeting_id,
+                )
+
+    @staticmethod
+    def _infer_event_type(role: str) -> SessionEventType:
+        if role == "user":
+            return SessionEventType.USER_MESSAGE
+        if role == "agent":
+            return SessionEventType.AGENT_MESSAGE
+        return SessionEventType.SYSTEM
+
+    def deriveMessages(
+        self,
+        event_types: Optional[list] = None,
+        window: Optional[int] = None,
+        max_content_len: Optional[int] = None,
+    ) -> list[dict]:
+        """从事件流投影为既有 messages 结构 ``{id, role, content, agent_id, timestamp}``。
+
+        Args:
+            event_types: 仅投影指定 event_type 的事件（如 ["agent_message"]）。
+            window: 仅取最近 N 条事件。
+            max_content_len: 内容截断长度。
+        """
+        events = self._events
+        if not events and self._session_log_dir:
+            # 会话重载场景：内存为空时从 JSONL 重载投影
+            events = self.load_events()
+            self._events = events  # 回写缓存，防后续 add_message 后投影丢历史
+        if event_types is not None:
+            allowed = set(event_types)
+            events = [e for e in events if e.get("event_type") in allowed]
+        if window is not None and window > 0:
+            events = events[-window:]
+        msgs = []
+        for e in events:
+            content = e.get("content") or ""
+            if max_content_len is not None and max_content_len > 0:
+                content = content[:max_content_len]
+            msgs.append(
+                {
+                    "id": e.get("event_id"),
+                    "role": e.get("role"),
+                    "content": content,
+                    "agent_id": e.get("agent_id"),
+                    "timestamp": e.get("timestamp"),
+                }
+            )
+        return msgs
+
+    def rebuild_events_from_messages(self, messages: list[dict]) -> None:
+        """将消息 dict 列表重建为 ``_events`` 事件流（快照 restore 回填）。
+
+        消息结构 ``{id, role, content, agent_id, timestamp}`` 重建为
+        SessionEvent：event_type 由角色经 ``_infer_event_type`` 推断，
+        event_id 用消息 id（与 add_message 对齐）。restore 后 ``_events``
+        与 ``messages`` 完全一致，不再携带快照前的历史事件（非消息事件
+        进入后 deriveMessages 与 messages 投影才会保持一致）。
+        """
+        events = []
+        for msg in messages:
+            event = SessionEvent(
+                event_id=msg.get("id"),
+                event_type=self._infer_event_type(msg.get("role", "")),
+                role=msg.get("role"),
+                content=msg.get("content"),
+                agent_id=msg.get("agent_id"),
+                timestamp=msg.get("timestamp"),
+            )
+            events.append(event.to_dict())
+        self._events = events
+
+    def load_events(self) -> list[dict]:
+        """从 JSONL 逐行读取持久化事件（损坏行跳过），返回事件 dict 列表。"""
+        if not self._session_log_dir:
+            return []
+        path = os.path.join(self._session_log_dir, f"{self.meeting_id}.jsonl")
+        if not os.path.exists(path):
+            return []
+        events = []
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                        if not isinstance(obj, dict):
+                            logger.warning(
+                                "跳过非 dict 的 SessionEvent 行: %s...", line[:80]
+                            )
+                            continue
+                        events.append(obj)
+                    except json.JSONDecodeError:
+                        logger.warning(
+                            "跳过损坏的 SessionEvent 行: %s...", line[:80]
+                        )
+                        continue
+        except (IOError, OSError):
+            logger.warning("读取 SessionEvent JSONL 失败: %s", path)
+            return []
+        return events
 
     def get_agents_dict(self) -> list[dict]:
         return [meeting_agent_to_dict(agent) for agent in self.agents]
@@ -280,3 +479,4 @@ class MeetingSession:
         self.agents.clear()
         self.tasks.clear()
         self.messages.clear()
+        self._events.clear()

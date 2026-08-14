@@ -1,8 +1,27 @@
 import { getDb, initDb, ScenarioMetric, IterationSummary } from "../metrics/db.js";
 import { ingestCheckpoints } from "../metrics/reporter.js";
 import { loadBaseline, updateBaseline } from "./baseline.js";
+import { runReplay } from "../replay/replay.js";
 
-export async function runCiGate(threshold: number): Promise<boolean> {
+/**
+ * CI 质量门禁。门禁顺序（P3-T5 起）：replay 门禁最先——快照存在时先无 key 回放比对，
+ * 任一 diff 非空即 FAIL，随后才是既有硬/软/回归门禁。回放工作区由 replayWorkspace 传入
+ * （main.ts ci 命令解析 --workspace=/ LOOP_WORKSPACE）；快照存在但未给工作区时回放
+ * 无法执行，按保守原则 FAIL（不可验证即不放行）。
+ *
+ * replay 门禁范围契约（与 runReplay 一致）：覆盖全部已记录快照（保守 fail-safe），
+ * 而硬/软/回归门禁只评估最新迭代。回放工作区必须恢复到各迭代记录时的状态——容器流程
+ * 每场景清工作区故无漂移；宿主持久工作区下旧快照漂移会假阳性。
+ */
+export async function runCiGate(threshold: number, replayWorkspace?: string): Promise<boolean> {
+  // Replay gate — keyless snapshot replay（diff 非空即 FAIL）
+  console.log("\n[ci] Replay gate: keyless snapshot replay...");
+  if (!runReplay(replayWorkspace || "")) {
+    console.error("[ci] FAIL — snapshot replay produced diffs");
+    return false;
+  }
+  console.log("[ci] Replay gate: ✓");
+
   ingestCheckpoints();
 
   const db = getDb();

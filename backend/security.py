@@ -1,8 +1,18 @@
+import json
+import logging
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Tuple
 from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+# 审计事件默认持久化目录：<backend>/data/session_logs/audit.jsonl（data/* 已 gitignore）
+DEFAULT_AUDIT_LOG_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "data", "session_logs"
+)
 
 
 class RiskLevel(str, Enum):
@@ -24,6 +34,26 @@ class AuditEntry:
     timestamp: float
     signers: List[str] = field(default_factory=list)
 
+    def to_dict(self) -> dict:
+        """转为 JSON 序列化 dict；复用 SessionEvent 事件结构判别字段（event_type='audit'）。"""
+        risk_level = (
+            self.risk_level.value
+            if isinstance(self.risk_level, RiskLevel)
+            else str(self.risk_level)
+        )
+        return {
+            "event_type": "audit",
+            "id": self.id,
+            "agent_id": self.agent_id,
+            "operation": self.operation,
+            "target": self.target,
+            "risk_level": risk_level,
+            "allowed": self.allowed,
+            "reason": self.reason,
+            "timestamp": self.timestamp,
+            "signers": list(self.signers),
+        }
+
 
 @dataclass
 class RateLimitConfig:
@@ -42,7 +72,7 @@ class OperationRequest:
 
 
 class SecurityMiddleware:
-    def __init__(self) -> None:
+    def __init__(self, audit_log_dir: Optional[str] = None) -> None:
         self._high_risk_capabilities: set[str] = {"browser_automation", "file_operation"}
         self._dual_signature_capabilities: set[str] = {"browser_automation"}
         # 工具级风险映射：高危操作需要明确批准
@@ -59,6 +89,10 @@ class SecurityMiddleware:
         self._audit_log: List[AuditEntry] = []
         self._operation_counts: Dict[str, Tuple[int, float]] = {}
         self._pending_signatures: Dict[str, dict] = {}
+        # 审计事件持久化目录（None → 默认 backend/data/session_logs；写入失败降级内存）
+        self._audit_log_dir: Optional[str] = (
+            audit_log_dir if audit_log_dir is not None else DEFAULT_AUDIT_LOG_DIR
+        )
 
     def check_operation(
         self,
@@ -190,7 +224,7 @@ class SecurityMiddleware:
         signers: List[str],
     ) -> None:
         risk_level = self._determine_risk_level(capability)
-        self._audit_log.append(AuditEntry(
+        entry = AuditEntry(
             id=str(uuid.uuid4()),
             agent_id=agent_id,
             operation=operation,
@@ -200,7 +234,27 @@ class SecurityMiddleware:
             reason=reason,
             timestamp=time.time(),
             signers=signers,
-        ))
+        )
+        self._audit_log.append(entry)
+        self._persist_audit(entry)
+
+    def _persist_audit(self, entry: AuditEntry) -> None:
+        """审计事件持久化：追加写 <dir>/audit.jsonl（IOError/OSError 降级内存）。"""
+        if not self._audit_log_dir:
+            return
+        try:
+            os.makedirs(self._audit_log_dir, exist_ok=True)
+            path = os.path.join(self._audit_log_dir, "audit.jsonl")
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + "\n")
+        except (IOError, OSError):
+            # IOError 静默降级为纯内存模式，不破坏 _log_audit 调用方行为；
+            # 一次性关闭持久化（置 None），防磁盘满场景无限重试刷屏
+            logger.warning(
+                "audit.jsonl 追加失败（降级为内存模式，关闭持久化）: %s",
+                self._audit_log_dir,
+            )
+            self._audit_log_dir = None
 
     def _determine_risk_level(self, capability: str) -> RiskLevel:
         if capability in self._high_risk_capabilities:
