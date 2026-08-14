@@ -940,6 +940,44 @@ async def test_execute_workflow_node_tool_error_does_not_mark_model_failed(coord
 
 
 # ---------------------------------------------------------------------------
+# failover 贯通：decompose_task / handle_critical_blocker 模型异常 → _mark_model_failed
+# ---------------------------------------------------------------------------
+
+
+async def test_decompose_task_model_error_marks_model_failed(coordinator):
+    """decompose_task 的 model.reply 抛异常 → _mark_model_failed(PLANNER) 被调且回退 []"""
+    class ExplodingModel:
+        async def reply(self, msg):
+            raise RuntimeError("model down")
+
+    coordinator._get_model = MagicMock(return_value=ExplodingModel())
+    coordinator._mark_model_failed = MagicMock()
+
+    subtasks = await coordinator.decompose_task("开发一个网站")
+    coordinator._mark_model_failed.assert_called_once_with(AgentRole.PLANNER)
+    # 原 fallback 语义保持（text = "[]" → 空列表）
+    assert subtasks == []
+
+
+async def test_handle_critical_blocker_model_error_marks_model_failed(coordinator):
+    """handle_critical_blocker 的 model.reply 抛异常 → _mark_model_failed(PLANNER) 被调且回退 fallback 文本"""
+    class ExplodingModel:
+        async def reply(self, msg):
+            raise RuntimeError("model down")
+
+    coordinator._get_model = MagicMock(return_value=ExplodingModel())
+    coordinator._mark_model_failed = MagicMock()
+    coordinator._msg = AsyncMock()  # 截断消息推送，聚焦模型失败归因
+
+    await coordinator.handle_critical_blocker("agent-executor", "前端构建失败", AsyncMock())
+    coordinator._mark_model_failed.assert_called_once_with(AgentRole.PLANNER)
+    # fallback 文本已推送（原降级行为保持）
+    coordinator._msg.assert_awaited_once()
+    text_arg = coordinator._msg.call_args[0][1]
+    assert "应急方案" in text_arg
+
+
+# ---------------------------------------------------------------------------
 # 门禁接入 execute_and_review_task：review 前计算 gate_result 并传入
 # ---------------------------------------------------------------------------
 

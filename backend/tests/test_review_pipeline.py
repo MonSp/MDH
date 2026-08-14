@@ -1,8 +1,11 @@
 """Tests for review_pipeline.py — structured feedback integration with LLM review"""
+import types
+
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 from review_pipeline import ReviewPipeline
 from collaboration.planner_agent import PlannerAgent, SubTask
+from protocol import AgentRole
 
 
 class _FakeMsg:
@@ -350,3 +353,66 @@ def test_critical_reviewer_without_planner_issues_key_no_keyerror(pipeline):
     )
     assert result["status"] == "revision_required"
     assert any(i["type"] == "logic_error" for i in result["issues"])
+
+
+# ── failover 接入：on_model_error 回调（模型层异常 → 通知构造方驱逐坏模型）──
+
+
+class TestOnModelErrorCallback:
+    """ReviewPipeline 三个 LLM 调用点 model.reply 抛异常 → on_model_error 被调（正确 role）且 fallback 保持"""
+
+    @staticmethod
+    def _build_pipeline(role, calls):
+        meeting = MagicMock()
+        meeting.agents = [types.SimpleNamespace(id=f"agent-{role.value}", role=role)]
+
+        def get_model(r):
+            m = MagicMock()
+            m.reply = AsyncMock(side_effect=RuntimeError("model down"))
+            return m
+
+        return ReviewPipeline(
+            get_model_fn=get_model,
+            meeting=meeting,
+            planner=None,
+            on_model_error=lambda r: calls.append(r),
+        )
+
+    @pytest.mark.asyncio
+    async def test_reviewer_review_error_notifies_and_falls_back(self):
+        calls = []
+        pipeline = self._build_pipeline(AgentRole.REVIEWER, calls)
+        feedback = await pipeline._reviewer_review("任务", "产出", AsyncMock())
+        assert calls == [AgentRole.REVIEWER]
+        assert "[reviewer]" in feedback  # LLM_FALLBACK_TEMPLATE 降级保持
+
+    @pytest.mark.asyncio
+    async def test_monitor_evaluate_error_notifies_and_falls_back(self):
+        calls = []
+        pipeline = self._build_pipeline(AgentRole.MONITOR, calls)
+        feedback = await pipeline._monitor_evaluate("任务", "产出", "审查意见", AsyncMock())
+        assert calls == [AgentRole.MONITOR]
+        assert "[monitor]" in feedback
+
+    @pytest.mark.asyncio
+    async def test_coordinator_summarize_error_notifies_and_falls_back(self):
+        calls = []
+        pipeline = self._build_pipeline(AgentRole.COORDINATOR, calls)
+        summary = await pipeline._coordinator_summarize("任务", "产出", "审查意见", "监控评估", AsyncMock())
+        assert calls == [AgentRole.COORDINATOR]
+        assert "[coordinator]" in summary
+
+    @pytest.mark.asyncio
+    async def test_without_on_model_error_keeps_fallback(self):
+        """未注入 on_model_error → 异常仍走 fallback，不崩溃（向后兼容）"""
+        meeting = MagicMock()
+        meeting.agents = [types.SimpleNamespace(id="agent-reviewer", role=AgentRole.REVIEWER)]
+
+        def get_model(r):
+            m = MagicMock()
+            m.reply = AsyncMock(side_effect=RuntimeError("model down"))
+            return m
+
+        pipeline = ReviewPipeline(get_model_fn=get_model, meeting=meeting, planner=None)
+        feedback = await pipeline._reviewer_review("任务", "产出", AsyncMock())
+        assert "[reviewer]" in feedback

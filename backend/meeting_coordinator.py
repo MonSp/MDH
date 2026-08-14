@@ -158,6 +158,7 @@ class MeetingCoordinator:
             get_model_fn=self._get_model,
             meeting=self.meeting,
             planner=self.planner,
+            on_model_error=self._mark_model_failed,
         )
         self._discussion_manager = DiscussionManager(
             agenda=self.agenda,
@@ -464,6 +465,7 @@ class MeetingCoordinator:
             text = _extract_text(response)
         except Exception as e:
             self.logger.warning("任务分解 LLM 调用失败: %s", e)
+            self._mark_model_failed(AgentRole.PLANNER)
             text = "[]"
 
         try:
@@ -755,6 +757,7 @@ class MeetingCoordinator:
                 text = _extract_text(response)
             except Exception as e:
                 self.logger.warning("紧急响应LLM调用失败: %s", e)
+                self._mark_model_failed(AgentRole.PLANNER)
                 text = LLM_FALLBACK_TEMPLATE.format(role="planner", content_type="应急方案")
             await self._msg(planner_id, text)
             self.meeting.add_message("agent", text, planner_id)
