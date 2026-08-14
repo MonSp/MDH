@@ -35,3 +35,21 @@ def test_workflow_node_gate():
 def test_workflow_node_gate_default_none():
     n = WorkflowNode(node_id="n1", task_description="t", dept_id="d")
     assert n.gate is None
+
+
+from protocol import dict_to_workflow_node, workflow_node_to_dict
+
+
+def test_gate_roundtrip_preserved():
+    n = WorkflowNode(
+        node_id="n1", task_description="撰写纪要", dept_id="dept-docs",
+        gate={"approver": "emp-1", "stage": "review"},
+    )
+    restored = dict_to_workflow_node(workflow_node_to_dict(n))
+    assert restored.gate == {"approver": "emp-1", "stage": "review"}
+
+
+def test_gate_none_roundtrip():
+    n = WorkflowNode(node_id="n1", task_description="t", dept_id="d")
+    restored = dict_to_workflow_node(workflow_node_to_dict(n))
+    assert restored.gate is None

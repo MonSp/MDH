@@ -567,6 +567,7 @@ def workflow_node_to_dict(node: WorkflowNode) -> dict:
         "output_spec": node.output_spec,
         "status": node.status.value,
         "result": node.result,
+        "gate": node.gate,
     }
 
 
@@ -618,6 +619,7 @@ def dict_to_workflow_node(data: dict) -> WorkflowNode:
         output_spec=data.get("output_spec", {}),
         status=WorkflowNodeStatus(data["status"]) if "status" in data else WorkflowNodeStatus.PENDING,
         result=data.get("result"),
+        gate=data.get("gate"),
     )
 
 
