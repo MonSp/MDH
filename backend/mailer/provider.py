@@ -1,4 +1,5 @@
-"""mailer 本地 provider：build_mime 纯函数 + FileMailer（写 .eml 演示）。"""
+"""mailer provider：build_mime 纯函数 + FileMailer（写 .eml 演示）+ SmtpMailer（生产）。"""
+import smtplib
 import time
 import uuid
 from email.mime.text import MIMEText
@@ -23,3 +24,27 @@ class FileMailer(Mailer):
         msg_id = f"mail-{int(time.time())}-{uuid.uuid4().hex[:8]}"
         (self._out_dir / f"{msg_id}.eml").write_bytes(build_mime(message))
         return msg_id
+
+
+class SmtpMailer(Mailer):
+    """SMTP provider：transport 注入可测（缺省 smtplib.SMTP 实发）。"""
+
+    def __init__(self, host: str, port: int = 25, username: str = "", password: str = "",
+                 transport=None):
+        self._host = host
+        self._port = port
+        self._username = username
+        self._password = password
+        self._transport = transport
+
+    def send(self, message: MailMessage) -> str:
+        raw = build_mime(message)
+        if self._transport is not None:
+            self._transport(raw)
+        else:
+            with smtplib.SMTP(self._host, self._port) as server:
+                if self._username:
+                    server.login(self._username, self._password)
+                from_addr = self._username or (message.to[0] if message.to else "")
+                server.sendmail(from_addr, message.to, raw)
+        return f"mail-{int(time.time())}-{uuid.uuid4().hex[:8]}"

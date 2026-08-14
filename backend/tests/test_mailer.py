@@ -3,7 +3,7 @@ import email
 from email import policy
 
 import pytest
-from mailer.provider import FileMailer, build_mime
+from mailer.provider import FileMailer, SmtpMailer, build_mime
 from mailer.seam import MailMessage, get_mailer
 
 
@@ -27,3 +27,27 @@ def test_file_mailer_writes_eml(tmp_path):
     files = list(tmp_path.glob("*.eml"))
     assert len(files) == 1
     assert "Subject: T" in files[0].read_text(encoding="utf-8")
+
+
+# --- SMTP provider：transport 注入可测，缺省走 smtplib ---
+
+
+def test_smtp_mailer_send_via_injected_transport():
+    captured = {}
+
+    def fake_transport(raw: bytes):
+        captured["raw"] = raw
+
+    mailer = SmtpMailer(host="smtp.example.com", port=587, username="u", password="p",
+                        transport=fake_transport)
+    msg_id = mailer.send(MailMessage(title="T", to=["x@y.com"], body="B"))
+    assert msg_id.startswith("mail-")
+    msg = email.message_from_bytes(captured["raw"], policy=policy.default)
+    assert msg["Subject"] == "T"
+    assert msg["To"] == "x@y.com"
+
+
+def test_get_mailer_smtp_provider():
+    mailer = get_mailer("smtp", host="localhost", port=25)
+    assert isinstance(mailer, SmtpMailer)
+    assert mailer._host == "localhost" and mailer._port == 25

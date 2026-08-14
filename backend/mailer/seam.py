@@ -20,9 +20,13 @@ class Mailer(ABC):
         """发送消息，返回消息标识。"""
 
 
-def get_mailer(provider: str = "file", out_dir: str = "") -> Mailer:
+def get_mailer(provider: str = "file", out_dir: str = "", host: str = "",
+               port: int = 25, username: str = "", password: str = "") -> Mailer:
     """按 provider 名解析 Mailer；未知 provider fail-loud。"""
     if provider == "file":
         from mailer.provider import FileMailer
         return FileMailer(out_dir=out_dir)
+    if provider == "smtp":
+        from mailer.provider import SmtpMailer
+        return SmtpMailer(host=host, port=port, username=username, password=password)
     raise ValueError(f"unknown mailer provider: {provider}")
