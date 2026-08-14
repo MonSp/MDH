@@ -245,9 +245,9 @@ MDH 已实现一套复杂多智能体协作机制（6 层架构链、三执行�
 | **模型自产工作流（model-authored workflow）**：让模型输出 DAG 配置（对齐 dsh workflow 能力；当前为确定性依赖推断） | **dsh 借鉴**（远期） | 支柱 3，需结构化输出稳定性评估 |
 | 判定结果结构化回传 UI（复杂度+路由理由可解释化） | 评审遗留 | 支柱 1 |
 | 审查报告闭环（审查意见全程结构化，形成"审查报告→迭代"可见闭环） | 原 P2 | 支柱 4 |
-| 门禁通道感知匹配（工具缺失在 error 通道、真实失败在 output 通道） | 评审遗留 | 支柱 4，T2 残余 |
-| durable execution 读侧入口（resume REST 端点）+ per-execution 持久化加锁 | 评审遗留 | 支柱 3，T1 残余 |
-| failover 扩展到 review/discussion 消费点；hybrid 生产接线 + profile 校验 | 评审遗留 | 横向，T4/T5 残余 |
+| ✅ 门禁通道感知匹配（工具缺失在 error 通道、真实失败在 output 通道，信号工具特定化）——**已于 P2 遗留闭环完成（2026-08-13）** | 评审遗留 | 支柱 4 |
+| ✅ durable execution 读侧入口（`GET /api/workflow/executions` + resume 端点含终态守卫）——**已完成**；per-execution 持久化加锁以"同步原子写+竞态文档化"替代（async 化会连锁同步调用点，已评估） | 评审遗留 | 支柱 3 |
+| ✅ hybrid 生产接线（CoordinatorConfig.hybridProfiles → runtime.hybrid，local 分支携 executor 连接）+ ExecutionProfile 校验——**已完成**；failover 扩展到 review/discussion 消费点维持"明确不做"（各消费点已有 fallback，成本高收益低） | 评审遗留 | 横向 |
 | MCP client 兼容 [11]（dsh 已内置 mcp 包，必要性强化）；A2A 跨产品边界 [15] | 原 P2（强化） | 横向 |
 | HITL 分级（白名单+分级+分类器 [27]）+ 沙箱系统化（对齐 dsh landlock/e2b） | 原 P0/P1 + **dsh 借鉴** | 横向 |
 | 技能市场/跨项目经验融合；技能打包人工审核 UI | 原 P2 | 支柱 5 |
@@ -297,6 +297,4 @@ MDH 已实现一套复杂多智能体协作机制（6 层架构链、三执行�
 [39] Manus blog index ($100M ARR 2025-12-17; Joins Meta 2025-12-29) — https://manus.im/blog (accessed 2026-08-13)
 [40] Manus, "How Manus became 'James,' the AI chief of staff" — https://manus.im/blog/Ascendea-James-Customer-Story (2026-07-17)
 [41] Qian et al., "ChatDev: Communicative Agents for Software Development" — https://arxiv.org/abs/2307.07924 (2023-07)
-[42] ZDNet, "As AI agents multiply, IT becomes the new HR department" — https://www.zdnet.com/article/as-ai-agents-multiply-it-becomes-the-new-hr-department/ (2025-03-10)
-[43] Sam Altman, "Three Observations" — https://blog.samaltman.com/three-observations (2025-02-09)
-[44] DeepSeek Harness repository — https://github.com/deepseek-ai/deepseek-harness (公开于 2026-08-13，accessed 2026-08-13)
+[42] 
