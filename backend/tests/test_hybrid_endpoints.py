@@ -112,3 +112,24 @@ def test_hybrid_team_non_dict_dag_returns_error():
     })
     assert resp.status_code != 500
     assert "error" in resp.json()
+
+
+def test_hybrid_team_endpoint_returns_display_name():
+    resp = client.post("/api/hybrid/team", json={
+        "project_id": "proj-demo",
+        "dag": {"tasks": [{"task_id": "task-1", "name": "撰写纪要", "required_skills": ["frontend_dev"], "description": "d"}]},
+        "humans": [{"employee_id": "emp-1", "name": "张三", "approver_for": ["task-1"]}],
+    })
+    human = next(m for m in resp.json()["members"] if m["memberType"] == "human")
+    assert human["displayName"] == "张三"
+
+
+def test_hybrid_team_endpoint_agent_has_display_name_key():
+    resp = client.post("/api/hybrid/team", json={
+        "project_id": "proj-demo",
+        "dag": {"tasks": [{"task_id": "task-1", "name": "撰写纪要", "required_skills": ["frontend_dev"], "description": "d"}]},
+        "humans": [],
+    })
+    for member in resp.json()["members"]:
+        assert "displayName" in member
+        assert member["displayName"] == ""

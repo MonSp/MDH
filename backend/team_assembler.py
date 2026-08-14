@@ -121,5 +121,6 @@ class TeamAssembler:
                 location=AgentLocation.LOCAL,
                 member_type="human",
                 approver_for=tuple(h.get("approver_for", [])),
+                display_name=h.get("name", ""),
             ))
         return team

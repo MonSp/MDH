@@ -2497,6 +2497,7 @@ async def api_hybrid_team(body: dict):
                     "teamRole": m.team_role,
                     "memberType": m.member_type,
                     "approverFor": list(m.approver_for),
+                    "displayName": m.display_name,
                 }
                 for m in team.members
             ],
@@ -2537,7 +2538,7 @@ async def api_minutes_plan(body: dict):
             },
             "team": {
                 "team_id": team.team_id,
-                "members": [{"agentId": m.agent_id, "memberType": m.member_type, "approverFor": list(m.approver_for)} for m in team.members],
+                "members": [{"agentId": m.agent_id, "memberType": m.member_type, "approverFor": list(m.approver_for), "displayName": m.display_name} for m in team.members],
             },
             "plan": "把关经 /api/gates 完成；纪要经 mailer seam 分发",
         }

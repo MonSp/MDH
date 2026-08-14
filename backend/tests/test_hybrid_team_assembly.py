@@ -58,3 +58,29 @@ def test_hybrid_team_without_humans_is_pure_agent(runtime, roles_config):
     team = assembler.assemble_hybrid_team(DAG, "proj-1", runtime, humans=[])
     assert len(team.members) >= 1
     assert all(m.member_type == "agent" for m in team.members)
+
+
+def test_hybrid_team_human_display_name(runtime, roles_config):
+    assembler = TeamAssembler(roles_config_path=roles_config)
+    team = assembler.assemble_hybrid_team(
+        DAG, "proj-1", runtime,
+        humans=[{"employee_id": "emp-1", "name": "张三", "approver_for": ["task-1"]}],
+    )
+    human = next(m for m in team.members if m.member_type == "human")
+    assert human.display_name == "张三"
+
+
+def test_hybrid_team_human_display_name_default_empty(runtime, roles_config):
+    assembler = TeamAssembler(roles_config_path=roles_config)
+    team = assembler.assemble_hybrid_team(
+        DAG, "proj-1", runtime,
+        humans=[{"employee_id": "emp-1", "approver_for": ["task-1"]}],
+    )
+    human = next(m for m in team.members if m.member_type == "human")
+    assert human.display_name == ""
+
+
+def test_hybrid_team_agent_display_name_default_empty(runtime, roles_config):
+    assembler = TeamAssembler(roles_config_path=roles_config)
+    team = assembler.assemble_hybrid_team(DAG, "proj-1", runtime, humans=[])
+    assert all(m.display_name == "" for m in team.members)

@@ -22,6 +22,23 @@ def test_human_member_fields():
     assert m.approver_for == ("task-1", "task-2")
 
 
+def test_member_display_name_defaults_empty():
+    m = TeamMember(agent_id="a1", role_name="executor", team_role="Executor", location=AgentLocation.LOCAL)
+    assert m.display_name == ""
+
+
+def test_member_display_name_settable():
+    m = TeamMember(
+        agent_id="emp-1",
+        role_name="employee",
+        team_role="",
+        location=AgentLocation.LOCAL,
+        member_type="human",
+        display_name="张三",
+    )
+    assert m.display_name == "张三"
+
+
 def test_workflow_node_gate():
     n = WorkflowNode(
         node_id="n1",
