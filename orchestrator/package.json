@@ -13,7 +13,7 @@
     "loop": "tsx src/loop/loop.ts",
     "loop:retry": "tsx src/loop/loop.ts --retry-failed",
     "loop:scenario": "tsx src/loop/loop.ts --scenario=",
-    "loop:ci": "cd ../loop-engineering && npx tsx src/main.ts ci"
+    "loop:ci": "cd ../loop-engineering && npx tsx src/main.ts ci && npm run replay"
   },
   "dependencies": {
     "ws": "^8.16.0"

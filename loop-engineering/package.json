@@ -6,7 +6,9 @@
     "start": "tsx src/main.ts",
     "metrics": "tsx src/main.ts metrics",
     "evolve": "tsx src/main.ts evolve",
-    "ci": "tsx src/main.ts ci"
+    "ci": "tsx src/main.ts ci",
+    "replay": "tsx src/main.ts replay",
+    "test": "vitest run"
   },
   "dependencies": {
     "@types/ws": "^8.18.1",
@@ -17,6 +19,7 @@
     "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^20.0.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.10"
   }
 }
