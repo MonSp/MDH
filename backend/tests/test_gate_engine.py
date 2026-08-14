@@ -119,3 +119,24 @@ async def test_gate_request_payload_passthrough_task_and_gate():
     assert req["taskId"] == "task-42"
     assert req["gateId"] == "gate-7"
     assert req["id"] == pending.id
+
+
+async def test_request_gate_carries_approver():
+    manager = ApprovalManager()
+    pending = await manager.request_gate(
+        requester_id="a", operation="op", description="d", task_id="t1", gate_id="g1",
+        approver="emp-1",
+    )
+    assert pending.approver == "emp-1"
+    assert manager.get_gate_audit("g1")[0]["approver"] == "emp-1"
+
+
+async def test_request_approval_payload_has_approver():
+    captured = {}
+    async def send_fn(payload):
+        captured.update(payload)
+    manager = ApprovalManager()
+    await manager.request_approval(
+        requester_id="a", operation="op", description="d", approver="emp-1", send_fn=send_fn,
+    )
+    assert captured["request"]["approver"] == "emp-1"

@@ -69,3 +69,15 @@ async def test_gate_without_approval_manager_returns_none():
     node = WorkflowNode(node_id="draft", task_description="t", dept_id="dept-docs",
                         gate={"approver": "emp-1", "stage": "review"})
     assert await c._run_node_gate(node) is None
+
+
+async def test_run_node_gate_passes_approver():
+    c = _coordinator_with_approval()
+    node = WorkflowNode(node_id="draft", task_description="t", dept_id="dept-docs",
+                        gate={"approver": "emp-7", "stage": "review"})
+    gate_task = asyncio.create_task(c._run_node_gate(node))
+    await asyncio.sleep(0.05)
+    pending = c._approval_manager.get_pending_requests()
+    assert pending[0]["approver"] == "emp-7"
+    await c._approval_manager.handle_gate_response(pending[0]["id"], True)
+    await gate_task

@@ -32,6 +32,7 @@ class PendingApproval:
     resolution_reason: str = ""
     task_id: str = ""
     gate_id: str = ""
+    approver: str = ""
     _future: Optional[asyncio.Future] = field(default=None, repr=False)
 
 
@@ -61,6 +62,7 @@ class ApprovalManager:
         timeout: Optional[float] = None,
         task_id: str = "",
         gate_id: str = "",
+        approver: str = "",
     ) -> PendingApproval:
         """创建审批请求并发送给前端
 
@@ -74,6 +76,7 @@ class ApprovalManager:
             timeout: 超时时间（秒）
             task_id: 关联任务 ID（把关点引擎用）
             gate_id: 关联把关点 ID（把关点引擎用）
+            approver: 指定把关人（空字符串表示默认审批流）
 
         Returns:
             PendingApproval 对象（包含 asyncio.Future 可等待）
@@ -90,6 +93,7 @@ class ApprovalManager:
             created_at=time.time(),
             task_id=task_id,
             gate_id=gate_id,
+            approver=approver,
         )
         approval._future = asyncio.get_event_loop().create_future()
 
@@ -110,6 +114,7 @@ class ApprovalManager:
                     "createdAt": approval.created_at,
                     "taskId": approval.task_id,
                     "gateId": approval.gate_id,
+                    "approver": approval.approver,
                 },
             })
 
@@ -212,6 +217,7 @@ class ApprovalManager:
         description: str,
         task_id: str = "",
         gate_id: str = "",
+        approver: str = "",
         risk_level: RiskLevel = RiskLevel.MEDIUM,
         confidence: float = 0.5,
         send_fn: Optional[Callable[[dict], Awaitable[None]]] = None,
@@ -228,12 +234,14 @@ class ApprovalManager:
             timeout=timeout,
             task_id=task_id,
             gate_id=gate_id,
+            approver=approver,
         )
         self._gate_audit.append({
             "event": "gate/requested",
             "request_id": pending.id,
             "gate_id": gate_id,
             "task_id": task_id,
+            "approver": approver,
         })
         return pending
 
@@ -253,16 +261,17 @@ class ApprovalManager:
         resolved = await self.handle_response(request_id, approved, reason=reason, send_fn=send_fn)
         if not resolved:
             return False
-        gate_id, task_id = "", ""
+        gate_id, task_id, approver = "", "", ""
         for req in self._history:
             if req.id == request_id:
-                gate_id, task_id = req.gate_id, req.task_id
+                gate_id, task_id, approver = req.gate_id, req.task_id, req.approver
                 break
         self._gate_audit.append({
             "event": "gate/decided",
             "request_id": request_id,
             "gate_id": gate_id,
             "task_id": task_id,
+            "approver": approver,
             "approved": approved,
             "reason": reason,
         })
@@ -289,6 +298,7 @@ class ApprovalManager:
                 "confidence": a.confidence,
                 "status": a.status.value,
                 "createdAt": a.created_at,
+                "approver": a.approver,
             }
             for a in self._pending.values()
         ]

@@ -394,6 +394,7 @@ class MeetingCoordinator:
             description=gate.get("reason") or f"节点 {node.node_id} 待把关",
             task_id=node.node_id,
             gate_id=gate_id,
+            approver=gate.get("approver", ""),
             send_fn=_build_approval_send_fn(
                 getattr(self, "_on_message", None) or _noop_on_message,
             ),

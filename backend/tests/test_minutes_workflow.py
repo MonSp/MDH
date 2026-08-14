@@ -1,6 +1,16 @@
 """文档意图识别：速记文本 → 纪要 DAG（含把关节点）"""
-from minutes_workflow import MINUTES_KEYWORDS, build_minutes_workflow
+from minutes_workflow import (
+    MINUTES_FAMILY,
+    MINUTES_KEYWORDS,
+    MINUTES_VERBS,
+    build_minutes_workflow,
+)
 from semantic_analyzer import SemanticAnalyzer
+
+
+def test_minutes_family_and_verbs_exported():
+    assert MINUTES_FAMILY == ("会议纪要", "会议记录", "速记", "纪要")
+    assert MINUTES_VERBS == ("整理", "生成", "撰写", "输出", "写")
 
 
 def test_build_minutes_workflow_structure():

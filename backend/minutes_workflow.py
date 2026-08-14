@@ -6,6 +6,8 @@ import hashlib
 from protocol import WorkflowDefinition, WorkflowEdge, WorkflowNode
 
 MINUTES_KEYWORDS = ("会议纪要", "会议记录", "速记", "待办", "行动项", "纪要")
+MINUTES_FAMILY = ("会议纪要", "会议记录", "速记", "纪要")
+MINUTES_VERBS = ("整理", "生成", "撰写", "输出", "写")
 
 _NODES = [
     ("extract", "提取会议要点、决策与行动项"),
