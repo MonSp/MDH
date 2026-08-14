@@ -101,3 +101,14 @@ def test_hybrid_team_missing_dag_returns_error():
     assert resp.status_code != 500
     body = resp.json()
     assert body.get("error")
+
+
+def test_hybrid_team_non_dict_dag_returns_error():
+    """dag 非 dict 时返回错误响应而非 HTTP 500。"""
+    resp = client.post("/api/hybrid/team", json={
+        "project_id": "p",
+        "dag": "not-a-dict",
+        "humans": [],
+    })
+    assert resp.status_code != 500
+    assert "error" in resp.json()

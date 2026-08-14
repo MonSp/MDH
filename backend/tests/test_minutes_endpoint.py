@@ -28,3 +28,9 @@ def test_minutes_endpoint_missing_transcript_returns_error():
     resp = client.post("/api/minutes", json={"project_id": "p", "submitter": "emp-1"})
     assert resp.status_code != 500
     assert "error" in resp.json()
+
+
+def test_minutes_endpoint_non_string_transcript_returns_error():
+    resp = client.post("/api/minutes", json={"transcript": 123, "project_id": "p", "submitter": "emp-1"})
+    assert resp.status_code != 500
+    assert "error" in resp.json()
