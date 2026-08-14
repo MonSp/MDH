@@ -6,6 +6,7 @@
  * 执行 + qualityChecks），以及"非确定性输出不入快照"的归一化约束。
  */
 import { describe, it, expect, afterEach } from 'vitest';
+import { execSync } from 'child_process';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync, symlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -24,6 +25,22 @@ afterEach(() => {
   for (const dir of tmpDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
+/** 探测一个装有 pytest 的 python 解释器（真实 pytest 失败场景用例；无则跳过该用例） */
+function findPytestPython(): string | null {
+  const candidates = ['/home/test/miniconda3/envs/agentscope/bin/python', process.env.PYTEST_PYTHON];
+  for (const p of candidates) {
+    if (!p) continue;
+    try {
+      execSync(`"${p}" -m pytest --version`, { stdio: 'ignore' });
+      return p;
+    } catch {
+      /* 下一个候选 */
+    }
+  }
+  return null;
+}
+const PYTEST_PY = findPytestPython();
+
 describe('scenario snapshot', () => {
   it('builds deterministic snapshot with sha256 file hashes', () => {
     const snapshot = buildScenarioSnapshot(
@@ -33,6 +50,7 @@ describe('scenario snapshot', () => {
     expect(snapshot.files['src/app.py'].hash).toMatch(/^[0-9a-f]{64}$/);
     expect(snapshot.files['src/app.py'].exists).toBe(true);
     expect(snapshot.files['src/app.py'].size).toBe('print(1)'.length);
+    expect(snapshot.files['src/app.py'].chars).toBe('print(1)'.length);
   });
 
   it('records verifyCommands exitCode/stdoutHash/passed', () => {
@@ -77,7 +95,7 @@ describe('scenario snapshot', () => {
       { id: 't', verifyFiles: ['a.py'], verifyCommands: [], qualityChecks: [] },
       { files: {} },
     );
-    expect(snapshot.files['a.py']).toEqual({ path: 'a.py', hash: '', size: 0, exists: false });
+    expect(snapshot.files['a.py']).toEqual({ path: 'a.py', hash: '', size: 0, chars: 0, exists: false });
   });
 
   it('is deterministic and free of non-deterministic fields (timestamp/duration/LLM text)', () => {
@@ -319,18 +337,19 @@ describe('scenario snapshot', () => {
     expect(snapshot.files['real.txt'].exists).toBe(true); // 真实文件直接命中，symlink 不影响
   });
 
-  // ====== I5: 空文件阈值与 LLM 路径对齐（size < 10） ======
+  // ====== I5: 空文件阈值与 LLM 路径对齐（size <= 10，按字符数） ======
 
-  it('empty-file threshold aligned with LLM path (size < 10 counts as empty)', () => {
+  it('empty-file threshold aligned with LLM path (size <= 10 counts as empty)', () => {
     expect(isFileEmpty(0)).toBe(true);
     expect(isFileEmpty(9)).toBe(true);
-    expect(isFileEmpty(10)).toBe(false);
+    expect(isFileEmpty(10)).toBe(true); // 边界对齐：LLM 路径 read_file 内容长度 ≤10 判空
+    expect(isFileEmpty(11)).toBe(false);
     expect(isFileEmpty(1024)).toBe(false);
   });
 
-  it('runKeylessChecks records tiny file size so keyless empty check can apply <10 threshold', () => {
+  it('runKeylessChecks records tiny file size so keyless empty check can apply <=10 threshold', () => {
     const dir = makeTmpDir();
-    writeFileSync(join(dir, 'tiny.txt'), 'abc'); // size 3 < EMPTY_FILE_THRESHOLD
+    writeFileSync(join(dir, 'tiny.txt'), 'abc'); // size 3 <= EMPTY_FILE_THRESHOLD
     const scenario: KeylessScenario = {
       id: 'tiny',
       verifyFiles: ['tiny.txt'],
@@ -340,5 +359,89 @@ describe('scenario snapshot', () => {
     const snapshot = runKeylessChecks(scenario, dir);
     expect(snapshot.files['tiny.txt'].exists).toBe(true);
     expect(snapshot.files['tiny.txt'].size).toBe(3);
+    expect(snapshot.files['tiny.txt'].chars).toBe(3);
+    expect(isFileEmpty(snapshot.files['tiny.txt'].chars)).toBe(true);
+  });
+
+  it('keyless empty judgment uses char count, not byte size (CJK: 5 chars = 15 bytes)', () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, 'cjk.txt'), '你好世界！'); // 5 个 CJK 字符 = 15 UTF-8 字节
+    const scenario: KeylessScenario = {
+      id: 'cjk',
+      verifyFiles: ['cjk.txt'],
+      verifyCommands: [],
+      qualityChecks: [],
+    };
+    const snapshot = runKeylessChecks(scenario, dir);
+    const f = snapshot.files['cjk.txt'];
+    expect(f.exists).toBe(true);
+    expect(f.size).toBe(15); // 快照仍记录字节 size（元数据）
+    expect(f.chars).toBe(5); // 空判定用字符数（readFileSync 后 content.length）
+    expect(isFileEmpty(f.chars)).toBe(true); // 5 <= 10 → 判空，与 LLM 路径按字符一致
+    expect(isFileEmpty(f.size)).toBe(false); // 若误用字节 size（15 > 10）则判空不一致
+  });
+
+  // ====== I1: find -exec → xargs 迁移 —— 退出码传播 ======
+
+  it('xargs-ified verifyCommands propagate command failure (find -exec masks exit code)', () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, 'fail.sh'), '#!/bin/sh\necho failing\nexit 3\n');
+    // find -exec 旧形态：被执行的命令退出码不传播（find 恒 0）、无匹配也返回 0 → 遮蔽失败
+    const oldForm = runKeylessChecks(
+      { id: 'exec-form', verifyFiles: [], verifyCommands: ['find /workspace -name "fail.sh" -exec sh {} \\; 2>&1 | tail -5'], qualityChecks: [] },
+      dir,
+    );
+    expect(oldForm.verifyCommands[0].exitCode).toBe(0);
+    expect(oldForm.verifyCommands[0].passed).toBe(true);
+    // xargs 新形态：任一被调用命令失败 → xargs 返回 123 → pipefail 传播为非零
+    const newForm = runKeylessChecks(
+      { id: 'xargs-form', verifyFiles: [], verifyCommands: ['find /workspace -name "fail.sh" -type f -print0 2>&1 | xargs -0 -r sh 2>&1 | tail -5'], qualityChecks: [] },
+      dir,
+    );
+    expect(newForm.verifyCommands[0].exitCode).not.toBe(0);
+    expect(newForm.verifyCommands[0].passed).toBe(false);
+  });
+
+  it.skipIf(!PYTEST_PY)('xargs-ified pytest verifyCommand exits non-zero on test failure (find -exec returns 0)', () => {
+    const dir = makeTmpDir();
+    writeFileSync(join(dir, 'test_fail.py'), 'def test_fail():\n    assert False\n');
+    // find -exec 旧形态：pytest 失败被 find 吞掉，管道在 pipefail 下仍返回 0
+    const oldForm = runKeylessChecks(
+      {
+        id: 'pytest-exec',
+        verifyFiles: [],
+        verifyCommands: [`find /workspace -name "test_fail.py" -exec ${PYTEST_PY} -m pytest {} -v \\; 2>&1 | tail -5`],
+        qualityChecks: [],
+      },
+      dir,
+    );
+    expect(oldForm.verifyCommands[0].exitCode).toBe(0);
+    // xargs 新形态：pytest 失败 → xargs 123 → pipefail 传播为非零
+    const newForm = runKeylessChecks(
+      {
+        id: 'pytest-xargs',
+        verifyFiles: [],
+        verifyCommands: [`find /workspace -name "test_fail.py" -type f -print0 2>&1 | xargs -0 -r ${PYTEST_PY} -m pytest -q 2>&1 | tail -5`],
+        qualityChecks: [],
+      },
+      dir,
+    );
+    expect(newForm.verifyCommands[0].exitCode).not.toBe(0);
+    expect(newForm.verifyCommands[0].passed).toBe(false);
+  });
+
+  // ====== Minor: workspace 路径边界替换 + 时序剥离收窄 ======
+
+  it('normalizeStdout does not replace sibling paths sharing the workspace prefix', () => {
+    const out = normalizeStdout('/workspace/a.py\n/workspace2/b.py\nworkspace-file.txt\n/workspace', '/workspace');
+    expect(out).toBe('<WS>/a.py\n/workspace2/b.py\nworkspace-file.txt\n<WS>');
+  });
+
+  it('timing strip only applies to pytest summary context (passed/failed/errors)', () => {
+    expect(normalizeStdout('=== 1 passed in 0.02s ===', '/workspace')).toBe('=== 1 passed ===');
+    expect(normalizeStdout('=== 1 failed, 2 passed in 12.34s ===', '/workspace')).toBe('=== 1 failed, 2 passed ===');
+    expect(normalizeStdout('=== 1 error in 0.10s ===', '/workspace')).toBe('=== 1 error ===');
+    // 非 pytest 汇总上下文中的 `in Xs` 保留（旧正则 `\bin ... s` 会误删）
+    expect(normalizeStdout('elapsed in 3s and in 5s elsewhere', '/workspace')).toBe('elapsed in 3s and in 5s elsewhere');
   });
 });

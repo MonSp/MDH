@@ -21,7 +21,8 @@ import { basename, join } from 'path';
 export interface FileSnapshot {
   path: string;       // 相对工作区的路径（以 scenario.verifyFiles 声明为准）
   hash: string;       // 内容 sha256 hex（文件不存在时为空串）
-  size: number;       // 内容字节数（文件不存在时为 0）
+  size: number;       // 内容字节数（元数据；空判定改用 chars，字节数仅作参考）
+  chars: number;      // 内容字符数（readFileSync 后 content.length；空判定与 LLM 路径按字符一致）
   exists: boolean;
 }
 
@@ -72,36 +73,51 @@ export function sha256(content: string): string {
 }
 
 /**
- * 文件视为"空"的字节阈值——与 LLM 路径一致（loop.ts 中 read_file 内容 ≤10 字符即判
- * "文件为空"高严重度 FAIL）。keyless 路径用同一 helper，保证两生产者阈值对齐。
+ * 文件视为"空"的字符阈值——与 LLM 路径一致（loop.ts 中 read_file 内容 ≤10 字符即判
+ * "文件为空"高严重度 FAIL）。keyless 路径用同一 helper，以"读到的内容字符数"（chars，
+ * 即 readFileSync 后 content.length）判定而非字节 size：CJK 场景 5 个中文字符 = 15 UTF-8
+ * 字节，但按字符数 length=5 ≤ 10 判空，与 LLM 路径按字符计一致。快照中的 size 仍为
+ * 字节数（元数据）。
  */
 export const EMPTY_FILE_THRESHOLD = 10;
 
 export function isFileEmpty(size: number): boolean {
-  return size < EMPTY_FILE_THRESHOLD;
+  return size <= EMPTY_FILE_THRESHOLD;
 }
 
 /**
  * stdout 归一化——共享 helper，供 buildScenarioSnapshot（LLM 路径）与
  * runKeylessChecks（keyless 路径）两个生产者对 stdout 先归一化再 sha256，
  * 使 stdoutHash 跨生产者 / 跨运行可比：
- * - workspace 绝对路径替换为常量 `<WS>`（容器 /workspace ↔ 本地 workspace 路径可比）
- * - 剥离 pytest 时序片段（`in 0.02s` / `in 12.3s` 等，随运行时长漂移）
+ * - workspace 绝对路径替换为常量 `<WS>`（容器 /workspace ↔ 本地 workspace 路径可比）；
+ *   仅当 workspace 后随 `/` 或行尾时替换（路径边界），避免误伤共享前缀的兄弟路径
+ *   （如 /workspace2）与普通文本中的 workspace 字样
+ * - 剥离 pytest 汇总时序片段（`passed|failed|errors? in 0.02s` / `in 12.3s` 等，
+ *   随运行时长漂移）；非 pytest 汇总上下文中的 `in Xs` 保留
  * - `\r\n` / `\r` 归一为 `\n`
  */
 export function normalizeStdout(text: string, workspace?: string): string {
   let out = String(text || '');
   out = out.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  if (workspace) out = out.split(workspace).join('<WS>');
-  out = out.replace(/\bin\s+\d+(?:\.\d+)?s\b/g, '');
+  if (workspace) {
+    // 转义正则特殊字符后做路径边界替换（后随 / 或行尾），避免 /workspace2 之类兄弟路径误伤
+    const esc = workspace.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp(esc + '(?=/|$)', 'gm'), '<WS>');
+  }
+  out = out.replace(/\b(passed|failed|errors?)\s+in\s+\d+(?:\.\d+)?s\b/g, '$1');
   return out;
 }
 
 /**
  * 执行校验命令。统一用 `bash -o pipefail -c <command>` 包裹（execSync 默认走 /bin/sh）：
- * 场景命令形如 `find /workspace -name ... | tail -10`，管道尾命令退出码恒 0 会遮蔽
- * 上游失败（管道遮蔽 exit code，passed 恒真）；pipefail 使管道中任一环节失败即整体非零。
- * 命令以 JSON 字符串字面量作为单个 bash 参数传递（正确处理引号/反斜杠转义）。
+ * 场景命令形如 `find /workspace -name ... | xargs ... | tail -10`，pipefail 使管道中任一
+ * 环节失败即整体非零。仅支持单行命令：命令经 JSON.stringify 序列化为单个 bash 参数传入
+ * （正确处理引号/反斜杠转义），多行命令在 bash 双引号内会被静默损坏（换行语义改变）。
+ *
+ * 退出码可信性：场景 verifyCommands 已从 `find -exec` 迁移为 `xargs -0 -r` 模式。
+ * find -exec 不传播被执行的命令退出码（pytest 失败 find 仍返回 0）、无匹配也返回 0，
+ * 即使 pipefail 也测不出失败，旧形态不可信；xargs 在任一被调用命令失败时返回 123
+ * （-r 防无匹配时运行），经 pipefail 传播为快照非零 exitCode。
  */
 function runCommand(cmd: string, cwd: string): CommandRunResult {
   const wrapped = `bash -o pipefail -c ${JSON.stringify(cmd)}`;
@@ -182,12 +198,13 @@ export function buildScenarioSnapshot(
   for (const relPath of scenario.verifyFiles || []) {
     const content = (runResults.files || {})[relPath];
     if (content === undefined) {
-      files[relPath] = { path: relPath, hash: '', size: 0, exists: false };
+      files[relPath] = { path: relPath, hash: '', size: 0, chars: 0, exists: false };
     } else {
       files[relPath] = {
         path: relPath,
         hash: sha256(content),
         size: Buffer.byteLength(content, 'utf-8'),
+        chars: content.length,
         exists: true,
       };
     }
@@ -230,10 +247,11 @@ export function runKeylessChecks(scenario: KeylessScenario, workspace: string): 
         path: relPath,
         hash: sha256(content),
         size: Buffer.byteLength(content, 'utf-8'),
+        chars: content.length,
         exists: true,
       };
     } else {
-      files[relPath] = { path: relPath, hash: '', size: 0, exists: false };
+      files[relPath] = { path: relPath, hash: '', size: 0, chars: 0, exists: false };
     }
   }
 
