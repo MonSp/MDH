@@ -128,6 +128,10 @@ export interface ApprovalRequestInfo {
   confidence: number
   status: ApprovalStatus
   createdAt: number
+  /** 门禁把关上下文（可选，向后兼容）：所属任务 / 门禁节点 / 指定审批人 */
+  taskId?: string
+  gateId?: string
+  approver?: string
 }
 
 export interface CheckpointInfo {

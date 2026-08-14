@@ -136,6 +136,10 @@ export default function useMeetingSocket({
     confidence: number
     status: string
     createdAt: number
+    // 门禁把关上下文（可选，向后兼容）：所属任务 / 门禁节点 / 指定审批人
+    taskId?: string
+    gateId?: string
+    approver?: string
   }
   const [pendingApprovals, setPendingApprovals] = useState<Map<string, PendingApprovalInfo>>(new Map())
 
@@ -704,6 +708,9 @@ export default function useMeetingSocket({
                 confidence: request.confidence,
                 status: request.status,
                 createdAt: request.createdAt,
+                taskId: request.taskId,
+                gateId: request.gateId,
+                approver: request.approver,
               })
               return next
             })
@@ -747,6 +754,9 @@ export default function useMeetingSocket({
                 confidence: req.confidence,
                 status: req.status,
                 createdAt: req.createdAt,
+                taskId: req.taskId,
+                gateId: req.gateId,
+                approver: req.approver,
               })
             }
             return next

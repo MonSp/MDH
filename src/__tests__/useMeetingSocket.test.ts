@@ -635,6 +635,84 @@ describe('useMeetingSocket', () => {
 
       expect(result.current.pendingApprovals.get('req-status-2')?.status).toBe('pending')
     })
+
+    it('透传 taskId/gateId/approver 到 pending 状态', () => {
+      const { result, ws } = setupHook()
+      act(() => {
+        emitMsg(ws, {
+          type: 'human_approval_request',
+          request: {
+            id: 'req-9',
+            requesterId: 'agent-minutes',
+            operation: 'node_gate',
+            description: '纪要待确认',
+            riskLevel: 'medium',
+            confidence: 0.8,
+            status: 'pending',
+            createdAt: 123,
+            taskId: 'draft',
+            gateId: 'draft:review',
+            approver: 'emp-1',
+          },
+        })
+      })
+
+      const pending = result.current.pendingApprovals.get('req-9')
+      expect(pending?.taskId).toBe('draft')
+      expect(pending?.gateId).toBe('draft:review')
+      expect(pending?.approver).toBe('emp-1')
+    })
+
+    it('透传 taskId/gateId/approver 到 pending_approvals 批量状态', () => {
+      const { result, ws } = setupHook()
+      act(() => {
+        emitMsg(ws, {
+          type: 'pending_approvals',
+          requests: [{
+            id: 'req-batch-1',
+            requesterId: 'agent-minutes',
+            operation: 'node_gate',
+            description: '纪要待确认',
+            riskLevel: 'medium',
+            confidence: 0.8,
+            status: 'pending',
+            createdAt: 123,
+            taskId: 'draft',
+            gateId: 'draft:review',
+            approver: 'emp-1',
+          }],
+        })
+      })
+
+      const pending = result.current.pendingApprovals.get('req-batch-1')
+      expect(pending?.taskId).toBe('draft')
+      expect(pending?.gateId).toBe('draft:review')
+      expect(pending?.approver).toBe('emp-1')
+    })
+
+    it('无 taskId/gateId/approver 字段时 pending 状态对应字段为 undefined', () => {
+      const { result, ws } = setupHook()
+      act(() => {
+        emitMsg(ws, {
+          type: 'human_approval_request',
+          request: {
+            id: 'req-10',
+            requesterId: 'agent-executor',
+            operation: 'bash',
+            description: '执行部署脚本',
+            riskLevel: 'HIGH',
+            confidence: 0.8,
+            status: 'pending',
+            createdAt: 1720000000000,
+          },
+        })
+      })
+
+      const pending = result.current.pendingApprovals.get('req-10')
+      expect(pending?.taskId).toBeUndefined()
+      expect(pending?.gateId).toBeUndefined()
+      expect(pending?.approver).toBeUndefined()
+    })
   })
 
   describe('approval response (send + confirmation)', () => {
