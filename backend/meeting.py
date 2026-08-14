@@ -398,6 +398,28 @@ class MeetingSession:
             )
         return msgs
 
+    def rebuild_events_from_messages(self, messages: list[dict]) -> None:
+        """将消息 dict 列表重建为 ``_events`` 事件流（快照 restore 回填）。
+
+        消息结构 ``{id, role, content, agent_id, timestamp}`` 重建为
+        SessionEvent：event_type 由角色经 ``_infer_event_type`` 推断，
+        event_id 用消息 id（与 add_message 对齐）。restore 后 ``_events``
+        与 ``messages`` 完全一致，不再携带快照前的历史事件（非消息事件
+        进入后 deriveMessages 与 messages 投影才会保持一致）。
+        """
+        events = []
+        for msg in messages:
+            event = SessionEvent(
+                event_id=msg.get("id"),
+                event_type=self._infer_event_type(msg.get("role", "")),
+                role=msg.get("role"),
+                content=msg.get("content"),
+                agent_id=msg.get("agent_id"),
+                timestamp=msg.get("timestamp"),
+            )
+            events.append(event.to_dict())
+        self._events = events
+
     def load_events(self) -> list[dict]:
         """从 JSONL 逐行读取持久化事件（损坏行跳过），返回事件 dict 列表。"""
         if not self._session_log_dir:

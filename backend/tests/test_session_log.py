@@ -192,7 +192,10 @@ def test_snapshot_projection_contains_last_n_events(tmp_path):
     m = MeetingSession("snap1", session_log_dir=str(tmp_path))
     for i in range(60):
         m.add_message("agent", f"msg-{i:02d}", "agent-1")
-    projected = m.deriveMessages(window=50)
+    # 与 save_meeting_snapshot 生产调用一致：显式限定消息类事件类型
+    projected = m.deriveMessages(
+        event_types=["user_message", "agent_message", "system"], window=50
+    )
     assert len(projected) == 50
     # 最近 50 条即第 11~60 条
     assert projected[0]["content"] == "msg-10"
@@ -203,13 +206,96 @@ def test_snapshot_projection_contains_last_n_events(tmp_path):
     assert [p["id"] for p in projected] == [msg["id"] for msg in m.messages[-50:]]
 
 
+def test_snapshot_projection_excludes_non_message_events(tmp_path):
+    """快照投影显式限定消息类事件：非消息事件（如 discussion）被排除。"""
+    m = MeetingSession("snap3", session_log_dir=str(tmp_path))
+    m.add_message("agent", "正常消息", "agent-1")
+    # 向 _events 塞一个非消息事件（如后续扩展的 discussion）
+    m._events.append(
+        {
+            "event_id": "ev-disc-1",
+            "event_type": "discussion",
+            "role": "",
+            "content": "讨论过程",
+            "agent_id": None,
+            "timestamp": 0,
+        }
+    )
+    projected = m.deriveMessages(
+        event_types=["user_message", "agent_message", "system"], window=50
+    )
+    assert [p["content"] for p in projected] == ["正常消息"]
+    # 不加 event_types 过滤时全量投影仍含非消息事件（过滤器是唯一防线）
+    assert [e["content"] for e in m.deriveMessages()] == ["正常消息", "讨论过程"]
+
+
 def test_snapshot_projection_under_window_returns_all(tmp_path):
     """少于 window 时返回全部（与 messages[-50:] 语义一致）。"""
     m = MeetingSession("snap2", session_log_dir=str(tmp_path))
     for i in range(3):
         m.add_message("user", f"q{i}", None)
-    projected = m.deriveMessages(window=50)
+    projected = m.deriveMessages(
+        event_types=["user_message", "agent_message", "system"], window=50
+    )
     assert len(projected) == 3
+
+
+# === 快照 restore 回填事件流（rebuild_events_from_messages）===
+
+def test_restore_rebuild_events_matches_messages(tmp_path):
+    """restore 回填后 deriveMessages 与 messages 完全一致（事件流一致）。"""
+    m = MeetingSession("rst1", session_log_dir=str(tmp_path))
+    m.add_message("user", "提问", None)
+    m.add_message("agent", "回复", "agent-1")
+
+    # 模拟快照前状态：_events 保留完整事件流 + 一个非消息事件
+    m._events.append(
+        {
+            "event_id": "ev-x",
+            "event_type": "review",
+            "role": "",
+            "content": "审查事件",
+            "agent_id": None,
+            "timestamp": 0,
+        }
+    )
+    snapshot_messages = m.deriveMessages(
+        event_types=["user_message", "agent_message", "system"], window=50
+    )
+
+    # restore 语义：替换 messages + 回填 _events
+    restored = list(snapshot_messages)
+    m.messages = restored
+    m.rebuild_events_from_messages(restored)
+
+    assert [p["id"] for p in m.deriveMessages()] == [msg["id"] for msg in m.messages]
+    assert [p["content"] for p in m.deriveMessages()] == [
+        msg["content"] for msg in m.messages
+    ]
+    # 非消息事件不再出现
+    assert all(e["event_type"] in ("user_message", "agent_message", "system")
+               for e in m._events)
+    assert all(e["event_id"] != "ev-x" for e in m._events)
+
+
+def test_restore_rebuild_events_role_mapping(tmp_path):
+    """rebuild 时 event_type 由角色推断（user→user_message 等），event_id 用消息 id。"""
+    m = MeetingSession("rst2", session_log_dir=str(tmp_path))
+    msgs = [
+        {"id": "m1", "role": "user", "content": "q", "agent_id": None, "timestamp": 1.0},
+        {"id": "m2", "role": "agent", "content": "a", "agent_id": "a1", "timestamp": 2.0},
+        {"id": "m3", "role": "system", "content": "s", "agent_id": None, "timestamp": 3.0},
+    ]
+    m.rebuild_events_from_messages(msgs)
+    assert [e["event_type"] for e in m._events] == [
+        "user_message", "agent_message", "system",
+    ]
+    assert [e["event_id"] for e in m._events] == ["m1", "m2", "m3"]
+    assert m._events[1]["agent_id"] == "a1"
+    # 投影结构保持既有消息形状
+    projected = m.deriveMessages()
+    assert [p["id"] for p in projected] == ["m1", "m2", "m3"]
+    assert [p["role"] for p in projected] == ["user", "agent", "system"]
 
 
 # === 安全审计事件持久化（SecurityMiddleware._log_audit → audit.jsonl）===
@@ -276,6 +362,35 @@ def test_audit_ioerror_falls_back_to_memory(tmp_path, monkeypatch):
     # 不抛异常，内存审计日志仍在
     assert len(mw._audit_log) == 1
     assert mw._audit_log[0].id
+
+
+def test_audit_ioerror_sticky_downgrade(tmp_path, monkeypatch):
+    """首次 IOError 后持久化一次性关闭：后续审计不再重试写盘（防刷屏）。"""
+    from security import SecurityMiddleware
+
+    mw = SecurityMiddleware(audit_log_dir=str(tmp_path))
+    import builtins
+
+    real_open = builtins.open
+    fail_count = {"n": 0}
+
+    def fail_open(*args, **kwargs):
+        if args and "audit.jsonl" in str(args[0]):
+            fail_count["n"] += 1
+            raise OSError("disk full (simulated)")
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", fail_open)
+    mw._log_audit("a1", "bash", "ls", "file_operation", True, "ok", [])
+    assert fail_count["n"] == 1
+    # 降级粘性：持久化目录被关闭
+    assert mw._audit_log_dir is None
+    # 第二次写入不再触碰文件系统（open 不再被调用）
+    mw._log_audit("a2", "bash", "pwd", "file_operation", True, "ok", [])
+    monkeypatch.undo()
+    assert fail_count["n"] == 1
+    # 内存审计两条仍在
+    assert len(mw._audit_log) == 2
 
 
 def test_audit_event_uses_audit_event_type():

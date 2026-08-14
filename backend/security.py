@@ -248,10 +248,13 @@ class SecurityMiddleware:
             with open(path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + "\n")
         except (IOError, OSError):
-            # IOError 静默降级为纯内存模式，不破坏 _log_audit 调用方行为
+            # IOError 静默降级为纯内存模式，不破坏 _log_audit 调用方行为；
+            # 一次性关闭持久化（置 None），防磁盘满场景无限重试刷屏
             logger.warning(
-                "audit.jsonl 追加失败（降级为内存模式）: %s", self._audit_log_dir
+                "audit.jsonl 追加失败（降级为内存模式，关闭持久化）: %s",
+                self._audit_log_dir,
             )
+            self._audit_log_dir = None
 
     def _determine_risk_level(self, capability: str) -> RiskLevel:
         if capability in self._high_risk_capabilities:
