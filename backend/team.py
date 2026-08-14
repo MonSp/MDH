@@ -47,6 +47,8 @@ class TeamMember:
     location: AgentLocation
     skill_pack_id: str = ""
     status: str = "idle"
+    member_type: str = "agent"   # "agent" | "human"（human=现实员工，作为把关人）
+    approver_for: tuple = ()     # human 成员负责把关的 task_id 列表
 
 
 @dataclass

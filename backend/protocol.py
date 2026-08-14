@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 # LLM 调用失败时的 fallback 消息模板
 LLM_FALLBACK_TEMPLATE = "[{role}] 由于网络问题，无法获取详细{content_type}。建议按照标准流程执行。"
@@ -39,6 +39,7 @@ class WorkflowNode:
     output_spec: dict = field(default_factory=dict)
     status: WorkflowNodeStatus = WorkflowNodeStatus.PENDING
     result: dict | None = None
+    gate: Optional[dict] = None   # 把关点描述 {"approver": str, "stage": str}；None=无把关
 
 
 @dataclass
