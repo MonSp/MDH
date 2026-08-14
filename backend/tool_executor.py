@@ -17,6 +17,15 @@ from tool_registry import (
 logger = logging.getLogger(__name__)
 
 
+def render_document_bytes(content: str, fmt: str) -> bytes:
+    """按 format 渲染文档字节：docx 走 doc_tools seam，其余返回 utf-8 文本。"""
+    if fmt == "docx":
+        lines = content.splitlines()
+        spec = DocSpec(title=lines[0] if lines else "", paragraphs=lines[1:])
+        return get_doc_builder("stdlib").build(spec)
+    return content.encode("utf-8")
+
+
 class ToolExecutor:
     def __init__(self, registry: ToolRegistry, workspace_root: str):
         self.registry = registry
@@ -695,18 +704,14 @@ class ToolExecutor:
     def _exec_create_document(self, tool_call: ToolCall) -> ToolResult:
         path = tool_call.arguments["path"]
         content = tool_call.arguments["content"]
+        # format 大小写归一化：防 "DOCX" 静默降级；未知值仍按 text 处理（fail-safe）
+        fmt = str(tool_call.arguments.get("format", "text")).lower()
         resolved = self._resolve_path(path)
         try:
             os.makedirs(os.path.dirname(resolved), exist_ok=True)
-            if tool_call.arguments.get("format") == "docx":
-                # docx 走 doc_tools seam：首行作标题、其余行作段落
-                lines = content.splitlines()
-                title = lines[0] if lines else ""
-                paragraphs = lines[1:]
-                spec = DocSpec(title=title, paragraphs=paragraphs)
-                data = get_doc_builder("stdlib").build(spec)
+            if fmt == "docx":
                 with open(resolved, "wb") as f:
-                    f.write(data)
+                    f.write(render_document_bytes(content, "docx"))
             else:
                 with open(resolved, "w", encoding="utf-8") as f:
                     f.write(content)

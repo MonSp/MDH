@@ -511,10 +511,17 @@ async def handle_run_linter(workspace: str, args: dict) -> str:
 async def handle_create_document(workspace: str, args: dict) -> str:
     path = args.get("path", "")
     content = args.get("content", "")
+    # format 大小写归一化：防 "DOCX" 静默降级；未知值仍按 text 处理（fail-safe）
+    fmt = str(args.get("format", "text")).lower()
     full = _resolve_in_workspace(workspace, path)
     os.makedirs(os.path.dirname(full), exist_ok=True)
-    with open(full, "w", encoding="utf-8") as f:
-        f.write(content)
+    if fmt == "docx":
+        from tool_executor import render_document_bytes
+        with open(full, "wb") as f:
+            f.write(render_document_bytes(content, "docx"))
+    else:
+        with open(full, "w", encoding="utf-8") as f:
+            f.write(content)
     return f"Document created: {path}"
 
 

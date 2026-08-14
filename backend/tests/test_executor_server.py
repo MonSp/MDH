@@ -102,6 +102,38 @@ def test_create_document(ws):
     assert open(os.path.join(ws, "doc.md")).read() == "# Title"
 
 
+def test_create_document_docx_remote(ws):
+    """远端执行路径：format=docx 应产出合法 zip（含 word/document.xml）而非文本"""
+    r = call_tool("create_document", {
+        "path": "minutes.docx", "content": "会议纪要\n行动项A", "format": "docx",
+    }, ws)
+    assert r["success"] is True
+    f = os.path.join(ws, "minutes.docx")
+    import zipfile
+    with zipfile.ZipFile(f) as zf:
+        assert "word/document.xml" in zf.namelist()
+        xml = zf.read("word/document.xml").decode("utf-8")
+        assert "会议纪要" in xml and "行动项A" in xml
+
+
+def test_create_document_docx_remote_uppercase(ws):
+    """远端执行路径：format=DOCX 大小写归一化，不应静默降级为文本"""
+    r = call_tool("create_document", {
+        "path": "upper.DOCX", "content": "标题\n正文", "format": "DOCX",
+    }, ws)
+    assert r["success"] is True
+    import zipfile
+    with zipfile.ZipFile(os.path.join(ws, "upper.DOCX")) as zf:
+        assert "word/document.xml" in zf.namelist()
+
+
+def test_create_document_remote_text_default(ws):
+    """远端执行路径：默认（无 format）仍为纯文本"""
+    r = call_tool("create_document", {"path": "doc.md", "content": "# Title"}, ws)
+    assert r["success"] is True
+    assert open(os.path.join(ws, "doc.md")).read() == "# Title"
+
+
 def test_edit_document(ws):
     (ws_path := os.path.join(ws, "doc.md")) and open(ws_path, "w").write("# Old")
     r = call_tool("edit_document", {"path": "doc.md", "old_string": "# Old", "new_string": "# New"}, ws)
