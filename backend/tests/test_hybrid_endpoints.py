@@ -133,3 +133,18 @@ def test_hybrid_team_endpoint_agent_has_display_name_key():
     for member in resp.json()["members"]:
         assert "displayName" in member
         assert member["displayName"] == ""
+
+
+def test_gates_pending_returns_gate_context_fields():
+    """REST /api/gates/pending 条目携带 gate 上下文（taskId/gateId/approver），
+    与 get_pending_requests / WS pending_approvals 三键对齐。"""
+    created = client.post("/api/gates", json={
+        "requesterId": "agent-minutes", "operation": "node_gate",
+        "description": "纪要待确认", "taskId": "draft", "gateId": "draft:review",
+    })
+    assert created.status_code == 200
+    pending = client.get("/api/gates/pending").json()
+    item = next(r for r in pending if r["id"] == created.json()["id"])
+    assert item["taskId"] == "draft"
+    assert item["gateId"] == "draft:review"
+    assert "approver" in item

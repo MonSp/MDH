@@ -2574,6 +2574,9 @@ async def api_gates_pending():
             "operation": r["operation"],
             "description": r["description"],
             "status": r["status"],
+            "taskId": r.get("taskId", ""),
+            "gateId": r.get("gateId", ""),
+            "approver": r.get("approver", ""),
         }
         for r in _demo_gate_manager.get_pending_requests()
     ]
