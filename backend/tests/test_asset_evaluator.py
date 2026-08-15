@@ -58,3 +58,16 @@ def test_duplicate_not_flagged_for_content_mention(tmp_path):
     new = store.store_artifact("team-x", "发布计划", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
     result = AssetEvaluator(store).evaluate(new)
     assert result.checks["duplicate"] is True  # 不同标题 → 不判重复（duplicate 检查通过）
+
+
+def test_judge_exception_fails_closed(tmp_path):
+    store = AssetStore(str(tmp_path))
+    asset = store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
+
+    def broken_judge(asset_dict):
+        raise ConnectionError("judge 网络错误")
+
+    result = AssetEvaluator(store, judge=broken_judge).evaluate(asset)
+    assert not result.passed
+    assert result.judge_score is None
+    assert "judge 异常" in result.reason

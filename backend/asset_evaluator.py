@@ -29,8 +29,9 @@ class AssetEvaluator:
     def evaluate(self, asset: dict) -> EvaluationResult:
         """评测资产。
 
-        judge 抛异常时向上传播（fail-open 语义），接入真实 judge 前需评估
-        是否改为 fail-closed（判 judge 异常 → 拒绝）。
+        judge 抛异常时 fail-closed：LLM 出错不放行资产（judge_score=None +
+        passed=False + reason="judge 异常: <msg>"），避免网络/解析错误把
+        不合格资产漏进演示闭环（仿 AIP Evals 评测纪律）。
         """
         checks = {
             "completeness": bool(asset.get("title", "").strip()) and bool(asset.get("content", "").strip()),
@@ -40,7 +41,13 @@ class AssetEvaluator:
         }
         judge_score = None
         if self._judge is not None:
-            judge_score = float(self._judge(asset))
+            try:
+                judge_score = float(self._judge(asset))
+            except Exception as exc:  # fail-closed：LLM 出错不放行资产（仿 AIP Evals 评测纪律）
+                return EvaluationResult(
+                    passed=False, checks=checks, judge_score=None,
+                    reason=f"judge 异常: {exc}",
+                )
         passed = all(checks.values()) and (judge_score is None or judge_score >= _JUDGE_THRESHOLD)
         reason = "" if passed else "; ".join(k for k, v in checks.items() if not v) or "judge_score 低于阈值"
         return EvaluationResult(passed=passed, checks=checks, judge_score=judge_score, reason=reason)

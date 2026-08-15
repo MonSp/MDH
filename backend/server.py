@@ -2631,6 +2631,7 @@ _asset_store: Optional[object] = None
 _template_confirmation: Optional[object] = None
 _skill_evolution: Optional[object] = None
 _asset_search: Optional[object] = None
+_asset_judge: Optional[object] = None
 
 
 def _get_asset_store():
@@ -2641,6 +2642,15 @@ def _get_asset_store():
     return _asset_store
 
 
+def _get_asset_judge():
+    """LLM judge 惰性单例：ASSET_JUDGE_ENABLED=1 且 env 有 key 才构造（否则 None）。"""
+    global _asset_judge
+    if _asset_judge is None and os.environ.get("ASSET_JUDGE_ENABLED") == "1":
+        from asset_judge import make_judge_from_env
+        _asset_judge = make_judge_from_env()  # 无 key → None（幂等）
+    return _asset_judge
+
+
 def _get_template_confirmation():
     global _template_confirmation
     if _template_confirmation is None:
@@ -2649,7 +2659,9 @@ def _get_template_confirmation():
         store = _get_asset_store()
         # 必须复用 _demo_gate_manager（T3 评审预警）：/api/gates/decide 走它做决定，
         # 桥接只覆盖构造时传入的实例——否则演示闭环（决定 → 固化）断裂。
-        _template_confirmation = TemplateConfirmation(store, AssetEvaluator(store), _demo_gate_manager)
+        # judge 由 _get_asset_judge() 注入：env 开关 ASSET_JUDGE_ENABLED=1 且有
+        # API key 才接真实 LLM judge，否则 None（快路径，行为与旧版一致）。
+        _template_confirmation = TemplateConfirmation(store, AssetEvaluator(store, _get_asset_judge()), _demo_gate_manager)
     return _template_confirmation
 
 

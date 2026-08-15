@@ -169,3 +169,33 @@ def test_malicious_team_id_returns_fail_not_500(tmp_path, monkeypatch):
     assert resp.status_code == 200 and not resp.json()["success"]
     resp = client.get("/api/assets", params={"team_id": "../evil"})
     assert resp.status_code == 200 and not resp.json()["success"]
+
+
+def test_templates_endpoint_with_judge_wiring(tmp_path, monkeypatch):
+    from asset_evaluator import AssetEvaluator
+    from asset_store import AssetStore
+    from approval_manager import ApprovalManager
+    from template_confirmation import TemplateConfirmation
+    store = AssetStore(str(tmp_path))
+    approvals = ApprovalManager()
+    monkeypatch.setattr(server, "_get_asset_store", lambda: store)
+    monkeypatch.setattr(server, "_get_asset_judge", lambda: lambda a: 0.9)  # 高分 judge
+    tc = TemplateConfirmation(store, AssetEvaluator(store, lambda a: 0.9), approvals)
+    monkeypatch.setattr(server, "_get_template_confirmation", lambda: tc)
+    client = TestClient(server.app)
+    resp = client.post("/api/assets/templates", json={
+        "team_id": "team-x", "title": "发布计划模板", "content": _GOOD_CONTENT,
+        "approver": "emp-001",
+    })
+    assert resp.status_code == 200 and resp.json()["success"]
+
+
+def test_get_asset_judge_respects_env_switch(monkeypatch):
+    monkeypatch.delenv("ASSET_JUDGE_ENABLED", raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
+    assert server._get_asset_judge() is None  # 未启用 → None
+    monkeypatch.setenv("ASSET_JUDGE_ENABLED", "1")
+    assert server._get_asset_judge() is not None  # 启用 + key → judge
+    # 清理单例（避免污染后续测试）
+    server._asset_judge = None
+    monkeypatch.delenv("ASSET_JUDGE_ENABLED", raising=False)
