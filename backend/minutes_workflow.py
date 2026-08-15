@@ -17,7 +17,9 @@ _NODES = [
 ]
 
 
-def build_minutes_workflow(transcript: str, approver: str = "submitter") -> WorkflowDefinition:
+def build_minutes_workflow(
+    transcript: str, approver: str = "submitter", team_id: str = ""
+) -> WorkflowDefinition:
     nodes = [
         WorkflowNode(
             node_id=nid,
@@ -28,6 +30,10 @@ def build_minutes_workflow(transcript: str, approver: str = "submitter") -> Work
         )
         for nid, desc in _NODES
     ]
+    if team_id:
+        # 非空时透传到各节点 input_spec（供 coordinator asset_context_builder seam 取团队标识）
+        for node in nodes:
+            node.input_spec["team_id"] = team_id
     edges = [
         WorkflowEdge(source_node_id="extract", target_node_id="draft"),
         WorkflowEdge(source_node_id="draft", target_node_id="proofread"),

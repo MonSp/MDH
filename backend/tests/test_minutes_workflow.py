@@ -65,3 +65,15 @@ def test_nodes_carry_transcript_input():
 def test_minutes_family_derived_from_keywords():
     expected = tuple(k for k in MINUTES_KEYWORDS if k not in ("待办", "行动项"))
     assert MINUTES_FAMILY == expected
+
+
+def test_build_minutes_workflow_carries_team_id():
+    wf = build_minutes_workflow("会议讨论发布计划。", team_id="team-x")
+    for node in wf.nodes:
+        assert node.input_spec.get("team_id") == "team-x"
+
+
+def test_build_minutes_workflow_no_team_id_keeps_shape():
+    wf = build_minutes_workflow("会议讨论发布计划。")
+    for node in wf.nodes:
+        assert "team_id" not in node.input_spec  # 缺省不加键（既有形状不变）
