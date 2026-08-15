@@ -8,6 +8,7 @@ import shutil
 import time
 import uuid
 from dataclasses import asdict
+from typing import Optional
 from urllib.parse import parse_qs
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body, Depends, Header, HTTPException, Request
@@ -2622,6 +2623,113 @@ async def api_gate_decide(request_id: str, body: dict):
         request_id, False, reason=body.get("reason", ""),
     )
     return {"resolved": False}
+
+
+# ── 资产沉淀端点（M3，[S7]）────────────────────────
+# 惰性单例组装 + monkeypatch 可测（TestClient 测试替换全局 helper）
+_asset_store: Optional[object] = None
+_template_confirmation: Optional[object] = None
+_skill_evolution: Optional[object] = None
+_asset_search: Optional[object] = None
+
+
+def _get_asset_store():
+    global _asset_store
+    if _asset_store is None:
+        from asset_store import AssetStore
+        _asset_store = AssetStore(os.path.join(_DATA_DIR, "assets"))
+    return _asset_store
+
+
+def _get_template_confirmation():
+    global _template_confirmation
+    if _template_confirmation is None:
+        from asset_evaluator import AssetEvaluator
+        from template_confirmation import TemplateConfirmation
+        store = _get_asset_store()
+        # 必须复用 _demo_gate_manager（T3 评审预警）：/api/gates/decide 走它做决定，
+        # 桥接只覆盖构造时传入的实例——否则演示闭环（决定 → 固化）断裂。
+        _template_confirmation = TemplateConfirmation(store, AssetEvaluator(store), _demo_gate_manager)
+    return _template_confirmation
+
+
+def _get_skill_evolution():
+    global _skill_evolution
+    if _skill_evolution is None:
+        from experience_extractor import ExperienceExtractor
+        from skill_evolution import SkillEvolution
+        _skill_evolution = SkillEvolution(ExperienceExtractor(os.path.join(_DATA_DIR, "rules")))
+    return _skill_evolution
+
+
+def _get_asset_search():
+    global _asset_search
+    if _asset_search is None:
+        from asset_search import AssetSearch
+        from experience_extractor import ExperienceExtractor
+        _asset_search = AssetSearch(_get_asset_store(), ExperienceExtractor(os.path.join(_DATA_DIR, "rules")))
+    return _asset_search
+
+
+@app.post("/api/assets/artifacts")
+async def api_asset_artifacts(body: dict):
+    """演示：产出物入库（知识库）。body: team_id/title/content/source_task_id"""
+    try:
+        team_id = body["team_id"]
+        asset = _get_asset_store().store_artifact(team_id, body.get("title", ""), body.get("content", ""), body.get("source_task_id", ""))
+        return _ok({"asset_id": asset["asset_id"]})
+    except KeyError:
+        return _fail("缺少必填字段: team_id")
+
+
+@app.post("/api/assets/templates")
+async def api_asset_templates(body: dict):
+    """演示：模板固化（评测 + 员工把关确认）。body: team_id/title/content/source_task_id/approver"""
+    try:
+        result = await _get_template_confirmation().submit(
+            team_id=body["team_id"],
+            title=body.get("title", ""),
+            content=body.get("content", ""),
+            source_task_id=body.get("source_task_id", ""),
+            approver=body.get("approver", ""),
+        )
+        if result["ok"]:
+            return _ok({"asset_id": result["asset_id"], "request_id": result["request_id"]})
+        return _fail(result["reason"])
+    except KeyError:
+        return _fail("缺少必填字段: team_id")
+
+
+@app.get("/api/assets/search")
+async def api_asset_search(team_id: str, q: str = "", type: str = "", task_type: str = "", keywords: str = ""):
+    """演示：三类资产复用检索（产出物/模板/技能规则）。"""
+    kw = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else None
+    return _ok(_get_asset_search().search(team_id, query=q, asset_type=type, task_type=task_type, keywords=kw))
+
+
+@app.post("/api/assets/experience")
+async def api_asset_experience(body: dict):
+    """演示：把关差异 → 技能进化（经验规则 → CoW 增量区）。body: team_id/task_type/transcript/feedback/keywords"""
+    try:
+        result = _get_skill_evolution().evolve_from_feedback(
+            project_id=body.get("project_id", f"proj-{body['team_id']}"),
+            task_type=body.get("task_type", ""),
+            transcript=body.get("transcript", ""),
+            feedback=body.get("feedback", ""),
+            keywords=body.get("keywords", []),
+        )
+        return _ok({"rule_id": result["rule_id"], "count": result["count"]})
+    except KeyError:
+        return _fail("缺少必填字段: team_id")
+    except Exception as exc:
+        # T4 评审建议：磁盘错误等不得以 500 传播，包装为 _fail
+        return _fail(str(exc))
+
+
+@app.get("/api/assets")
+async def api_asset_list(team_id: str, status: str = ""):
+    """演示：资产列表（per team）。"""
+    return _ok(_get_asset_store().list_assets(team_id, status=status or None))
 
 
 @app.get("/health")
