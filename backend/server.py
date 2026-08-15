@@ -2506,17 +2506,31 @@ async def api_hybrid_team(body: dict):
         return _fail(str(exc))
 
 
+@app.get("/api/employees")
+async def api_employees():
+    """演示：员工目录列表（employee_id → 显示名/邮箱/职位）。"""
+    from employee_directory import get_directory
+    return _ok([
+        {"employeeId": e.employee_id, "name": e.name, "email": e.email, "position": e.position}
+        for e in get_directory().all()
+    ])
+
+
 @app.post("/api/minutes")
 async def api_minutes_plan(body: dict):
     """演示：速记 → 会议纪要 DAG 规划 + 混合团队组装（把关经 /api/gates）。"""
     from minutes_workflow import build_minutes_workflow
     from mailer.seam import MailMessage, get_mailer
+    from employee_directory import get_directory
 
     transcript = body.get("transcript", "")
     submitter = body.get("submitter", "submitter")
     if not transcript:
         return _fail("缺少必填字段: transcript")
     try:
+        # 提交者从占位字符串解析为真实员工名（未命中回退原值）；
+        # mailer to 保持 submitter 原值——它是地址语义，不是显示名
+        submitter_name = get_directory().display_name(submitter)
         wf = build_minutes_workflow(transcript, approver=submitter)
         dag = {"tasks": [
             {"task_id": n.node_id, "name": n.node_id, "required_skills": ["frontend_dev"],
@@ -2526,7 +2540,7 @@ async def api_minutes_plan(body: dict):
         team = TeamAssembler().assemble_hybrid_team(
             dag, body.get("project_id", "proj-minutes"),
             TeamRuntime(runtime_id="rt-minutes", runtime_type=RuntimeType.LOCAL_DOCKER, root_path="/tmp/workspace"),
-            humans=[{"employee_id": submitter, "name": submitter, "approver_for": ["draft"]}],
+            humans=[{"employee_id": submitter, "name": submitter_name, "approver_for": ["draft"]}],
         )
         get_mailer("file").send(MailMessage(title="会议纪要", to=[submitter], body=transcript))
         return {

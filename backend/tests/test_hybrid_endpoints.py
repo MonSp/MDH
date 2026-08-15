@@ -148,3 +148,33 @@ def test_gates_pending_returns_gate_context_fields():
     assert item["taskId"] == "draft"
     assert item["gateId"] == "draft:review"
     assert "approver" in item
+
+
+def test_minutes_resolves_submitter_display_name():
+    resp = client.post("/api/minutes", json={
+        "transcript": "会议讨论发布计划，确定 8 月上线。",
+        "submitter": "emp-001",
+    })
+    assert resp.status_code == 200
+    members = resp.json()["team"]["members"]
+    human = next(m for m in members if m["memberType"] == "human")
+    assert human["displayName"] == "张伟"  # 目录解析
+
+
+def test_minutes_submitter_fallback_to_raw_id():
+    resp = client.post("/api/minutes", json={
+        "transcript": "会议讨论发布计划，确定 8 月上线。",
+        "submitter": "ghost-id",
+    })
+    assert resp.status_code == 200
+    members = resp.json()["team"]["members"]
+    human = next(m for m in members if m["memberType"] == "human")
+    assert human["displayName"] == "ghost-id"  # 未命中回退
+
+
+def test_employees_endpoint_lists_directory():
+    resp = client.get("/api/employees")
+    assert resp.status_code == 200
+    # _ok 包装：{"success": True, "data": [...], "error": None}，目录列表在 data 字段
+    data = resp.json()["data"]
+    assert any(e["employeeId"] == "emp-001" and e["name"] == "张伟" for e in data)

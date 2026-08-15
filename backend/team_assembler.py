@@ -7,6 +7,7 @@ import logging
 import uuid
 from typing import Optional
 
+from employee_directory import get_directory
 from team import Team, TeamMember, TeamRuntime, AgentLocation, TeamStatus
 
 logger = logging.getLogger(__name__)
@@ -114,6 +115,8 @@ class TeamAssembler:
         """
         team = self.assemble_from_dag(dag, project_id, runtime)
         for h in humans:
+            # 仅当 name 缺省/为空时从目录兜底解析显示名；name 非空保持调用方原值
+            name = h.get("name") or get_directory().display_name(h["employee_id"])
             team.add_member(TeamMember(
                 agent_id=h["employee_id"],
                 role_name="employee",
@@ -121,6 +124,6 @@ class TeamAssembler:
                 location=AgentLocation.LOCAL,
                 member_type="human",
                 approver_for=tuple(h.get("approver_for", [])),
-                display_name=h.get("name", ""),
+                display_name=name,
             ))
         return team
