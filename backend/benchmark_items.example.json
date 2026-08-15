@@ -1,0 +1,82 @@
+[
+  {
+    "asset": {
+      "type": "template",
+      "title": "发布计划模板-结构化",
+      "content": "标题：发布计划\n要点：确定 8 月 15 日上线\n决策：不做延期\n待办：市场部宣传物料（李娜，8/10）\n待办：研发部版本冻结（王强，8/12）",
+      "team_id": "demo"
+    },
+    "gold_score": 0.85,
+    "gold_pass": true
+  },
+  {
+    "asset": {
+      "type": "template",
+      "title": "会议纪要模板-完整",
+      "content": "标题：会议纪要\n参加人：市场部、研发部\n要点：新产品 8 月 15 日上线\n决策：日期确定\n待办：宣传物料（李娜，8/10）\n待办：客户通知（张伟，8/13）",
+      "team_id": "demo"
+    },
+    "gold_score": 0.85,
+    "gold_pass": true
+  },
+  {
+    "asset": {
+      "type": "template",
+      "title": "会议纪要模板-单薄",
+      "content": "标题：会议纪要\n今天开会讨论了发布的事情，大家同意 8 月 15 日上线。\n具体谁负责后面再说。",
+      "team_id": "demo"
+    },
+    "gold_score": 0.3,
+    "gold_pass": false
+  },
+  {
+    "asset": {
+      "type": "template",
+      "title": "发布计划模板-草率",
+      "content": "标题：发布计划\n定了 8 月 15 日上线。",
+      "team_id": "demo"
+    },
+    "gold_score": 0.2,
+    "gold_pass": false
+  },
+  {
+    "asset": {
+      "type": "artifact",
+      "title": "纪要-0815-完整",
+      "content": "会议确定新产品 8 月 15 日上线。\n市场部负责宣传物料，研发部负责版本冻结，销售部准备客户通知。\n所有待办均指定责任人与截止日期。",
+      "team_id": "demo"
+    },
+    "gold_score": 0.8,
+    "gold_pass": true
+  },
+  {
+    "asset": {
+      "type": "artifact",
+      "title": "纪要-0814-完整",
+      "content": "会议讨论预算调整。\n财务部负责更新预算表（张伟，8/20），市场部确认宣传预算（李娜，8/18）。\n下次评审定于 8 月 25 日。",
+      "team_id": "demo"
+    },
+    "gold_score": 0.8,
+    "gold_pass": true
+  },
+  {
+    "asset": {
+      "type": "artifact",
+      "title": "纪要-0815-简略",
+      "content": "开了个会，说了说发布的事。",
+      "team_id": "demo"
+    },
+    "gold_score": 0.2,
+    "gold_pass": false
+  },
+  {
+    "asset": {
+      "type": "artifact",
+      "title": "纪要-0814-简略",
+      "content": "讨论了预算。",
+      "team_id": "demo"
+    },
+    "gold_score": 0.15,
+    "gold_pass": false
+  }
+]

@@ -4,6 +4,7 @@
 good_mean-bad_mean（区分度）。标注集为内置演示数据（试点部门真实标注集后续外部化）。
 """
 
+import json
 from dataclasses import dataclass, field
 
 from asset_evaluator import _JUDGE_THRESHOLD
@@ -57,6 +58,31 @@ BENCHMARK_ITEMS = [
     BenchmarkItem(asset={"type": "artifact", "title": "纪要-0814-简略", "content": "讨论了预算。"},
                   gold_score=0.15, gold_pass=False),
 ]
+
+
+def load_benchmark_items(path: str) -> list[BenchmarkItem]:
+    """从 JSON 文件加载标注集（外部化：试点部门真实标注集可注入）。
+
+    格式：`[{"asset": {"type","title","content","team_id"}, "gold_score": 0-1, "gold_pass": bool}]`；
+    校验 gold_pass 与 gold_score 阈值一致（不一致抛 ValueError）；文件缺失/非法 JSON 抛清晰异常。
+    """
+    with open(path, encoding="utf-8") as f:
+        raw = json.load(f)
+    items = []
+    for entry in raw:
+        asset = entry.get("asset")
+        if not isinstance(asset, dict):
+            raise ValueError(f"标注集条目缺 asset dict: {entry!r}")
+        gold_score = entry.get("gold_score")
+        gold_pass = entry.get("gold_pass")
+        if not isinstance(gold_score, (int, float)) or not 0.0 <= gold_score <= 1.0:
+            raise ValueError(f"gold_score 非法: {gold_score!r}")
+        if not isinstance(gold_pass, bool):
+            raise ValueError(f"gold_pass 非法: {gold_pass!r}")
+        if gold_pass != (gold_score >= _JUDGE_THRESHOLD):
+            raise ValueError(f"gold_pass 与 gold_score 阈值不一致: {entry!r}")
+        items.append(BenchmarkItem(asset=asset, gold_score=float(gold_score), gold_pass=gold_pass))
+    return items
 
 
 def evaluate_judge(judge, items=None) -> BenchmarkResult:

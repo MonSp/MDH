@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from asset_evaluator import _JUDGE_THRESHOLD
@@ -54,3 +56,40 @@ def test_evaluate_judge_empty_items():
     assert result.mae == 0.0
     assert result.good_mean == 0.0 and result.bad_mean == 0.0
     assert result.per_item == []
+
+
+def test_load_benchmark_items_from_json(tmp_path):
+    from asset_judge_benchmark import load_benchmark_items
+    f = tmp_path / "items.json"
+    f.write_text(json.dumps([
+        {"asset": {"type": "artifact", "title": "a", "content": "好内容"}, "gold_score": 0.8, "gold_pass": True},
+        {"asset": {"type": "artifact", "title": "b", "content": "差内容"}, "gold_score": 0.2, "gold_pass": False},
+    ]), encoding="utf-8")
+    items = load_benchmark_items(str(f))
+    assert len(items) == 2
+    assert items[0].gold_score == 0.8 and items[0].gold_pass is True
+    assert items[1].asset["title"] == "b"
+
+
+def test_load_benchmark_items_rejects_inconsistent_gold_pass(tmp_path):
+    from asset_judge_benchmark import load_benchmark_items
+    f = tmp_path / "bad.json"
+    f.write_text(json.dumps([
+        {"asset": {"type": "artifact", "title": "a", "content": "内容"}, "gold_score": 0.8, "gold_pass": False},
+    ]), encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_benchmark_items(str(f))
+
+
+def test_load_benchmark_items_missing_file(tmp_path):
+    from asset_judge_benchmark import load_benchmark_items
+    with pytest.raises(FileNotFoundError):
+        load_benchmark_items(str(tmp_path / "nope.json"))
+
+
+def test_load_benchmark_items_invalid_json(tmp_path):
+    from asset_judge_benchmark import load_benchmark_items
+    f = tmp_path / "bad.json"
+    f.write_text("{not json", encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_benchmark_items(str(f))
