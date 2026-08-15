@@ -96,10 +96,12 @@ class MeetingCoordinator:
         workflow_engine: Optional[WorkflowEngine] = None,
         approval_manager: Optional[ApprovalManager] = None,
         approval_timeout: float = 300.0,
+        asset_context_builder: Optional[Callable[[str, str, list | None], str]] = None,
     ):
         self._max_iterations = max_iterations
         self._approval_manager = approval_manager
         self._approval_timeout = approval_timeout
+        self._asset_context_builder = asset_context_builder
         self.meeting = meeting_session
         self.provider = provider
         self.model_name = model_name
@@ -339,11 +341,20 @@ class MeetingCoordinator:
             )
 
         tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}" if agent_toolset else ""
+        asset_context = ""
+        if self._asset_context_builder is not None and node.dept_id == "dept-docs":
+            try:
+                team_id = (input_data or {}).get("team_id", "")
+                if team_id:
+                    asset_context = self._asset_context_builder(team_id, "minutes", ["纪要", "待办"])
+            except Exception as exc:  # 注入是增强非必需——失败不影响节点执行
+                self.logger.warning("资产参考注入失败: %s", exc)
         prompt = (
             f"请执行以下任务：\n"
             f"任务描述：{node.task_description}\n"
             f"输入数据：{json.dumps(input_data, ensure_ascii=False)}\n"
-            f"{tool_prompt}\n\n"
+            f"{tool_prompt}"
+            f"{asset_context}\n\n"
             f"需要产出文件时，用代码块输出：```文件名\n内容\n```；需要调用工具时输出 JSON："
             f'{{"tool": "工具名", "arguments": {{...}}}}。'
         )
