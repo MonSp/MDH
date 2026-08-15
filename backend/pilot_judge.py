@@ -16,6 +16,9 @@ LLM judge 真实 key 试点：验证 AssetEvaluator 的 judge seam 在真实 Dee
 
   --benchmark 模式：内置标注集跑 evaluate_judge，打印 accuracy/mae/区分度 与逐条分数
   /home/test/miniconda3/envs/agentscope/bin/python pilot_judge.py --api-key "$KEY" --base-url "$BASE" --model "$MODEL" --benchmark
+
+  --benchmark 模式 + --benchmark-file：用外部标注集跑 evaluate_judge（试点部门真实标注集可注入，缺省内置）
+  /home/test/miniconda3/envs/agentscope/bin/python pilot_judge.py --api-key "$KEY" --base-url "$BASE" --model "$MODEL" --benchmark --benchmark-file benchmark_items.example.json
 """
 
 import argparse
@@ -24,7 +27,7 @@ import tempfile
 
 from asset_evaluator import AssetEvaluator, _JUDGE_THRESHOLD
 from asset_judge import make_llm_judge
-from asset_judge_benchmark import evaluate_judge
+from asset_judge_benchmark import evaluate_judge, load_benchmark_items
 from asset_store import AssetStore
 
 # 合成资产样例（确定性检查全过，只让 judge 区分好坏）
@@ -75,12 +78,17 @@ def check(label: str, ok: bool, detail: str = "") -> bool:
     return ok
 
 
-def run_benchmark(judge, model: str) -> None:
-    """评测基准模式：evaluate_judge 单遍评测，打印各指标 + 逐条分数（同一遍数据，无二次调用）。"""
+def run_benchmark(judge, model: str, benchmark_file: str | None = None) -> None:
+    """评测基准模式：evaluate_judge 单遍评测，打印各指标 + 逐条分数（同一遍数据，无二次调用）。
+
+    benchmark_file 提供时用外部标注集（load_benchmark_items），否则回退内置 BENCHMARK_ITEMS。
+    """
     print("=" * 60)
-    print("  LLM judge 评测基准（模型: %s）" % model)
+    print("  LLM judge 评测基准（模型: %s%s）" % (
+        model, f"，标注集: {benchmark_file}" if benchmark_file else ""))
     print("=" * 60)
-    result = evaluate_judge(judge)
+    items = load_benchmark_items(benchmark_file) if benchmark_file else None
+    result = evaluate_judge(judge, items=items)
     for pi in result.per_item:
         match = pi["correct"]
         print(f"  [{'一致' if match else '不一致'}] {pi['title']}: "
@@ -96,7 +104,7 @@ def run(args: argparse.Namespace) -> None:
     judge = make_llm_judge(args.api_key, args.base_url, args.model)
 
     if args.benchmark:
-        run_benchmark(judge, args.model)
+        run_benchmark(judge, args.model, benchmark_file=args.benchmark_file)
         return
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -159,6 +167,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--model", default=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"))
     p.add_argument("--benchmark", action="store_true",
                    help="评测基准模式：内置标注集跑 evaluate_judge，打印指标与逐条分数")
+    p.add_argument("--benchmark-file",
+                   help="外部标注集 JSON 文件（缺省内置标注集）")
     return p.parse_args()
 
 
