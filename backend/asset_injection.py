@@ -10,6 +10,14 @@ _MAX_TEMPLATES = 3
 _MAX_ARTIFACTS = 3
 _MAX_RULES = 3
 _SNIPPET_LEN = 100
+_TRUNCATION_MARK = "…"
+
+
+def _snippet(text: str, limit: int = _SNIPPET_LEN) -> str:
+    """节选字符串；仅在实际截断时追加省略号标记。"""
+    if len(text) <= limit:
+        return text
+    return text[:limit] + _TRUNCATION_MARK
 
 
 def build_asset_context(store, extractor, team_id: str, task_type: str = "", keywords: list | None = None) -> str:
@@ -18,11 +26,20 @@ def build_asset_context(store, extractor, team_id: str, task_type: str = "", key
     lines: list[str] = []
     for tpl in result["templates"][:_MAX_TEMPLATES]:
         head = "\n".join(tpl.get("content", "").splitlines()[:3])
-        lines.append(f"- 模板「{tpl.get('title', '')}」：{head[:_SNIPPET_LEN]}")
+        if not head:
+            continue  # 空内容跳过，避免悬空 bullet
+        lines.append(f"- 模板「{tpl.get('title', '')}」：{_snippet(head)}")
     for art in result["artifacts"][:_MAX_ARTIFACTS]:
-        lines.append(f"- 知识「{art.get('title', '')}」：{art.get('content', '')[:_SNIPPET_LEN]}")
+        content = art.get("content", "")
+        if not content:
+            continue  # 空内容跳过，避免悬空 bullet
+        lines.append(f"- 知识「{art.get('title', '')}」：{_snippet(content)}")
     for rule in result["rules"][:_MAX_RULES]:
-        lines.append(f"- 规则：{rule.get('trigger_condition', '')} → {rule.get('action', '')[:_SNIPPET_LEN]}")
+        trigger = rule.get("trigger_condition", "")
+        action = rule.get("action", "")
+        if not trigger and not action:
+            continue  # 空规则跳过，避免悬空 bullet
+        lines.append(f"- 规则：{_snippet(trigger)} → {_snippet(action)}")
     if not lines:
         return ""
     return "\n资产参考：\n" + "\n".join(lines)
