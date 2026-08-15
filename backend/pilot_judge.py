@@ -13,6 +13,9 @@ LLM judge 真实 key 试点：验证 AssetEvaluator 的 judge seam 在真实 Dee
   BASE=$(grep -E '^DEEPSEEK_BASE_URL=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"')
   MODEL=$(grep -E '^DEEPSEEK_MODEL=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"')
   /home/test/miniconda3/envs/agentscope/bin/python pilot_judge.py --api-key "$KEY" --base-url "$BASE" --model "$MODEL"
+
+  --benchmark 模式：内置标注集跑 evaluate_judge，打印 accuracy/mae/区分度 与逐条分数
+  /home/test/miniconda3/envs/agentscope/bin/python pilot_judge.py --api-key "$KEY" --base-url "$BASE" --model "$MODEL" --benchmark
 """
 
 import argparse
@@ -21,6 +24,7 @@ import tempfile
 
 from asset_evaluator import AssetEvaluator
 from asset_judge import make_llm_judge
+from asset_judge_benchmark import BENCHMARK_ITEMS, evaluate_judge
 from asset_store import AssetStore
 
 JUDGE_THRESHOLD = 0.5  # 与 asset_evaluator._JUDGE_THRESHOLD 一致
@@ -73,8 +77,31 @@ def check(label: str, ok: bool, detail: str = "") -> bool:
     return ok
 
 
+def run_benchmark(judge, model: str) -> None:
+    """评测基准模式：evaluate_judge 打印各指标 + 逐条分数（资产标题 + judge 分数 + gold + 判定一致/不一致）。"""
+    print("=" * 60)
+    print("  LLM judge 评测基准（模型: %s）" % model)
+    print("=" * 60)
+    result = evaluate_judge(judge)
+    for item in BENCHMARK_ITEMS:
+        score = float(judge(item.asset))
+        match = (score >= JUDGE_THRESHOLD) == item.gold_pass
+        print(f"  [{'一致' if match else '不一致'}] {item.asset['title']}: "
+              f"judge={score:.3f} gold={item.gold_score:.3f}")
+    print("=" * 60)
+    print(f"  accuracy={result.accuracy:.2f} mae={result.mae:.3f} "
+          f"good_mean={result.good_mean:.3f} bad_mean={result.bad_mean:.3f} "
+          f"sep={result.sep:.3f}")
+    print("=" * 60)
+    raise SystemExit(0)
+
+
 def run(args: argparse.Namespace) -> None:
     judge = make_llm_judge(args.api_key, args.base_url, args.model)
+
+    if args.benchmark:
+        run_benchmark(judge, args.model)
+        return
 
     with tempfile.TemporaryDirectory() as tmp:
         store = AssetStore(tmp)
@@ -134,6 +161,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--api-key", required=True, help="DeepSeek API key")
     p.add_argument("--base-url", default=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"))
     p.add_argument("--model", default=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"))
+    p.add_argument("--benchmark", action="store_true",
+                   help="评测基准模式：内置标注集跑 evaluate_judge，打印指标与逐条分数")
     return p.parse_args()
 
 
