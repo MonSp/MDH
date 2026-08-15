@@ -17,7 +17,6 @@ LLM judge 真实 key 试点：验证 AssetEvaluator 的 judge seam 在真实 Dee
 
 import argparse
 import os
-import sys
 import tempfile
 
 from asset_evaluator import AssetEvaluator

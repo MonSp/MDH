@@ -1,5 +1,4 @@
 import json
-from unittest import mock
 
 import pytest
 
@@ -41,6 +40,21 @@ def test_judge_parses_bare_zero_and_one(monkeypatch):
     assert judge({"type": "artifact", "title": "t", "content": "c"}) == 0.0
     monkeypatch.setattr("asset_judge.urllib.request.urlopen", lambda req, timeout: _fake_urlopen("1"))
     assert judge({"type": "artifact", "title": "t", "content": "c"}) == 1.0
+
+
+def test_judge_parses_score_adjacent_to_cjk_suffix(monkeypatch):
+    # 中文 LLM 最常见输出形态："0.85分"——\b 在 UNICODE 下无法分隔数字与 CJK（\w），
+    # 旧正则误解析为 "0" → 0.0（静默错误值，好资产被误拒）
+    monkeypatch.setattr("asset_judge.urllib.request.urlopen", lambda req, timeout: _fake_urlopen("0.85分"))
+    judge = make_llm_judge("k", "https://api.deepseek.com/v1", "deepseek-chat")
+    assert judge({"type": "artifact", "title": "t", "content": "c"}) == 0.85
+
+
+def test_judge_parses_score_adjacent_to_cjk_prefix(monkeypatch):
+    # 中文 LLM 常见输出形态："得分0.85"——旧正则无匹配 → ValueError
+    monkeypatch.setattr("asset_judge.urllib.request.urlopen", lambda req, timeout: _fake_urlopen("得分0.85"))
+    judge = make_llm_judge("k", "https://api.deepseek.com/v1", "deepseek-chat")
+    assert judge({"type": "artifact", "title": "t", "content": "c"}) == 0.85
 
 
 def test_judge_clamps_out_of_range(monkeypatch):

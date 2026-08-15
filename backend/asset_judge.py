@@ -11,7 +11,10 @@ import re
 import urllib.request
 from typing import Callable
 
-_SCORE_RE = re.compile(r"\b(?:0(?:\.\d+)?|1(?:\.0+)?)\b")
+# 数字 lookaround（而非 \b）：\b 在 re.UNICODE 下把 CJK 字符当 \w，无法分隔
+# 数字与中文——"0.85分" 会被 \b 版正则误解析为 "0"（静默 0.0）、"得分0.85"
+# 无匹配（ValueError）。lookaround 只按 \d 判界，CJK 相邻分数正确解析。
+_SCORE_RE = re.compile(r"(?<!\d)(?:0(?:\.\d+)?|1(?:\.0+)?)(?!\d)")
 
 
 def make_llm_judge(api_key: str, base_url: str, model: str) -> Callable[[dict], float]:
@@ -33,7 +36,7 @@ def make_llm_judge(api_key: str, base_url: str, model: str) -> Callable[[dict], 
             "max_tokens": 16,
         }
         req = urllib.request.Request(
-            f"{base_url}/chat/completions",
+            f"{base_url.rstrip('/')}/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
         )
@@ -50,7 +53,7 @@ def make_llm_judge(api_key: str, base_url: str, model: str) -> Callable[[dict], 
 
 def make_judge_from_env() -> Callable[[dict], float] | None:
     """从环境变量构造 judge；DEEPSEEK_API_KEY 缺失时返回 None。"""
-    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if not api_key:
         return None
     return make_llm_judge(
