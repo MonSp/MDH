@@ -25,7 +25,12 @@ class TemplateConfirmation:
 
         设计 [S5]：员工批准 (handle_gate_response) → AssetStore.approve_template。
         仅对 template: 关口的决定生效；其余关口请求原样透传。
+
+        幂等护栏（T6 评审 Important）：同一 ApprovalManager 二次构造 TemplateConfirmation
+        时不再重复包装 handle_gate_response，否则一次 gate 决定会重复驱动固化。
         """
+        if getattr(self._approvals, "_template_bridge_installed", False):
+            return
         original = self._approvals.handle_gate_response
 
         async def wrapped(request_id: str, approved: bool, reason: str = "", send_fn=None) -> bool:
@@ -42,11 +47,17 @@ class TemplateConfirmation:
             return resolved
 
         self._approvals.handle_gate_response = wrapped
+        self._approvals._template_bridge_installed = True
 
     async def submit(self, team_id: str, title: str, content: str, source_task_id: str = "", approver: str = "") -> dict:
         asset_id = self._store.propose_template(team_id, title, content, source_task_id=source_task_id, approver=approver)
         asset = self._store.get(asset_id)
         result = self._evaluator.evaluate(asset)
+        # 评测结果回填资产记录（[S4] 规格行，T6 核验）：checks/judge_score 随资产持久化，
+        # 批准固化后可从资产文件读到评测明细（审计可见）。
+        asset["checks"] = result.checks
+        asset["judge_score"] = result.judge_score
+        self._store._write_asset(asset["team_id"], asset)
         if not result.passed:
             self._store.reject_template(asset_id, result.reason)
             return {"ok": False, "reason": f"评测不过: {result.reason}", "checks": result.checks}
