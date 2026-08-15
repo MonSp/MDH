@@ -165,6 +165,11 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
     }
   }, [isMeetingActive, pendingTaskDescription, sendMeetingMessage])
 
+  // 挂载时拉取已富化 pending_approvals（覆盖无推送路径与历史 pending 项）
+  useEffect(() => {
+    getPendingApprovals()
+  }, [getPendingApprovals])
+
   const isTower = viewState === 'tower'
   const isMeeting = viewState === 'meeting'
 
