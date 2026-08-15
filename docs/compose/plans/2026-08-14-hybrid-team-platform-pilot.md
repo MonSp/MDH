@@ -148,7 +148,7 @@ MODEL=$(grep -E '^DEEPSEEK_MODEL=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"
 
 - **fail-closed 语义（T30 已落地）**：judge 抛异常（网络/解析失败）时判拒绝（`passed=False` + `reason="judge 异常: ..."`）——原 fail-open 语义经接入真实 judge 前评估已改为 fail-closed。
 - **演示端点已接 judge（T30 已接线）**：`/api/assets/templates` 的 `_get_template_confirmation` 经 `_get_asset_judge()` 注入——`ASSET_JUDGE_ENABLED=1` 且 env 有 key 时构造真实 LLM judge，否则 judge=None（演示快路径）。
-- 试点消耗真实 API token（4 次 judge 调用，~10s）。
+- 试点消耗真实 API token（pilot_judge.py seam 级验收 4 次 judge 调用，~10s；端点试点实际 1 次 judge 调用——模板评测）。
 
 ---
 

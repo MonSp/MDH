@@ -18,6 +18,8 @@ T30 交付了 judge 接线（asset_judge 模块 + fail-closed + env 开关）+ �
   MODEL=$(grep -E '^DEEPSEEK_MODEL=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"')
   /home/test/miniconda3/envs/agentscope/bin/python pilot_judge_endpoint.py \
     --api-key "$KEY" --base-url "$BASE" --model "$MODEL" --backend-dir .
+  可选 --verbose：server stdout/stderr 输出到终端（默认 DEVNULL 丢弃）——
+    启动失败时仅报"未就绪"无日志难排查，置位后启动日志直接可见。
 """
 
 import argparse
@@ -75,9 +77,22 @@ def run(args: argparse.Namespace) -> None:
         "DEEPSEEK_BASE_URL": args.base_url,
         "DEEPSEEK_MODEL": args.model,
     })
+    # 端口预检：8765 已有服务（旧实例）→ 报错退出，避免命中旧 server。
+    # 预检在 Popen 前执行——本脚本自己的 server 尚未启动，探测到 health 响应只可能是存量实例。
+    try:
+        with urllib.request.urlopen(f"{BASE_URL}/health", timeout=2):
+            print("端口 8765 已有服务在运行（health 有响应）——请先停止旧 server 再运行试点")
+            raise SystemExit(2)
+    except SystemExit:
+        raise
+    except Exception:
+        pass  # 无响应 → 端口可用
+
+    server_stdout = None if args.verbose else subprocess.DEVNULL
+    server_stderr = None if args.verbose else subprocess.DEVNULL
     server = subprocess.Popen(
         [sys.executable, os.path.join(args.backend_dir, "server.py")],
-        env=server_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        env=server_env, stdout=server_stdout, stderr=server_stderr,
     )
     try:
         for _ in range(30):
@@ -146,6 +161,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--base-url", default=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"))
     p.add_argument("--model", default=os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"))
     p.add_argument("--backend-dir", default=".", help="backend 目录（含 server.py）")
+    p.add_argument("--verbose", action="store_true", help="server 日志输出到终端（默认丢弃）")
     return p.parse_args()
 
 
