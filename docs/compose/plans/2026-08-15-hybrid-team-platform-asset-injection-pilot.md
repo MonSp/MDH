@@ -1,5 +1,11 @@
 # [M4 后续] 注入 wiring 真实纪要试点 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 落地 M4 登记的"注入 wiring 接线"（M4-T2 seam 已就绪但惰性——`input_data["team_id"]` 从不由既有工作流路径填充）：①`build_minutes_workflow` 加 `team_id` 参数（节点 input_spec 透传——wiring 的必要接线点）；②直驱真实纪要试点（pilot_asset_injection.py）——预置团队资产 + coordinator 绑定 `build_asset_context` 为 asset_context_builder + 真实纪要 DAG 运行验证注入接线生效。

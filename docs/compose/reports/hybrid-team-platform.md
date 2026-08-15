@@ -18,9 +18,14 @@ plans:
   - docs/compose/plans/2026-08-14-hybrid-team-platform-judge-wiring.md
   - docs/compose/plans/2026-08-15-hybrid-team-platform-m4.md
   - docs/compose/plans/2026-08-15-hybrid-team-platform-low-severity-followups.md
+  - docs/compose/plans/2026-08-15-hybrid-team-platform-benchmark-externalization.md
+  - docs/compose/plans/2026-08-15-hybrid-team-platform-save-rule-public-api.md
+  - docs/compose/plans/2026-08-15-hybrid-team-platform-benchmark-ci.md
+  - docs/compose/plans/2026-08-15-hybrid-team-platform-asset-injection-pilot.md
+  - docs/compose/plans/2026-08-15-hybrid-team-platform-benchmark-ci-guide.md
   - docs/compose/plans/2026-08-14-hybrid-team-platform-pilot.md
 branch: main
-commits: d069ab6..4cd1773
+commits: d069ab6..6071c85
 ---
 
 # 人+agent 混合团队平台 — Final Report
@@ -33,8 +38,10 @@ MDH 从"多智能体协作平台"演进为**"人+agent 混合团队协作平台"
 - **M2 会议纪要全链路**：文档意图识别（确定性规则短路）→ DAG 流水线（extract→draft(gate)→proofread）→ 员工把关（ApprovalManager 把关点引擎 + WS/前端面板）→ mailer 分发；后端收尾（gate 强制力/输入加固/approver 透传/display_name/SMTP）+ 前端把关 UI（ApprovalPanel gate 上下文展示）。
 - **M3 沉淀闭环**：知识库/模板库（文件系统+JSON 索引，团队隔离）、资产评测把关（确定性四键 + LLM judge seam，仿 AIP Evals）、模板固化（评测→员工确认→入库）、技能进化（把关差异→CoW 增量区）、三类资产复用检索。
 - **M4 沉淀增强**：资产复用注入（纪要 DAG 节点 prompt 注入团队资产，渐进披露）、LLM judge 评测基准（标注集 + 准确率/校准/区分度指标）。
+- **评测纪律落地**：评测基准标注集外部化（JSON 加载 + 校验，试点部门真实标注集可注入）、评测基准 CI 门禁（`asset_benchmark_gate`——阈值/基线/真实+fake 模式 + CI 接入指南）、`_save_rule` 私有 API 公开化（`modify_rule` 白名单扩展）。
+- **注入 wiring 接线**：`build_minutes_workflow` team_id 透传（input_spec 通道）+ 直驱真实纪要试点实证注入接线生效（预置资产 → coordinator 绑定 builder → 节点 prompt 注入 3/3，空团队 0/3 零成本对照）。
 - **员工目录 + 把关人显示名**：employee_id → 员工信息解析，把关人/提交者显示名贯通前后端（WS/REST 双通道 + 前端回落链）。
-- **四轮真实试点**（DeepSeek API）：直驱全链路、WS 服务器链路、LLM judge seam、judge 端点闭环——全部 PASS，验证了单测覆盖不到的真实执行缺陷并修复。
+- **五轮真实试点**（DeepSeek API）：直驱全链路、WS 服务器链路、LLM judge seam、judge 端点闭环、注入 wiring 纪要——全部 PASS，验证了单测覆盖不到的真实执行缺陷并修复。
 
 ## Architecture
 
@@ -48,7 +55,7 @@ MDH 从"多智能体协作平台"演进为**"人+agent 混合团队协作平台"
 | `backend/approval_manager.py` | 把关点引擎：request_gate/handle_gate_response/成对审计/approver 透传 |
 | `backend/workflow_engine.py` | DAG 工作流（三策略/条件分支/gate 强制力/retry 单节点语义） |
 | `backend/meeting_coordinator.py` | 节点执行、把关钩子 `_run_node_gate`、`asset_context_builder` 注入 seam、审批推送富化 |
-| `backend/minutes_workflow.py` | 纪要 DAG（extract→draft(gate)→proofread，transcript 注入） |
+| `backend/minutes_workflow.py` | 纪要 DAG（extract→draft(gate)→proofread，transcript/team_id 注入） |
 | `backend/semantic_analyzer.py` | 文档意图识别（纪要家族关键词 + 动词，确定性短路） |
 | `backend/mailer/` | 邮件分发 seam（file/SMTP provider，timeout 加固） |
 | `backend/employee_directory.py` | 员工目录（employee_id→name/email/position，未命中回退） |
@@ -57,7 +64,8 @@ MDH 从"多智能体协作平台"演进为**"人+agent 混合团队协作平台"
 | `backend/template_confirmation.py` | 模板固化（评测→gate 确认→入库/拒绝 + 桥接幂等护栏） |
 | `backend/skill_evolution.py` | 技能进化（把关差异→规则→CoW 增量区 + 元数据回填） |
 | `backend/asset_search.py` / `asset_injection.py` | 三类资产检索 / DAG 节点注入文本（渐进披露） |
-| `backend/asset_judge.py` / `asset_judge_benchmark.py` | LLM judge（urllib 直调 + CJK 鲁棒解析）/ 评测基准 |
+| `backend/asset_judge.py` / `asset_judge_benchmark.py` | LLM judge（urllib 直调 + CJK 鲁棒解析）/ 评测基准（内置 + JSON 外部加载） |
+| `backend/asset_benchmark_gate.py` | 评测基准 CI 门禁（阈值 accuracy/mae/sep + 基线记录 + 真实/fake 模式） |
 | `backend/server.py` | 演示端点 `/api/minutes` `/api/hybrid/team` `/api/gates/*` `/api/assets/*` `/api/employees` + env 开关 |
 | 前端 `ApprovalPanel` / `OfficeTeamMode` / `useMeetingSocket` | 把关面板、gate 上下文展示、审批拉取 |
 
@@ -87,14 +95,16 @@ MDH 从"多智能体协作平台"演进为**"人+agent 混合团队协作平台"
 
 **env 开关**（`.env.example`）：`ASSET_JUDGE_ENABLED=1`（+ `DEEPSEEK_API_KEY`）启用模板固化的真实 LLM 评测；`DEEPSEEK_BASE_URL`/`DEEPSEEK_MODEL`。
 
-**试点脚本**（真实 DeepSeek key，均含验收清单 + 退出码）：`pilot_minutes.py`（直驱全链路）、`pilot_minutes_ws.py`（WS 服务器链路 + 把关推送/响应闭环）、`pilot_judge.py`（judge seam 评测 + `--benchmark` 基准）、`pilot_judge_endpoint.py`（端点闭环：真实评测→gate→入库；`--verbose` 日志）。
+**试点脚本**（真实 DeepSeek key，均含验收清单 + 退出码）：`pilot_minutes.py`（直驱全链路）、`pilot_minutes_ws.py`（WS 服务器链路 + 把关推送/响应闭环）、`pilot_judge.py`（judge seam 评测 + `--benchmark`/`--benchmark-file` 基准）、`pilot_judge_endpoint.py`（端点闭环：真实评测→gate→入库；`--verbose` 日志）、`pilot_asset_injection.py`（注入 wiring：预置资产 → 纪要节点注入验证）。
+
+**评测基准门禁**（`python backend/asset_benchmark_gate.py`，可被 CI 调用）：真实 key 门禁（`--api-key` + 阈值 `--min-accuracy/--max-mae/--min-sep`）或无 key 门禁流程自检（perfect judge 恒过注明未跑真实评测）；`--baseline` 记录 `{timestamp, commit, metrics, passed}` 防退化。接入示例见 `docs/compose/plans/2026-08-15-hybrid-team-platform-benchmark-ci-guide.md`。
 
 ## Verification
 
-- **后端测试**：1103 passed / 1 skipped（main 复验；唯一 PRE-EXISTING 基线 `test_skill_packs_structure` 在 main 侧通过）；前端 1637 passed。
-- **真实试点**（deepseek-chat）：直驱纪要全链路（意图识别/DAG 3 节点/把关成对审计/mailer 6/6 PASS）、WS 链路（把关 WS 推送+审批闭环 6/6）、judge seam（好 0.95 vs 差 0.20 区分 6/6）、judge 端点闭环（真实评测 0.95→gate→入库→评测持久化 5/5）。
-- **评测基准**：8 条标注集 + accuracy/mae/区分度指标（perfect judge 1.0/0.0，inverted 0.0 实证）。
-- **双评审闭环**：每任务规格 phase1（claims 证据强制）+ 代码质量评审 + 修复轮复审（含变异实证），全程约 60+ 子代理评审。
+- **后端测试**：1121 passed / 1 skipped（main 复验；唯一 PRE-EXISTING 基线 `test_skill_packs_structure` 在 main 侧通过）；前端 1637 passed。
+- **真实试点**（deepseek-chat）：直驱纪要全链路（意图识别/DAG 3 节点/把关成对审计/mailer 6/6 PASS）、WS 链路（把关 WS 推送+审批闭环 6/6）、judge seam（好 0.95 vs 差 0.20 区分 6/6）、judge 端点闭环（真实评测 0.95→gate→入库→评测持久化 5/5）、注入 wiring（预置团队 3/3 节点 prompt 含资产参考段 vs 空团队 0/3 零成本对照，7/7 PASS）。
+- **评测基准**：8 条标注集（内置 + JSON 外部加载 + 校验）+ accuracy/mae/区分度指标（perfect judge 1.0/0.0，inverted 0.0 实证）；CI 门禁（无 key 自检 PASS exit 0、紧阈值 FAIL exit 1、基线含 commit）。
+- **双评审闭环**：每任务规格 phase1（claims 证据强制）+ 代码质量评审 + 修复轮复审（含变异实证），全程约 80+ 子代理评审。
 
 ## Journey Log
 
@@ -116,4 +126,6 @@ MDH 从"多智能体协作平台"演进为**"人+agent 混合团队协作平台"
 | `docs/compose/plans/2026-08-14-hybrid-team-platform-m{1,m2a,m2b,m2b2,m3}.md` | 实施计划 | M1-M3 各里程碑任务分解 |
 | `docs/compose/plans/2026-08-14-hybrid-team-platform-{cleanup,employee-directory,approval-name-closure,office-mode-fix,judge-wiring}.md` | 收尾计划 | 打磨/员工目录/T23/T26/judge 接入 |
 | `docs/compose/plans/2026-08-15-hybrid-team-platform-{m4,low-severity-followups}.md` | 收尾计划 | M4 增强/低严重度收尾 |
-| `docs/compose/plans/2026-08-14-hybrid-team-platform-pilot.md` | 试点运行手册 | 直驱/WS/judge/judge 端点四轮试点记录 |
+| `docs/compose/plans/2026-08-15-hybrid-team-platform-{benchmark-externalization,save-rule-public-api,benchmark-ci,asset-injection-pilot}.md` | 收尾计划 | 评测外部化/_save_rule 公开化/CI 门禁/注入 wiring |
+| `docs/compose/plans/2026-08-15-hybrid-team-platform-benchmark-ci-guide.md` | CI 接入指南 | 门禁命令/阈值/基线/GA workflow 示例 |
+| `docs/compose/plans/2026-08-14-hybrid-team-platform-pilot.md` | 试点运行手册 | 直驱/WS/judge/judge 端点/注入 wiring 五轮试点记录 |

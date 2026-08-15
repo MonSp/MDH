@@ -1,5 +1,11 @@
 # [M4 后续] 评测基准 CI 门禁集成 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把 M4 评测基准（`asset_judge_benchmark.evaluate_judge`）落地为 CI 质量门禁——门禁命令检查 LLM judge 的准确率/校准/区分度指标是否达标（仿 AIP Evals 评测纪律 + loop-engineering gate 先例），供 CI 步骤调用。仓库无 CI 配置（.github/workflows 不存在），本计划交付门禁模块 + CI 接入示例文档。

@@ -1,5 +1,11 @@
 # [M4 后续] _save_rule 私有 API 公开化 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 消除 `skill_evolution.py` 对 `ExperienceExtractor._save_rule` 私有方法的跨模块直调（M4 评审登记技术债）——把 `source_task_type` 纳入 `modify_rule` 的 `allowed_fields`，skill_evolution 改用公开 `modify_rule` API 完成元数据回写。

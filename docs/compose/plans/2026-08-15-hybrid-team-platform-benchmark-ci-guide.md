@@ -1,5 +1,11 @@
 # 评测基准 CI 门禁接入指南（benchmark-gate）
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > 本文档承接 `backend/asset_benchmark_gate.py`（评测基准 CI 门禁模块），说明门禁命令的用法、
 > 阈值配置、基线记录与 GitHub Actions 接入示例。仓库当前**无 CI 配置**（`.github/workflows` 不存在），
 > 本文档提供**接入示例**而非实际接入。配套实施计划见

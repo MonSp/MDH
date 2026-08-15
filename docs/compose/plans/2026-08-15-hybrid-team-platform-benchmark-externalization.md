@@ -1,5 +1,11 @@
 # [M4 后续] 评测基准标注集外部化 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把 `asset_judge_benchmark.BENCHMARK_ITEMS`（模块常量 8 条）外部化为 JSON 文件加载（M4 评审建议"配置/文件加载而非模块常量，避免 8 条集在代码里膨胀；试点部门真实标注集可注入"）——新增 `load_benchmark_items(path)`（解析 + 校验）、示例文件 `benchmark_items.example.json`、`pilot_judge --benchmark-file` 参数。
