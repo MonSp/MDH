@@ -8,13 +8,13 @@ WS 模式试点：通过真实 WebSocket 服务器完成会议纪要任务全链
   → 客户端（模拟员工）回 human_approval_response 批准 → 闭环
 
 运行方式（需先启动后端）：
-  终端1（启动 server，免 WS 鉴权）：
+  终端1（启动 server，显式 BACKEND_TOKEN——env 为空会自动生成随机 token，WS 握手需带同值 query token）：
     cd backend
-    BACKEND_TOKEN="" DEEPSEEK_API_KEY=... DEEPSEEK_BASE_URL=... DEEPSEEK_MODEL=... \
+    BACKEND_TOKEN=pilot-token DEEPSEEK_API_KEY=... DEEPSEEK_BASE_URL=... DEEPSEEK_MODEL=... \
       /home/test/miniconda3/envs/agentscope/bin/python server.py
-  终端2（运行 WS 试点客户端）：
+  终端2（运行 WS 试点客户端，--token 与 server 的 BACKEND_TOKEN 一致）：
     /home/test/miniconda3/envs/agentscope/bin/python pilot_minutes_ws.py \
-      --api-key $DEEPSEEK_API_KEY --auto-approve
+      --api-key $DEEPSEEK_API_KEY --token pilot-token --auto-approve
 
 验收清单（脚本末尾打印 PASS/FAIL）：
   1. WS 连接与会议启动（connected + start_meeting）
@@ -111,7 +111,7 @@ async def run(args):
                     print(f"  [把关响应] 已批准 {req.get('id')}")
             elif mtype == "workflow_executed":
                 saw_result = True
-                status = (msg.get("workflow_result") or {}).get("status")
+                status = msg.get("status")  # server 发送的 workflow_executed 顶层带 status
                 print(f"  [结果] workflow_executed status={status}")
                 results.append(check("链路完成（workflow_executed）", True, f"status={status}"))
                 break
