@@ -60,3 +60,8 @@ def test_nodes_carry_transcript_input():
     wf = build_minutes_workflow("速记内容A", approver="emp-1")
     for n in wf.nodes:
         assert n.input_spec.get("transcript") == "速记内容A"
+
+
+def test_minutes_family_derived_from_keywords():
+    expected = tuple(k for k in MINUTES_KEYWORDS if k not in ("待办", "行动项"))
+    assert MINUTES_FAMILY == expected

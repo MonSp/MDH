@@ -6,7 +6,8 @@ import hashlib
 from protocol import WorkflowDefinition, WorkflowEdge, WorkflowNode
 
 MINUTES_KEYWORDS = ("会议纪要", "会议记录", "速记", "待办", "行动项", "纪要")
-MINUTES_FAMILY = ("会议纪要", "会议记录", "速记", "纪要")
+# 派生而非并列维护：纪要家族 = 关键词元组去掉仅共现触发的"待办/行动项"
+MINUTES_FAMILY = tuple(k for k in MINUTES_KEYWORDS if k not in ("待办", "行动项"))
 MINUTES_VERBS = ("整理", "生成", "撰写", "输出", "写")
 
 _NODES = [

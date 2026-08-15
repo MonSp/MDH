@@ -157,7 +157,11 @@ class SemanticAnalyzer:
         )
     
     def _detect_minutes_task(self, user_message: str) -> bool:
-        """文档任务检测：纪要家族关键词 + 产出动词双匹配（确定性规则，命中即短路）。"""
+        """文档任务检测：纪要家族关键词 + 产出动词双匹配（确定性规则，命中即短路）。
+
+        权衡：纪要+写作类表述（如"把纪要写进周报"）仍可能命中，属可接受偏差；
+        仅含"待办/行动项"而无纪要关键词的任务不触发（开发任务不被劫持）。
+        """
         return any(v in user_message for v in MINUTES_VERBS) and any(
             k in user_message for k in MINUTES_FAMILY
         )

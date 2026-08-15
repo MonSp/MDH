@@ -153,3 +153,14 @@ async def test_pending_requests_include_task_gate_and_approver():
     assert pending[0]["taskId"] == "task-1"
     assert pending[0]["gateId"] == "gate-1"
     assert pending[0]["approver"] == "emp-1"
+
+
+async def test_gate_decided_audit_includes_approver():
+    manager = ApprovalManager()
+    pending = await manager.request_gate(
+        requester_id="a", operation="op", description="d",
+        task_id="t1", gate_id="g1", approver="emp-1",
+    )
+    await manager.handle_gate_response(pending.id, True, reason="ok")
+    decided = [e for e in manager.get_gate_audit("g1") if e["event"] == "gate/decided"]
+    assert decided and decided[0]["approver"] == "emp-1"
