@@ -113,3 +113,39 @@ BACKEND_TOKEN=pilot-token DEEPSEEK_API_KEY=... DEEPSEEK_BASE_URL=... DEEPSEEK_MO
 
 - **BACKEND_TOKEN 必须显式设置**：server.py `BACKEND_TOKEN = os.environ.get(...)` 为空会自动生成随机值 → `_verify_ws_token` 校验 query token 失败 → 握手 403（accept 前 close 表现为 HTTP 403）。显式设非空值 + 客户端 `--token` 传同值。
 - AuthMiddleware（BaseHTTPMiddleware）不拦截 WebSocket 握手，WS 鉴权由 `_verify_ws_token`（query token）承担。
+
+---
+
+## 9. LLM judge 真实 key 试点（M3 资产评测，2026-08-15 跑通）
+
+验证 AssetEvaluator 的 judge seam（设计 [S4]）在真实 DeepSeek LLM 下的全链路：judge 可注入（默认 None 跳过），试点注入真实 LLM judge 评测合成资产，检验分数质量与阈值语义。
+
+### 运行方式
+
+```bash
+cd backend
+KEY=$(grep -E '^DEEPSEEK_API_KEY=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"' | tr -d "'")
+BASE=$(grep -E '^DEEPSEEK_BASE_URL=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"')
+MODEL=$(grep -E '^DEEPSEEK_MODEL=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"')
+/home/test/miniconda3/envs/agentscope/bin/python pilot_judge.py --api-key "$KEY" --base-url "$BASE" --model "$MODEL"
+```
+
+- 脚本用标准库 urllib 直调 OpenAI 兼容 `/chat/completions`（零新依赖，judge 是轻量单次调用），prompt 要求只输出 0-1 分数（temperature 0.2），正则解析容错。
+- 验收不写死绝对分数（LLM 有随机性），断言：judge 调用成功（0-1 可解析）/ **好资产分数高于差资产（排序关系）** / 组合 evaluate 正确 / 无 judge 回退 / passed 与阈值语义一致。
+
+### 2026-08-15 结果（全部 PASS，模型 deepseek-chat）
+
+| 资产 | judge_score | passed | reason |
+|------|-------------|--------|--------|
+| 好模板 | 0.95 | ✓ | — |
+| 差模板 | 0.20 | ✗ | `judge_score 低于阈值` |
+| 好产出物 | 0.95 | ✓ | — |
+| 差产出物 | 0.20 | ✗ | `structure; quality`（确定性检查也拦截） |
+
+**结论**：真实 LLM judge 清晰区分好/差资产（0.95 vs 0.20），0.5 阈值语义正确；与确定性检查组合良好（差产出物被确定性检查 + judge 双重拦截）。judge seam 全链路验证通过。
+
+### 已知边界
+
+- **fail-open 语义**：judge 抛异常（网络/解析失败）时向上传播——接入生产前评估改 fail-closed（judge 异常 → 判拒绝）[S4] docstring 已注明。
+- **演示端点未接 judge**：`/api/assets/templates` 的 `_get_template_confirmation` 构造 `AssetEvaluator(store)`（judge=None）——接入真实 judge 需 server 侧配置（如 env 启用 judge 或端点可选参数），属后续产品接线。
+- 试点消耗真实 API token（4 次 judge 调用，~10s）。
