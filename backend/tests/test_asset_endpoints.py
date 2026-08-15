@@ -190,12 +190,44 @@ def test_templates_endpoint_with_judge_wiring(tmp_path, monkeypatch):
     assert resp.status_code == 200 and resp.json()["success"]
 
 
+def test_real_singleton_wires_judge(tmp_path, monkeypatch):
+    """T6 评审 Minor #1：真实 _get_template_confirmation() 接线行
+    `AssetEvaluator(store, _get_asset_judge())` 的 judge 注入路径——此前被
+    _get_template_confirmation monkeypatch 遮蔽，唯一执行点
+    test_template_confirmation_singleton_uses_demo_gate_manager 又是 env-off
+    （judge 解析为 None）。monkeypatch _get_asset_judge 为打分 lambda，走真实
+    单例构造后断言 judge 已流入 tc._evaluator，并验证好模板经真实单例 + 注入
+    judge 过评测。尾部复位 _template_confirmation + 恢复桥接，避免带 judge 的
+    真实单例泄漏到后续测试（try/finally）。"""
+    from asset_store import AssetStore
+    monkeypatch.setattr(server, "_get_asset_store", lambda: AssetStore(str(tmp_path)))
+    monkeypatch.setattr(server, "_get_asset_judge", lambda: (lambda a: 0.9))
+    monkeypatch.setattr(server, "_template_confirmation", None)
+    original_handle = server._demo_gate_manager.handle_gate_response
+    try:
+        tc = server._get_template_confirmation()
+        assert tc._evaluator._judge is not None  # judge 经真实单例流入
+        result = tc._evaluator.evaluate({
+            "type": "template", "team_id": "team-x",
+            "title": "发布计划模板", "content": _GOOD_CONTENT,
+        })
+        assert result.passed and result.judge_score == 0.9  # 好模板过评测
+    finally:
+        server._demo_gate_manager.handle_gate_response = original_handle
+        server._demo_gate_manager._template_bridge_installed = False
+        server._template_confirmation = None
+
+
 def test_get_asset_judge_respects_env_switch(monkeypatch):
     monkeypatch.delenv("ASSET_JUDGE_ENABLED", raising=False)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "k")
-    assert server._get_asset_judge() is None  # 未启用 → None
-    monkeypatch.setenv("ASSET_JUDGE_ENABLED", "1")
-    assert server._get_asset_judge() is not None  # 启用 + key → judge
-    # 清理单例（避免污染后续测试）
-    server._asset_judge = None
-    monkeypatch.delenv("ASSET_JUDGE_ENABLED", raising=False)
+    try:
+        server._asset_judge = None  # 从干净单例开始（防前序泄漏）
+        assert server._get_asset_judge() is None  # 未启用 → None
+        monkeypatch.setenv("ASSET_JUDGE_ENABLED", "1")
+        assert server._get_asset_judge() is not None  # 启用 + key → judge
+    finally:
+        # 清理单例（避免污染后续测试）：断言失败时也复位，不残留绑定
+        # monkeypatched key 的真实 judge；env 由 monkeypatch 自动还原。
+        server._asset_judge = None
+        monkeypatch.delenv("ASSET_JUDGE_ENABLED", raising=False)
