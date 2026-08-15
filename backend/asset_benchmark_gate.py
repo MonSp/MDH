@@ -8,6 +8,7 @@ violations 列出未达标项；基线记录（可选）供防退化。CLI 无 k
 import argparse
 import json
 import os
+import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Callable
@@ -24,14 +25,19 @@ class GateResult:
     violations: list = field(default_factory=list)
 
 
-def _perfect_judge(asset) -> float:
-    return next(i.gold_score for i in BENCHMARK_ITEMS if i.asset["content"] == asset.get("content"))
+def _current_commit() -> str:
+    """当前 HEAD commit（基线可追溯）；非 git 环境/失败回退空串。"""
+    try:
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], text=True,
+                                       stderr=subprocess.DEVNULL).strip()
+    except Exception:
+        return ""
 
 
 def run_gate(judge: Callable[[dict], float], items=None, thresholds: dict | None = None,
              baseline_path: str | None = None) -> GateResult:
     """评估 judge 质量指标 vs 阈值；baseline_path 非空时记录基线 JSON。"""
-    thresholds = thresholds or DEFAULT_THRESHOLDS
+    thresholds = {**DEFAULT_THRESHOLDS, **(thresholds or {})}
     result = evaluate_judge(judge, items=items)
     metrics = {"accuracy": result.accuracy, "mae": result.mae,
                "good_mean": result.good_mean, "bad_mean": result.bad_mean, "sep": result.sep}
@@ -45,7 +51,8 @@ def run_gate(judge: Callable[[dict], float], items=None, thresholds: dict | None
     passed = not violations
     if baseline_path:
         with open(baseline_path, "w", encoding="utf-8") as f:
-            json.dump({"timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"), "metrics": metrics, "passed": passed},
+            json.dump({"timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"), "commit": _current_commit(),
+                       "metrics": metrics, "passed": passed},
                       f, ensure_ascii=False, indent=1)
     return GateResult(passed=passed, metrics=metrics, violations=violations)
 
@@ -69,7 +76,9 @@ def main() -> int:
         judge = make_llm_judge(args.api_key, args.base_url, args.model)
         real = True
     else:
-        judge = _perfect_judge  # 无 key：确定性 fake 验证门禁流程（恒过，注明未跑真实评测）
+        # 无 key：确定性 perfect judge 验证门禁流程（基于实际标注集 items，缺省内置集；恒过）
+        pool = items if items is not None else BENCHMARK_ITEMS
+        judge = lambda asset: next(i.gold_score for i in pool if i.asset["content"] == asset.get("content"))
     result = run_gate(judge, items=items,
                       thresholds={"min_accuracy": args.min_accuracy, "max_mae": args.max_mae, "min_sep": args.min_sep},
                       baseline_path=args.baseline or None)
