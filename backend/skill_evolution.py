@@ -80,22 +80,28 @@ class SkillEvolution:
                 # source_task_type 退化为 'general'，使 retrieve_relevant_rules 的
                 # type-match bonus(+2) 丢失；此处把调用方传入的 task_type 回填到规则，
                 # 并合并传入的关键词标签。
+                updates = {}
                 if task_type:
-                    approved_rule.source_task_type = task_type
+                    updates["source_task_type"] = task_type
                     # 重写假设进入此路径的规则 trigger_condition 均以
                     # "task_type is <推断类型>" 开头（extract_from_meeting 的 4 个
                     # 生产分支均满足）；仅替换前导类型段，保留其余条件。
-                    approved_rule.trigger_condition = (
+                    updates["trigger_condition"] = (
                         f"task_type is {task_type} and "
                         + approved_rule.trigger_condition.split(" and ", 1)[-1]
                         if " and " in approved_rule.trigger_condition
                         else f"task_type is {task_type}"
                     )
                 if keywords:
-                    approved_rule.keywords = sorted(set(approved_rule.keywords) | set(keywords))
-                # 回写规则库（retrieve_relevant_rules / _load_rule 均从 rules/ 目录读取），
-                # 再写增量区——保证检索质量真正吃到回填的 task_type 与 keywords
-                self._extractor._save_rule(approved_rule)
+                    updates["keywords"] = sorted(set(approved_rule.keywords) | set(keywords))
+                if updates:
+                    # 公开 API 回写 rules/（替代 _save_rule 直调）；modify_rule 白名单含
+                    # source_task_type/trigger_condition/keywords
+                    self._extractor.modify_rule(review_id, updates)
+                    # modify_rule 在 extractor 内部 load→setattr→save，不更新调用方
+                    # approved_rule 内存对象——重新加载拿回填后 approved 副本再写增量区，
+                    # 保证 approved/ 副本与 rules/ 一致（双存储均含回填元数据）
+                    approved_rule = self._extractor._load_rule(review_id)
                 if self._extractor.write_to_incremental_area(approved_rule):
                     written += 1
 

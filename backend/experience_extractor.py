@@ -464,6 +464,7 @@ class ExperienceExtractor:
             "rule_type",
             "status",
             "keywords",
+            "source_task_type",  # 规则类型（extract_from_meeting 生成）；skill_evolution 元数据回填用
         }
         for key, value in updates.items():
             if key in allowed_fields:

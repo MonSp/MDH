@@ -241,6 +241,28 @@ class TestReviewWorkflow:
         assert result is False
 
 
+def test_modify_rule_updates_source_task_type(tmp_path):
+    # M4 评审登记技术债：modify_rule 白名单须含 source_task_type（skill_evolution
+    # 元数据回填走公开 API 的前提）；否则更新被跳过（warning）→ 加载后仍为默认值。
+    extractor = ExperienceExtractor(str(tmp_path))
+    rule = ExperienceRule(
+        rule_id="rule-modify-src-type",
+        trigger_condition="task_type is general",
+        action="test",
+        note="",
+        source_task_id="task-001",
+        source_task_type="general",
+        rule_type="success_pattern",
+        status="pending_review",
+        keywords=["a"],
+        created_at=_now_iso(),
+    )
+    rule_id = extractor.submit_for_review(rule)
+    assert extractor.modify_rule(rule_id, {"source_task_type": "minutes"})
+    loaded = extractor._load_rule(rule_id)
+    assert loaded.source_task_type == "minutes"
+
+
 # ──────────────────── 写入增量区 ────────────────────
 
 

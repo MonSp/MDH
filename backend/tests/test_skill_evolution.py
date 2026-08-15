@@ -43,3 +43,19 @@ def test_evolve_preserves_task_type_and_keywords(tmp_path):
     assert rule is not None
     assert rule.source_task_type == "minutes"
     assert "纪要" in rule.keywords and "待办" in rule.keywords
+
+
+def test_evolve_writes_backfill_via_public_api(tmp_path):
+    # 锁定 evolve 后规则经公开 API 回填：source_task_type/keywords 经 modify_rule
+    # 写入 rules/，_load_rule 读回（skill_evolution 不再直调 _save_rule）。
+    extractor = ExperienceExtractor(str(tmp_path))
+    evo = SkillEvolution(extractor)
+    result = evo.evolve_from_feedback(
+        "p1", "minutes", "会议讨论发布计划。",
+        "审核修改：遗漏行动项责任人。", ["责任人", "行动项"],
+    )
+    assert result["count"] >= 1
+    rule_id = result["rule_id"]
+    loaded = extractor._load_rule(rule_id)
+    assert loaded.source_task_type == "minutes"  # 经 modify_rule 回填 rules/
+    assert "责任人" in loaded.keywords
