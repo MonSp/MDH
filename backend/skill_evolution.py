@@ -68,7 +68,26 @@ class SkillEvolution:
                 # approve_rule 只改写磁盘副本；重新加载以获得 approved 状态与审核意见，
                 # 否则 write_to_incremental_area 会因内存中 status 仍为 pending_review 而拒绝
                 approved_rule = self._extractor._load_rule(review_id)
-                if approved_rule and self._extractor.write_to_incremental_area(approved_rule):
+                if not approved_rule:
+                    continue
+                # 元数据传播（T4 评审 Important）：extract_from_meeting 用 _infer_task_type
+                # 从 task_description 推断类型，[minutes] 前缀不匹配白名单 → source_task_type
+                # 退化为 'general'，使 retrieve_relevant_rules 的 type-match bonus(+2) 丢失；
+                # 此处把调用方传入的 task_type 回填到规则，并合并传入的关键词标签。
+                if task_type:
+                    approved_rule.source_task_type = task_type
+                    approved_rule.trigger_condition = (
+                        f"task_type is {task_type} and "
+                        + approved_rule.trigger_condition.split(" and ", 1)[-1]
+                        if " and " in approved_rule.trigger_condition
+                        else f"task_type is {task_type}"
+                    )
+                if keywords:
+                    approved_rule.keywords = sorted(set(approved_rule.keywords) | set(keywords))
+                # 回写规则库（retrieve_relevant_rules / _load_rule 均从 rules/ 目录读取），
+                # 再写增量区——保证检索质量真正吃到回填的 task_type 与 keywords
+                self._extractor._save_rule(approved_rule)
+                if self._extractor.write_to_incremental_area(approved_rule):
                     written += 1
 
         return {"ok": True, "rule_id": rules[0].rule_id if rules else "", "count": written}
