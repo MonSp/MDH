@@ -102,6 +102,27 @@ def test_experience_endpoint_writes_rule(tmp_path, monkeypatch):
     assert resp.json()["data"]["count"] >= 1
 
 
+def test_experience_endpoint_threads_team_id(tmp_path, monkeypatch):
+    """T7 评审 Important：/api/assets/experience 的 body.team_id 必须经
+    evolve_from_feedback 透传到规则——否则经端点提炼的规则 team_id=""，
+    对团队检索永久不可见，演示闭环 evolve→search→注入 行为回归。"""
+    from experience_extractor import ExperienceExtractor
+    from skill_evolution import SkillEvolution
+    extractor = ExperienceExtractor(str(tmp_path))
+    monkeypatch.setattr(server, "_get_skill_evolution", lambda: SkillEvolution(extractor))
+    resp = client.post("/api/assets/experience", json={
+        "team_id": "team-x", "task_type": "minutes", "transcript": "会议讨论发布计划。",
+        "feedback": "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", "keywords": ["纪要", "待办"],
+    })
+    assert resp.status_code == 200 and resp.json()["data"]["count"] >= 1
+    # 端点提炼的规则须带 team_id=team-x → 团队检索命中
+    team_hits = extractor.retrieve_relevant_rules("minutes", ["纪要"], team_id="team-x")
+    assert any(r.team_id == "team-x" for r in team_hits), "team_id 未透传到规则"
+    # 其他团队检索不得命中该规则（严格过滤）
+    other_hits = extractor.retrieve_relevant_rules("minutes", ["纪要"], team_id="team-other")
+    assert not any(r.team_id == "team-x" for r in other_hits)
+
+
 def test_list_endpoint_filters_by_team(tmp_path, monkeypatch):
     from asset_store import AssetStore
     store = AssetStore(str(tmp_path))

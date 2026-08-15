@@ -368,6 +368,21 @@ def test_retrieve_relevant_rules_filters_by_team(tmp_path):
     assert len(extractor.retrieve_relevant_rules("minutes", ["纪要"])) == 2  # 空 team_id → 全局（向后兼容）
 
 
+def test_retrieve_relevant_rules_old_rule_invisible_to_team(tmp_path):
+    """T7 评审 Important #2 语义锁定：旧规则（team_id=""）对团队检索不可见
+    （fail-closed 严格过滤）。存量规则在团队注入场景为死数据，需 migrate/re-tag
+    （迁移策略登记为后续任务，不在本次实现范围内）。"""
+    extractor = ExperienceExtractor(str(tmp_path))
+    old_rule = ExperienceRule(rule_id="r-old", trigger_condition="task_type is minutes", action="a",
+                              note="", source_task_id="p1", source_task_type="minutes", rule_type="correction_tip",
+                              status="approved", keywords=["纪要"], created_at="t", team_id="")
+    extractor.submit_for_review(old_rule); extractor.approve_rule("r-old")
+    # 团队检索（非空 team_id）不得返回 team_id="" 的旧规则
+    assert extractor.retrieve_relevant_rules("minutes", ["纪要"], team_id="team-a") == []
+    # 空 team_id（全局检索）仍可见——向后兼容
+    assert [r.rule_id for r in extractor.retrieve_relevant_rules("minutes", ["纪要"])] == ["r-old"]
+
+
 # ──────────────────── 构建上下文文本 ────────────────────
 
 

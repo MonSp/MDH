@@ -100,11 +100,12 @@ class SkillEvolution:
                     updates["team_id"] = team_id
                 if updates:
                     # 公开 API 回写 rules/（替代 _save_rule 直调）；modify_rule 白名单含
-                    # source_task_type/trigger_condition/keywords
+                    # source_task_type/trigger_condition/keywords/team_id
                     self._extractor.modify_rule(review_id, updates)
                     # modify_rule 在 extractor 内部 load→setattr→save，不更新调用方
-                    # approved_rule 内存对象——重新加载拿回填后 approved 副本再写增量区，
-                    # 保证 approved/ 副本与 rules/ 一致（双存储均含回填元数据）
+                    # approved_rule 内存对象——重新加载拿回填后 approved 副本再写增量区；
+                    # approved/ 副本供打包（schema 不含 team_id/status——检索只读
+                    # rules/，不受影响），故无需与 rules/ 双存储一致
                     approved_rule = self._extractor._load_rule(review_id)
                 if self._extractor.write_to_incremental_area(approved_rule):
                     written += 1

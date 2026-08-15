@@ -2740,6 +2740,9 @@ async def api_asset_experience(body: dict):
             transcript=body.get("transcript", ""),
             feedback=body.get("feedback", ""),
             keywords=body.get("keywords", []),
+            # T7 评审 Important：team_id 必须透传到 evolve_from_feedback → 规则回填，
+            # 否则经端点提炼的规则 team_id="" 对团队检索永久不可见（演示闭环回归）
+            team_id=body.get("team_id", ""),
         )
         return _ok({"rule_id": result["rule_id"], "count": result["count"]})
     except KeyError:

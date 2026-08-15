@@ -32,8 +32,8 @@ build_minutes_workflow(user_message) 单参调用无 team_id 通道（semantic_a
   3. 无资产团队零成本：builder 对空团队返回空串 + 空团队 wf 3 节点 prompt 均不含资产段
 
 零成本对照顺序说明：运行 A（空团队）必须先于预置资产——技能规则检索
-（ExperienceExtractor.retrieve_relevant_rules）是全局共享、不按 team 隔离的
-（AssetStore 的 artifacts/templates 才按 team 隔离），预置后再跑空团队会检索到
+（ExperienceExtractor.retrieve_relevant_rules）现在同样按 team 严格隔离
+（fail-closed：非空 team_id 只返回同团队规则），预置后再跑空团队会检索到
 同 extractor 的规则导致误判；先验证空态再预置，才能干净地证明"builder 返回空不注入"。
 """
 
@@ -131,7 +131,10 @@ def seed_assets(store: AssetStore, extractor: ExperienceExtractor):
     store.store_artifact(TEAM_ID, "纪要-0815", GOOD_ARTIFACT, source_task_id="p1")
     store.propose_template(TEAM_ID, "会议纪要模板", GOOD_TEMPLATE, source_task_id="p1")
     evo = SkillEvolution(extractor).evolve_from_feedback(
-        "p1", "minutes", TRANSCRIPT, EVOLVE_FEEDBACK, ["责任人", "行动项"]
+        "p1", "minutes", TRANSCRIPT, EVOLVE_FEEDBACK, ["责任人", "行动项"],
+        # T7 评审 Important 连带：不传 team_id 则规则 team_id=""，对预置团队的
+        # 检索/注入段静默失效（模板/知识仍注入故验收不红，但规则项消失）
+        team_id=TEAM_ID,
     )
     print(f"  已预置资产: 知识×1 + 模板×1 + 技能规则×{evo.get('count', 0)}（team={TEAM_ID}）")
     return evo.get("count", 0)
