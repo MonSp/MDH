@@ -30,11 +30,12 @@ class SkillEvolution:
             task_type: 任务类型（拼接进 task_description 供类型推断与关键词提炼）
             transcript: 会议/讨论记录（作为 discussion_results 的 content 输入）
             feedback: 把关（审查）反馈文本；为空时直接返回 {"ok": True, "count": 0}
-            keywords: 关键词标签（接口兼容参数；extract_from_meeting 从
-                task_description 自行提炼关键词，本参数暂不参与提炼）
+            keywords: 关键词标签（合并进提炼规则的关键词并回写磁盘，
+                直接影响 retrieve_relevant_rules 的检索相关度）
 
         Returns:
-            {"ok": True, "rule_id": <首条规则 id 或空串>, "count": <写入增量区条数>}
+            {"ok": True, "rule_id": <首条提炼规则 id 或空串（首条 id，
+            非已写入保证）>, "count": <写入增量区条数>}
         """
         if not feedback or not feedback.strip():
             return {"ok": True, "count": 0}
@@ -45,9 +46,13 @@ class SkillEvolution:
         # - review_result 读取 reviewer_feedback / monitor_feedback（把关反馈作为
         #   reviewer_feedback 输入，保证非空反馈必产出一条 correction_tip 规则）
         # - execution_results 读取 written_files（本次接线不提供文件产出）
+        # 不用 "[{task_type}] " 前缀拼 task_description（T5 评审 Important）：
+        # bracket 标签会被 _extract_content_keywords 提炼进规则 keywords（如
+        # "minutes"），使 retrieve_relevant_rules 仅凭 task_type 词即可命中，
+        # 掩盖 keywords 回填的检索效果；类型由下方 source_task_type 回填修复。
         rules = self._extractor.extract_from_meeting(
             project_id=project_id,
-            task_description=f"[{task_type}] {transcript[:120]}",
+            task_description=transcript[:120],
             discussion_results=[
                 {
                     "parsed_stance": "support",
@@ -71,11 +76,15 @@ class SkillEvolution:
                 if not approved_rule:
                     continue
                 # 元数据传播（T4 评审 Important）：extract_from_meeting 用 _infer_task_type
-                # 从 task_description 推断类型，[minutes] 前缀不匹配白名单 → source_task_type
-                # 退化为 'general'，使 retrieve_relevant_rules 的 type-match bonus(+2) 丢失；
-                # 此处把调用方传入的 task_type 回填到规则，并合并传入的关键词标签。
+                # 从 task_description 推断类型，本任务类型（如 minutes）不在白名单 →
+                # source_task_type 退化为 'general'，使 retrieve_relevant_rules 的
+                # type-match bonus(+2) 丢失；此处把调用方传入的 task_type 回填到规则，
+                # 并合并传入的关键词标签。
                 if task_type:
                     approved_rule.source_task_type = task_type
+                    # 重写假设进入此路径的规则 trigger_condition 均以
+                    # "task_type is <推断类型>" 开头（extract_from_meeting 的 4 个
+                    # 生产分支均满足）；仅替换前导类型段，保留其余条件。
                     approved_rule.trigger_condition = (
                         f"task_type is {task_type} and "
                         + approved_rule.trigger_condition.split(" and ", 1)[-1]
