@@ -78,3 +78,28 @@ async def test_non_docs_node_or_no_builder_skips_injection(monkeypatch):
     node2 = _make_node("draft", "dept-docs", "撰写纪要初稿")
     await coord2._execute_workflow_node(node2, {"transcript": "会议讨论...", "team_id": "team-x"})
     assert "资产参考" not in captured["prompt"]  # 异常吞掉 → 无注入段
+
+
+@pytest.mark.asyncio
+async def test_docs_node_empty_asset_context_byte_identical(monkeypatch):
+    captured = {}
+
+    async def fake_loop(model, prompt, toolset, **kwargs):
+        captured["prompt"] = prompt
+        return {"result": "ok", "files_written": [], "tool_outputs": []}
+
+    # 基线：无 builder → prompt 保持现状
+    coord0 = _make_coordinator(builder=None)
+    monkeypatch.setattr(coord0, "_get_model", lambda role: object())
+    # 实例级 monkeypatch：避免类级替换后 bound-method 注入 self 导致的形参错位
+    monkeypatch.setattr(coord0, "_run_agent_execution_loop", fake_loop)
+    node = _make_node("draft", "dept-docs", "撰写纪要初稿")
+    await coord0._execute_workflow_node(node, {"transcript": "会议讨论...", "team_id": "team-x"})
+    baseline = captured["prompt"]
+
+    # builder 返回空串 → 不追加资产段，prompt 与基线逐字节一致
+    coord1 = _make_coordinator(builder=lambda team_id, task_type, keywords: "")
+    monkeypatch.setattr(coord1, "_get_model", lambda role: object())
+    monkeypatch.setattr(coord1, "_run_agent_execution_loop", fake_loop)
+    await coord1._execute_workflow_node(node, {"transcript": "会议讨论...", "team_id": "team-x"})
+    assert captured["prompt"] == baseline
