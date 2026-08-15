@@ -849,11 +849,14 @@ class WorkflowEngine:
         logger.info("工作流已取消: %s", execution_id)
 
     async def retry_node(self, execution_id: str, node_id: str):
-        """重试节点
+        """重试失败/跳过节点：重置目标节点为 PENDING 后重跑。
 
         Args:
             execution_id: 执行实例ID
             node_id: 节点ID
+
+        注意：仅恢复目标节点。下游因依赖不满足而 SKIPPED 的节点与 execution 终态
+        不随本次重试恢复——需完整重跑（start_workflow）或手动逐节点重试下游。
         """
         execution = self._executions.get(execution_id)
         if not execution:

@@ -86,3 +86,27 @@ async def test_gate_rejected_node_retryable():
     await engine.retry_node(execution.execution_id, "draft")
     status = engine.get_workflow_status(execution.execution_id)
     assert status.node_states["draft"] == WorkflowNodeStatus.COMPLETED
+
+
+async def test_retry_node_recovers_only_target_node():
+    """锁定 retry 语义：重试成功只恢复目标节点，下游 SKIPPED 与 execution 状态不变。"""
+    engine = WorkflowEngine()
+    calls = {"rejected": True}
+
+    async def rejected_executor(node, input_data):
+        if node.node_id == "draft" and calls["rejected"]:
+            return {"gate": {"status": "rejected", "reason": "需修改"}}
+        return {"result": f"{node.node_id} done"}
+
+    engine.register_node_executor("dept-docs", rejected_executor)
+    execution = engine.create_workflow(_chain_definition())
+    await engine.execute_workflow(execution.execution_id)
+    status = engine.get_workflow_status(execution.execution_id)
+    assert status.node_states["draft"] == WorkflowNodeStatus.FAILED
+    assert status.node_states["proofread"] == WorkflowNodeStatus.SKIPPED
+
+    calls["rejected"] = False
+    await engine.retry_node(execution.execution_id, "draft")
+    status = engine.get_workflow_status(execution.execution_id)
+    assert status.node_states["draft"] == WorkflowNodeStatus.COMPLETED
+    assert status.node_states["proofread"] == WorkflowNodeStatus.SKIPPED  # 下游不随 retry 恢复
