@@ -71,3 +71,45 @@ python pilot_minutes.py --api-key $KEY
 - 直驱模式不经 WS/前端，把关由脚本自动批准（`--auto-approve`）或超时默认通过；真实"员工在 ApprovalPanel 点击"的闭环需 WS 模式 + 前端（M2b-2 已交付前端面板，接线验证属后续试点）。
 - mailer 为 `file` provider（写 .eml），SMTP 实发需 T15 跟踪项（生产加固）。
 - 试点消耗真实 API token（3 节点 × 1-2 次 LLM 调用）。
+
+---
+
+## 8. WS 模式试点（真实服务器链路，2026-08-14 跑通）
+
+直驱试点验证了核心链路，WS 模式试点验证**真实服务器接线**：后端 server.py → WS 客户端 → 把关请求经 `session.send_and_buffer` WS 推送 → 客户端审批响应闭环（与前端 ApprovalPanel 相同的消息通道）。
+
+### 运行方式
+
+```bash
+# 终端1：启动后端（显式 BACKEND_TOKEN，WS 握手需 query token）
+cd backend
+BACKEND_TOKEN=pilot-token DEEPSEEK_API_KEY=... DEEPSEEK_BASE_URL=... DEEPSEEK_MODEL=... \
+  /home/test/miniconda3/envs/agentscope/bin/python server.py
+
+# 终端2：运行 WS 试点客户端（--auto-approve 模拟员工在 ApprovalPanel 点击）
+/home/test/miniconda3/envs/agentscope/bin/python pilot_minutes_ws.py \
+  --api-key $DEEPSEEK_API_KEY --token pilot-token --auto-approve
+```
+
+### 2026-08-14 结果（全部 PASS，~20s）
+
+- **WS 连接**：connected session=xxx ✓
+- **任务提交**：meeting_message_ack ✓
+- **意图识别**：`意图：minutes / 理由：文档任务规则命中`（文档模式短路在服务器链路生效）✓
+- **DAG 执行**：3 节点 sequential（extract 产出纪要要点）✓
+- **员工把关（WS 闭环）**：`[把关推送] node_gate task=draft gate=draft:review approver=submitter` → 客户端回 `human_approval_response`（approved）→ 节点继续 ✓
+- **链路完成**：workflow_executed ✓
+
+### 与直驱试点的差异
+
+| 维度 | 直驱（pilot_minutes.py） | WS 模式（pilot_minutes_ws.py） |
+|------|--------------------------|-------------------------------|
+| 通道 | MeetingCoordinator 直调 | server.py → WS 全链路 |
+| 把关推送 | on_message 回调（需 dict 容忍） | `human_approval_request` WS 消息（与前端同通道） |
+| 审批 | auto_approver 轮询 | `human_approval_response` WS 响应（与前端 ApprovalPanel 相同） |
+| 验收 | 审计成对 + mailer | WS 推送收到 + 响应发出 + workflow_executed |
+
+### 注意点
+
+- **BACKEND_TOKEN 必须显式设置**：server.py `BACKEND_TOKEN = os.environ.get(...)` 为空会自动生成随机值 → `_verify_ws_token` 校验 query token 失败 → 握手 403（accept 前 close 表现为 HTTP 403）。显式设非空值 + 客户端 `--token` 传同值。
+- AuthMiddleware（BaseHTTPMiddleware）不拦截 WebSocket 握手，WS 鉴权由 `_verify_ws_token`（query token）承担。
