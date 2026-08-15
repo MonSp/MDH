@@ -50,3 +50,11 @@ def test_evaluate_no_judge_skips(tmp_path):
     asset = store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
     result = AssetEvaluator(store).evaluate(asset)
     assert result.judge_score is None  # judge 默认 None → 跳过
+
+
+def test_duplicate_not_flagged_for_content_mention(tmp_path):
+    store = AssetStore(str(tmp_path))
+    store.store_artifact("team-x", "会议纪要", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
+    new = store.store_artifact("team-x", "发布计划", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
+    result = AssetEvaluator(store).evaluate(new)
+    assert result.checks["duplicate"] is True  # 不同标题 → 不判重复（duplicate 检查通过）

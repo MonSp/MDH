@@ -7,7 +7,7 @@
 from dataclasses import dataclass
 from typing import Callable
 
-from asset_store import AssetStore
+from asset_store import AssetStore, _norm_title
 
 _JUDGE_THRESHOLD = 0.5
 _MIN_LENGTH = {"artifact": 20, "template": 50}
@@ -16,7 +16,7 @@ _MIN_LENGTH = {"artifact": 20, "template": 50}
 @dataclass
 class EvaluationResult:
     passed: bool
-    checks: dict
+    checks: dict[str, bool]
     judge_score: float | None
     reason: str = ""
 
@@ -27,11 +27,16 @@ class AssetEvaluator:
         self._judge = judge
 
     def evaluate(self, asset: dict) -> EvaluationResult:
+        """评测资产。
+
+        judge 抛异常时向上传播（fail-open 语义），接入真实 judge 前需评估
+        是否改为 fail-closed（判 judge 异常 → 拒绝）。
+        """
         checks = {
             "completeness": bool(asset.get("title", "").strip()) and bool(asset.get("content", "").strip()),
             "structure": self._check_structure(asset),
             "duplicate": not self._is_duplicate(asset),
-            "quality": len(asset.get("content", "")) >= _MIN_LENGTH.get(asset.get("type", "artifact"), 20),
+            "quality": len(asset.get("content", "").strip()) >= _MIN_LENGTH.get(asset.get("type", "artifact"), 20),
         }
         judge_score = None
         if self._judge is not None:
@@ -47,5 +52,12 @@ class AssetEvaluator:
         return any(k in content for k in ("待办", "要点", "标题", "日期", "决定"))
 
     def _is_duplicate(self, asset: dict) -> bool:
+        # search 的 query 匹配是 标题+内容 包含：用它做候选召回，再用归一化标题
+        # 精确相等判定，避免"既有资产内容提到新标题"被误判为重复。
         hits = self._store.search(asset.get("team_id", ""), query=asset.get("title", ""), asset_type=asset.get("type"))
-        return any(h.get("asset_id") != asset.get("asset_id") for h in hits)
+        title = _norm_title(asset.get("title", ""))
+        return any(
+            h.get("asset_id") != asset.get("asset_id")
+            and _norm_title(h.get("title", "")) == title
+            for h in hits
+        )
