@@ -1,7 +1,8 @@
 """LLM judge 评测基准：人工标注资产集评估 judge 准确率/校准/区分度。
 
 设计 [S4]：仿 AIP Evals 指标——accuracy（判定一致率）、mae（分数校准）、
-good_mean-bad_mean（区分度）。标注集为内置演示数据（试点部门真实标注集后续外部化）。
+good_mean-bad_mean（区分度）。标注集为内置演示数据 + JSON 文件外部加载
+（load_benchmark_items）；试点部门真实标注集可放 data/benchmark_items.json。
 """
 
 import json
@@ -68,14 +69,19 @@ def load_benchmark_items(path: str) -> list[BenchmarkItem]:
     """
     with open(path, encoding="utf-8") as f:
         raw = json.load(f)
+    if not isinstance(raw, list):
+        raise ValueError(f"标注集 {path} 应为 JSON 数组，实际: {type(raw).__name__}")
     items = []
     for entry in raw:
+        if not isinstance(entry, dict):
+            raise ValueError(f"标注集 {path} 条目应为对象: {entry!r}")
         asset = entry.get("asset")
         if not isinstance(asset, dict):
-            raise ValueError(f"标注集条目缺 asset dict: {entry!r}")
+            raise ValueError(f"标注集 {path} 条目缺 asset dict: {entry!r}")
         gold_score = entry.get("gold_score")
         gold_pass = entry.get("gold_pass")
-        if not isinstance(gold_score, (int, float)) or not 0.0 <= gold_score <= 1.0:
+        if (not isinstance(gold_score, (int, float)) or isinstance(gold_score, bool)
+                or not 0.0 <= gold_score <= 1.0):
             raise ValueError(f"gold_score 非法: {gold_score!r}")
         if not isinstance(gold_pass, bool):
             raise ValueError(f"gold_pass 非法: {gold_pass!r}")

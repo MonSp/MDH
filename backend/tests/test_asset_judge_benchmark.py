@@ -1,9 +1,10 @@
 import json
+from pathlib import Path
 
 import pytest
 
 from asset_evaluator import _JUDGE_THRESHOLD
-from asset_judge_benchmark import BENCHMARK_ITEMS, BenchmarkItem, evaluate_judge
+from asset_judge_benchmark import BENCHMARK_ITEMS, BenchmarkItem, evaluate_judge, load_benchmark_items
 
 
 def test_benchmark_items_well_formed():
@@ -58,8 +59,43 @@ def test_evaluate_judge_empty_items():
     assert result.per_item == []
 
 
+def test_load_benchmark_items_rejects_non_list_root(tmp_path):
+    f = tmp_path / "dict_root.json"
+    f.write_text(json.dumps({"items": [
+        {"asset": {"type": "artifact", "title": "a", "content": "内容"},
+         "gold_score": 0.8, "gold_pass": True},
+    ]}), encoding="utf-8")
+    with pytest.raises(ValueError, match="JSON 数组"):
+        load_benchmark_items(str(f))
+
+
+def test_load_benchmark_items_rejects_scalar_entry(tmp_path):
+    f = tmp_path / "scalar_entry.json"
+    f.write_text(json.dumps(["not-an-object"]), encoding="utf-8")
+    with pytest.raises(ValueError, match="条目应为对象"):
+        load_benchmark_items(str(f))
+
+
+def test_load_benchmark_items_rejects_bool_gold_score(tmp_path):
+    f = tmp_path / "bool_score.json"
+    f.write_text(json.dumps([
+        {"asset": {"type": "artifact", "title": "a", "content": "内容"},
+         "gold_score": True, "gold_pass": True},
+    ]), encoding="utf-8")
+    with pytest.raises(ValueError, match="gold_score"):
+        load_benchmark_items(str(f))
+
+
+def test_example_json_parity_with_builtin():
+    example = load_benchmark_items(str(Path(__file__).resolve().parent.parent / "benchmark_items.example.json"))
+    assert len(example) == len(BENCHMARK_ITEMS)
+    for ext, builtin in zip(example, BENCHMARK_ITEMS):
+        assert ext.asset["title"] == builtin.asset["title"]
+        assert ext.gold_score == builtin.gold_score
+        assert ext.gold_pass == builtin.gold_pass
+
+
 def test_load_benchmark_items_from_json(tmp_path):
-    from asset_judge_benchmark import load_benchmark_items
     f = tmp_path / "items.json"
     f.write_text(json.dumps([
         {"asset": {"type": "artifact", "title": "a", "content": "好内容"}, "gold_score": 0.8, "gold_pass": True},
