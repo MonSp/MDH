@@ -2680,6 +2680,10 @@ async def api_asset_artifacts(body: dict):
         return _ok({"asset_id": asset["asset_id"]})
     except KeyError:
         return _fail("缺少必填字段: team_id")
+    except Exception as exc:
+        # T6 评审 Important：非法/畸形 team_id（非字符串或 ../ 路径遍历）及磁盘
+        # 错误不得以 500 传播，包装为 _fail（与 experience 端点一致）
+        return _fail(str(exc))
 
 
 @app.post("/api/assets/templates")
@@ -2698,13 +2702,20 @@ async def api_asset_templates(body: dict):
         return _fail(result["reason"])
     except KeyError:
         return _fail("缺少必填字段: team_id")
+    except Exception as exc:
+        # T6 评审 Important：与 experience 端点一致，异常不得以 500 传播
+        return _fail(str(exc))
 
 
 @app.get("/api/assets/search")
 async def api_asset_search(team_id: str, q: str = "", type: str = "", task_type: str = "", keywords: str = ""):
     """演示：三类资产复用检索（产出物/模板/技能规则）。"""
-    kw = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else None
-    return _ok(_get_asset_search().search(team_id, query=q, asset_type=type, task_type=task_type, keywords=kw))
+    try:
+        kw = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else None
+        return _ok(_get_asset_search().search(team_id, query=q, asset_type=type, task_type=task_type, keywords=kw))
+    except Exception as exc:
+        # T6 评审 Important：畸形 team_id（如 ../ 路径遍历）不得以 500 传播
+        return _fail(str(exc))
 
 
 @app.post("/api/assets/experience")
@@ -2729,7 +2740,11 @@ async def api_asset_experience(body: dict):
 @app.get("/api/assets")
 async def api_asset_list(team_id: str, status: str = ""):
     """演示：资产列表（per team）。"""
-    return _ok(_get_asset_store().list_assets(team_id, status=status or None))
+    try:
+        return _ok(_get_asset_store().list_assets(team_id, status=status or None))
+    except Exception as exc:
+        # T6 评审 Important：畸形 team_id（如 ../ 路径遍历）不得以 500 传播
+        return _fail(str(exc))
 
 
 @app.get("/health")

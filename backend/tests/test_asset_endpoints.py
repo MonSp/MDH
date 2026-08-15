@@ -118,5 +118,54 @@ def test_template_confirmation_singleton_uses_demo_gate_manager(tmp_path, monkey
     from asset_store import AssetStore
     monkeypatch.setattr(server, "_get_asset_store", lambda: AssetStore(str(tmp_path)))
     monkeypatch.setattr(server, "_template_confirmation", None)
-    tc = server._get_template_confirmation()
-    assert tc._approvals is server._demo_gate_manager
+    # T6 评审 Minor：本用例会把桥接安装到共享 _demo_gate_manager 并留下
+    # _template_confirmation——尾部必须恢复，否则后续同进程测试驱动真实
+    # template: gate 会撞上已删除的 tmp_path store。
+    original_handle = server._demo_gate_manager.handle_gate_response
+    try:
+        tc = server._get_template_confirmation()
+        assert tc._approvals is server._demo_gate_manager
+    finally:
+        server._demo_gate_manager.handle_gate_response = original_handle
+        server._demo_gate_manager._template_bridge_installed = False
+        server._template_confirmation = None
+
+
+def test_malicious_team_id_returns_fail_not_500(tmp_path, monkeypatch):
+    """T6 评审 Important：畸形/恶意 team_id（../ 路径遍历、非字符串）在各端点
+    必须返回 200 + success=False（包装为 _fail），不得以 500 传播。"""
+    from asset_store import AssetStore
+    from asset_evaluator import AssetEvaluator
+    from approval_manager import ApprovalManager
+    from asset_search import AssetSearch
+    from experience_extractor import ExperienceExtractor
+    from skill_evolution import SkillEvolution
+    from template_confirmation import TemplateConfirmation
+
+    store = AssetStore(str(tmp_path))
+    monkeypatch.setattr(server, "_get_asset_store", lambda: store)
+    # 本地隔离实例，避免把桥接装到共享 _demo_gate_manager 上（T6 评审 Minor）
+    tc = TemplateConfirmation(store, AssetEvaluator(store), ApprovalManager())
+    monkeypatch.setattr(server, "_get_template_confirmation", lambda: tc)
+    monkeypatch.setattr(server, "_get_skill_evolution", lambda: SkillEvolution(ExperienceExtractor(str(tmp_path))))
+    monkeypatch.setattr(server, "_get_asset_search", lambda: AssetSearch(store, ExperienceExtractor(str(tmp_path))))
+
+    # POST 写路径：../ 路径遍历 → ValueError
+    for url, payload in [
+        ("/api/assets/artifacts", {"team_id": "../evil", "title": "t", "content": "c"}),
+        ("/api/assets/templates", {"team_id": "../evil", "title": "t", "content": _GOOD_CONTENT}),
+        ("/api/assets/experience", {"team_id": "../evil", "task_type": "minutes"}),
+    ]:
+        resp = client.post(url, json=payload)
+        assert resp.status_code == 200, f"{url} -> HTTP {resp.status_code}"
+        assert not resp.json()["success"], url
+
+    # POST 写路径：非字符串 team_id → TypeError
+    resp = client.post("/api/assets/artifacts", json={"team_id": 123, "title": "t", "content": "c"})
+    assert resp.status_code == 200 and not resp.json()["success"]
+
+    # GET 读路径：../ 路径遍历
+    resp = client.get("/api/assets/search", params={"team_id": "../evil"})
+    assert resp.status_code == 200 and not resp.json()["success"]
+    resp = client.get("/api/assets", params={"team_id": "../evil"})
+    assert resp.status_code == 200 and not resp.json()["success"]

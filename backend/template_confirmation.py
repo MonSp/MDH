@@ -6,6 +6,11 @@
 接线说明：构造时消费侧包装 approvals.handle_gate_response，使 template: 关口
 的批准/拒绝决定自动驱动 on_gate_result（员工批准 → approve_template；拒绝 →
 reject_template）。不改 ApprovalManager 内部。
+
+首次构造优先（first-instance-wins）：_bridge_gate_decisions 对同一 ApprovalManager
+实例只在其首次构造 TemplateConfirmation 时生效；该管理器二次构造（即便 store/
+evaluator 不同）会因 _template_bridge_installed 静默跳过接线，新实例的
+on_gate_result 不会被 gate 决定驱动。
 """
 
 from asset_evaluator import AssetEvaluator
