@@ -1238,6 +1238,46 @@ class TestTeamIdPassThrough:
         asyncio.run(coordinator.process_user_message("透传测试专用消息 B2", on_message))
         assert captured["team_id"] == ""
 
+    def test_semantic_analyze_team_id_bypasses_cache(self, coordinator, monkeypatch):
+        """team_id 非空绕过 llm_cache（get/put 零调用）；同消息跨团队不串 team_id；空 team_id 走缓存路径"""
+        from llm_cache import llm_cache
+
+        cache_calls = {"get": 0, "put": 0}
+
+        def fake_get(prompt, role="", model=""):
+            cache_calls["get"] += 1
+            return None
+
+        def fake_put(prompt, response, role="", model=""):
+            cache_calls["put"] += 1
+
+        analyze_calls = []
+
+        async def fake_analyze(user_message, team_id=""):
+            analyze_calls.append(team_id)
+            return SemanticAnalysisResult(
+                is_task=True, intent="task", task_description=user_message
+            )
+
+        monkeypatch.setattr(llm_cache, "get", fake_get)
+        monkeypatch.setattr(llm_cache, "put", fake_put)
+        monkeypatch.setattr(coordinator._semantic_analyzer, "analyze", fake_analyze)
+
+        # 场景 1：team_id="team-a" → 绕过缓存，analyze(team_id="team-a") 被调用，llm_cache.get/put 零调用
+        result_a = asyncio.run(coordinator.semantic_analyze("缓存回归专用消息", team_id="team-a"))
+        assert analyze_calls == ["team-a"]
+        assert cache_calls == {"get": 0, "put": 0}
+
+        # 场景 2：同消息 team_id="team-b" → 仍实时分析（即使缓存有 team-a 结果也不命中——team_id 不串）
+        result_b = asyncio.run(coordinator.semantic_analyze("缓存回归专用消息", team_id="team-b"))
+        assert analyze_calls == ["team-a", "team-b"]
+        assert cache_calls == {"get": 0, "put": 0}
+
+        # 场景 3：空 team_id → 走既有缓存路径（llm_cache.get 被调用，miss 后 analyze + put）
+        result_empty = asyncio.run(coordinator.semantic_analyze("缓存回归专用消息"))
+        assert analyze_calls == ["team-a", "team-b", ""]
+        assert cache_calls == {"get": 1, "put": 1}
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

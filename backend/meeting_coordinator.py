@@ -1078,8 +1078,13 @@ class MeetingCoordinator:
     async def semantic_analyze(self, user_message: str, team_id: str = "") -> SemanticAnalysisResult:
         """语义分析用户消息（委托给SemanticAnalyzer，带缓存）
 
-        WhyBuddy化：委托给SemanticAnalyzer。
+        team_id 非空时绕过缓存：缓存键不含 team_id（llm_cache key = md5(role:model:prompt)），
+        同消息跨团队 TTL 命中会返回带旧 team_id 的结果（M4 注入 seam 跨团队资产泄漏）——
+        team_id 场景每次实时分析（文档模式为确定性短路，无 LLM 成本）。
         """
+        if team_id:
+            return await self._semantic_analyzer.analyze(user_message, team_id=team_id)
+
         from llm_cache import llm_cache
         cached = llm_cache.get(user_message, role="semantic_analyze", model=self.model_name)
         if cached is not None:
