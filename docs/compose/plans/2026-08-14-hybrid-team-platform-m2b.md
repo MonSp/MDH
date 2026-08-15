@@ -1,5 +1,11 @@
 # [M2b-1] 人+agent 混合团队平台 · 后端收尾 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 完成 M2 里程碑的**后端收尾**（设计文档 `docs/compose/specs/2026-08-14-hybrid-team-platform-design.md` 的 M2b 后端部分 + 评审登记项 T9/T10/T11/T7）：DAG 级把关强制力（把关拒绝中止下游）、演示端点输入加固、`_detect_minutes_task` 死代码清理与关键词复用、把关 approver 透传、human 显示名、SMTP 邮件 provider。

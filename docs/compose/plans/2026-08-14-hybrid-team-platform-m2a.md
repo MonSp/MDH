@@ -1,5 +1,11 @@
 # [M2a] 人+agent 混合团队平台 · 会议纪要后端全链路 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 为 MDH 交付会议纪要任务的**后端全链路**（设计文档 `docs/compose/specs/2026-08-14-hybrid-team-platform-design.md` 的 M2 里程碑后端部分）：文档意图识别（速记→纪要 DAG）、create_document 升级为 .docx（doc_tools consumer 接线）、工作流节点把关钩子（gate 接线，含 M2 跟踪项 T6/T7 前项）、邮件分发适配器 seam、演示集成端点。

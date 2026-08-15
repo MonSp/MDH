@@ -1,5 +1,11 @@
 # [T23] 审批推送 approverName 闭环 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 关闭 T23（员工目录解析评审 Important 观察）——live UI 把关人显示名闭环：审批请求推送（`human_approval_request`）即时携带解析后的 `approverName`（后端发送点注入），并在办公团队面板挂载时拉取已富化的 `pending_approvals` 兜底（覆盖无推送路径与历史项）。

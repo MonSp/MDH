@@ -1,5 +1,11 @@
 # [T26] OfficeTeamMode 未解构引用修复 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 修复 T26 预存在缺陷——`src/components/OfficeTeamMode.tsx` 引用 `meetingPhase`/`meetingStartTime`/`deleteTask` 但未从 `useMeetingSocket` 解构（TS2304，office/meeting 渲染分支的潜在运行时 `ReferenceError`）。

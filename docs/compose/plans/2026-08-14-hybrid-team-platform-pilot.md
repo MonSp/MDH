@@ -1,5 +1,11 @@
 # [Pilot] 会议纪要任务 · 真实试点运行手册
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > 2026-08-14 建立。M2 里程碑（意图识别 → DAG 执行 → 员工把关 → 邮件分发）代码侧交付完成后的真实运行验证手册。试点于 2026-08-14 实际跑通：**全部验收项通过**。
 
 ## 1. 试点目标

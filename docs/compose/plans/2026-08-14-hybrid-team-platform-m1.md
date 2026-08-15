@@ -1,5 +1,11 @@
 # [M1] 人+agent 混合团队平台 · 引擎底座 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 为 MDH 建立"人+agent 混合团队"引擎底座（设计文档 `docs/compose/specs/2026-08-14-hybrid-team-platform-design.md` 的 M1 里程碑）：员工/把关点数据模型、混合团队组装、把关点引擎、文档工具 seam（docx 生成）、演示 API。

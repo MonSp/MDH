@@ -1,5 +1,11 @@
 # [M2 打磨] 剩余跟踪项收尾 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 收尾 M2 里程碑评审遗留的 4 个跟踪项：T17（REST `/api/gates/pending` 投影补全）、T14（关键词派生清理 + docstring 注记 + decided 审计 approver 断言）、T15（SMTP 生产加固）、T13（retry_node 单节点恢复语义文档化）。

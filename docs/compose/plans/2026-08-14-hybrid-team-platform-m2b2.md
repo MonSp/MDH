@@ -1,5 +1,11 @@
 # [M2b-2] 人+agent 混合团队平台 · 把关 UI（前后端接线）Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 完成 M2 里程碑的**把关 UI 前后端接线**（设计文档 `docs/compose/specs/2026-08-14-hybrid-team-platform-design.md` 的 M2"把关 UI"验收）：把关请求的 `approver/taskId/gateId` 上下文贯通后端 → WS → 前端面板，让员工在审批面板看到"谁把关、哪个任务"并完成决定闭环。

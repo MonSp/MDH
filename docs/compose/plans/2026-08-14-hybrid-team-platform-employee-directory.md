@@ -1,5 +1,11 @@
 # [M2 剩余] 员工目录解析 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让"员工"成为一等实体（设计文档 [S1] 的落地收尾）——建立员工目录数据结构，把关人/提交者从占位字符串（`"submitter"`/`approver` ID）解析为真实员工显示名，并贯通演示端点与前端审批面板。

@@ -1,5 +1,11 @@
 # [M3] 资产沉淀闭环 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让"沉淀"成为全链路第 6-7 步的落地点：三类资产（产出物/模板/经验技能）在平台内沉淀、评测把关、按需复用，实现设计 [S5] M3 验收（试点部门 50%+ 纪要任务走平台；资产复用率可感知）。

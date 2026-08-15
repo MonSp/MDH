@@ -1,5 +1,11 @@
 # MDH 演进：人+agent 混合团队协作平台（办公垂直）设计
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > 产品定义头脑风暴产物（2026-08-14）。基于两份研究：`multi-agent-architecture-future-analysis.md`（行业方向 43 来源）与 `deepseek-harness-code-principles.md`（dsh 全库 104 条原理）。本设计经用户逐节确认；2026-08-14 增补 Palantir AIP 对标（[S6]）并纳入两条强化（对照确认、资产评测）。
 
 ## [S1] 产品定位与价值主张

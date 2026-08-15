@@ -1,5 +1,11 @@
 # [M3 后续] LLM judge 接入演示端点 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把 LLM judge（试点已验证）接入 `/api/assets/templates` 演示端点：`make_llm_judge` 从试点脚本提炼为产品模块 `asset_judge.py`（含正则解析修复）；judge 异常语义改为 **fail-closed**（M3 评审落点：接入真实 judge 前评估）；server 以 **env 开关 `ASSET_JUDGE_ENABLED`** 控制注入（默认关——演示端点保持无 judge 快路径；开则真实 LLM 评测）。

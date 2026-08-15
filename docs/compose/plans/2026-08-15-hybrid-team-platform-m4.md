@@ -1,5 +1,11 @@
 # [M4] 沉淀闭环增强 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让沉淀闭环"闭环"起来：①纪要 DAG 节点执行时自动检索并注入团队资产（模板/知识/技能规则）指导生成（设计 [S5] 第 42 行落地）；②LLM judge 评测基准量化 judge 质量（准确率/校准/区分度，仿 AIP Evals）。

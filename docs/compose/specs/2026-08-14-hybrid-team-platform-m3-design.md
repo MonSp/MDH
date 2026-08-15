@@ -1,5 +1,11 @@
 # [M3] 沉淀闭环 Design
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > 2026-08-14 建立。承接总设计 `2026-08-14-hybrid-team-platform-design.md` 的 [S5] M3 里程碑（9-12 周）：沉淀闭环。本设计经用户逐节确认（范围/存储/评测/触发/确认/复用 6 项决策）。
 
 ## [S1] Goal

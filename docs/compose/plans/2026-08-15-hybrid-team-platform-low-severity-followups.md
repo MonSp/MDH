@@ -1,5 +1,11 @@
 # [低严重度后续] 试点健壮性 + env 文档 Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 收尾 T34 评审登记的 3 条低严重度建议（judge 端点试点脚本健壮性 + runbook 口径）+ `ASSET_JUDGE_ENABLED` env 文档（M4 评审登记）。

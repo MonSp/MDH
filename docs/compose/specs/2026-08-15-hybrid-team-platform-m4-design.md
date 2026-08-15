@@ -1,5 +1,11 @@
 # [M4] 沉淀闭环增强 Design
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/hybrid-team-platform.md)
+
+
 > 2026-08-15 建立。承接 M3 沉淀闭环（main@db2904a 含 LLM judge 接入）的后续增强：设计 [S5] 第 42 行"资产复用：意图识别时检索知识库/模板/技能注入"的 DAG 节点级落地 + LLM judge 评测基准（仿 AIP Evals 指标）。经用户逐节确认（范围/接线点/形态）。
 
 ## [S1] Goal
