@@ -146,6 +146,38 @@ MODEL=$(grep -E '^DEEPSEEK_MODEL=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"
 
 ### 已知边界
 
-- **fail-open 语义**：judge 抛异常（网络/解析失败）时向上传播——接入生产前评估改 fail-closed（judge 异常 → 判拒绝）[S4] docstring 已注明。
-- **演示端点未接 judge**：`/api/assets/templates` 的 `_get_template_confirmation` 构造 `AssetEvaluator(store)`（judge=None）——接入真实 judge 需 server 侧配置（如 env 启用 judge 或端点可选参数），属后续产品接线。
+- **fail-closed 语义（T30 已落地）**：judge 抛异常（网络/解析失败）时判拒绝（`passed=False` + `reason="judge 异常: ..."`）——原 fail-open 语义经接入真实 judge 前评估已改为 fail-closed。
+- **演示端点已接 judge（T30 已接线）**：`/api/assets/templates` 的 `_get_template_confirmation` 经 `_get_asset_judge()` 注入——`ASSET_JUDGE_ENABLED=1` 且 env 有 key 时构造真实 LLM judge，否则 judge=None（演示快路径）。
 - 试点消耗真实 API token（4 次 judge 调用，~10s）。
+
+---
+
+## 10. LLM judge 端点真实 key 试点（T30 接线闭环，2026-08-15 跑通）
+
+验证 `/api/assets/templates` 在 `ASSET_JUDGE_ENABLED=1` 下的端到端演示闭环：真实 LLM 评测 → 员工 gate 确认 → 入库 + 评测结果持久化。
+
+### 运行方式
+
+```bash
+cd backend
+KEY=$(grep -E '^DEEPSEEK_API_KEY=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"' | tr -d "'")
+BASE=$(grep -E '^DEEPSEEK_BASE_URL=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"')
+MODEL=$(grep -E '^DEEPSEEK_MODEL=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"')
+/home/test/miniconda3/envs/agentscope/bin/python pilot_judge_endpoint.py \
+  --api-key "$KEY" --base-url "$BASE" --model "$MODEL" --backend-dir .
+```
+
+- 脚本自动启动后端 server（env：`BACKEND_TOKEN`/`ASSET_JUDGE_ENABLED=1`/`DEEPSEEK_*`）→ urllib 调 REST：templates 提交 → pending gate 确认 → decide 批准 → assets 列表验证。
+- team_id 带时间戳（每次运行独立——避免 duplicate 去重拦截重复标题，去重把关正确工作的实证）。
+
+### 2026-08-15 结果（全部 PASS，模型 deepseek-chat）
+
+| 验收项 | 结果 |
+|--------|------|
+| 模板提交（真实 LLM 评测通过 → gate 发起） | ✓ success + asset_id/request_id |
+| gate 发起（`template:<asset_id>` 在 pending） | ✓ approverName=张伟（员工目录解析生效） |
+| 员工批准（decide approved=true） | ✓ resolved=True |
+| 资产入库（status=approved） | ✓ |
+| 评测结果持久化（checks + judge_score 非空） | ✓ **judge_score=0.95**（结构化好模板高分）、checks 四键全 True |
+
+**结论**：T30 接线（`ASSET_JUDGE_ENABLED` env 开关 → `_get_asset_judge` → `AssetEvaluator(store, judge)` → fail-closed）在真实 server + 真实 DeepSeek 下端到端闭环成立——真实 LLM 评测（0.95）→ 双重把关（确定性 + judge）→ 员工确认 → 入库 + 评测结果审计可见。副带实证：duplicate 去重把关正确拦截重复标题提交（`评测不过: duplicate`）。
