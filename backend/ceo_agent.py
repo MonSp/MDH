@@ -194,6 +194,12 @@ class CeoAgent:
             # 保证前端审批面板可识别（对齐 server request_approval 推送模式）。
             if delta == "approval" and isinstance(text, dict):
                 payload = dict(text)
+                request = payload.get("request")
+                if isinstance(request, dict) and "approverName" not in request:
+                    from employee_directory import get_directory
+                    request = dict(request)
+                    request["approverName"] = get_directory().display_name(request.get("approver", ""))
+                    payload["request"] = request
                 payload.setdefault("sequence_no", self._session.next_sequence())
                 await send_message(payload)
                 return
