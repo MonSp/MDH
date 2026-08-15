@@ -653,6 +653,7 @@ describe('useMeetingSocket', () => {
             taskId: 'draft',
             gateId: 'draft:review',
             approver: 'emp-1',
+            approverName: '张伟',
           },
         })
       })
@@ -661,6 +662,7 @@ describe('useMeetingSocket', () => {
       expect(pending?.taskId).toBe('draft')
       expect(pending?.gateId).toBe('draft:review')
       expect(pending?.approver).toBe('emp-1')
+      expect(pending?.approverName).toBe('张伟')
     })
 
     it('透传 taskId/gateId/approver 到 pending_approvals 批量状态', () => {
@@ -680,6 +682,7 @@ describe('useMeetingSocket', () => {
             taskId: 'draft',
             gateId: 'draft:review',
             approver: 'emp-1',
+            approverName: '张伟',
           }],
         })
       })
@@ -688,6 +691,7 @@ describe('useMeetingSocket', () => {
       expect(pending?.taskId).toBe('draft')
       expect(pending?.gateId).toBe('draft:review')
       expect(pending?.approver).toBe('emp-1')
+      expect(pending?.approverName).toBe('张伟')
     })
 
     it('无 taskId/gateId/approver 字段时 pending 状态对应字段为 undefined', () => {
@@ -712,6 +716,7 @@ describe('useMeetingSocket', () => {
       expect(pending?.taskId).toBeUndefined()
       expect(pending?.gateId).toBeUndefined()
       expect(pending?.approver).toBeUndefined()
+      expect(pending?.approverName).toBeUndefined()
     })
   })
 

@@ -11,6 +11,7 @@ interface PendingApproval {
   taskId?: string
   gateId?: string
   approver?: string
+  approverName?: string
 }
 
 interface ApprovalPanelProps {
@@ -72,7 +73,9 @@ export default function ApprovalPanel({
 
           <div style={styles.gateContext}>
             <span style={styles.gateBadge}>
-              {approval.approver ? `由 ${approval.approver} 把关` : '系统把关'}
+              {approval.approverName || approval.approver
+                ? `由 ${approval.approverName || approval.approver} 把关`
+                : '系统把关'}
             </span>
             {approval.taskId ? <span style={styles.gateTag}>任务: {approval.taskId}</span> : null}
             {approval.gateId ? <span style={styles.gateTag}>把关点: {approval.gateId}</span> : null}

@@ -132,6 +132,8 @@ export interface ApprovalRequestInfo {
   taskId?: string
   gateId?: string
   approver?: string
+  /** 审批人显示名（员工目录解析；空串 = 未命中/系统） */
+  approverName?: string
 }
 
 export interface CheckpointInfo {

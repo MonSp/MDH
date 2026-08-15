@@ -35,6 +35,7 @@ from agent_bridge import AgentBridge
 from approval_manager import ApprovalManager
 from team import RuntimeType, TeamRuntime
 from team_assembler import TeamAssembler
+from employee_directory import get_directory
 
 logger = logging.getLogger("server")
 
@@ -81,6 +82,16 @@ app.add_middleware(
 
 # M1 演示：把关点引擎（仅演示用；会话内审批接线保持不变）
 _demo_gate_manager = ApprovalManager()
+
+
+def _with_approver_names(requests: list[dict]) -> list[dict]:
+    """审批 payload 追加 approverName（员工目录解析，未命中回退 approver 原值）。
+
+    [S3-1] 把关点引擎——决策节点挂"人"：前端回落链
+    approverName || approver || '系统' 的显示衔接。
+    """
+    directory = get_directory()
+    return [{**r, "approverName": directory.display_name(r.get("approver", ""))} for r in requests]
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -1894,7 +1905,7 @@ async def ws_handler(ws: WebSocket):
                 pending = session._approval_manager.get_pending_requests()
                 await ws.send_json({
                     "type": "pending_approvals",
-                    "requests": pending,
+                    "requests": _with_approver_names(pending),
                     "count": len(pending),
                 })
 
@@ -2569,6 +2580,7 @@ async def api_gate_create(body: dict):
         description=body.get("description", ""),
         task_id=body.get("taskId", ""),
         gate_id=body.get("gateId", ""),
+        approver=body.get("approver", ""),
     )
     return {
         "id": approval.id,
@@ -2591,6 +2603,7 @@ async def api_gates_pending():
             "taskId": r.get("taskId", ""),
             "gateId": r.get("gateId", ""),
             "approver": r.get("approver", ""),
+            "approverName": get_directory().display_name(r.get("approver", "")),
         }
         for r in _demo_gate_manager.get_pending_requests()
     ]

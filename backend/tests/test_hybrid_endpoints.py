@@ -150,6 +150,17 @@ def test_gates_pending_returns_gate_context_fields():
     assert "approver" in item
 
 
+def test_gates_pending_includes_approver_name():
+    created = client.post("/api/gates", json={
+        "requesterId": "agent", "operation": "node_gate", "description": "d",
+        "taskId": "draft", "gateId": "draft:review", "approver": "emp-001",
+    })
+    assert created.status_code == 200
+    pending = client.get("/api/gates/pending").json()
+    item = next(r for r in pending if r["id"] == created.json()["id"])
+    assert item["approverName"] == "张伟"  # 目录解析
+
+
 def test_minutes_resolves_submitter_display_name():
     resp = client.post("/api/minutes", json={
         "transcript": "会议讨论发布计划，确定 8 月上线。",

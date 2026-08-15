@@ -140,6 +140,8 @@ export default function useMeetingSocket({
     taskId?: string
     gateId?: string
     approver?: string
+    // 审批人显示名（员工目录解析；空串 = 未命中/系统）
+    approverName?: string
   }
   const [pendingApprovals, setPendingApprovals] = useState<Map<string, PendingApprovalInfo>>(new Map())
 
@@ -711,6 +713,7 @@ export default function useMeetingSocket({
                 taskId: request.taskId,
                 gateId: request.gateId,
                 approver: request.approver,
+                approverName: request.approverName,
               })
               return next
             })
@@ -757,6 +760,7 @@ export default function useMeetingSocket({
                 taskId: req.taskId,
                 gateId: req.gateId,
                 approver: req.approver,
+                approverName: req.approverName,
               })
             }
             return next
