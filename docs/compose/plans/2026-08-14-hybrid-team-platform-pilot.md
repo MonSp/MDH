@@ -187,3 +187,66 @@ MODEL=$(grep -E '^DEEPSEEK_MODEL=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"
 | 评测结果持久化（checks + judge_score 非空） | ✓ **judge_score=0.95**（结构化好模板高分）、checks 四键全 True |
 
 **结论**：T30 接线（`ASSET_JUDGE_ENABLED` env 开关 → `_get_asset_judge` → `AssetEvaluator(store, judge)` → fail-closed）在真实 server + 真实 DeepSeek 下端到端闭环成立——真实 LLM 评测（0.95）→ 双重把关（确定性 + judge）→ 员工确认 → 入库 + 评测结果审计可见。副带实证：duplicate 去重把关正确拦截重复标题提交（`评测不过: duplicate`）。
+
+---
+
+## 11. 注入 wiring 真实纪要试点（资产复用注入接线，2026-08-16 跑通）
+
+验证 M4 资产复用注入 seam 的**接线生效**：预置团队资产（模板/知识/技能规则）→ coordinator 绑定 `build_asset_context` 为 `asset_context_builder` → 真实纪要 DAG 运行 → 节点 prompt 含"资产参考"段。对应实施计划 `2026-08-15-hybrid-team-platform-asset-injection-pilot.md` Task 2（T1 已交付 `build_minutes_workflow` team_id 透传）。
+
+### 接线链路（wiring 说明）
+
+```
+build_minutes_workflow(transcript, approver, team_id)   # T1：team_id 透传各节点 input_spec
+  → WorkflowEngine._get_node_input 合并 input_spec → input_data["team_id"]
+  → coordinator._asset_context_builder(team_id, "minutes", ["纪要", "待办"])   # M4-T2 seam
+  → build_asset_context(store, extractor, ...) → "\n资产参考：\n..." 追加进节点 prompt
+```
+
+- **T1 接线点**：`minutes_workflow.py` `build_minutes_workflow(transcript, approver, team_id)`——team_id 非空时写入每个节点 `input_spec["team_id"]`（空则不加键，既有形状/调用零变化）。
+- **M4-T2 接线点**：`meeting_coordinator.py` `_execute_workflow_node`（:317）对 `dept-docs` 节点读取 `input_data["team_id"]`，非空时调用 `self._asset_context_builder(team_id, "minutes", ["纪要", "待办"])`，返回值拼进节点 prompt；builder 为空/异常/无 team_id 均不注入（注入是增强非必需）。
+- **执行路径选择**：试点绕过 `process_user_message`——analyzer 内部 `build_minutes_workflow(user_message)` 单参调用无 team_id 通道（`semantic_analyzer.py`），故试点直接 `build_minutes_workflow(team_id=...)` + `coordinator._execute_workflow`（真实 LLM 节点执行）。
+- **注入验证（wrapper 捕获）**：`_execute_workflow_node` 的 prompt 在内部构造不直接暴露——实例级 wrapper：①重注册 `workflow_engine` 的 dept-docs executor（构造时引擎已捕获原 bound 执行器，须重注册才生效）记录每节点 `input_data.team_id`；②替换 `coord._run_agent_execution_loop` 实例属性（不绑定 self，运行时查找命中）记录每节点真实下发的 prompt。
+
+### 运行方式
+
+```bash
+cd backend
+KEY=$(grep -E '^DEEPSEEK_API_KEY=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"' | tr -d "'")
+BASE=$(grep -E '^DEEPSEEK_BASE_URL=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"')
+MODEL=$(grep -E '^DEEPSEEK_MODEL=' /home/test/MDH/.env | cut -d= -f2- | tr -d '"')
+/home/test/miniconda3/envs/agentscope/bin/python pilot_asset_injection.py \
+  --api-key "$KEY" --base-url "$BASE" --model "$MODEL"
+```
+
+- 预置资产：`store_artifact` 好产出物（纪要-0815）+ `propose_template` 好模板（会议纪要模板）+ `SkillEvolution.evolve_from_feedback` 提炼技能规则（审核后写增量区）。
+- **零成本对照顺序**：空团队运行必须先于预置资产——技能规则检索（`ExperienceExtractor.retrieve_relevant_rules`）是全局共享、不按 team 隔离（`AssetStore` 的 artifacts/templates 才按 team 隔离），预置后再跑空团队会检索到同 extractor 的规则导致误判；先验证空态再预置，才能干净地证明"builder 返回空不注入"。
+- 把关非本试点范围：不注入 approval_manager（node gate 自动跳过）。
+
+### 2026-08-16 结果（全部 PASS，模型 deepseek-chat，共 6 节点真实 LLM 调用）
+
+| 验收项 | 结果 |
+|--------|------|
+| 运行 A：空团队（预置前）零成本 | ✓ status=completed（15.0s），3 节点 prompt 含资产段 **0/3**；`build_asset_context` 返回空串（len=0） |
+| 运行 B：预置团队注入生效 | ✓ status=completed（12.7s），3 节点 prompt 含资产段 **3/3** |
+| ① 注入接线生效 | ✓ team_id 透传 `[('extract','pilot-asset-team'), ('draft',…), ('proofread',…)]` + 3 节点 prompt 均含"资产参考"段 |
+| ①-3 注入内容来自预置资产 | ✓ 资产段含「会议纪要模板」+「纪要-0815」+ 规则（task_type is minutes → 责任人/行动项） |
+| ② 生成结果产出 | ✓ 纪要 DAG extract/draft/proofread 3 节点真实 LLM 结果非空 |
+| ③ 零成本不破坏流程 | ✓ 空团队 wf 正常 completed（注入为空 → prompt 无资产段 → 执行不受影响） |
+
+注入段实证（wrapper 捕获的真实 prompt 节选）：
+```
+资产参考：
+- 模板「会议纪要模板」：标题：会议纪要 时间：2026-08-15 参加人：市场部、研发部、销售部…
+- 知识「纪要-0815」：会议确定新产品 8 月 15 日上线。市场部负责宣传物料…
+- 规则：task_type is minutes and role is assistant → …请把速记整理成会议纪要并生成待办清单。
+- 规则：task_type is minutes and review stage → 审核修改：纪要待办需逐项指定责任人与截止日期。
+```
+
+**结论**：T1 + M4-T2 两个接线点（`build_minutes_workflow` team_id 透传 → 节点 input_spec → coordinator seam → 节点 prompt 注入）在真实 DeepSeek 下全链路成立——有资产团队节点 prompt 注入"资产参考"段、无资产团队零成本不注入且执行不受影响。M4 登记的"注入 wiring 接线"落地。
+
+### 已知边界
+
+- **process_user_message 无 team_id 通道**：analyzer 内部 `build_minutes_workflow(user_message)` 单参调用——生产路径要带 team_id 需扩展 analyzer（当前试点走直接 workflow 路径验证 seam 本身）。
+- **技能规则全局共享**：`retrieve_relevant_rules` 不按 team 隔离（区别于 AssetStore 的 artifacts/templates）——若需团队级规则隔离属后续产品决策，非本试点范围。
+- 试点消耗真实 API token（6 次节点 LLM 调用，~28s）；工作区保留于 `backend/data/demo_workspaces/pilot-asset-injection-*`。
