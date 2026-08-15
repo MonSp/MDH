@@ -22,12 +22,10 @@ import argparse
 import os
 import tempfile
 
-from asset_evaluator import AssetEvaluator
+from asset_evaluator import AssetEvaluator, _JUDGE_THRESHOLD
 from asset_judge import make_llm_judge
-from asset_judge_benchmark import BENCHMARK_ITEMS, evaluate_judge
+from asset_judge_benchmark import evaluate_judge
 from asset_store import AssetStore
-
-JUDGE_THRESHOLD = 0.5  # 与 asset_evaluator._JUDGE_THRESHOLD 一致
 
 # 合成资产样例（确定性检查全过，只让 judge 区分好坏）
 GOOD_TEMPLATE = {
@@ -78,22 +76,20 @@ def check(label: str, ok: bool, detail: str = "") -> bool:
 
 
 def run_benchmark(judge, model: str) -> None:
-    """评测基准模式：evaluate_judge 打印各指标 + 逐条分数（资产标题 + judge 分数 + gold + 判定一致/不一致）。"""
+    """评测基准模式：evaluate_judge 单遍评测，打印各指标 + 逐条分数（同一遍数据，无二次调用）。"""
     print("=" * 60)
     print("  LLM judge 评测基准（模型: %s）" % model)
     print("=" * 60)
     result = evaluate_judge(judge)
-    for item in BENCHMARK_ITEMS:
-        score = float(judge(item.asset))
-        match = (score >= JUDGE_THRESHOLD) == item.gold_pass
-        print(f"  [{'一致' if match else '不一致'}] {item.asset['title']}: "
-              f"judge={score:.3f} gold={item.gold_score:.3f}")
+    for pi in result.per_item:
+        match = pi["correct"]
+        print(f"  [{'一致' if match else '不一致'}] {pi['title']}: "
+              f"judge={pi['judge_score']:.3f} gold={pi['gold_score']:.3f}")
     print("=" * 60)
     print(f"  accuracy={result.accuracy:.2f} mae={result.mae:.3f} "
           f"good_mean={result.good_mean:.3f} bad_mean={result.bad_mean:.3f} "
           f"sep={result.sep:.3f}")
     print("=" * 60)
-    raise SystemExit(0)
 
 
 def run(args: argparse.Namespace) -> None:
@@ -147,8 +143,8 @@ def run(args: argparse.Namespace) -> None:
         ok5 = plain.judge_score is None and plain.passed
         checks.append(check("无 judge 回退（judge_score=None，仅确定性检查）", ok5))
 
-        # 验收 5: 阈值行为——passed 与 judge_score>=0.5 一致
-        ok6 = all(r.passed == (all(r.checks.values()) and (r.judge_score or 0) >= JUDGE_THRESHOLD)
+        # 验收 5: 阈值行为——passed 与 judge_score>=阈值 一致（阈值取 asset_evaluator._JUDGE_THRESHOLD）
+        ok6 = all(r.passed == (all(r.checks.values()) and (r.judge_score or 0) >= _JUDGE_THRESHOLD)
                   for r in results.values())
         checks.append(check("passed 与 judge>=阈值语义一致", ok6))
 

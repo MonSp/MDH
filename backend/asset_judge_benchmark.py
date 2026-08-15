@@ -4,9 +4,9 @@
 good_mean-bad_mean（区分度）。标注集为内置演示数据（试点部门真实标注集后续外部化）。
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-_JUDGE_THRESHOLD = 0.5  # 与 AssetEvaluator._JUDGE_THRESHOLD 一致
+from asset_evaluator import _JUDGE_THRESHOLD
 
 
 @dataclass
@@ -22,6 +22,7 @@ class BenchmarkResult:
     mae: float
     good_mean: float
     bad_mean: float
+    per_item: list = field(default_factory=list)  # 逐条 {title, judge_score, gold_score, gold_pass, correct}
 
     @property
     def sep(self) -> float:
@@ -59,17 +60,28 @@ BENCHMARK_ITEMS = [
 
 
 def evaluate_judge(judge, items=None) -> BenchmarkResult:
-    """逐条评测 judge（0-1 分数），输出准确率/校准/区分度指标。"""
+    """逐条评测 judge（0-1 分数），输出准确率/校准/区分度指标与逐条结果（单遍调用，per_item 与汇总同源）。"""
     items = items if items is not None else BENCHMARK_ITEMS
+    if not items:
+        return BenchmarkResult(0.0, 0.0, 0.0, 0.0)
     correct = 0
     abs_errors = []
     good_scores, bad_scores = [], []
+    per_item = []
     for item in items:
         score = float(judge(item.asset))
-        if (score >= _JUDGE_THRESHOLD) == item.gold_pass:
+        is_correct = (score >= _JUDGE_THRESHOLD) == item.gold_pass
+        if is_correct:
             correct += 1
         abs_errors.append(abs(score - item.gold_score))
         (good_scores if item.gold_pass else bad_scores).append(score)
+        per_item.append({
+            "title": item.asset.get("title", ""),
+            "judge_score": score,
+            "gold_score": item.gold_score,
+            "gold_pass": item.gold_pass,
+            "correct": is_correct,
+        })
     good_mean = sum(good_scores) / len(good_scores) if good_scores else 0.0
     bad_mean = sum(bad_scores) / len(bad_scores) if bad_scores else 0.0
     return BenchmarkResult(
@@ -77,4 +89,5 @@ def evaluate_judge(judge, items=None) -> BenchmarkResult:
         mae=sum(abs_errors) / len(abs_errors),
         good_mean=good_mean,
         bad_mean=bad_mean,
+        per_item=per_item,
     )
