@@ -350,6 +350,24 @@ class TestRetrieveRelevantRules:
         assert len(results) >= 2
 
 
+# ──────────────────── 规则级团队隔离 ────────────────────
+
+
+def test_retrieve_relevant_rules_filters_by_team(tmp_path):
+    extractor = ExperienceExtractor(str(tmp_path))
+    rule_a = ExperienceRule(rule_id="r-a", trigger_condition="task_type is minutes", action="a",
+                            note="", source_task_id="p1", source_task_type="minutes", rule_type="correction_tip",
+                            status="approved", keywords=["纪要"], created_at="t", team_id="team-a")
+    rule_b = ExperienceRule(rule_id="r-b", trigger_condition="task_type is minutes", action="b",
+                            note="", source_task_id="p2", source_task_type="minutes", rule_type="correction_tip",
+                            status="approved", keywords=["纪要"], created_at="t", team_id="team-b")
+    extractor.submit_for_review(rule_a); extractor.approve_rule("r-a")
+    extractor.submit_for_review(rule_b); extractor.approve_rule("r-b")
+    assert [r.rule_id for r in extractor.retrieve_relevant_rules("minutes", ["纪要"], team_id="team-a")] == ["r-a"]
+    assert [r.rule_id for r in extractor.retrieve_relevant_rules("minutes", ["纪要"], team_id="team-b")] == ["r-b"]
+    assert len(extractor.retrieve_relevant_rules("minutes", ["纪要"])) == 2  # 空 team_id → 全局（向后兼容）
+
+
 # ──────────────────── 构建上下文文本 ────────────────────
 
 

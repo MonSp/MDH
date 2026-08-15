@@ -46,7 +46,7 @@ class AssetSearch:
 
         rules = []
         if task_type and keywords:
-            for rule in self._extractor.retrieve_relevant_rules(task_type, keywords):
+            for rule in self._extractor.retrieve_relevant_rules(task_type, keywords, team_id=team_id):
                 rules.append(
                     {
                         "rule_id": rule.rule_id,

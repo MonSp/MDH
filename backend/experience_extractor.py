@@ -47,6 +47,7 @@ class ExperienceRule:
     status: str  # pending_review / approved / rejected
     keywords: List[str]  # 关键词标签
     created_at: str
+    team_id: str = ""  # 归属团队（"" = 全局/未隔离——旧规则兼容）
 
 
 def _now_iso() -> str:
@@ -148,6 +149,7 @@ class ExperienceExtractor:
                     "status": rule.status,
                     "keywords": rule.keywords,
                     "created_at": rule.created_at,
+                    "team_id": rule.team_id,
                 }
             ]
         }
@@ -178,6 +180,7 @@ class ExperienceExtractor:
                 status=r["status"],
                 keywords=r.get("keywords", []),
                 created_at=r["created_at"],
+                team_id=r.get("team_id", ""),  # 旧规则文件缺键容错
             )
         except Exception:
             logger.exception("Failed to load rule %s", rule_id)
@@ -465,6 +468,7 @@ class ExperienceExtractor:
             "status",
             "keywords",
             "source_task_type",  # 规则类型（extract_from_meeting 生成）；skill_evolution 元数据回填用
+            "team_id",  # 归属团队；skill_evolution 团队回填用（规则级团队隔离）
         }
         for key, value in updates.items():
             if key in allowed_fields:
@@ -521,7 +525,7 @@ class ExperienceExtractor:
 
     # ──────────────────── 检索与上下文 ────────────────────
 
-    def retrieve_relevant_rules(self, task_type: str, keywords: List[str]) -> List[ExperienceRule]:
+    def retrieve_relevant_rules(self, task_type: str, keywords: List[str], team_id: str = "") -> List[ExperienceRule]:
         """根据任务特征检索相关经验规则
 
         基于关键词匹配实现：计算规则关键词与查询关键词的交集大小作为相关度。
@@ -529,6 +533,7 @@ class ExperienceExtractor:
         Args:
             task_type: 任务类型
             keywords: 关键词列表
+            team_id: 团队 ID（非空时仅返回同团队规则；空 = 全局，向后兼容）
         Returns:
             按相关度排序的规则列表
         """
@@ -541,6 +546,8 @@ class ExperienceExtractor:
             rule = self._load_rule(rule_id)
             if rule is None or rule.status != "approved":
                 continue
+            if team_id and rule.team_id != team_id:
+                continue  # 团队隔离：非空 team_id 时仅返回同团队规则（空=全局，向后兼容）
             rule_keywords = set(k.lower() for k in rule.keywords)
             overlap = len(rule_keywords & query_keywords)
             # 类型匹配加分

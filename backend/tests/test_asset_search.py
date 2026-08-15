@@ -11,6 +11,7 @@ def test_search_merges_three_asset_types(tmp_path):
     extractor = ExperienceExtractor(str(tmp_path))
     SkillEvolution(extractor).evolve_from_feedback(
         "p1", "minutes", "会议讨论发布计划。", "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", ["责任人", "行动项"],
+        team_id="team-x",
     )
     result = AssetSearch(store, extractor).search("team-x", query="发布计划", task_type="minutes", keywords=["责任人", "行动项"])
     assert result["artifacts"] and result["templates"]
@@ -32,6 +33,34 @@ def test_search_asset_type_filter(tmp_path):
     assert artifact_only["artifacts"] and not artifact_only["templates"] and not artifact_only["rules"]
     template_only = AssetSearch(store, extractor).search("team-x", query="发布计划", asset_type="template")
     assert template_only["templates"] and not template_only["artifacts"] and not template_only["rules"]
+
+
+def test_search_rules_respects_team_isolation(tmp_path):
+    # 团队 A/B 各 evolve 规则 → search(team_id="team-a") 仅返回 A 的规则
+    # （构建同 test_search_merges_three_asset_types 模式——两团队 evolve 后 search 过滤）
+    store = AssetStore(str(tmp_path))
+    extractor = ExperienceExtractor(str(tmp_path))
+    evo = SkillEvolution(extractor)
+    result_a = evo.evolve_from_feedback(
+        "p1", "minutes", "会议讨论发布计划。",
+        "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", ["责任人", "行动项"],
+        team_id="team-a",
+    )
+    result_b = evo.evolve_from_feedback(
+        "p2", "minutes", "会议讨论发布计划。",
+        "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", ["责任人", "行动项"],
+        team_id="team-b",
+    )
+    assert result_a["count"] >= 1 and result_b["count"] >= 1
+    search = AssetSearch(store, extractor)
+    only_a = search.search("team-a", task_type="minutes", keywords=["责任人", "行动项"])
+    only_b = search.search("team-b", task_type="minutes", keywords=["责任人", "行动项"])
+    a_ids = [r["rule_id"] for r in only_a["rules"]]
+    b_ids = [r["rule_id"] for r in only_b["rules"]]
+    assert result_a["rule_id"] in a_ids
+    assert result_b["rule_id"] not in a_ids  # 跨团队泄漏防护
+    assert result_b["rule_id"] in b_ids
+    assert result_a["rule_id"] not in b_ids
 
 
 def test_search_empty_when_no_assets(tmp_path):

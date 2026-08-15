@@ -21,6 +21,7 @@ class SkillEvolution:
         transcript: str,
         feedback: str,
         keywords: list,
+        team_id: str = "",
     ) -> dict:
         """从把关（审查）反馈中提炼经验规则，经审核后写入增量区。
 
@@ -32,6 +33,7 @@ class SkillEvolution:
             feedback: 把关（审查）反馈文本；为空时直接返回 {"ok": True, "count": 0}
             keywords: 关键词标签（合并进提炼规则的关键词并回写磁盘，
                 直接影响 retrieve_relevant_rules 的检索相关度）
+            team_id: 归属团队 ID（回填规则，实现规则级团队隔离；空 = 全局/未隔离）
 
         Returns:
             {"ok": True, "rule_id": <首条提炼规则 id 或空串（首条 id，
@@ -94,6 +96,8 @@ class SkillEvolution:
                     )
                 if keywords:
                     updates["keywords"] = sorted(set(approved_rule.keywords) | set(keywords))
+                if team_id:
+                    updates["team_id"] = team_id
                 if updates:
                     # 公开 API 回写 rules/（替代 _save_rule 直调）；modify_rule 白名单含
                     # source_task_type/trigger_condition/keywords

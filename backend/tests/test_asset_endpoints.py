@@ -78,6 +78,7 @@ def test_search_endpoint_merges(tmp_path, monkeypatch):
     extractor = ExperienceExtractor(str(tmp_path))
     SkillEvolution(extractor).evolve_from_feedback(
         "p1", "minutes", "会议讨论发布计划。", "审核修改：遗漏行动项责任人。", ["纪要", "待办"],
+        team_id="team-x",
     )
     monkeypatch.setattr(server, "_get_asset_search", lambda: AssetSearch(store, extractor))
     resp = client.get("/api/assets/search", params={

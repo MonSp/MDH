@@ -12,6 +12,7 @@ def test_build_asset_context_merges_three_types(tmp_path):
     SkillEvolution(extractor).evolve_from_feedback(
         "p1", "minutes", "会议讨论发布计划。",
         "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", ["责任人", "行动项"],
+        team_id="team-x",
     )
     ctx = build_asset_context(store, extractor, "team-x", task_type="minutes", keywords=["责任人", "行动项"])
     assert "资产参考" in ctx

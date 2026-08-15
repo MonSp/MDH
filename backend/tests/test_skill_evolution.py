@@ -45,6 +45,16 @@ def test_evolve_preserves_task_type_and_keywords(tmp_path):
     assert "纪要" in rule.keywords and "待办" in rule.keywords
 
 
+def test_evolve_stores_team_id(tmp_path):
+    extractor = ExperienceExtractor(str(tmp_path))
+    evo = SkillEvolution(extractor)
+    result = evo.evolve_from_feedback("p1", "minutes", "会议讨论发布计划。",
+                                      "审核修改：遗漏行动项责任人。", ["责任人"], team_id="team-a")
+    assert result["count"] >= 1
+    loaded = extractor._load_rule(result["rule_id"])
+    assert loaded.team_id == "team-a"
+
+
 def test_evolve_writes_backfill_via_public_api(tmp_path):
     # 锁定 evolve 后规则经公开 API 回填：source_task_type/keywords 经 modify_rule
     # 写入 rules/，_load_rule 读回（skill_evolution 不再直调 _save_rule）。
