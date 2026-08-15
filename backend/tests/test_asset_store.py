@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 from asset_store import AssetStore
 
 
@@ -52,4 +54,29 @@ def test_duplicate_detection_in_search_checks(tmp_path):
     store.store_artifact("team-x", "纪要-0815", "内容")
     store.store_artifact("team-x", "纪要-0815", "内容")  # 同团队同标题——去重标记
     assets = store.search("team-x", query="纪要-0815")
-    assert len(assets) == 1  # search 去重：同标题只返回最新
+    assert len(assets) == 1  # search 去重：同标题保留最先出现
+
+
+def test_invalid_team_id_rejected(tmp_path):
+    store = AssetStore(str(tmp_path))
+    for bad in ("../evil", "a/b", "..", ".", "a\\b"):
+        with pytest.raises(ValueError):
+            store.store_artifact(bad, "越权标题", "内容")
+    # 路径遍历未逃逸：base_dir 外无文件产生，base_dir 内也无非法团队目录
+    assert not (tmp_path.parent / "evil").exists()
+    assert sorted(os.listdir(tmp_path)) == []
+
+
+def test_approve_template_non_proposed_returns_false(tmp_path):
+    store = AssetStore(str(tmp_path))
+    asset_id = store.propose_template("team-x", "模板", "内容")
+    assert store.approve_template(asset_id, "emp-001")
+    # 已批准 → 状态非 proposed → 拒绝重复审批
+    assert not store.approve_template(asset_id, "emp-002")
+    # 不存在的资产 → False
+    assert not store.approve_template("art-does-not-exist", "emp-001")
+
+
+def test_get_nonexistent_returns_none(tmp_path):
+    store = AssetStore(str(tmp_path))
+    assert store.get("does-not-exist") is None

@@ -29,7 +29,14 @@ class AssetStore:
         os.makedirs(base_dir, exist_ok=True)
 
     # ── 路径与索引 ─────────────────────────────
+    @staticmethod
+    def _validate_team_id(team_id: str) -> None:
+        r"""team_id 唯一校验关卡：仅允许 [\w-]+，杜绝 ../、a/b 等路径遍历。"""
+        if not re.fullmatch(r"[\w-]+", team_id):
+            raise ValueError(f"非法 team_id: {team_id}")
+
     def _team_dir(self, team_id: str) -> str:
+        self._validate_team_id(team_id)
         d = os.path.join(self._base_dir, team_id)
         os.makedirs(os.path.join(d, "artifacts"), exist_ok=True)
         os.makedirs(os.path.join(d, "templates"), exist_ok=True)
@@ -44,7 +51,7 @@ class AssetStore:
                 data = json.load(f)
             return data if isinstance(data, list) else []
         except (OSError, json.JSONDecodeError):
-            return []  # 索引缺失/损坏 → 重建
+            return []  # 索引缺失/损坏 → 容错置空（资产文件保留但不可发现；demo 可接受）
 
     def _save_index(self, team_id: str, entries: list[dict]) -> None:
         tmp = self._index_path(team_id) + ".tmp"
@@ -53,7 +60,15 @@ class AssetStore:
         os.replace(tmp, self._index_path(team_id))  # 原子写
 
     def _asset_path(self, team_id: str, asset_type: str, asset_id: str) -> str:
+        # 类型目录按复数化约定命名（artifact→artifacts/、template→templates/）；demo 仅两类型，暂不建 _TYPE_DIR 映射
         return os.path.join(self._team_dir(team_id), f"{asset_type}s", f"{asset_id}.json")
+
+    def _read_asset(self, team_id: str, entry: dict) -> dict | None:
+        try:
+            with open(self._asset_path(team_id, entry["type"], entry["asset_id"]), encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return None
 
     # ── 资产操作 ───────────────────────────────
     def _write_asset(self, team_id: str, asset: dict) -> dict:
@@ -83,6 +98,7 @@ class AssetStore:
         return self._write_asset(team_id, asset)
 
     def propose_template(self, team_id: str, title: str, content: str, source_task_id: str = "", approver: str = "") -> str:
+        # approver 参数当前未参与逻辑（审计由 gate 层记录），保留以与审批接口签名对齐
         asset = {
             "asset_id": _new_asset_id("tpl"),
             "type": "template",
@@ -109,6 +125,7 @@ class AssetStore:
         return True
 
     def reject_template(self, asset_id: str, reason: str) -> bool:
+        # reason 参数当前未参与逻辑（审计由 gate 层记录），保留以表达拒绝语义
         asset = self.get(asset_id)
         if asset is None:
             return False
@@ -123,19 +140,20 @@ class AssetStore:
     def get(self, asset_id: str) -> dict | None:
         # 先查索引定位团队，再读文件
         for team_id in os.listdir(self._base_dir):
+            try:
+                self._validate_team_id(team_id)
+            except ValueError:
+                continue  # 跳过非团队命名的杂项目录
             team_dir = os.path.join(self._base_dir, team_id)
             if not os.path.isdir(team_dir):
                 continue
             for entry in self._load_index(team_id):
                 if entry.get("asset_id") == asset_id:
-                    try:
-                        with open(self._asset_path(team_id, entry["type"], asset_id), encoding="utf-8") as f:
-                            return json.load(f)
-                    except (OSError, json.JSONDecodeError):
-                        return None
+                    return self._read_asset(team_id, entry)
         return None
 
     def search(self, team_id: str, query: str = "", asset_type: str = "") -> list[dict]:
+        self._validate_team_id(team_id)
         team_dir = os.path.join(self._base_dir, team_id)
         if not os.path.isdir(team_dir):
             return []
@@ -145,7 +163,7 @@ class AssetStore:
         for entry in self._load_index(team_id):
             if asset_type and entry.get("type") != asset_type:
                 continue
-            asset = self.get(entry["asset_id"])
+            asset = self._read_asset(team_id, entry)
             if asset is None:
                 continue
             if q and q not in _norm_title(asset.get("title", "")) and q not in _norm_title(asset.get("content", "")):
@@ -158,6 +176,7 @@ class AssetStore:
         return out
 
     def list_assets(self, team_id: str, status: str | None = None) -> list[dict]:
+        self._validate_team_id(team_id)
         team_dir = os.path.join(self._base_dir, team_id)
         if not os.path.isdir(team_dir):
             return []
@@ -165,7 +184,7 @@ class AssetStore:
         for entry in self._load_index(team_id):
             if status and entry.get("status") != status:
                 continue
-            asset = self.get(entry["asset_id"])
+            asset = self._read_asset(team_id, entry)
             if asset is not None:
                 out.append(asset)
         return out
