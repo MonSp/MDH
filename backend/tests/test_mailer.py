@@ -1,6 +1,7 @@
 """邮件分发 seam：MailMessage/build_mime + FileMailer"""
 import email
 from email import policy
+from unittest import mock
 
 import pytest
 from mailer.provider import FileMailer, SmtpMailer, build_mime
@@ -51,3 +52,63 @@ def test_get_mailer_smtp_provider():
     mailer = get_mailer("smtp", host="localhost", port=25)
     assert isinstance(mailer, SmtpMailer)
     assert mailer._host == "localhost" and mailer._port == 25
+
+
+# --- SMTP 生产加固：timeout + monkeypatch smtplib 覆盖 login/from_addr 分支 ---
+
+
+def test_smtp_mailer_timeout_and_login_branches():
+    calls = {}
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout):
+            calls["ctor"] = (host, port, timeout)
+            self._login = False
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def login(self, user, pwd):
+            self._login = True
+            calls["login"] = (user, pwd)
+
+        def sendmail(self, from_addr, to_addrs, raw):
+            calls["sendmail"] = (from_addr, list(to_addrs))
+
+    with mock.patch("mailer.provider.smtplib.SMTP", FakeSMTP):
+        mailer = SmtpMailer(host="h", port=587, username="u", password="p", timeout=7.0)
+        mailer.send(MailMessage(title="T", to=["a@x.com"], body="B"))
+
+    assert calls["ctor"] == ("h", 587, 7.0)
+    assert calls["login"] == ("u", "p")
+    assert calls["sendmail"][0] == "u"  # from_addr = username
+
+
+def test_smtp_mailer_no_username_skips_login_and_falls_back_to_recipient():
+    calls = {}
+
+    class FakeSMTP:
+        def __init__(self, host, port, timeout):
+            calls["ctor"] = (host, port, timeout)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def login(self, *a):
+            calls["login"] = a
+
+        def sendmail(self, from_addr, to_addrs, raw):
+            calls["sendmail"] = (from_addr, list(to_addrs))
+
+    with mock.patch("mailer.provider.smtplib.SMTP", FakeSMTP):
+        mailer = SmtpMailer(host="h", port=25, timeout=3.0)
+        mailer.send(MailMessage(title="T", to=["a@x.com", "b@y.com"], body="B"))
+
+    assert "login" not in calls  # username 空 → 不调 login
+    assert calls["sendmail"][0] == "a@x.com"  # from_addr 回退到收件人首项
