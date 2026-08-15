@@ -16,15 +16,12 @@ LLM judge 真实 key 试点：验证 AssetEvaluator 的 judge seam 在真实 Dee
 """
 
 import argparse
-import json
 import os
-import re
 import sys
 import tempfile
-import urllib.request
-from typing import Callable
 
 from asset_evaluator import AssetEvaluator
+from asset_judge import make_llm_judge
 from asset_store import AssetStore
 
 JUDGE_THRESHOLD = 0.5  # 与 asset_evaluator._JUDGE_THRESHOLD 一致
@@ -70,44 +67,6 @@ BAD_ARTIFACT = {
     "title": "会议纪要-0815",
     "content": "开了个会，说了说发布的事。",
 }
-
-
-def make_llm_judge(api_key: str, base_url: str, model: str) -> Callable[[dict], float]:
-    """构造 LLM judge：输入资产 dict，返回 0-1 质量分数。
-
-    fail-open：LLM 调用/解析失败时抛异常向上传播（与 AssetEvaluator docstring 一致），
-    分数解析失败抛 ValueError（由调用方按 fail-open/fail-closed 决策处理）。
-    """
-
-    def judge(asset: dict) -> float:
-        prompt = (
-            "你是资产质量评审专家。请评估以下会议纪要类资产的质量（结构化程度、完整性、"
-            "是否包含可执行的待办与责任人）。只输出一个 0 到 1 之间的分数，不要其他内容。\n"
-            f"资产类型: {asset.get('type')}\n标题: {asset.get('title')}\n内容:\n{asset.get('content')}\n"
-        )
-        payload = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": "你是严谨的文档质量评审员，只输出分数。"},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.2,
-            "max_tokens": 16,
-        }
-        req = urllib.request.Request(
-            f"{base_url}/chat/completions",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        text = data["choices"][0]["message"]["content"]
-        m = re.search(r"0\.\d+|1\.0|1", text)
-        if not m:
-            raise ValueError(f"无法从 judge 响应解析分数: {text!r}")
-        return min(1.0, max(0.0, float(m.group())))
-
-    return judge
 
 
 def check(label: str, ok: bool, detail: str = "") -> bool:
