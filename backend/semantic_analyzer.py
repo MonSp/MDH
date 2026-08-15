@@ -40,12 +40,13 @@ class SemanticAnalyzer:
     def last_routing_decision(self) -> Optional[RoutingDecision]:
         return self._last_routing_decision
     
-    async def analyze(self, user_message: str) -> SemanticAnalysisResult:
+    async def analyze(self, user_message: str, team_id: str = "") -> SemanticAnalysisResult:
         """
         语义分析用户消息
         
         Args:
             user_message: 用户消息
+            team_id: 团队标识（非空时透传到文档模式工作流节点 input_spec）
             
         Returns:
             SemanticAnalysisResult
@@ -58,7 +59,7 @@ class SemanticAnalyzer:
                 intent="minutes",
                 task_description="会议纪要+待办",
                 is_workflow=True,
-                workflow_definition=build_minutes_workflow(user_message),
+                workflow_definition=build_minutes_workflow(user_message, team_id=team_id),
                 reason="文档任务规则命中",
             )
 

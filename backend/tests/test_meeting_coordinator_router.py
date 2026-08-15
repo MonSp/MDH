@@ -73,7 +73,13 @@ if "fastapi" not in sys.modules:
 from dynamic_router import DynamicRouter, RouteEntry, RoutingDecision
 from meeting import MeetingSession
 from meeting_coordinator import MeetingCoordinator
-from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, WorkflowNode
+from protocol import (
+    AgentRole,
+    MeetingAgentStatus,
+    SemanticAnalysisResult,
+    WorkflowDefinition,
+    WorkflowNode,
+)
 
 
 SAMPLE_ROUTING_TABLE = {
@@ -1135,6 +1141,102 @@ class TestExtractDiscussionDecisionsProjection:
         assert "既有方案" in result
         assert "既有反对" not in result
         assert "+ [planner]" in result
+
+
+# ---------------------------------------------------------------------------
+# 3c. team_id 三层透传（process_user_message → semantic_analyze → analyzer）
+# ---------------------------------------------------------------------------
+
+class TestTeamIdPassThrough:
+    def test_semantic_analyze_passes_team_id_to_analyzer(self, coordinator, monkeypatch):
+        """semantic_analyze(user_message, team_id) 应透传给 analyzer.analyze"""
+        captured = {}
+
+        async def fake_analyze(user_message, team_id=""):
+            captured["team_id"] = team_id
+            return SemanticAnalysisResult(
+                is_task=True, intent="task", task_description=user_message
+            )
+
+        monkeypatch.setattr(coordinator._semantic_analyzer, "analyze", fake_analyze)
+        asyncio.run(coordinator.semantic_analyze("透传测试专用消息 A1", team_id="team-x"))
+        assert captured["team_id"] == "team-x"
+
+    def test_semantic_analyze_default_team_id_empty(self, coordinator, monkeypatch):
+        """缺省 team_id 时透传空串（既有调用形状零变化）"""
+        captured = {}
+
+        async def fake_analyze(user_message, team_id=""):
+            captured["team_id"] = team_id
+            return SemanticAnalysisResult(
+                is_task=True, intent="task", task_description=user_message
+            )
+
+        monkeypatch.setattr(coordinator._semantic_analyzer, "analyze", fake_analyze)
+        asyncio.run(coordinator.semantic_analyze("透传测试专用消息 A2"))
+        assert captured["team_id"] == ""
+
+    def test_process_user_message_passes_team_id(self, coordinator, monkeypatch):
+        """process_user_message(..., team_id) 应透传给 semantic_analyze"""
+        captured = {}
+
+        async def fake_semantic_analyze(user_message, team_id=""):
+            captured["team_id"] = team_id
+            return SemanticAnalysisResult(
+                is_task=True,
+                intent="workflow",
+                task_description=user_message,
+                is_workflow=True,
+                workflow_definition=WorkflowDefinition(
+                    workflow_id="minutes-test",
+                    name="会议纪要",
+                    description="test",
+                    execution_strategy="sequential",
+                ),
+            )
+
+        async def fake_execute_workflow(workflow_definition, on_message):
+            return {"execution_id": "e-1", "status": "completed", "results": {}}
+
+        async def on_message(agent_id, content, delta):
+            pass
+
+        monkeypatch.setattr(coordinator, "semantic_analyze", fake_semantic_analyze)
+        monkeypatch.setattr(coordinator, "_execute_workflow", fake_execute_workflow)
+        asyncio.run(coordinator.process_user_message(
+            "透传测试专用消息 B1", on_message, team_id="team-x"
+        ))
+        assert captured["team_id"] == "team-x"
+
+    def test_process_user_message_default_team_id_empty(self, coordinator, monkeypatch):
+        """process_user_message 缺省 team_id 时透传空串（既有调用形状零变化）"""
+        captured = {}
+
+        async def fake_semantic_analyze(user_message, team_id=""):
+            captured["team_id"] = team_id
+            return SemanticAnalysisResult(
+                is_task=True,
+                intent="workflow",
+                task_description=user_message,
+                is_workflow=True,
+                workflow_definition=WorkflowDefinition(
+                    workflow_id="minutes-test",
+                    name="会议纪要",
+                    description="test",
+                    execution_strategy="sequential",
+                ),
+            )
+
+        async def fake_execute_workflow(workflow_definition, on_message):
+            return {"execution_id": "e-1", "status": "completed", "results": {}}
+
+        async def on_message(agent_id, content, delta):
+            pass
+
+        monkeypatch.setattr(coordinator, "semantic_analyze", fake_semantic_analyze)
+        monkeypatch.setattr(coordinator, "_execute_workflow", fake_execute_workflow)
+        asyncio.run(coordinator.process_user_message("透传测试专用消息 B2", on_message))
+        assert captured["team_id"] == ""
 
 
 if __name__ == "__main__":

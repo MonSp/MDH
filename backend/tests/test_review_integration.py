@@ -169,8 +169,8 @@ class TestMeetingCoordinatorDelegation:
         import asyncio
         asyncio.run(coordinator.semantic_analyze("test message"))
         
-        # 验证SemanticAnalyzer.analyze被调用
-        coordinator._semantic_analyzer.analyze.assert_called_once_with("test message")
+        # 验证SemanticAnalyzer.analyze被调用（缺省 team_id 透传空串）
+        coordinator._semantic_analyzer.analyze.assert_called_once_with("test message", team_id="")
     
     def test_meeting_coordinator_semantic_analyze_fallback(self):
         """semantic_analyze失败时应抛出异常（无降级方法）"""

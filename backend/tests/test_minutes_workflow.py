@@ -77,3 +77,21 @@ def test_build_minutes_workflow_no_team_id_keeps_shape():
     wf = build_minutes_workflow("会议讨论发布计划。")
     for node in wf.nodes:
         assert "team_id" not in node.input_spec  # 缺省不加键（既有形状不变）
+
+
+async def test_analyze_minutes_carries_team_id():
+    """文档模式分支应把 analyze(team_id) 透传到 build_minutes_workflow 节点 input_spec"""
+    analyzer = SemanticAnalyzer(router=None, get_model_fn=lambda role: None)
+    result = await analyzer.analyze("请把会议纪要整理成文档。", team_id="team-x")
+    assert result.is_workflow and result.workflow_definition is not None
+    for node in result.workflow_definition.nodes:
+        assert node.input_spec.get("team_id") == "team-x"
+
+
+async def test_analyze_minutes_no_team_id_keeps_shape():
+    """缺省 team_id 时节点 input_spec 不加 team_id 键（既有形状零变化）"""
+    analyzer = SemanticAnalyzer(router=None, get_model_fn=lambda role: None)
+    result = await analyzer.analyze("请把会议纪要整理成文档。")
+    assert result.is_workflow and result.workflow_definition is not None
+    for node in result.workflow_definition.nodes:
+        assert "team_id" not in node.input_spec

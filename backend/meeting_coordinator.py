@@ -1075,7 +1075,7 @@ class MeetingCoordinator:
             result["failures"].append({"type": "gate_error", "location": ".", "detail": str(e)[:200]})
         return result
 
-    async def semantic_analyze(self, user_message: str) -> SemanticAnalysisResult:
+    async def semantic_analyze(self, user_message: str, team_id: str = "") -> SemanticAnalysisResult:
         """语义分析用户消息（委托给SemanticAnalyzer，带缓存）
 
         WhyBuddy化：委托给SemanticAnalyzer。
@@ -1086,7 +1086,7 @@ class MeetingCoordinator:
             self.logger.info("语义分析命中缓存: %s", user_message[:50])
             return cached
 
-        result = await self._semantic_analyzer.analyze(user_message)
+        result = await self._semantic_analyzer.analyze(user_message, team_id=team_id)
         llm_cache.put(user_message, result, role="semantic_analyze", model=self.model_name)
         return result
 
@@ -1146,6 +1146,7 @@ class MeetingCoordinator:
         self,
         user_message: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
+        team_id: str = "",
     ) -> Dict[str, Any]:
         """
         处理用户消息
@@ -1177,7 +1178,7 @@ class MeetingCoordinator:
         await self._msg(coordinator_id, confirmation_text)
         
         # COORDINATOR进行语义分析
-        analysis = await self.semantic_analyze(user_message)
+        analysis = await self.semantic_analyze(user_message, team_id=team_id)
         
         # 发布分析结果和项目规划
         analysis_text = (
