@@ -566,6 +566,8 @@ class ExperienceExtractor:
         （注入死数据）——本方法把未归属规则批量回填到指定团队，返回迁移条数。
         已含 team_id 的规则与未命中规则不计；幂等（重复调用返回 0）。
         """
+        if not team_id:
+            return 0
         ids = rule_ids if rule_ids is not None else self._list_rule_ids()
         migrated = 0
         for rule_id in ids:
@@ -574,6 +576,7 @@ class ExperienceExtractor:
                 continue
             if self.modify_rule(rule_id, {"team_id": team_id}):
                 migrated += 1
+        logger.info("Migrated %d rules to team %s", migrated, team_id)
         return migrated
 
     def build_experience_context(self, rules: List[ExperienceRule]) -> str:

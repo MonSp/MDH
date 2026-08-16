@@ -74,7 +74,7 @@ Expected: FAIL——`migrate_rules_team_id` 不存在（AttributeError）。
             rule = self._load_rule(rule_id)
             if rule is None or rule.team_id:
                 continue
-            if self.modify_rule(rule_id, team_id=team_id):
+            if self.modify_rule(rule_id, {"team_id": team_id}):
                 migrated += 1
         return migrated
 ```

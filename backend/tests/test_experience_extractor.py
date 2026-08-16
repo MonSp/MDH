@@ -430,6 +430,31 @@ def test_migrate_rules_team_id_specific_subset(tmp_path):
     assert extractor._load_rule("r2").team_id == ""
 
 
+def test_migrate_rules_team_id_empty_target_is_noop(tmp_path):
+    """空 team_id 目标是 no-op：返回 0，不迁移、不写盘（规则保持未归属）。"""
+    extractor = ExperienceExtractor(str(tmp_path))
+    r_old = ExperienceRule(rule_id="r-old", trigger_condition="task_type is minutes", action="a",
+                           note="", source_task_id="p1", source_task_type="minutes", rule_type="correction_tip",
+                           status="approved", keywords=["纪要"], created_at="t")
+    extractor.submit_for_review(r_old); extractor.approve_rule("r-old")
+
+    # 空目标：guard 直接返回 0，未归属规则保持 "" 不变
+    assert extractor.migrate_rules_team_id("") == 0
+    assert extractor._load_rule("r-old").team_id == ""
+
+
+def test_migrate_rules_team_id_empty_list_is_noop(tmp_path):
+    """空 rule_ids 列表是 no-op：返回 0，规则不动。"""
+    extractor = ExperienceExtractor(str(tmp_path))
+    r_old = ExperienceRule(rule_id="r-old", trigger_condition="task_type is minutes", action="a",
+                           note="", source_task_id="p1", source_task_type="minutes", rule_type="correction_tip",
+                           status="approved", keywords=["纪要"], created_at="t")
+    extractor.submit_for_review(r_old); extractor.approve_rule("r-old")
+
+    assert extractor.migrate_rules_team_id("team-x", rule_ids=[]) == 0
+    assert extractor._load_rule("r-old").team_id == ""
+
+
 # ──────────────────── 构建上下文文本 ────────────────────
 
 
