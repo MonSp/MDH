@@ -152,6 +152,175 @@ describe('AssetBrowserPanel', () => {
     unmount()
   })
 
+  it('展示补全：产出物/模板行显示审批人、创建时间与类型徽章', async () => {
+    const assetsWithMeta = [
+      {
+        asset_id: 'art-1', type: 'artifact', title: '登录页设计稿',
+        content: '内容', status: 'approved',
+        approved_by: 'emp-001', created_at: '2026-08-01', judge_score: null,
+      },
+      {
+        asset_id: 'tpl-1', type: 'template', title: '会议纪要模板',
+        content: '', status: 'approved',
+        approved_by: 'emp-002', created_at: '2026-08-02', judge_score: null,
+      },
+    ]
+    fetchMock.mockImplementation((url: string) => {
+      if (url.startsWith('/api/assets')) {
+        return jsonResponse({ success: true, data: assetsWithMeta, error: null })
+      }
+      return jsonResponse({ success: true, data: [], error: null })
+    })
+    const { container, unmount } = render(<AssetBrowserPanel />)
+    await waitFor(() => {
+      expect(container.textContent).toContain('登录页设计稿')
+    })
+    // 审批人（有 approved_by 才渲染"审批人"）
+    expect(container.textContent).toContain('审批人 emp-001')
+    expect(container.textContent).toContain('审批人 emp-002')
+    // 创建时间
+    expect(container.textContent).toContain('2026-08-01')
+    expect(container.textContent).toContain('2026-08-02')
+    // 类型徽章（产出物/模板）
+    const badges = screen.getAllByTestId('asset-type-badge')
+    expect(badges.map((b) => b.textContent)).toEqual(expect.arrayContaining(['产出物', '模板']))
+    unmount()
+  })
+
+  it('搜索参数化：task_type/keywords 输入后搜索请求带参', async () => {
+    const { container, unmount } = render(<AssetBrowserPanel />)
+    await waitFor(() => {
+      expect(container.textContent).toContain('登录页设计稿')
+    })
+    fetchMock.mockClear()
+
+    fireEvent.change(screen.getByPlaceholderText('任务类型'), { target: { value: 'minutes' } })
+    fireEvent.change(screen.getByPlaceholderText('关键词'), { target: { value: '纪要' } })
+    fireEvent.click(screen.getByText('检索'))
+
+    await waitFor(() => {
+      const searchCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/api/assets/search'))
+      expect(searchCall).toBeTruthy()
+      const url = String(searchCall![0])
+      expect(url).toContain('task_type=minutes')
+      expect(url).toContain('keywords=')
+      expect(url).toContain('team_id=team-x')
+    })
+    unmount()
+  })
+
+  it('搜索参数化：task_type/keywords 为空时不发参且 rules 为空', async () => {
+    // mock 按后端语义（asset_search.py:48）：仅当 task_type 与 keywords 均非空才返回 rules
+    fetchMock.mockImplementation((url: string) => {
+      if (url.startsWith('/api/assets/search')) {
+        const u = String(url)
+        const hasParams = u.includes('task_type=') && u.includes('keywords=')
+        return jsonResponse({
+          success: true,
+          data: {
+            artifacts: [],
+            templates: [],
+            rules: hasParams
+              ? [{ rule_id: 'rule-1', trigger_condition: 't', action: 'a' }]
+              : [],
+          },
+          error: null,
+        })
+      }
+      if (url.startsWith('/api/assets')) {
+        return jsonResponse({ success: true, data: assetList, error: null })
+      }
+      return jsonResponse({ success: true, data: [], error: null })
+    })
+    const { container, unmount } = render(<AssetBrowserPanel />)
+    await waitFor(() => {
+      expect(container.textContent).toContain('登录页设计稿')
+    })
+    fetchMock.mockClear()
+    fireEvent.click(screen.getByText('检索'))
+    await waitFor(() => {
+      expect(container.textContent).toContain('暂无匹配规则')
+    })
+    const searchCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/api/assets/search'))
+    expect(searchCall).toBeTruthy()
+    const url = String(searchCall![0])
+    expect(url).not.toContain('task_type=')
+    expect(url).not.toContain('keywords=')
+    unmount()
+  })
+
+  it('search 合并：search.artifacts/templates 并入产出物/模板列表', async () => {
+    const searchWithAssets = {
+      artifacts: [
+        {
+          asset_id: 'sa-1', type: 'artifact', title: '搜索命中产出物',
+          content: '', status: 'approved',
+          approved_by: '', created_at: '2026-08-01', judge_score: null,
+        },
+      ],
+      templates: [
+        {
+          asset_id: 'st-1', type: 'template', title: '搜索命中模板',
+          content: '', status: 'approved',
+          approved_by: '', created_at: '2026-08-01', judge_score: null,
+        },
+      ],
+      rules: [],
+    }
+    fetchMock.mockImplementation((url: string) => {
+      if (url.startsWith('/api/assets/search')) {
+        return jsonResponse({ success: true, data: searchWithAssets, error: null })
+      }
+      if (url.startsWith('/api/assets')) {
+        return jsonResponse({ success: true, data: assetList, error: null })
+      }
+      return jsonResponse({ success: true, data: [], error: null })
+    })
+    const { container, unmount } = render(<AssetBrowserPanel />)
+    await waitFor(() => {
+      expect(container.textContent).toContain('登录页设计稿')
+    })
+    fireEvent.change(screen.getByPlaceholderText('检索资产'), { target: { value: '搜索' } })
+    fireEvent.click(screen.getByText('检索'))
+    await waitFor(() => {
+      expect(container.textContent).toContain('搜索命中产出物')
+    })
+    expect(container.textContent).toContain('搜索命中模板')
+    unmount()
+  })
+
+  it('团队 select：渲染演示团队选项并可切换', async () => {
+    const { container, unmount } = render(<AssetBrowserPanel />)
+    await waitFor(() => {
+      expect(container.textContent).toContain('登录页设计稿')
+    })
+    const select = screen.getByRole('combobox')
+    const options = Array.from(select.querySelectorAll('option')).map((o) => o.textContent)
+    expect(options).toContain('team-x')
+    expect(options).toContain('team-y')
+    fetchMock.mockClear()
+    fireEvent.change(select, { target: { value: 'team-y' } })
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/assets?team_id=team-y')
+    })
+    unmount()
+  })
+
+  it('团队切换 fetch 失败时清空旧列表', async () => {
+    const { container, unmount } = render(<AssetBrowserPanel />)
+    await waitFor(() => {
+      expect(container.textContent).toContain('登录页设计稿')
+    })
+    // 之后所有 fetch 失败 → effect 顶部 setAssets([]) 清空旧列表，不再残留
+    fetchMock.mockImplementation(() => Promise.reject(new Error('network down')))
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'team-y' } })
+    await waitFor(() => {
+      expect(container.textContent).not.toContain('登录页设计稿')
+    })
+    expect(container.textContent).toContain('network down')
+    unmount()
+  })
+
   it('judge_score 为 0 时显示"评测 0"（!= null 边界）', async () => {
     fetchMock.mockImplementation((url: string) => {
       if (url.startsWith('/api/assets')) {

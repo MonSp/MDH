@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { apiFetch } from '../../services/apiFetch'
 
 interface AssetItem {
   asset_id?: string
@@ -18,45 +19,45 @@ interface SearchResult {
   rules: Array<{ rule_id: string; trigger_condition: string; action: string }>
 }
 
-// 后端统一 _ok(data)/_fail(error) 包装：{ success, data, error }
-// _fail 不传播 500（HTTP 200 + success:false + data:null）——apiGet 直接抛错，调用方进 catch 显示 error
-const apiGet = async <T,>(url: string): Promise<T> => {
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`API ${res.status}`)
-  const body = (await res.json()) as { success?: boolean; data?: T; error?: string | null }
-  if (body.success === false) throw new Error(body.error || 'API error')
-  return body.data as T
-}
+// 演示团队（读既有资产演示数据/测试实际团队名——team-x/team-y/team-a/team-b 均有资产或规则演示数据）
+const DEMO_TEAMS = ['team-x', 'team-y', 'team-a', 'team-b']
 
 export default function AssetBrowserPanel() {
   const [teamId, setTeamId] = useState('team-x')
   const [query, setQuery] = useState('')
+  const [taskType, setTaskType] = useState('')
+  const [keywords, setKeywords] = useState('')
   const [assets, setAssets] = useState<AssetItem[]>([])
   const [search, setSearch] = useState<SearchResult | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    // 团队切换：重置 per-team 检索结果与上次错误，避免旧上下文数据残留
+    // 团队切换：先清空旧列表（fetch 失败也不残留），再重置 per-team 检索结果与上次错误
+    setAssets([])
     setSearch(null)
     setError('')
-    apiGet<AssetItem[]>(`/api/assets?team_id=${encodeURIComponent(teamId)}`)
+    apiFetch<AssetItem[]>(`/api/assets?team_id=${encodeURIComponent(teamId)}`)
       .then((data) => setAssets(data))
       .catch((e) => setError(String(e)))
   }, [teamId])
 
   const doSearch = async () => {
     try {
-      const r = await apiGet<SearchResult>(
-        `/api/assets/search?q=${encodeURIComponent(query)}&team_id=${encodeURIComponent(teamId)}&task_type=minutes&keywords=纪要`
-      )
+      // 空 task_type/keywords 不发参——后端仅当两者均非空才检索 rules（空 → 空列表）
+      const params = new URLSearchParams({ team_id: teamId, q: query })
+      if (taskType) params.set('task_type', taskType)
+      if (keywords) params.set('keywords', keywords)
+      const r = await apiFetch<SearchResult>(`/api/assets/search?${params.toString()}`)
       setSearch(r)
     } catch (e) {
       setError(String(e))
     }
   }
 
-  const artifacts = assets.filter((a) => a.type === 'artifact')
-  const templates = assets.filter((a) => a.type === 'template')
+  // search 命中时并入 search.artifacts/templates（补全挂载列表），再按类型过滤
+  const merged = [...assets, ...(search?.artifacts ?? []), ...(search?.templates ?? [])]
+  const artifacts = merged.filter((a) => a.type === 'artifact')
+  const templates = merged.filter((a) => a.type === 'template')
 
   return (
     <div data-testid="asset-browser" style={styles.container}>
@@ -68,17 +69,35 @@ export default function AssetBrowserPanel() {
       <div style={styles.toolbar}>
         <label style={styles.teamLabel}>
           团队
-          <input
+          <select
             style={styles.teamInput}
             value={teamId}
             onChange={(e) => setTeamId(e.target.value)}
-          />
+          >
+            {DEMO_TEAMS.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
         </label>
         <input
           style={styles.searchInput}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="检索资产"
+        />
+        <input
+          style={styles.searchInput}
+          value={taskType}
+          onChange={(e) => setTaskType(e.target.value)}
+          placeholder="任务类型"
+        />
+        <input
+          style={styles.searchInput}
+          value={keywords}
+          onChange={(e) => setKeywords(e.target.value)}
+          placeholder="关键词"
         />
         <button style={styles.searchBtn} onClick={doSearch}>检索</button>
       </div>
@@ -91,7 +110,12 @@ export default function AssetBrowserPanel() {
       <ul style={styles.list}>
         {artifacts.map((a) => (
           <li key={a.asset_id || a.assetId} style={styles.item}>
+            <span data-testid="asset-type-badge" style={styles.typeBadge}>
+              {a.type === 'template' ? '模板' : '产出物'}
+            </span>
             <span style={styles.itemTitle}>{a.title}</span>
+            {a.approved_by ? <span style={styles.itemMeta}>审批人 {a.approved_by}</span> : null}
+            {a.created_at ? <span style={styles.itemMeta}>{a.created_at}</span> : null}
             {a.content ? <span style={styles.itemContent}>{a.content}</span> : null}
             {a.judge_score != null && <span style={styles.score}>（评测 {a.judge_score}）</span>}
           </li>
@@ -103,6 +127,9 @@ export default function AssetBrowserPanel() {
       <ul style={styles.list}>
         {templates.map((a) => (
           <li key={a.asset_id || a.assetId} style={styles.item}>
+            <span data-testid="asset-type-badge" style={styles.typeBadge}>
+              {a.type === 'template' ? '模板' : '产出物'}
+            </span>
             <span style={styles.itemTitle}>{a.title}</span>
             <span
               style={{
@@ -116,6 +143,8 @@ export default function AssetBrowserPanel() {
             >
               {a.status === 'approved' ? '✓ 已固化' : '待确认'}
             </span>
+            {a.approved_by ? <span style={styles.itemMeta}>审批人 {a.approved_by}</span> : null}
+            {a.created_at ? <span style={styles.itemMeta}>{a.created_at}</span> : null}
             {a.judge_score != null && <span style={styles.score}>（评测 {a.judge_score}）</span>}
           </li>
         ))}
@@ -249,6 +278,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '13px',
     fontWeight: 600,
   },
+  itemMeta: {
+    fontSize: '11px',
+    color: '#94a3b8',
+  },
   itemContent: {
     fontSize: '11px',
     color: '#94a3b8',
@@ -256,6 +289,15 @@ const styles: Record<string, React.CSSProperties> = {
   score: {
     fontSize: '11px',
     color: '#fbbf24',
+  },
+  typeBadge: {
+    fontSize: '10px',
+    fontWeight: 700,
+    padding: '2px 6px',
+    borderRadius: '4px',
+    letterSpacing: '0.5px',
+    color: '#60a5fa',
+    background: 'rgba(96, 165, 250, 0.12)',
   },
   statusBadge: {
     fontSize: '10px',
