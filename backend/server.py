@@ -2762,6 +2762,13 @@ async def api_asset_list(team_id: str, status: str = ""):
         return _fail(str(exc))
 
 
+@app.get("/api/assets/reuse-metrics")
+async def api_asset_reuse_metrics():
+    """演示：资产复用率统计（注入次数/按团队/按类型——设计 [S5] 复用率可感知）。"""
+    from asset_injection import get_reuse_stats
+    return _ok(get_reuse_stats())
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "sessions": len(sessions)}

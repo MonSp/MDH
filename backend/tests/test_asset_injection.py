@@ -47,3 +47,30 @@ def test_build_asset_context_respects_caps(tmp_path):
     assert ctx.count("- 模板「") <= 3
     for line in ctx.splitlines():
         assert len(line) <= 130  # 每行 ≤ ~130（前缀 + 100 截断）
+
+
+def test_reuse_stats_updated_on_nonempty_context(tmp_path):
+    from asset_injection import _REUSE_STATS, build_asset_context, get_reuse_stats
+    store = AssetStore(str(tmp_path))
+    store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
+    extractor = ExperienceExtractor(str(tmp_path))
+    SkillEvolution(extractor).evolve_from_feedback(
+        "p1", "minutes", "会议讨论发布计划。", "审核修改：遗漏行动项责任人。", ["责任人", "行动项"], team_id="team-x")
+    _REUSE_STATS.clear()
+    ctx = build_asset_context(store, extractor, "team-x", task_type="minutes", keywords=["纪要", "待办"])
+    assert ctx != ""  # 有资产才计数
+    stats = get_reuse_stats()
+    assert stats["total"] == 1
+    assert stats["by_team"].get("team-x") == 1
+    assert stats["by_type"]["artifacts"] >= 1
+    assert stats["last_at"]
+
+
+def test_reuse_stats_untouched_on_empty_context(tmp_path):
+    from asset_injection import _REUSE_STATS, build_asset_context, get_reuse_stats
+    store = AssetStore(str(tmp_path))
+    extractor = ExperienceExtractor(str(tmp_path))
+    _REUSE_STATS.clear()
+    ctx = build_asset_context(store, extractor, "team-x", task_type="minutes", keywords=["纪要"])
+    assert ctx == ""  # 无资产
+    assert get_reuse_stats()["total"] == 0  # 空资产不计数

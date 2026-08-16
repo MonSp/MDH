@@ -253,3 +253,14 @@ def test_get_asset_judge_respects_env_switch(monkeypatch):
         # monkeypatched key 的真实 judge；env 由 monkeypatch 自动还原。
         server._asset_judge = None
         monkeypatch.delenv("ASSET_JUDGE_ENABLED", raising=False)
+
+
+def test_reuse_metrics_endpoint(tmp_path, monkeypatch):
+    from asset_store import AssetStore
+    from asset_injection import get_reuse_stats
+    stats = {"total": 3, "by_team": {"team-x": 2}, "by_type": {"templates": 1, "artifacts": 1, "rules": 1}, "last_at": "t"}
+    monkeypatch.setattr("server._get_asset_store", lambda: AssetStore(str(tmp_path)))
+    monkeypatch.setattr("asset_injection.get_reuse_stats", lambda: stats)  # 或以真实统计为准
+    client = TestClient(server.app)
+    resp = client.get("/api/assets/reuse-metrics")
+    assert resp.status_code == 200 and resp.json()["data"]["total"] == 3

@@ -4,6 +4,8 @@
 无资产返回空串（注入零成本）。注入是增强非必需——调用方异常可吞。
 """
 
+import time
+
 from asset_search import AssetSearch
 
 _MAX_TEMPLATES = 3
@@ -11,6 +13,28 @@ _MAX_ARTIFACTS = 3
 _MAX_RULES = 3
 _SNIPPET_LEN = 100
 _TRUNCATION_MARK = "…"
+
+# 模块级进程内统计（演示/试点级复用可感知；持久化留后续）
+_REUSE_STATS: dict = {"total": 0, "by_team": {}, "by_type": {"templates": 0, "artifacts": 0, "rules": 0}, "last_at": ""}
+
+
+def get_reuse_stats() -> dict:
+    """资产复用统计（注入次数/按团队/按类型）——设计 [S5] 复用率可感知。
+
+    返回规范化结构（缺键补默认），使统计在 `_REUSE_STATS.clear()`（测试隔离）
+    后仍可安全读取——演示端点只需按此契约消费。
+    """
+    by_type = _REUSE_STATS.get("by_type", {})
+    return {
+        "total": _REUSE_STATS.get("total", 0),
+        "by_team": dict(_REUSE_STATS.get("by_team", {})),
+        "by_type": {
+            "templates": by_type.get("templates", 0),
+            "artifacts": by_type.get("artifacts", 0),
+            "rules": by_type.get("rules", 0),
+        },
+        "last_at": _REUSE_STATS.get("last_at", ""),
+    }
 
 
 def _snippet(text: str, limit: int = _SNIPPET_LEN) -> str:
@@ -42,4 +66,13 @@ def build_asset_context(store, extractor, team_id: str, task_type: str = "", key
         lines.append(f"- 规则：{_snippet(trigger)} → {_snippet(action)}")
     if not lines:
         return ""
+    # 资产非空才算一次复用注入（注入语义不变：仅追加统计更新）——设计 [S5]
+    _REUSE_STATS["total"] = _REUSE_STATS.get("total", 0) + 1
+    by_team = _REUSE_STATS.setdefault("by_team", {})
+    by_team[team_id] = by_team.get(team_id, 0) + 1
+    by_type = _REUSE_STATS.setdefault("by_type", {})
+    by_type["templates"] = by_type.get("templates", 0) + len(result["templates"][:_MAX_TEMPLATES])
+    by_type["artifacts"] = by_type.get("artifacts", 0) + len(result["artifacts"][:_MAX_ARTIFACTS])
+    by_type["rules"] = by_type.get("rules", 0) + len(result["rules"][:_MAX_RULES])
+    _REUSE_STATS["last_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     return "\n资产参考：\n" + "\n".join(lines)
