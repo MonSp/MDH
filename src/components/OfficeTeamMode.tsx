@@ -17,6 +17,7 @@ import AgentWeightPanel from './office-team/AgentWeightPanel'
 import RoleEditorPanel from './office-team/RoleEditorPanel'
 import HistoryPanel from './office-team/HistoryPanel'
 import SkillMarketplace from './office-team/SkillMarketplace'
+import AssetBrowserPanel from './office-team/AssetBrowserPanel'
 import useMeetingSocket from '../hooks/useMeetingSocket'
 import { useAgentSystem } from '../hooks/useAgentSystem'
 import { AgentRole, AgentCapability } from '../modules/agentTypes'
@@ -33,7 +34,7 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
   const [selectedProject, setSelectedProject] = useState<{ id: string; name: string } | null>(null)
   const [projectDetail, setProjectDetail] = useState<ProjectDetail | null>(null)
   const [taskInput, setTaskInput] = useState('')
-  const [meetingTab, setMeetingTab] = useState<'chat' | 'files' | 'skills' | 'vote'>('chat')
+  const [meetingTab, setMeetingTab] = useState<'chat' | 'files' | 'skills' | 'vote' | 'assets'>('chat')
   const [refreshKey, setRefreshKey] = useState(0)
 
   const {
@@ -292,7 +293,7 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
               </div>
 
               <div style={styles.meetingTabBar}>
-                {([['chat', '💬 对话'], ['files', '📄 文件'], ['skills', '🧬 技能进化'], ['vote', '🗳️ 投票']] as const).map(([key, label]) => (
+                {([['chat', '💬 对话'], ['files', '📄 文件'], ['skills', '🧬 技能进化'], ['vote', '🗳️ 投票'], ['assets', '🧠 资产']] as const).map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => setMeetingTab(key)}
@@ -402,6 +403,8 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
                     <HistoryPanel />
                     <SkillMarketplace />
                   </div>
+                ) : meetingTab === 'assets' ? (
+                  <AssetBrowserPanel />
                 ) : (
                   <SkillEvolutionPanel />
                 )}
