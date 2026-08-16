@@ -146,6 +146,27 @@
 - 多智能体技能进化系统 + 技能进化工作台 + 动态路由系统（06-03）
 - 3D 科技大厦视图（Three.js）+ 办公室模式流程重构（06-03/04）
 
+**赛博朋克视觉升级（06-05 ~ 06-09）**
+- 电影级赛博朋克城市场景升级（06-09）、赛博朋克建筑群全栈逼真升级（06-08）、空中交通与天气效果 Phase2（06-09）、城市地面系统重构（06-09）、科技塔 day/night 模式切换（06-09）
+
+**工具/工作区基建（06-12）**
+- `ToolRegistry`（工具管理与安全检查）+ `ToolExecutor`（bash/file/git 工具）+ `WorkspaceManager`（git worktree 隔离）+ `GitIntegration`（git 操作与 PR 创建）+ 工作区/工具调用消息处理 + `WorkspacePanel` 组件 + CeoAgent 工作区创建集成 + MeetingCoordinator 工具执行支持
+
+**中期功能（06-13 ~ 06-29）**
+- 角色配置系统与工作区管理优化、角色选择/多部门配置、AI 技能生成、任务管理、executor 认证等
+
+**loop-engineering 循环工程（06-30）**
+- 独立产品脚手架 + CLI（`loop-engineering/`）：metrics 套件（checkpoint 收集器 + 质量分数计算 + SQLite 存储 + CLI 报告 latest/trend）、prompt 进化（tracker 记录 prompt→outcome 映射 + weakness analyzer + prompt evolver + A/B 实验 runner）、CI 门禁与基线管理、场景注册表（registry + 5 新场景）、coverage 命令与 loop:ci 脚本接线 CLI
+
+**前端功能群（07-01 ~ 07-05）**
+- session 状态持久化：断开自动保存 + 恢复 API + useWebSocket 恢复支持（07-01/02）
+- 投票决策系统：proposal/vote/vote_result 消息实现（07-03）
+- 人工审批系统：human_approval_request/response 实现 + 前端触发审批请求（07-03）
+- 检查点系统：checkpoint_save/restore WebSocket 集成（07-04）
+- 审计日志系统：audit_log WebSocket 集成（07-04）
+- 并发任务执行 + Prometheus 指标端点（07-05）
+- 前端核心模块测试冲刺：dependencyAnalyzer/agentRegistry/officeWorkflow/taskAssigner/approvalQueue/negotiationEngine/deadlockDetector/checkpointManager 等 81 测试（07-02）
+
 **TS 统一编排层与 Per-Agent 路由（2026-07-06）**
 - **TS 统一编排层**：TypeScript=编排层（CEO+Team+Skills），Python=纯执行层；新增 team/assembler/skill loader/toolkit router（local/remote）
 - **Per-Agent Routing**：每个 TeamMember 独立 location(local/remote)，RouterFactory 按成员位置返回 router（用户拒绝 CLI profile 切换，要求 Web 前端逐实例选择）
@@ -155,7 +176,8 @@
 **Per-Role Agent（2026-07-13）**
 - TS Per-Role Agent 设计 + 实施（7 commits）：`orchestrator/src/agent/` RoleAgent 封装独立 messages[]/systemPrompt/tools/router；buildSystemPrompt 三段式（角色模板 + skill pack + 工具指南）；getToolsForRole 按角色白名单过滤；TeamCoordinator 从上帝对象改为编排 RoleAgent[]；讨论阶段 Promise.all 并发；ElectronRoleAgent 内联（CJS/ESM 限制）——orchestrator 60/60 + Electron 49/49
 
-**Electron 离线能力（2026-08-03 ~ 08-06）**
+**Electron 离线能力（2026-07-22 ~ 08-06）**
+- **Electron 桌面主体（07-22 ~ 07-30）**：桌面应用脚手架（IPC 协议 P1+P2）、secure API Key 存储与设置 UI（P3）、自动更新与打包分发（P4）、Windows 构建 ESM/CJS 兼容与路由/资源加载修复（P5）；主进程集成（07-30，~21 commits：TeamCoordinator per-role 重构、RoleAgent/工具过滤/system prompt 组装、ElectronRoleAgent 并行讨论、隐藏返回按钮）
 - Electron 项目持久化（主进程 userData/projects.json + 4 IPC 通道，修复 File System Access API 在 file:// 下不可靠）
 - 离线 PPT 生成（pptxgenjs 纯 JS 打包进 asar，零下载零平台依赖；`pptxBuilder.ts` + create_slide 工具分支 + 路径守卫）——真实 LLM E2E 验证 PASS
 - 离线 Word 文档生成（Node.js `docx` 库；`docxBuilder.ts` + create_document 工具分支 + docRoles 11 角色宣传）——真实 LLM E2E PASS
@@ -166,6 +188,7 @@
 - run_tests 工具 pytest 回退（`python` 无 pytest 模块时回退 PATH 上 pytest 命令）
 - 智能体上下文传递优化：ExecutionSummary 结构化摘要替代 substring(0,2000) 截断；讨论反对意见转"避免：xxx"约束注入
 - TS-Python AgentScope 差距修复：LocalToolkitRouter 5→18 工具（与 Python ToolExecutor 完全对齐）+ 知识/规则注入 system prompt
+- 弹性层与跨网络协作（07-07 ~ 07-10）：CircuitBreaker（5 commits）、跨网络智能体桥接/发现
 
 ### 多智能体架构分析（2026-08-13）
 
