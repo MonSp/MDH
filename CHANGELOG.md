@@ -129,14 +129,43 @@
 
 产品定位（2026-08-14「人+agent 混合团队协作平台」设计）确立前的开发期交付。
 
-### 项目早期（2026-05 ~ 2026-07）
+### 项目早期（2026-05-22 ~ 2026-07）
 
-- 浏览器侧栏 + 3D 科技大厦虚拟办公室（React + Three.js）
-- TS-Python 双端架构：TS Orchestrator（团队管理/LLM 调用/本地工具）+ Python Backend（AgentScope 智能体协调）+ Python Executor（远端工具执行）
-- 意图识别与动态路由：`ComplexityClassifier`（两层判定）+ `DynamicRouter`（四维加权）+ `SemanticAnalyzer`
-- 技能进化系统（CoW 增量区 + 经验提炼）、讨论投票（并行讨论 + stance 收敛）、DAG 工作流引擎、审批/检查点
-- Per-Agent 位置路由（local/remote）与混合执行；18 种工具扩展（12 日 153f4d5，本地工具加知识/规则注入）
-- 浏览器侧栏桥接协议清理（12 日 a59bf0c / 7982912）
+**初创与前端演进（5 月）**
+- 远程插件 Shell 架构（移除旧 sidepanel-host）+ Chat-Agent 界面重构 + 配置面板 + Tool Calling 意图识别（05-22）
+- 执行状态/计划进度跟踪、Vite 构建迁移（src 目录）、主题切换（05-25/26）
+- agentscope 子模块引入、浏览器自动化核心、技能模板系统（保存/加载/运行自定义技能）（05-26）
+- 多 LLM 提供商支持、用户确认请求/结果处理、SSO 认证（05-27/28）
+- **Vue → React 迁移**（05-29）+ 多模态开关（05-29）
+- agentscope 子模块迁移 third_party（05-31）
+
+**多智能体协作系统（5 月末 ~ 6 月）**
+- 多 Agent 协作模块、Agent 角色卡片 UI、多智能体团队协作办公室场景、完整会议模式（05-31）
+- production-multi-agent-evolution V2/V3 全量迭代 + V4.9 协议文档（06-01）
+- CEO 智能会议组织者 + 自动任务指派（06-02）
+- 多智能体技能进化系统 + 技能进化工作台 + 动态路由系统（06-03）
+- 3D 科技大厦视图（Three.js）+ 办公室模式流程重构（06-03/04）
+
+**TS 统一编排层与 Per-Agent 路由（2026-07-06）**
+- **TS 统一编排层**：TypeScript=编排层（CEO+Team+Skills），Python=纯执行层；新增 team/assembler/skill loader/toolkit router（local/remote）
+- **Per-Agent Routing**：每个 TeamMember 独立 location(local/remote)，RouterFactory 按成员位置返回 router（用户拒绝 CLI profile 切换，要求 Web 前端逐实例选择）
+- **Per-Agent Location UI**：CeoChatPanel 💻/☁️ 切换 → role_locations 全链路传递到 TeamAssembler
+- RemoteToolkitRouter 指数退避重试（4xx 不重试/5xx+network 重试，maxRetries=3）
+
+**Per-Role Agent（2026-07-13）**
+- TS Per-Role Agent 设计 + 实施（7 commits）：`orchestrator/src/agent/` RoleAgent 封装独立 messages[]/systemPrompt/tools/router；buildSystemPrompt 三段式（角色模板 + skill pack + 工具指南）；getToolsForRole 按角色白名单过滤；TeamCoordinator 从上帝对象改为编排 RoleAgent[]；讨论阶段 Promise.all 并发；ElectronRoleAgent 内联（CJS/ESM 限制）——orchestrator 60/60 + Electron 49/49
+
+**Electron 离线能力（2026-08-03 ~ 08-06）**
+- Electron 项目持久化（主进程 userData/projects.json + 4 IPC 通道，修复 File System Access API 在 file:// 下不可靠）
+- 离线 PPT 生成（pptxgenjs 纯 JS 打包进 asar，零下载零平台依赖；`pptxBuilder.ts` + create_slide 工具分支 + 路径守卫）——真实 LLM E2E 验证 PASS
+- 离线 Word 文档生成（Node.js `docx` 库；`docxBuilder.ts` + create_document 工具分支 + docRoles 11 角色宣传）——真实 LLM E2E PASS
+- Electron bash 工具拦截 python 家族（`bashGuard.ts` 正则覆盖版本号/env/sudo/绝对路径绕过向量）
+- 工具宣传缺口修复：executeTool 支持某工具 ≠ LLM 会调用它（roleNames 补 PPT/文档角色 + 工具说明注入）
+
+**优化与对齐（2026-07-31 ~ 08-11）**
+- run_tests 工具 pytest 回退（`python` 无 pytest 模块时回退 PATH 上 pytest 命令）
+- 智能体上下文传递优化：ExecutionSummary 结构化摘要替代 substring(0,2000) 截断；讨论反对意见转"避免：xxx"约束注入
+- TS-Python AgentScope 差距修复：LocalToolkitRouter 5→18 工具（与 Python ToolExecutor 完全对齐）+ 知识/规则注入 system prompt
 
 ### 多智能体架构分析（2026-08-13）
 
