@@ -24,7 +24,11 @@ _REUSE_STATS_PATH = os.path.join(os.path.dirname(__file__), "data", "reuse_stats
 
 
 def _save_reuse_stats() -> None:
-    """原子写复用统计到磁盘（tmp+rename）——进程重启保留。"""
+    """原子写复用统计到磁盘（tmp+rename）——进程重启保留。
+
+    落盘是增强非必需（评审 Minor）：I/O 失败（磁盘满/权限）在源头吞掉，
+    不向上传播破坏注入主流程——pilot_asset_injection 直调 build_asset_context 无守卫。
+    """
     # 锁覆盖写全程：并发线程共享同一 .tmp 文件名，若仅保护计数而放写，
     # 线程 A 的 os.replace 可能移走线程 B 尚在写入的 tmp → FileNotFoundError。
     with _REUSE_LOCK:
@@ -38,23 +42,37 @@ def _save_reuse_stats() -> None:
             },
             "last_at": _REUSE_STATS.get("last_at", ""),
         }
-        os.makedirs(os.path.dirname(_REUSE_STATS_PATH), exist_ok=True)
-        tmp = _REUSE_STATS_PATH + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(snapshot, f, ensure_ascii=False)
-        os.replace(tmp, _REUSE_STATS_PATH)
+        try:
+            os.makedirs(os.path.dirname(_REUSE_STATS_PATH), exist_ok=True)
+            tmp = _REUSE_STATS_PATH + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(snapshot, f, ensure_ascii=False)
+            os.replace(tmp, _REUSE_STATS_PATH)
+        except OSError:
+            pass  # 落盘失败不破坏注入（增强非必需）
 
 
 def _ensure_loaded() -> None:
-    """内存空时从磁盘加载（进程重启恢复）。"""
+    """内存空时从磁盘加载（进程重启恢复）。
+
+    容错置空语义完整（评审 Minor）：坏 JSON / I/O 错误 / 可解析但畸形
+    （非 dict，或 by_type/by_team 为 null）一律不落内存——避免后续
+    by_type.get/by_team[..] 抛 AttributeError/TypeError。
+    """
     with _REUSE_LOCK:
         if _REUSE_STATS.get("total"):
             return
         if os.path.exists(_REUSE_STATS_PATH):
             try:
                 with open(_REUSE_STATS_PATH, "r", encoding="utf-8") as f:
-                    _REUSE_STATS.update(json.load(f))
-            except (ValueError, OSError):
+                    data = json.load(f)
+                if not isinstance(data, dict):
+                    return  # 可解析但非对象（list/str）——容错置空
+                for key in ("by_team", "by_type"):
+                    if not isinstance(data.get(key), dict):
+                        data[key] = {}  # 畸形子结构（如 null）归一置空
+                _REUSE_STATS.update(data)
+            except Exception:
                 pass  # 损坏/缺失容错置空
 
 
@@ -109,6 +127,10 @@ def build_asset_context(store, extractor, team_id: str, task_type: str = "", key
     if not lines:
         return ""
     # 资产非空才算一次复用注入（注入语义不变：仅追加统计更新）——设计 [S5]
+    # 重启后首次 build 前加载落盘值（评审 Important）：主流程前端从不轮询
+    # /api/assets/reuse-metrics，重启后几乎总是先 build——若不加载会从 0 重计
+    # 覆盖落盘累计值。锁外调用（threading.Lock 非重入，_ensure_loaded 内部持锁）。
+    _ensure_loaded()
     # 锁内计数：跨线程（FastAPI 线程池 + meeting 循环）并发下不丢自增；更新后原子落盘（进程重启恢复）——M5-T2 ⑥
     with _REUSE_LOCK:
         _REUSE_STATS["total"] = _REUSE_STATS.get("total", 0) + 1

@@ -129,3 +129,36 @@ def test_reuse_stats_thread_safety(tmp_path, monkeypatch):
     stats = get_reuse_stats()
     assert stats["total"] == 20  # 锁下无丢失自增
     assert stats["by_team"].get("team-x") == 20
+
+
+def test_reuse_stats_loads_before_first_build(tmp_path, monkeypatch):
+    """回归（评审 Important）：重启后首次 build 前必须加载落盘值。
+
+    生产主流程（前端不轮询 /api/assets/reuse-metrics）重启后几乎总是先 build 而非
+    get_reuse_stats——若 build 计数前不 _ensure_loaded，会从 0 重计并覆盖落盘累计值。
+    """
+    import json as _json
+
+    from asset_injection import _REUSE_LOCK, _REUSE_STATS, build_asset_context, get_reuse_stats
+    stats_path = tmp_path / "reuse_stats.json"
+    monkeypatch.setattr("asset_injection._REUSE_STATS_PATH", str(stats_path))  # 落盘重定向 tmp
+    store = AssetStore(str(tmp_path))
+    store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
+    extractor = ExperienceExtractor(str(tmp_path))
+    SkillEvolution(extractor).evolve_from_feedback(
+        "p1", "minutes", "会议讨论发布计划。", "审核修改：遗漏行动项责任人。", ["责任人", "行动项"], team_id="team-x")
+    # ① 直接 seed 落盘 total==5（模拟上次进程已累计 5 次复用）
+    stats_path.write_text(_json.dumps({
+        "total": 5,
+        "by_team": {"team-x": 5},
+        "by_type": {"templates": 5, "artifacts": 5, "rules": 5},
+        "last_at": "2026-08-16T00:00:00",
+    }, ensure_ascii=False), encoding="utf-8")
+    # ② 清内存 → 模拟进程重启（内存 total=0）
+    with _REUSE_LOCK:
+        _REUSE_STATS.clear()
+    # ③ 先 build（主流程总是先 build 而非 get_reuse_stats）
+    ctx = build_asset_context(store, extractor, "team-x", task_type="minutes", keywords=["纪要", "待办"])
+    assert ctx != ""
+    # ④ 5+1==6：若未加载落盘值会从 0 重计 ==1
+    assert get_reuse_stats()["total"] == 6
