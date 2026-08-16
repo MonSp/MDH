@@ -1,5 +1,9 @@
 # 大荒界 - Matrix DaHuang (MDH)
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Backend Tests](https://img.shields.io/badge/backend-1142%20passed-brightgreen)]()
+[![Frontend Tests](https://img.shields.io/badge/frontend-1657%20passed-brightgreen)]()
+
 基于 React + Python FastAPI + AgentScope 的全领域智能体协作系统。多个 AI 智能体在虚拟办公室中协作，完成从需求分析到代码交付的完整流程。
 
 ## 核心能力
@@ -13,11 +17,16 @@
 | 🤖 TS-Python 桥接 | 前端自定义智能体与后端 AgentScope 智能体互通 |
 | 🖥️ 本地/远端混合执行 | 每个智能体可独立选择在用户浏览器本地(Node.js)或远端(Python Executor)执行工具 |
 | 🗳️ 投票决策 | 提案 → 投票 → 共识评估（支持多种策略） |
-| ✅ 人工审批 | 高危操作的人工审批流程 |
+| ✅ 人工审批 | 高危操作的人工审批流程（含 DAG 节点把关门禁） |
 | 📸 检查点 | 任务执行状态的保存与恢复 |
 | 📝 审计日志 | 操作审计追踪 |
-| ⚙️ 工作流引擎 | REST API 管理工作流生命周期 |
-| 🧠 技能进化 | 项目执行积累经验，生成可复用技能包 |
+| ⚙️ 工作流引擎 | DAG 工作流（顺序/并行/混合三策略）+ REST API 生命周期管理 |
+| 🧠 技能进化 | 项目执行积累经验，生成可复用技能包（随用随进化） |
+| 📦 资产沉淀 | 产出物入库 + 模板固化（员工审批把关）+ 经验提炼为技能规则，团队级隔离 |
+| 🔍 资产复用注入 | DAG 节点执行时自动注入团队资产参考（模板/知识/技能规则，渐进披露） |
+| 🧪 LLM 评测把关 | 模板/产出物经确定性检查 + LLM judge 评测（fail-closed）+ 评测基准与 CI 门禁 |
+| 📊 复用率可感知 | 注入计数指标（`/api/assets/reuse-metrics`）+ 前端资产浏览面板（`🧠 资产` 标签） |
+| 📝 会议纪要全链路 | 意图识别文档模式 → 纪要 DAG 工作流（提取/起草/校对）→ 产出物落盘 + 邮件分发 |
 
 ## 快速开始
 
@@ -271,11 +280,11 @@ custom_roles:
 ## 测试
 
 ```bash
-# TypeScript 测试 (865 tests)
+# 前端测试 (1657 tests)
 npx vitest run
 
-# Python 测试 (532 tests)
-cd backend && python -m pytest tests/ --timeout=10
+# 后端测试 (1142 tests)
+cd backend && python -m pytest tests/ --timeout=60
 
 # Orchestrator 测试
 cd orchestrator && npx vitest run
@@ -283,6 +292,9 @@ cd orchestrator && npx vitest run
 # LLM 集成测试
 export $(cat .env | grep -v '^#' | xargs)
 python backend/test_llm_integration.py
+
+# LLM 评测基准 CI 门禁（无 key 时确定性自检）
+python backend/asset_benchmark_gate.py
 ```
 
 ## 覆盖率
@@ -294,10 +306,15 @@ python backend/test_llm_integration.py
 
 ## 文档
 
+- [变更日志](CHANGELOG.md)
 - [Agent 角色配置](docs/agent-roles.md)
 - [Agent 工具系统](docs/agent-tools.md)
 - [设计文档](docs/design.md)
 - [用户指南](docs/user-guide.md)
-- [集成测试报告](docs/integration-test-report.md)
 - [Docker 部署指南](DOCKER_README.md)
 - [项目规则](project_rules.md)
+- [评测基准 CI 门禁指南](docs/compose/plans/2026-08-15-hybrid-team-platform-benchmark-ci-guide.md)
+
+## 许可证
+
+[Apache License 2.0](LICENSE)

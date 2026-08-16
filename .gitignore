@@ -55,3 +55,23 @@ out/
 *.AppImage
 *.deb
 *.snap
+# Agent runtime (MiMoCode)
+.mimocode/
+
+# Benchmark baselines (runtime artifacts)
+baselines/
+loop-engineering/baselines/
+
+# Runtime data (root-level)
+data/mailbox/
+loop-engineering/data/
+
+# Misc runtime output
+err.txt
+out.txt
+
+# TypeScript build artifacts (compiled JS output)
+orchestrator/src/**/*.js
+orchestrator/src/**/*.js.map
+orchestrator/src/**/*.d.ts
+/templates.js

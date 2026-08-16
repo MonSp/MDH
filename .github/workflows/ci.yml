@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    name: Backend tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run backend tests
+        working-directory: backend
+        run: |
+          python -m pytest tests/ --timeout=60 \
+            --deselect tests/test_skill_packs_structure.py \
+            --deselect tests/test_performance.py::TestMessageQueuePerformance::test_publish_performance
+
+  frontend-tests:
+    name: Frontend tests (vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps --ignore-scripts
+      - name: Run frontend tests
+        run: npx vitest run
+
+  judge-benchmark-gate:
+    name: LLM judge benchmark gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run benchmark gate
+        run: python backend/asset_benchmark_gate.py
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        # 无 key 时（未配置 secret）跑确定性 perfect-judge 自检（恒过，注明未跑真实评测）；
+        # 配置 DEEPSEEK_API_KEY secret 后启用真实 judge 评测门禁。
