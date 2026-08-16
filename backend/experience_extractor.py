@@ -559,6 +559,23 @@ class ExperienceExtractor:
         scored.sort(key=lambda x: x[0], reverse=True)
         return [rule for _, rule in scored]
 
+    def migrate_rules_team_id(self, team_id: str, rule_ids: Optional[List[str]] = None) -> int:
+        """存量规则 team_id 回填（规则级团队隔离迁移）。
+
+        team_id 严格过滤（fail-closed）下 team_id="" 的存量规则对团队检索不可见
+        （注入死数据）——本方法把未归属规则批量回填到指定团队，返回迁移条数。
+        已含 team_id 的规则与未命中规则不计；幂等（重复调用返回 0）。
+        """
+        ids = rule_ids if rule_ids is not None else self._list_rule_ids()
+        migrated = 0
+        for rule_id in ids:
+            rule = self._load_rule(rule_id)
+            if rule is None or rule.team_id:
+                continue
+            if self.modify_rule(rule_id, {"team_id": team_id}):
+                migrated += 1
+        return migrated
+
     def build_experience_context(self, rules: List[ExperienceRule]) -> str:
         """将规则格式化为可注入的提示上下文
 

@@ -383,6 +383,53 @@ def test_retrieve_relevant_rules_old_rule_invisible_to_team(tmp_path):
     assert [r.rule_id for r in extractor.retrieve_relevant_rules("minutes", ["纪要"])] == ["r-old"]
 
 
+def test_migrate_rules_team_id_backfills_and_isolates(tmp_path):
+    """T44 后续项：存量 team_id="" 规则对团队检索不可见（fail-closed 注入死数据）。
+    migrate_rules_team_id 把未归属规则批量回填到指定团队；已含 team_id 的规则不动；
+    幂等（重复调用返回 0）。"""
+    extractor = ExperienceExtractor(str(tmp_path))
+    r_old = ExperienceRule(rule_id="r-old", trigger_condition="task_type is minutes", action="a",
+                           note="", source_task_id="p1", source_task_type="minutes", rule_type="correction_tip",
+                           status="approved", keywords=["纪要"], created_at="t")  # 缺 team_id → ""（旧规则兼容）
+    r_team = ExperienceRule(rule_id="r-team", trigger_condition="task_type is minutes", action="b",
+                            note="", source_task_id="p2", source_task_type="minutes", rule_type="correction_tip",
+                            status="approved", keywords=["纪要"], created_at="t", team_id="team-a")
+    extractor.submit_for_review(r_old); extractor.approve_rule("r-old")
+    extractor.submit_for_review(r_team); extractor.approve_rule("r-team")
+
+    # 迁移前：团队检索（team-x）严格过滤——team_id="" 的 r-old 不可见
+    assert extractor.retrieve_relevant_rules("minutes", ["纪要"], team_id="team-x") == []
+
+    # 迁移：仅 r-old 回填（r-team 已含 team_id 不计）
+    assert extractor.migrate_rules_team_id("team-x") == 1
+
+    # 迁移后：team-x 检索含 r-old；r-team 仍归 team-a
+    assert [r.rule_id for r in extractor.retrieve_relevant_rules("minutes", ["纪要"], team_id="team-x")] == ["r-old"]
+    assert extractor._load_rule("r-old").team_id == "team-x"
+    assert extractor._load_rule("r-team").team_id == "team-a"
+
+    # 幂等：再次迁移返回 0
+    assert extractor.migrate_rules_team_id("team-x") == 0
+
+
+def test_migrate_rules_team_id_specific_subset(tmp_path):
+    """rule_ids 子集迁移：仅回填指定规则，未指定规则保持 "" 不变。"""
+    extractor = ExperienceExtractor(str(tmp_path))
+    r1 = ExperienceRule(rule_id="r1", trigger_condition="task_type is minutes", action="a",
+                        note="", source_task_id="p1", source_task_type="minutes", rule_type="correction_tip",
+                        status="approved", keywords=["纪要"], created_at="t")
+    r2 = ExperienceRule(rule_id="r2", trigger_condition="task_type is minutes", action="b",
+                        note="", source_task_id="p2", source_task_type="minutes", rule_type="correction_tip",
+                        status="approved", keywords=["纪要"], created_at="t")
+    extractor.submit_for_review(r1); extractor.approve_rule("r1")
+    extractor.submit_for_review(r2); extractor.approve_rule("r2")
+
+    # 仅迁移 r1
+    assert extractor.migrate_rules_team_id("team-x", rule_ids=["r1"]) == 1
+    assert extractor._load_rule("r1").team_id == "team-x"
+    assert extractor._load_rule("r2").team_id == ""
+
+
 # ──────────────────── 构建上下文文本 ────────────────────
 
 
