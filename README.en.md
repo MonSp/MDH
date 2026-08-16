@@ -319,6 +319,16 @@ python backend/asset_benchmark_gate.py
 - [Project Rules](project_rules.md)
 - [Benchmark CI Gate Guide](docs/compose/plans/2026-08-15-hybrid-team-platform-benchmark-ci-guide.md)
 
+## Version History
+
+| Version | Date | Highlights |
+|---|---|---|
+| **[v1.1.0](https://github.com/MonSp/MDH/releases/tag/v1.1.0)** | 2026-08-16 | Asset sedimentation (M3/M4), LLM judge gating + CI gate, team-scoped rule isolation, M5 asset visualization + reuse metrics, meeting minutes pipeline (real pilot 7/7) |
+| v1.0.0 | 2026-08-14 | Product definition (human+agent hybrid team platform) + M1-M2 meeting minutes pipeline, gate enforcement, frontend approval UI — initial release baseline |
+| Pre-1.0 | 2026-05-22 ~ 08-13 | Early architecture (TS orchestration / Electron offline / multi-agent collaboration) → P0/P1/P2 implementation → P3 phase one (session log / snapshot eval) → dsh deep research |
+
+Full change history in [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
 [Apache License 2.0](LICENSE)

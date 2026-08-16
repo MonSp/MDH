@@ -317,6 +317,16 @@ python backend/asset_benchmark_gate.py
 - [项目规则](project_rules.md)
 - [评测基准 CI 门禁指南](docs/compose/plans/2026-08-15-hybrid-team-platform-benchmark-ci-guide.md)
 
+## 版本历史
+
+| 版本 | 日期 | 主要内容 |
+|------|------|----------|
+| **[v1.1.0](https://github.com/MonSp/MDH/releases/tag/v1.1.0)** | 2026-08-16 | 资产沉淀闭环（M3/M4）、LLM judge 评测 + CI 门禁、规则级团队隔离、M5 资产可视化 + 复用率指标、会议纪要全链路（真实试点 7/7） |
+| v1.0.0 | 2026-08-14 | 产品定型（人+agent 混合团队平台）+ M1-M2 会议纪要全链路、把关系统（gate 强制力）、前端把关 UI——初始发布基线 |
+| 开发史 | 2026-05-22 ~ 08-13 | 早期架构（TS 编排层/Electron 离线/多智能体协作）→ P0/P1/P2 实施 → P3 阶段一（session log/快照评测）→ dsh 深度调研 |
+
+完整变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 许可证
 
 [Apache License 2.0](LICENSE)
