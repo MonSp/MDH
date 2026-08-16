@@ -4,6 +4,9 @@
 无资产返回空串（注入零成本）。注入是增强非必需——调用方异常可吞。
 """
 
+import json
+import os
+import threading
 import time
 
 from asset_search import AssetSearch
@@ -14,27 +17,66 @@ _MAX_RULES = 3
 _SNIPPET_LEN = 100
 _TRUNCATION_MARK = "…"
 
-# 模块级进程内统计（演示/试点级复用可感知；持久化留后续）
+# 模块级进程内统计 + 锁 + 落盘持久化（M5-T2 ⑥：跨线程安全 + 进程重启恢复）
 _REUSE_STATS: dict = {"total": 0, "by_team": {}, "by_type": {"templates": 0, "artifacts": 0, "rules": 0}, "last_at": ""}
+_REUSE_LOCK = threading.Lock()
+_REUSE_STATS_PATH = os.path.join(os.path.dirname(__file__), "data", "reuse_stats.json")  # gitignored
+
+
+def _save_reuse_stats() -> None:
+    """原子写复用统计到磁盘（tmp+rename）——进程重启保留。"""
+    # 锁覆盖写全程：并发线程共享同一 .tmp 文件名，若仅保护计数而放写，
+    # 线程 A 的 os.replace 可能移走线程 B 尚在写入的 tmp → FileNotFoundError。
+    with _REUSE_LOCK:
+        snapshot = {
+            "total": _REUSE_STATS.get("total", 0),
+            "by_team": dict(_REUSE_STATS.get("by_team", {})),
+            "by_type": {
+                "templates": _REUSE_STATS.get("by_type", {}).get("templates", 0),
+                "artifacts": _REUSE_STATS.get("by_type", {}).get("artifacts", 0),
+                "rules": _REUSE_STATS.get("by_type", {}).get("rules", 0),
+            },
+            "last_at": _REUSE_STATS.get("last_at", ""),
+        }
+        os.makedirs(os.path.dirname(_REUSE_STATS_PATH), exist_ok=True)
+        tmp = _REUSE_STATS_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(snapshot, f, ensure_ascii=False)
+        os.replace(tmp, _REUSE_STATS_PATH)
+
+
+def _ensure_loaded() -> None:
+    """内存空时从磁盘加载（进程重启恢复）。"""
+    with _REUSE_LOCK:
+        if _REUSE_STATS.get("total"):
+            return
+        if os.path.exists(_REUSE_STATS_PATH):
+            try:
+                with open(_REUSE_STATS_PATH, "r", encoding="utf-8") as f:
+                    _REUSE_STATS.update(json.load(f))
+            except (ValueError, OSError):
+                pass  # 损坏/缺失容错置空
 
 
 def get_reuse_stats() -> dict:
     """资产复用统计（注入次数/按团队/按类型）——设计 [S5] 复用率可感知。
 
     返回规范化结构（缺键补默认），使统计在 `_REUSE_STATS.clear()`（测试隔离）
-    后仍可安全读取——演示端点只需按此契约消费。
+    后仍可安全读取——演示端点只需按此契约消费。首次读取时从落盘加载（进程重启恢复）。
     """
-    by_type = _REUSE_STATS.get("by_type", {})
-    return {
-        "total": _REUSE_STATS.get("total", 0),
-        "by_team": dict(_REUSE_STATS.get("by_team", {})),
-        "by_type": {
-            "templates": by_type.get("templates", 0),
-            "artifacts": by_type.get("artifacts", 0),
-            "rules": by_type.get("rules", 0),
-        },
-        "last_at": _REUSE_STATS.get("last_at", ""),
-    }
+    _ensure_loaded()
+    with _REUSE_LOCK:
+        by_type = _REUSE_STATS.get("by_type", {})
+        return {
+            "total": _REUSE_STATS.get("total", 0),
+            "by_team": dict(_REUSE_STATS.get("by_team", {})),
+            "by_type": {
+                "templates": by_type.get("templates", 0),
+                "artifacts": by_type.get("artifacts", 0),
+                "rules": by_type.get("rules", 0),
+            },
+            "last_at": _REUSE_STATS.get("last_at", ""),
+        }
 
 
 def _snippet(text: str, limit: int = _SNIPPET_LEN) -> str:
@@ -67,12 +109,15 @@ def build_asset_context(store, extractor, team_id: str, task_type: str = "", key
     if not lines:
         return ""
     # 资产非空才算一次复用注入（注入语义不变：仅追加统计更新）——设计 [S5]
-    _REUSE_STATS["total"] = _REUSE_STATS.get("total", 0) + 1
-    by_team = _REUSE_STATS.setdefault("by_team", {})
-    by_team[team_id] = by_team.get(team_id, 0) + 1
-    by_type = _REUSE_STATS.setdefault("by_type", {})
-    by_type["templates"] = by_type.get("templates", 0) + len(result["templates"][:_MAX_TEMPLATES])
-    by_type["artifacts"] = by_type.get("artifacts", 0) + len(result["artifacts"][:_MAX_ARTIFACTS])
-    by_type["rules"] = by_type.get("rules", 0) + len(result["rules"][:_MAX_RULES])
-    _REUSE_STATS["last_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    # 锁内计数：跨线程（FastAPI 线程池 + meeting 循环）并发下不丢自增；更新后原子落盘（进程重启恢复）——M5-T2 ⑥
+    with _REUSE_LOCK:
+        _REUSE_STATS["total"] = _REUSE_STATS.get("total", 0) + 1
+        by_team = _REUSE_STATS.setdefault("by_team", {})
+        by_team[team_id] = by_team.get(team_id, 0) + 1
+        by_type = _REUSE_STATS.setdefault("by_type", {})
+        by_type["templates"] = by_type.get("templates", 0) + len(result["templates"][:_MAX_TEMPLATES])
+        by_type["artifacts"] = by_type.get("artifacts", 0) + len(result["artifacts"][:_MAX_ARTIFACTS])
+        by_type["rules"] = by_type.get("rules", 0) + len(result["rules"][:_MAX_RULES])
+        _REUSE_STATS["last_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    _save_reuse_stats()
     return "\n资产参考：\n" + "\n".join(lines)
