@@ -72,4 +72,55 @@
 
 ## [1.0.0] - 2026-08-14
 
-- 初始版本基线：P3 阶段（M1 引擎底座 / M2a 会议纪要后端全链路 / M2b 把关强制力与 SMTP / M2b-2 前端把关 UI）——详见 `docs/compose/reports/hybrid-team-platform.md`（commits d069ab6..2f91173 区间交付）
+初始版本基线：P3 阶段完整交付（commits d069ab6..2f91173 区间，产品设计获批 → M1 引擎底座 → M2a 会议纪要全链路 → M2b 把关后端收尾 → M2b-2 前端把关 UI）。
+
+### Added
+
+**产品设计（2026-08-14）**
+- 「人+agent 混合团队协作平台」设计文档（`docs/compose/specs/2026-08-14-hybrid-team-platform-design.md`，[S1]-[S6]）：双内核并列（编排派发 + 资产沉淀）、关键把关（人管决策点/agent 管执行）、文职/办公垂直、三类资产沉淀、团队级边界
+- Palantir AIP 对标（[S6]）：AIP Document Intelligence / AIP Evals 印证确认闭环与评测纪律，Agents→Chatbots 收敛信号佐证"可部署能力单元 + 确定性流程 + 人确认"
+
+**P3 快照评测与 session log（2026-08-13/14）**
+- Executor 快照评测：keyless checks（确定性校验 + verifyCommands + qualityChecks）+ 场景回放（`--workspace` 本地回放）
+- MeetingSession 事件化真相源（T50）：`deriveMessages` 投影 + 快照 window 恢复 + 讨论上下文角色谓词过滤 + 并行讨论补写 meeting
+
+**M1 引擎底座（main@766fed3）**
+- 把关数据模型：`ApprovalManager`（request_gate/handle_gate_response/wait_for_decision + gate/decided 成对审计 + PendingApproval 8 字段 payload）；WS `human_approval_request` 含 taskId/gateId
+- DAG 工作流引擎：`WorkflowEngine`（顺序/并行/混合三策略 + gate 节点 + 生命周期暂停/恢复/取消/重试 + 跳过传播）；`WorkflowDefinition` 全套 dict 序列化（protocol.py 协议层唯一事实源）
+- 会议纪要文档 seam：纯标准库 docx 生成（zipfile+OOXML 最小三入口，零新依赖）
+- Spec Tree / Gate Manager / EARS 验收句式 / Evidence Chain（既有引擎底座）
+
+**M2a 会议纪要后端全链路（main@a604487）**
+- 纪要意图识别：`_detect_minutes_task` 文档模式（纪要关键词家族 + 动词触发，短路先于路由——文档模式确定性无 LLM 成本）
+- 纪要工作流：`build_minutes_workflow`（3 节点 dept-docs DAG：extract→draft(gate)→proofread，sequential）
+- gate 序列化补齐：`WorkflowNode.gate` 经 workflow_node_to_dict/dict_to_workflow_node 往返保真（WS/桥接回环不丢 gate）+ 定义级自动携带
+- 演示集成端点 `POST /api/minutes`：速记 → 纪要 DAG 规划 + 混合团队 + mailer 分发
+- 邮件 seam：`get_mailer("file")`（FileMailer 生成 .eml 到 data/mailbox）+ provider 延迟 import 模式
+
+**M2b-1 把关后端收尾（main@92037d0）**
+- gate 强制力：`_run_node_gate` 拒绝 → `_execute_node` 消费 `result["gate"]["status"]=="rejected"` → 节点 FAILED 四处同步 + 下游 SKIPPED + retry_node 可重试（拒绝真正阻断下游）
+- approver 透传五表面点对齐（PendingApproval/request_approval/request_gate 审计/handle_gate_response/get_pending_requests）
+- SMTP provider：`SmtpMailer`（transport 注入可测 + username 非空才 login + from_addr 回退 + msg_id）
+- 演示端点输入加固：业务逻辑 `try/except → _fail`（HTTP 200 + {success:False,error}，畸形输入不 500）
+
+**M2b-2 前端把关 UI（main@2f91173）**
+- 审批面板适配 gate 字段：ApprovalPanel 卡片（riskBadge/operation/requesterId/描述/置信度/理由输入/批准拒绝）+ WS 双通道（human_approval_request 推送 + pending_approvals 拉取共享 `get_pending_requests()` 汇聚点）
+- 后端 PendingApproval 补 taskId/gateId/approver 字段（additive-safe）+ `get_pending_requests()` 单点透传双通道
+- vitest `.tsx` 测试支持 + @testing-library/react 预装（组件测试基础设施）
+
+### Fixed
+
+- `WorkflowNode.gate` 序列化丢失（WS/桥接回环静默丢 gate）→ dict 往返补齐 + 回环测试
+- gate 拒绝结果无消费者（拒绝仅标记不阻断下游）→ `_execute_node` 消费 rejected → FAILED
+- 演示端点未捕获异常 500 → `_fail` 统一兜底
+- `useMeetingSocket` 返回对象解构缺名（meetingPhase/meetingStartTime/deleteTask）→ 解构清单补齐
+- 纪要检测死逻辑（`has_verb and (has_minutes or has_co_trigger)` ≡ `has_verb and has_minutes`）→ 吸收律化简
+- 前端审批三字段空值判定（后端发射 `""` 非 undefined）→ truthy 判定约定
+- `_detect_minutes_task` 关键词双源漂移（MINUTES_KEYWORDS/MINUTES_FAMILY 手工维护）→ 派生对齐
+
+### Changed
+
+- 意图识别增加文档模式分支（纪要任务走确定性短路，不消耗 LLM）
+- 审批 WS payload 追加 taskId/gateId/approver（additive-safe，既有契约测试不受影响）
+- `TeamMember.display_name` 尾置默认字段（全仓关键字构造向后兼容）；human 成员 name 缺省回落
+- 仓库 vitest.config.ts include 扩展 `.tsx`（组件测试可被发现）
