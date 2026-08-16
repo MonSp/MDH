@@ -18,7 +18,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: pip install -r backend/requirements.txt
+        run: |
+          pip install -r backend/requirements.txt
+          pip install pytest pytest-asyncio pytest-timeout
       - name: Run backend tests
         working-directory: backend
         run: |
