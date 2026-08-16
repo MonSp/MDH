@@ -19,7 +19,7 @@ interface SearchResult {
   rules: Array<{ rule_id: string; trigger_condition: string; action: string }>
 }
 
-// 演示团队（读既有资产演示数据/测试实际团队名——team-x/team-y/team-a/team-b 均有资产或规则演示数据）
+// 演示团队（team-x 为后端 seed 的演示数据团队；team-y/team-a/team-b 为既有测试团队）
 const DEMO_TEAMS = ['team-x', 'team-y', 'team-a', 'team-b']
 
 export default function AssetBrowserPanel() {
@@ -50,12 +50,22 @@ export default function AssetBrowserPanel() {
       const r = await apiFetch<SearchResult>(`/api/assets/search?${params.toString()}`)
       setSearch(r)
     } catch (e) {
+      // 失败时清空旧检索结果，避免上次的规则/资产残留
+      setSearch(null)
       setError(String(e))
     }
   }
 
   // search 命中时并入 search.artifacts/templates（补全挂载列表），再按类型过滤
-  const merged = [...assets, ...(search?.artifacts ?? []), ...(search?.templates ?? [])]
+  // /api/assets 与 /api/assets/search（空 q）读同一 store 索引——空检索会返回完整挂载列表，
+  // 必须按 id 去重（保留先出现），否则每资产双渲染 + React duplicate keys。
+  const seen = new Set<string>()
+  const merged = [...assets, ...(search?.artifacts ?? []), ...(search?.templates ?? [])].filter(
+    (a) => {
+      const k = a.asset_id || a.assetId
+      return k ? (seen.has(k) ? false : (seen.add(k), true)) : true
+    },
+  )
   const artifacts = merged.filter((a) => a.type === 'artifact')
   const templates = merged.filter((a) => a.type === 'template')
 

@@ -289,6 +289,41 @@ describe('AssetBrowserPanel', () => {
     unmount()
   })
 
+  it('去重：search.artifacts/templates 与挂载列表 id 重叠时每项只渲染一次', async () => {
+    // 默认演示流（检索框全空点击检索）：后端 /api/assets/search（空 q）读同一 store 索引，
+    // search.artifacts/templates 返回完整挂载列表 —— 与 /api/assets 列表 id 完全重叠。
+    // 回归：合并必须按 id 去重（保留先出现），否则每资产双渲染 + React duplicate keys。
+    const searchFullList = {
+      artifacts: assetList.filter((a) => a.type === 'artifact'),
+      templates: assetList.filter((a) => a.type === 'template'),
+      rules: [],
+    }
+    fetchMock.mockImplementation((url: string) => {
+      if (url.startsWith('/api/assets/search')) {
+        return jsonResponse({ success: true, data: searchFullList, error: null })
+      }
+      if (url.startsWith('/api/assets')) {
+        return jsonResponse({ success: true, data: assetList, error: null })
+      }
+      return jsonResponse({ success: true, data: [], error: null })
+    })
+    const { container, unmount } = render(<AssetBrowserPanel />)
+    await waitFor(() => {
+      expect(container.textContent).toContain('登录页设计稿')
+    })
+    fetchMock.mockClear()
+    // 检索框全空点击检索 → search 返回完整挂载列表
+    fireEvent.click(screen.getByText('检索'))
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([u]) => String(u).includes('/api/assets/search'))).toBe(true)
+    })
+    // 每个标题恰出现一次（未去重时会双渲染）
+    expect(screen.getAllByText('登录页设计稿')).toHaveLength(1)
+    expect(screen.getAllByText('接口文档')).toHaveLength(1)
+    expect(screen.getAllByText('会议纪要模板')).toHaveLength(1)
+    unmount()
+  })
+
   it('团队 select：渲染演示团队选项并可切换', async () => {
     const { container, unmount } = render(<AssetBrowserPanel />)
     await waitFor(() => {
