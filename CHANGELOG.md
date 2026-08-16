@@ -124,3 +124,61 @@
 - 审批 WS payload 追加 taskId/gateId/approver（additive-safe，既有契约测试不受影响）
 - `TeamMember.display_name` 尾置默认字段（全仓关键字构造向后兼容）；human 成员 name 缺省回落
 - 仓库 vitest.config.ts include 扩展 `.tsx`（组件测试可被发现）
+
+## 开发史（产品定型前，2026-05-22 ~ 2026-08-13）
+
+产品定位（2026-08-14「人+agent 混合团队协作平台」设计）确立前的开发期交付。
+
+### 项目早期（2026-05 ~ 2026-07）
+
+- 浏览器侧栏 + 3D 科技大厦虚拟办公室（React + Three.js）
+- TS-Python 双端架构：TS Orchestrator（团队管理/LLM 调用/本地工具）+ Python Backend（AgentScope 智能体协调）+ Python Executor（远端工具执行）
+- 意图识别与动态路由：`ComplexityClassifier`（两层判定）+ `DynamicRouter`（四维加权）+ `SemanticAnalyzer`
+- 技能进化系统（CoW 增量区 + 经验提炼）、讨论投票（并行讨论 + stance 收敛）、DAG 工作流引擎、审批/检查点
+- Per-Agent 位置路由（local/remote）与混合执行；18 种工具扩展（12 日 153f4d5，本地工具加知识/规则注入）
+- 浏览器侧栏桥接协议清理（12 日 a59bf0c / 7982912）
+
+### 多智能体架构分析（2026-08-13）
+
+- 交付 `docs/compose/specs/multi-agent-architecture-future-analysis.md`（commits 7982912..1748522 + finalize 3536174）：现状取证（43 来源 + 代码审计）+ 行业趋势（F1-F6）+ 演进方向——核心结论"强单 agent 主轴 + 确定性轻协作 + 标准协议 + 可恢复执行"，三阶段路线图（收敛治理 → 范式转向 → 差异化能力）
+- 产品叙事对齐意图驱动派发与技能进化（7102df8）；路线图按五大支柱 + P0/P1/P2 优先级重写（a833866）
+
+### P0 阶段（2026-08-13，main@7cb63c9）
+
+- **工作流节点真执行**（ef9d9ea/66cb5f8）：`_run_agent_execution_loop`（代码块 → write_file 主路径 + 花括号扫描 tool_call 备用）复用 AgentToolset 真执行 + 写工作区文件
+- **双 WorkflowEngine 合并**（057106e/6b886dc）：共享引擎注入 MeetingCoordinator + 委托执行器/状态回调路由到活动协调器
+- **start_workflow 真可取消**（1fa1253）：asyncio.create_task + 身份安全 done_callback + pause/cancel 真中断
+- **CriticAgent LLM 审查通道**（bbc0b57/6198bb1）：规则兜底 + LLM 补充（失败降级），findings 解析与严重度归一化
+- **审批真阻塞等待**（a831dce/7695e9f/b46b234）：request_approval + wait_for_decision（超时默认通过）+ 会议处理转后台任务（防审批阻塞接收循环）+ 结构化审批推送透传
+- **死代码清理**（afad14e）：删除 parallel_discussion_manager / parallel_meeting_coordinator
+- 全构造点共享引擎/审批注入（7cb63c9：start_meeting / ceo_agent / simple_executor 三处统一）——12 commits，852 passed
+
+### P1 阶段（2026-08-13，main@b0132e8）
+
+- **路由断链修复**（d8280e6/a882fce）：`_update_routing_stats` 消费即删，关闭自适应路由学习闭环
+- **技能闭环自动触发**（a48538b/132d3f4）：get_pending_rules → 按项目过滤 → approve → 增量区写入 → 按关键词打包升级版技能包
+- **DAG 去硬编码**（3261d85/c8efdef）：确定性依赖推断替代 dept_order 线性链（IMPL_DEPTS 并行、qa/devops 依赖、根节点数>1 → parallel）
+- **混合执行真接线**（b41044e/c20a48b）：roleLocations 透传 createTeam + executorUrl 全链贯通（修复 remote 执行空 URL 死链）
+- **杂项收尾**（5721a34/37ea42a/b0132e8）：run_project/demo 引擎注入（评审回归回退修正）+ companion_log gitignore + 前端审批面板 6 用例验证——11 commits
+
+### P2 阶段（2026-08-13，main@274a725）
+
+- **durable execution**（557cefa/06854e7）：WorkflowEngine 持久化（JSON per execution + definition 内嵌 + 冷启动恢复）+ CheckpointManager 磁盘持久化 + 三策略跳过 COMPLETED
+- **审查确定性门禁**（b0c98ac/678728a/81b1fc1）：review 并入 structured_feedback + `_run_deterministic_gate`（fail-closed + 工具缺失 fail-open）
+- **artifact 模式**（6a39cea）：执行产物文本（文件清单 + 摘要）接入任务结果
+- **模型故障转移**（3e21e1f）：模型池健康检查 + 失败驱逐 + 自动切换
+- **杂项**（3f929b5）：路由统计 finally 清理 + AGENTS.md 计数刷新 + per-member hybrid 接线——11 commits
+
+### P2 遗留闭环（2026-08-13，main@7a36493）
+
+- 9 项评审遗留全部闭环（门禁通道感知 / hybrid 生产接线 / durable 读侧 GET+resume / persist 容错 / failover 归因收窄 / planner issues 守卫 / FAILED 重跑测试等），P2 零遗留
+
+### P3 阶段一（2026-08-13/14）
+
+- **session log 真相源**（ba4ab6f/a3214c0/bc73f79）：SessionEvent 事件流（JSONL append + deriveMessages 投影 + 快照审计 audit.jsonl）+ LLM 上下文投影（讨论/审查决策三处）+ 并行讨论补写 meeting
+- **快照评测门禁**（9628623）：orchestrator snapshot.ts（sha256/exitCode/qualityChecks）+ runScenario keyless 回放 + CI 门禁
+- 分析文档路线图重写（五支柱 + 优先级）
+
+### dsh 深度代码调研（2026-08-14，main@7e80624）
+
+- deepseek-harness 全库原理挖掘：10 主线调研（fs/shell/subprocess/terminal/sandbox/e2b/code-runtime 等）+ 综合分析文档 `deepseek-harness-code-principles.md`（285 行）入库
