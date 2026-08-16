@@ -18,11 +18,14 @@ interface SearchResult {
   rules: Array<{ rule_id: string; trigger_condition: string; action: string }>
 }
 
-// 后端统一 _ok(data) 包装：{ success, data, error }——apiGet 返回整个响应体，调用方解包 .data
+// 后端统一 _ok(data)/_fail(error) 包装：{ success, data, error }
+// _fail 不传播 500（HTTP 200 + success:false + data:null）——apiGet 直接抛错，调用方进 catch 显示 error
 const apiGet = async <T,>(url: string): Promise<T> => {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`API ${res.status}`)
-  return res.json() as Promise<T>
+  const body = (await res.json()) as { success?: boolean; data?: T; error?: string | null }
+  if (body.success === false) throw new Error(body.error || 'API error')
+  return body.data as T
 }
 
 export default function AssetBrowserPanel() {
@@ -33,17 +36,20 @@ export default function AssetBrowserPanel() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    apiGet<{ data: AssetItem[] }>(`/api/assets?team_id=${encodeURIComponent(teamId)}`)
-      .then((r) => setAssets(r.data))
+    // 团队切换：重置 per-team 检索结果与上次错误，避免旧上下文数据残留
+    setSearch(null)
+    setError('')
+    apiGet<AssetItem[]>(`/api/assets?team_id=${encodeURIComponent(teamId)}`)
+      .then((data) => setAssets(data))
       .catch((e) => setError(String(e)))
   }, [teamId])
 
   const doSearch = async () => {
     try {
-      const r = await apiGet<{ data: SearchResult }>(
+      const r = await apiGet<SearchResult>(
         `/api/assets/search?q=${encodeURIComponent(query)}&team_id=${encodeURIComponent(teamId)}&task_type=minutes&keywords=纪要`
       )
-      setSearch(r.data)
+      setSearch(r)
     } catch (e) {
       setError(String(e))
     }

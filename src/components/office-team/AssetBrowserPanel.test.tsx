@@ -115,4 +115,65 @@ describe('AssetBrowserPanel', () => {
     })
     unmount()
   })
+
+  it('后端 _fail（success=false）时渲染 error 且面板不崩溃', async () => {
+    // 所有资产端点错误转 _fail：HTTP 200 + { success:false, data:null, error }
+    fetchMock.mockImplementation((url: string) => {
+      if (url.startsWith('/api/assets')) {
+        return jsonResponse({ success: false, data: null, error: 'bad team' })
+      }
+      return jsonResponse({ success: true, data: [], error: null })
+    })
+    const { container, unmount } = render(<AssetBrowserPanel />)
+    await waitFor(() => {
+      expect(container.textContent).toContain('bad team')
+    })
+    // 不崩溃：error 之外空态仍正常渲染（assets 保持 []，不因 null data 抛 TypeError）
+    expect(container.textContent).toContain('暂无资产')
+    unmount()
+  })
+
+  it('切换团队时重置检索结果（旧团队规则不再显示）', async () => {
+    const { container, unmount } = render(<AssetBrowserPanel />)
+    await waitFor(() => {
+      expect(container.textContent).toContain('登录页设计稿')
+    })
+    // 在 team-x 上下文下检索出规则
+    fireEvent.change(screen.getByPlaceholderText('检索资产'), { target: { value: '纪要' } })
+    fireEvent.click(screen.getByText('检索'))
+    await waitFor(() => {
+      expect(container.textContent).toContain('建议复用纪要模板')
+    })
+    // 切换团队 → search 必须重置，旧规则消失（per-team 查询契约：不留陈旧数据）
+    fireEvent.change(screen.getByDisplayValue('team-x'), { target: { value: 'team-b' } })
+    await waitFor(() => {
+      expect(container.textContent).not.toContain('建议复用纪要模板')
+    })
+    unmount()
+  })
+
+  it('judge_score 为 0 时显示"评测 0"（!= null 边界）', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.startsWith('/api/assets')) {
+        return jsonResponse({
+          success: true,
+          data: [
+            {
+              asset_id: 'art-0', type: 'artifact', title: '零分产出物',
+              content: '', status: 'approved',
+              approved_by: '', created_at: '2026-08-01', judge_score: 0,
+            },
+          ],
+          error: null,
+        })
+      }
+      return jsonResponse({ success: true, data: [], error: null })
+    })
+    const { container, unmount } = render(<AssetBrowserPanel />)
+    await waitFor(() => {
+      expect(container.textContent).toContain('零分产出物')
+    })
+    expect(container.textContent).toContain('评测 0')
+    unmount()
+  })
 })
