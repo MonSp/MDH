@@ -76,10 +76,11 @@
 
 ### 前端与 3D 视觉
 
-- **React 迁移**（05-29）：Vue → React + Vite 构建 + 主题切换 + 多模态开关；Chat-Agent 界面/配置面板重构（05-22）
-- **多智能体协作 UI**（05-31 ~ 06-04）：Agent 角色卡片、团队协作办公室场景、3D 科技大厦视图（Three.js）+ 办公室模式流程重构
+- **项目早期（05-22 ~ 05-31）**：远程插件 Shell 架构（移除旧 sidepanel-host）、Chat-Agent 界面/配置面板重构、Tool Calling 意图识别、执行状态/计划进度跟踪、Vite 构建迁移（src 目录）、主题切换、agentscope 子模块引入、浏览器自动化核心、技能模板系统（保存/加载/运行）、多 LLM 提供商支持、用户确认请求/结果处理、SSO 认证、技能类型选择/AI 摘要/导入导出、**Vue → React 迁移**（05-29）+ 多模态开关、agentscope 子模块迁移 third_party（05-31）
+- **多智能体协作 UI**（05-31 ~ 06-04）：Agent 角色卡片、团队协作办公室场景、3D 科技大厦视图（Three.js）+ 办公室模式流程重构、城市地面系统重构、V4.9 协议文档
 - **赛博朋克视觉升级**（06-05 ~ 06-09）：电影级城市场景、建筑群全栈逼真升级、空中交通与天气效果 Phase2、科技塔 day/night 模式切换
-- **前端协作功能群**（07-01 ~ 07-05）：session 状态持久化（断开自动保存 + 恢复 API）、投票决策系统（proposal/vote/vote_result）、人工审批系统（human_approval_request/response）、检查点系统（checkpoint_save/restore）、审计日志（audit_log WS）、并发任务执行 + Prometheus 指标端点；核心模块测试冲刺（81 测试）
+- **前端协作功能群**（07-01 ~ 07-05）：session 状态持久化（断开自动保存 + 恢复 API）、投票决策系统（proposal/vote/vote_result）、人工审批系统（human_approval_request/response）、检查点系统（checkpoint_save/restore）、审计日志（audit_log WS）、关键阻塞系统 critical_blocker、工作流引擎 REST API 8 端点、历史回放 + 技能市场 UI、自定义角色模板 UI、智能体权重调整 UI、多轮迭代可配置、LLM 缓存与错误恢复、并发任务执行 + Prometheus 指标端点；核心模块测试冲刺（81 测试）
+- **TS-Python 智能体桥接**（07-03）：前端 TS 智能体 ↔ 后端 Python AgentScope 智能体消息路由（bridge_register_agent / bridge_message + 双向 ID 映射）
 
 ### 多智能体协作系统
 
@@ -87,11 +88,12 @@
 - CEO 智能会议组织者 + 自动任务指派（06-02）
 - 技能进化系统 + 技能进化工作台 + 动态路由系统（06-03）
 - 意图识别与动态路由：ComplexityClassifier（两层判定）+ DynamicRouter（四维加权）+ SemanticAnalyzer
+- WhyBuddy 技能包与工具链（06-08）
 - 自适应协作链路、串行流程重构（06-10）
 
 ### 工具与执行系统
 
-- **工具/工作区基建**（06-12）：ToolRegistry（安全检查）+ ToolExecutor（bash/file/git）+ WorkspaceManager（git worktree 隔离）+ GitIntegration（PR 创建）+ WorkspacePanel + 工作区/工具调用消息处理 + MeetingCoordinator 工具执行支持
+- **工具/工作区基建**（06-12）：ToolRegistry（安全检查）+ ToolExecutor（bash/file/git）+ WorkspaceManager（git worktree 隔离）+ GitIntegration（PR 创建）+ WorkspacePanel + 工作区/工具调用消息处理 + MeetingCoordinator 工具执行支持 + CeoAgent 工作区创建集成 + agenda 管理与 CEO assistant
 - 中期功能（06-13 ~ 06-29）：角色配置系统、角色选择/多部门配置、AI 技能生成、任务管理、executor 认证
 - **TS-Python 工具对齐**（08-11）：LocalToolkitRouter 5→18 工具与 Python ToolExecutor 完全对齐 + 知识/规则注入 system prompt
 - **上下文传递优化**（08-11）：ExecutionSummary 结构化摘要替代 substring 截断；讨论反对意见转"避免：xxx"约束注入
@@ -99,7 +101,7 @@
 
 ### TS 编排层与路由
 
-- **TS 统一编排层**（07-06）：TypeScript=编排层（CEO+Team+Skills），Python=纯执行层；team/assembler/skill loader/toolkit router（local/remote）
+- **TS 统一编排层**（07-06）：TypeScript=编排层（CEO+Team+Skills），Python=纯执行层；team/assembler/skill loader/toolkit router（local/remote）；08-11 后端 Python 模块本地化 TS 迁移启动
 - **Per-Agent Routing**（07-06）：TeamMember 独立 location(local/remote) + RouterFactory 按成员位置路由 + CeoChatPanel 💻/☁️ 切换（role_locations 全链路透传）
 - RemoteToolkitRouter 指数退避重试（4xx 不重试/5xx+network 重试）
 - **Per-Role Agent**（07-13）：RoleAgent 封装独立 messages/systemPrompt/tools/router；buildSystemPrompt 三段式；TeamCoordinator 上帝对象 → 编排 RoleAgent[]；ElectronRoleAgent 内联
