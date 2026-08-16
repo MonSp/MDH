@@ -4,6 +4,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Backend Tests](https://img.shields.io/badge/backend-1142%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1657%20passed-brightgreen)]()
+[![Test Coverage](https://img.shields.io/badge/test%20coverage-84%25-brightgreen)]()
 
 **中文** | [English](README.en.md)
 
