@@ -4,6 +4,8 @@
 [![Backend Tests](https://img.shields.io/badge/backend-1142%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1657%20passed-brightgreen)]()
 
+**中文** | [English](README.en.md)
+
 基于 React + Python FastAPI + AgentScope 的全领域智能体协作系统。多个 AI 智能体在虚拟办公室中协作，完成从需求分析到代码交付的完整流程。
 
 ## 核心能力
