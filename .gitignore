@@ -86,3 +86,6 @@ mock-sso/
 
 # Compose specs and plans
 docs/compose/
+
+# Protocol docs
+protocol/
