@@ -219,10 +219,11 @@ class MeetingCoordinator:
         last_text = ""
 
         from code_extractor import extract_code_blocks
+        from llm_guard import safe_llm_reply
 
         for _ in range(max_tool_rounds + 1):
             try:
-                response = await model.reply(conversation)
+                response = await safe_llm_reply(model, conversation, timeout=120)
             except Exception:
                 if on_model_error:
                     try:

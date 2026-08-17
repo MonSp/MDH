@@ -17,6 +17,7 @@ from agent import _extract_text
 from collaboration.planner_agent import PlannerAgent, SubTask
 from collaboration.critic_agent import CriticAgent, CriticResult
 from collaboration.grounding_agent import GroundingAgent, GroundingResult
+from llm_guard import safe_llm_reply
 from protocol import AgentRole, MeetingAgentStatus, LLM_FALLBACK_TEMPLATE
 
 logger = logging.getLogger("review_pipeline")
@@ -240,7 +241,7 @@ class ReviewPipeline:
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
         try:
-            response = await model.reply(msg)
+            response = await safe_llm_reply(model, msg, timeout=90)
             feedback = _extract_text(response)
         except Exception as e:
             logger.warning("Reviewer LLM调用失败: %s", e)
@@ -282,7 +283,7 @@ class ReviewPipeline:
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
         try:
-            response = await model.reply(msg)
+            response = await safe_llm_reply(model, msg, timeout=90)
             feedback = _extract_text(response)
         except Exception as e:
             logger.warning("Monitor LLM调用失败: %s", e)
@@ -318,7 +319,7 @@ class ReviewPipeline:
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
         try:
-            response = await model.reply(msg)
+            response = await safe_llm_reply(model, msg, timeout=90)
             summary = _extract_text(response)
         except Exception as e:
             logger.warning("Coordinator LLM调用失败: %s", e)
