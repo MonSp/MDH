@@ -97,6 +97,7 @@ class MeetingCoordinator:
         approval_manager: Optional[ApprovalManager] = None,
         approval_timeout: float = 300.0,
         asset_context_builder: Optional[Callable[[str, str, list | None], str]] = None,
+        consensus_strategy: ConsensusStrategy = ConsensusStrategy.SIMPLE_MAJORITY,
     ):
         self._max_iterations = max_iterations
         self._approval_manager = approval_manager
@@ -131,7 +132,7 @@ class MeetingCoordinator:
         self._current_on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
         self.logger = logging.getLogger("meeting_coordinator")
         self.agenda = AgendaStateMachine()
-        self.negotiation = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
+        self.negotiation = NegotiationEngine(consensus_strategy)
 
         # DynamicRouter 初始化
         routing_table_path = os.path.join(data_dir, "routing_table.json")
@@ -1333,7 +1334,7 @@ class MeetingCoordinator:
             await on_message(agent.id, f"[投票] {'赞成' if vote_approve else '反对'} - {vote_reason}", "")
 
         # 评估共识
-        vote_result = self.negotiation.evaluate_consensus(proposal.id)
+        vote_result = self.negotiation.evaluate_consensus(proposal.id, strategy=self.negotiation._default_strategy)
         consensus_text = f"项目经理：投票结果 — {'通过' if vote_result.accepted else '未通过'} ({vote_result.approve_count}/{vote_result.total_votes})"
         await self._msg(coordinator_id, consensus_text)
         self.meeting.add_message("agent", consensus_text, coordinator_id)
@@ -1355,46 +1356,64 @@ class MeetingCoordinator:
             analysis.reason,
         )
 
-        # ── 执行审批阶段 ──
-        # 检测是否为高风险任务（涉及文件修改、bash命令等）
-        risk_keywords = ['rm -rf', 'chmod', 'drop table', 'delete', 'remove all', 'format']
-        is_high_risk = any(kw in enhanced_description.lower() for kw in risk_keywords)
-        risk_level = 'high' if is_high_risk else 'medium'
+        # ── 执行审批阶段（HITL 分级自动化）──
+        from approval_manager import classify_approval_tier, risk_classify
 
-        coordinator_approve_text = f"项目经理：提交任务执行审批（风险等级: {risk_level}）。"
-        await self._msg(coordinator_id, coordinator_approve_text)
-        self.meeting.add_message("agent", coordinator_approve_text, coordinator_id)
+        tier = classify_approval_tier("task_execution", enhanced_description[:200])
 
-        # 创建审批请求并真阻塞等待（超时按配置默认通过，防单用户场景阻塞）
-        if self._approval_manager:
-            from protocol import RiskLevel
-
-            risk_map = {
-                "low": RiskLevel.LOW,
-                "medium": RiskLevel.MEDIUM,
-                "high": RiskLevel.HIGH,
-                "critical": RiskLevel.CRITICAL,
-            }
-            approval = await self._approval_manager.request_approval(
-                requester_id=target_agent_id,
-                operation="task_execution",
-                description=enhanced_description[:200],
-                risk_level=risk_map.get(risk_level, RiskLevel.MEDIUM),
-                confidence=0.8,
-                send_fn=_build_approval_send_fn(on_message),
-            )
-            try:
-                decision = await self._approval_manager.wait_for_decision(
-                    approval.id, timeout=self._approval_timeout
-                )
-                approved = bool(decision.get("approved", True))
-                reason = decision.get("reason", "")
-            except asyncio.TimeoutError:
-                approved = True
-                reason = "审批超时，默认通过"
-        else:
+        if tier == "auto_approve":
             approved = True
-            reason = "未配置审批管理器，自动通过"
+            reason = "只读操作，自动通过"
+            coordinator_approve_text = f"项目经理：任务审批自动通过（白名单操作）。"
+            await self._msg(coordinator_id, coordinator_approve_text)
+            self.meeting.add_message("agent", coordinator_approve_text, coordinator_id)
+        elif tier == "classifier":
+            classifier_result = risk_classify("task_execution", enhanced_description[:200])
+            approved = classifier_result["approved"]
+            reason = classifier_result["reason"]
+            coordinator_approve_text = f"项目经理：风险分类器判定 — {reason}（风险分: {classifier_result['risk_score']:.2f}）。"
+            await self._msg(coordinator_id, coordinator_approve_text)
+            self.meeting.add_message("agent", coordinator_approve_text, coordinator_id)
+        else:
+            # tier == "human" — 需要人工审批
+            risk_keywords = ['rm -rf', 'chmod', 'drop table', 'delete', 'remove all', 'format']
+            is_high_risk = any(kw in enhanced_description.lower() for kw in risk_keywords)
+            risk_level = 'high' if is_high_risk else 'medium'
+
+            coordinator_approve_text = f"项目经理：提交任务执行审批（风险等级: {risk_level}）。"
+            await self._msg(coordinator_id, coordinator_approve_text)
+            self.meeting.add_message("agent", coordinator_approve_text, coordinator_id)
+
+            # 创建审批请求并真阻塞等待
+            if self._approval_manager:
+                from protocol import RiskLevel
+
+                risk_map = {
+                    "low": RiskLevel.LOW,
+                    "medium": RiskLevel.MEDIUM,
+                    "high": RiskLevel.HIGH,
+                    "critical": RiskLevel.CRITICAL,
+                }
+                approval = await self._approval_manager.request_approval(
+                    requester_id=target_agent_id,
+                    operation="task_execution",
+                    description=enhanced_description[:200],
+                    risk_level=risk_map.get(risk_level, RiskLevel.MEDIUM),
+                    confidence=0.8,
+                    send_fn=_build_approval_send_fn(on_message),
+                )
+                try:
+                    decision = await self._approval_manager.wait_for_decision(
+                        approval.id, timeout=self._approval_timeout
+                    )
+                    approved = bool(decision.get("approved", True))
+                    reason = decision.get("reason", "")
+                except asyncio.TimeoutError:
+                    approved = True
+                    reason = "审批超时，默认通过"
+            else:
+                approved = True
+                reason = "未配置审批管理器，自动通过"
 
         approve_msg = _build_task_approval_message(approved, reason)
         await self._msg(coordinator_id, approve_msg)

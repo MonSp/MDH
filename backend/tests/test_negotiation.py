@@ -194,3 +194,31 @@ def test_confidence_clamped(engine):
     assert arg.confidence == 1.0
     arg2 = engine.add_argument(p.id, "agent-b", Stance.SUPPORT, -0.5, "y")
     assert arg2.confidence == 0.0
+
+
+def test_set_default_strategy(engine):
+    assert engine._default_strategy == ConsensusStrategy.SIMPLE_MAJORITY
+    engine.set_default_strategy(ConsensusStrategy.WEIGHTED_VOTE)
+    assert engine._default_strategy == ConsensusStrategy.WEIGHTED_VOTE
+
+
+def test_evaluate_consensus_uses_engine_default_strategy(engine):
+    """evaluate_consensus without explicit strategy uses engine's default."""
+    p = engine.create_proposal("coordinator", "方案")
+    engine.cast_vote(p.id, "agent-a", True, weight=1.0)
+    engine.cast_vote(p.id, "agent-b", False, weight=2.0)
+
+    # Default SIMPLE_MAJORITY: 1 approve vs 1 oppose → tie → rejected
+    result = engine.evaluate_consensus(p.id)
+    assert result.strategy == ConsensusStrategy.SIMPLE_MAJORITY
+    assert not result.accepted
+
+    # Change default to WEIGHTED_VOTE: approve 1.0 < oppose 2.0 → rejected
+    engine.set_default_strategy(ConsensusStrategy.WEIGHTED_VOTE)
+    result2 = engine.evaluate_consensus(p.id)
+    assert result2.strategy == ConsensusStrategy.WEIGHTED_VOTE
+    assert not result2.accepted
+
+    # Override with explicit strategy
+    result3 = engine.evaluate_consensus(p.id, strategy=ConsensusStrategy.SIMPLE_MAJORITY)
+    assert result3.strategy == ConsensusStrategy.SIMPLE_MAJORITY

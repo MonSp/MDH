@@ -28,6 +28,7 @@ from experience_extractor import ExperienceExtractor
 from skill_packager import SkillPackager
 from dynamic_router import DynamicRouter, RouteEntry
 from complexity_classifier import ComplexityClassifier
+from negotiation import ConsensusStrategy
 from simple_executor import SimpleExecutor
 from ceo_agent import CeoAgent
 from agent_pool import AgentPool
@@ -1303,6 +1304,7 @@ async def ws_handler(ws: WebSocket):
                     max_iterations=msg.get("max_iterations", 3),
                     workflow_engine=workflow_engine,
                     approval_manager=session._approval_manager,
+                    consensus_strategy=ConsensusStrategy(msg.get("consensus_strategy", "simple_majority")),
                 )
                 session._meeting_coordinator = coordinator
 
