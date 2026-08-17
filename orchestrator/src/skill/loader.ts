@@ -97,15 +97,98 @@ async function dirExists(path: string): Promise<boolean> {
   }
 }
 
-async function loadOnePack(dirPath: string): Promise<SkillPack | null> {
-  const manifestPath = join(dirPath, 'manifest.yaml');
-  let raw: string;
+async function fileExists(path: string): Promise<boolean> {
   try {
-    raw = await readFile(manifestPath, 'utf-8');
+    return (await stat(path)).isFile();
   } catch {
-    return null;
+    return false;
+  }
+}
+
+/**
+ * 解析 SKILL.md 的 YAML frontmatter + 正文
+ */
+function parseSkillMd(content: string): { meta: Record<string, unknown>; body: string } {
+  const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/);
+  if (match) {
+    return {
+      meta: parseYaml(match[1]),
+      body: match[2].trim(),
+    };
+  }
+  return { meta: {}, body: content.trim() };
+}
+
+/**
+ * 加载单个技能包。
+ *
+ * 优先读取 SKILL.md（Agent Skills 标准格式），
+ * 回退到 manifest.yaml + system_prompt.md（legacy 格式）。
+ */
+async function loadOnePack(dirPath: string): Promise<SkillPack | null> {
+  const skillMdPath = join(dirPath, 'SKILL.md');
+  const manifestPath = join(dirPath, 'manifest.yaml');
+
+  // 优先尝试 SKILL.md 格式
+  if (await fileExists(skillMdPath)) {
+    return loadFromSkillMd(dirPath, skillMdPath);
   }
 
+  // 回退到 legacy 格式
+  if (await fileExists(manifestPath)) {
+    return loadFromManifest(dirPath, manifestPath);
+  }
+
+  return null;
+}
+
+/**
+ * 从 SKILL.md 格式加载（Agent Skills 标准）
+ */
+async function loadFromSkillMd(dirPath: string, skillMdPath: string): Promise<SkillPack> {
+  const content = await readFile(skillMdPath, 'utf-8');
+  const { meta, body } = parseSkillMd(content);
+
+  const name = String(meta.name ?? '');
+  const id = name;
+
+  // SKILL.md body 就是指令（替代 system_prompt.md）
+  const systemPrompt = body;
+
+  // references/ 目录（替代 knowledge/）
+  const referencesDir = (await dirExists(join(dirPath, 'references')))
+    ? join(dirPath, 'references')
+    : undefined;
+
+  // scripts/ 目录
+  const scriptsDir = (await dirExists(join(dirPath, 'scripts')))
+    ? join(dirPath, 'scripts')
+    : undefined;
+
+  // rules/ 目录（CoW 增量区）
+  const rulesDir = (await dirExists(join(dirPath, 'rules')))
+    ? join(dirPath, 'rules')
+    : undefined;
+
+  return {
+    id,
+    name,
+    version: String(meta.version ?? '0.0.0'),
+    description: String(meta.description ?? ''),
+    category: String(meta.category ?? ''),
+    requiredTools: Array.isArray(meta.required_tools) ? meta.required_tools.map(String) : [],
+    systemPrompt,
+    knowledgeDir: referencesDir,  // 映射到 knowledgeDir 保持兼容
+    rulesDir,
+    _skillMdFormat: true,  // 标记为新格式
+  } as SkillPack & { _skillMdFormat: boolean };
+}
+
+/**
+ * 从 legacy manifest.yaml 格式加载
+ */
+async function loadFromManifest(dirPath: string, manifestPath: string): Promise<SkillPack> {
+  const raw = await readFile(manifestPath, 'utf-8');
   const m = parseYaml(raw);
   const name = String(m.name ?? '');
   const id = name;
@@ -134,7 +217,8 @@ async function loadOnePack(dirPath: string): Promise<SkillPack | null> {
     systemPrompt,
     knowledgeDir,
     rulesDir,
-  };
+    _skillMdFormat: false,
+  } as SkillPack & { _skillMdFormat: boolean };
 }
 
 export async function loadSkillPacks(dir: string): Promise<Map<string, SkillPack>> {
