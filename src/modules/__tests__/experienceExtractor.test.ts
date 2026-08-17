@@ -34,7 +34,7 @@ describe('experienceExtractor', () => {
 
       const result = await getAllRules()
 
-      expect(fetchSpy).toHaveBeenCalledWith('/api/experience/rules')
+      expect(fetchSpy).toHaveBeenCalledWith('/api/experience/rules', undefined)
       expect(result).toEqual([mockRule])
     })
 
@@ -55,7 +55,7 @@ describe('experienceExtractor', () => {
 
       const result = await getPendingRules()
 
-      expect(fetchSpy).toHaveBeenCalledWith('/api/experience/rules/pending')
+      expect(fetchSpy).toHaveBeenCalledWith('/api/experience/rules/pending', undefined)
       expect(result).toEqual([mockRule])
     })
 

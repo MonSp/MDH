@@ -34,7 +34,7 @@ describe('dynamicRouter', () => {
 
       const result = await getRouteTable()
 
-      expect(fetchSpy).toHaveBeenCalledWith('/api/router/table')
+      expect(fetchSpy).toHaveBeenCalledWith('/api/router/table', undefined)
       expect(result).toEqual([mockRoute])
     })
 
