@@ -3040,6 +3040,65 @@ async def marketplace_list_exports():
     return {"success": True, "exports": exporter.list_exports()}
 
 
+# ── MCP 配置管理 API ──
+
+from mcp_config import MCPConfigManager, MCPServerEntry
+
+_mcp_config = MCPConfigManager(os.path.join(os.path.dirname(__file__), "data", "mcp_servers.json"))
+
+
+@app.get("/api/mcp/servers")
+async def mcp_list_servers():
+    """列出所有 MCP 服务器配置"""
+    servers = _mcp_config.list_servers()
+    return {"success": True, "servers": [s.to_dict() for s in servers]}
+
+
+@app.post("/api/mcp/servers")
+async def mcp_add_server(request: Request):
+    """添加 MCP 服务器配置"""
+    body = await request.json()
+    try:
+        entry = MCPServerEntry(
+            name=body.get("name", ""),
+            transport=body.get("transport", "stdio"),
+            command=body.get("command", ""),
+            args=body.get("args", []),
+            url=body.get("url", ""),
+            env=body.get("env", {}),
+            enabled=body.get("enabled", True),
+        )
+        result = _mcp_config.add_server(entry)
+        return {"success": True, "server": result.to_dict()}
+    except ValueError as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.put("/api/mcp/servers/{name}")
+async def mcp_update_server(name: str, request: Request):
+    """更新 MCP 服务器配置"""
+    body = await request.json()
+    result = _mcp_config.update_server(name, body)
+    if result:
+        return {"success": True, "server": result.to_dict()}
+    return {"success": False, "error": "服务器不存在"}
+
+
+@app.delete("/api/mcp/servers/{name}")
+async def mcp_delete_server(name: str):
+    """删除 MCP 服务器配置"""
+    if _mcp_config.delete_server(name):
+        return {"success": True}
+    return {"success": False, "error": "服务器不存在"}
+
+
+@app.post("/api/mcp/servers/{name}/test")
+async def mcp_test_connection(name: str):
+    """测试 MCP 服务器连接"""
+    result = await _mcp_config.test_connection(name)
+    return result
+
+
 if __name__ == "__main__":
     import uvicorn
     logging.basicConfig(
