@@ -5,6 +5,7 @@ MDH MCP Server — 将 MDH 内置工具暴露为 MCP 服务器
 
 Phase 1: 低级工具（文件/Git/搜索）— 8 个
 Phase 2: 高级业务工具（工作流/技能/经验/资产）— 复用 REST API 逻辑
+Phase 3: 资源暴露（files + prompts）+ 工具描述安全
 
 使用方式：
     # 作为模块运行
@@ -19,10 +20,69 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("mcp_server")
+
+# ── Phase 3 T3.3: 工具描述安全 ──
+
+# 敏感关键词列表（防止工具描述注入）
+_SENSITIVE_PATTERNS = [
+    r'ignore\s+previous\s+instructions',
+    r'system\s*prompt',
+    r'you\s+are\s+now',
+    r'act\s+as\s+if',
+    r'forget\s+your',
+    r'disregard\s+',
+    r'override\s+',
+    r'jailbreak',
+    r'developer\s+mode',
+    r'DAN\s+mode',
+]
+
+# 工具描述最大长度
+_MAX_DESCRIPTION_LENGTH = 500
+
+def _sanitize_description(description: str) -> str:
+    """清理工具描述，防止注入攻击
+
+    规则：
+    1. 截断超长描述
+    2. 移除可疑的 prompt injection 模式
+    3. 移除控制字符
+    """
+    if not description:
+        return ""
+
+    # 截断超长描述
+    if len(description) > _MAX_DESCRIPTION_LENGTH:
+        description = description[:_MAX_DESCRIPTION_LENGTH] + "..."
+
+    # 移除控制字符（保留换行和制表符）
+    description = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', description)
+
+    # 检测并移除可疑的注入模式
+    for pattern in _SENSITIVE_PATTERNS:
+        if re.search(pattern, description, re.IGNORECASE):
+            logger.warning("检测到可疑工具描述，已清理: %s", description[:100])
+            description = re.sub(pattern, '[REDACTED]', description, flags=re.IGNORECASE)
+
+    return description.strip()
+
+
+def _read_file_safe(path: str, max_size: int = 100_000) -> str:
+    """安全读取文件（限制大小）"""
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            content = f.read(max_size)
+        if len(content) == max_size:
+            content += "\n... [truncated]"
+        return content
+    except Exception as e:
+        return f"Error reading file: {e}"
+
 
 # REST API 内部代理（复用 FastAPI 端点逻辑）
 _rest_client = None
@@ -424,6 +484,10 @@ class MDHMCPServer:
                 result = await self._handle_list_tools(params)
             elif method == "tools/call":
                 result = await self._handle_call_tool(params)
+            elif method == "resources/list":
+                result = await self._handle_list_resources(params)
+            elif method == "resources/read":
+                result = await self._handle_read_resource(params)
             elif method == "notifications/initialized":
                 return None  # 通知，无需响应
             else:
@@ -439,20 +503,21 @@ class MDHMCPServer:
             "protocolVersion": "2024-11-05",
             "capabilities": {
                 "tools": {"listChanged": False},
+                "resources": {"listChanged": False},
             },
             "serverInfo": {
                 "name": "mdh-tools",
-                "version": "1.0.0",
+                "version": "1.1.0",
             },
         }
 
     async def _handle_list_tools(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """处理工具列表请求"""
+        """处理工具列表请求（含安全过滤）"""
         tools = []
         for name, tool in self._tools.items():
             tools.append({
                 "name": name,
-                "description": tool["description"],
+                "description": _sanitize_description(tool["description"]),
                 "inputSchema": tool["inputSchema"],
             })
         return {"tools": tools}
@@ -471,6 +536,96 @@ class MDHMCPServer:
             return {"content": [{"type": "text", "text": str(result)}]}
         except Exception as e:
             return {"content": [{"type": "text", "text": f"Error: {e}"}], "isError": True}
+
+    # ── Phase 3 T3.1: 资源暴露 ──
+
+    async def _handle_list_resources(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """列出可用资源（文件 + prompt）"""
+        resources = []
+
+        # 暴露工作区中的关键文件
+        import os
+        workspace = self._workspace
+        for name in ["AGENTS.md", "README.md", "CHANGELOG.md", "PROGRESS.md"]:
+            path = os.path.join(workspace, name)
+            if os.path.exists(path):
+                resources.append({
+                    "uri": f"file:///{name}",
+                    "name": name,
+                    "description": f"项目文档: {name}",
+                    "mimeType": "text/markdown",
+                })
+
+        # 暴露 skill_packs 目录
+        skill_dir = os.path.join(workspace, "skill_packs")
+        if os.path.isdir(skill_dir):
+            for entry in sorted(os.listdir(skill_dir))[:10]:  # 限制数量
+                skill_md = os.path.join(skill_dir, entry, "SKILL.md")
+                if os.path.exists(skill_md):
+                    resources.append({
+                        "uri": f"skill:///{entry}",
+                        "name": f"skill:{entry}",
+                        "description": f"技能包: {entry}",
+                        "mimeType": "text/markdown",
+                    })
+
+        # 暴露 prompt 模板
+        resources.append({
+            "uri": "prompt://system/default",
+            "name": "system_prompt",
+            "description": "默认系统提示词",
+            "mimeType": "text/plain",
+        })
+
+        return {"resources": resources}
+
+    async def _handle_read_resource(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """读取资源内容"""
+        uri = params.get("uri", "")
+
+        if uri.startswith("file:///"):
+            # 读取文件资源
+            filename = uri[len("file:///"):]
+            import os
+            path = os.path.join(self._workspace, filename)
+            if os.path.exists(path):
+                content = _read_file_safe(path)
+                return {
+                    "contents": [{
+                        "uri": uri,
+                        "mimeType": "text/markdown",
+                        "text": content,
+                    }]
+                }
+            return {"contents": [{"uri": uri, "text": f"File not found: {filename}"}]}
+
+        elif uri.startswith("skill:///"):
+            # 读取技能包
+            skill_name = uri[len("skill:///"):]
+            import os
+            skill_md = os.path.join(self._workspace, "skill_packs", skill_name, "SKILL.md")
+            if os.path.exists(skill_md):
+                content = _read_file_safe(skill_md)
+                return {
+                    "contents": [{
+                        "uri": uri,
+                        "mimeType": "text/markdown",
+                        "text": content,
+                    }]
+                }
+            return {"contents": [{"uri": uri, "text": f"Skill not found: {skill_name}"}]}
+
+        elif uri.startswith("prompt://"):
+            # 返回 prompt 模板
+            return {
+                "contents": [{
+                    "uri": uri,
+                    "mimeType": "text/plain",
+                    "text": "You are a helpful AI assistant for the MDH multi-agent system.",
+                }]
+            }
+
+        return {"contents": [{"uri": uri, "text": f"Unknown resource: {uri}"}]}
 
     # ── 工具实现 ──
 
