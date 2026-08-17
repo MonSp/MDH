@@ -13,6 +13,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from agentscope.agent import Agent
 from agentscope.message import Msg
+from llm_guard import safe_llm_reply
 
 from agent import _extract_text
 from agent_toolset import AgentToolset
@@ -69,7 +70,7 @@ class TaskOrchestrator:
             f"请只返回JSON数组，不要其他内容。"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        response = await planner.reply(msg)
+        response = await safe_llm_reply(planner, msg, timeout=60)
         text = _extract_text(response)
         
         try:
@@ -242,7 +243,7 @@ class TaskOrchestrator:
 
                 # ── 阶段B: 文件创建循环 ──
                 for tool_round in range(max_tool_rounds + 1):
-                    response = await model.reply(conversation)
+                    response = await safe_llm_reply(model, conversation, timeout=120)
                     last_text = _extract_text(response)
 
                     files_this_round = []
@@ -413,7 +414,7 @@ class TaskOrchestrator:
             msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
 
             try:
-                response = await model.reply(msg)
+                response = await safe_llm_reply(model, msg, timeout=120)
                 last_text = _extract_text(response)
                 self._meeting.update_task_status(task.id, "completed")
                 return {

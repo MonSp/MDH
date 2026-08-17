@@ -12,6 +12,7 @@ from typing import Optional
 
 from agentscope.agent import Agent
 from agentscope.message import Msg
+from llm_guard import safe_llm_reply
 
 from agent import _extract_text
 from dynamic_router import DynamicRouter, RoutingDecision
@@ -115,7 +116,7 @@ class SemanticAnalyzer:
         
         # 尝试调用LLM，如果失败则使用回退策略
         try:
-            response = await ceo_model.reply(msg)
+            response = await safe_llm_reply(ceo_model, msg, timeout=60)
             text = _extract_text(response)
             
             json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
