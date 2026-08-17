@@ -1,0 +1,8 @@
+name: brand_voice
+version: "1.0.0"
+description: 品牌语调，内容风格，沟通规范
+category: brand
+methodology: 品牌声音四象限 — 正式/随意 × 热情/理性
+required_tools:
+  - read_file
+  - write_file

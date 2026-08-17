@@ -1,0 +1,9 @@
+name: api_design
+version: "1.0.0"
+description: RESTful API设计，接口规范，版本管理
+category: dev
+methodology: 契约优先设计 — 先定义OpenAPI规范，再实现接口
+required_tools:
+  - read_file
+  - write_file
+  - edit_file

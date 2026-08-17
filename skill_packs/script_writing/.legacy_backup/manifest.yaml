@@ -1,0 +1,8 @@
+name: script_writing
+version: "1.0.0"
+description: 剧本结构，角色设计，对白写作
+category: content
+methodology: 三幕结构 — 设置（25%）→对抗（50%）→解决（25%）
+required_tools:
+  - read_file
+  - write_file

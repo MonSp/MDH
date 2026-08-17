@@ -1,0 +1,9 @@
+name: database
+version: "1.0.0"
+description: 数据库设计，SQL优化，数据迁移，索引策略
+category: dev
+methodology: Schema优先设计 — 先设计数据模型，再实现业务逻辑
+required_tools:
+  - read_file
+  - write_file
+  - bash

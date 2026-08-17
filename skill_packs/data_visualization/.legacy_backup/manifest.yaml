@@ -1,0 +1,8 @@
+name: data_visualization
+version: "1.0.0"
+description: 图表设计，仪表盘构建，数据故事讲述
+category: data
+methodology: 数据墨水比 — 最大化数据信息量，最小化装饰元素
+required_tools:
+  - read_file
+  - write_file

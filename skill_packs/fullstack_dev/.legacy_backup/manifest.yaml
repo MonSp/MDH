@@ -1,0 +1,10 @@
+name: fullstack_dev
+version: "1.0.0"
+description: 前后端一体化开发，端到端功能实现
+category: dev
+methodology: 垂直切片开发 — 按功能模块纵向切割，一次完成前后端全链路
+required_tools:
+  - read_file
+  - write_file
+  - edit_file
+  - bash

@@ -1,0 +1,8 @@
+name: usability_testing
+version: "1.0.0"
+description: 用户界面测试，交互流程验证，无障碍测试
+category: testing
+methodology: 任务完成率测试 — 定义关键任务，测量完成率和耗时
+required_tools:
+  - read_file
+  - bash

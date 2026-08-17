@@ -1,0 +1,8 @@
+name: sales_qualification
+version: "1.0.0"
+description: 线索评估，商机评分，阶段管理
+category: sales
+methodology: BANT框架 — 预算、权限、需求、时间线
+required_tools:
+  - read_file
+  - write_file

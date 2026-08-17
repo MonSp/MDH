@@ -1,0 +1,9 @@
+name: monitoring
+version: "1.0.0"
+description: APM监控，日志分析，告警策略，SLA管理
+category: ops
+methodology: 四个黄金信号 — 延迟、流量、错误率、饱和度
+required_tools:
+  - read_file
+  - write_file
+  - bash
