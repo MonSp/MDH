@@ -559,6 +559,77 @@ class ExperienceExtractor:
         scored.sort(key=lambda x: x[0], reverse=True)
         return [rule for _, rule in scored]
 
+    def retrieve_with_shared(
+        self,
+        task_type: str,
+        keywords: List[str],
+        team_id: str = "",
+        shared_pool_dir: str = "",
+        limit: int = 10,
+    ) -> List[Dict]:
+        """跨项目经验检索：本地规则 + 共享池规则联合搜索。
+
+        Args:
+            task_type: 任务类型
+            keywords: 搜索关键词
+            team_id: 团队 ID（本地规则过滤用）
+            shared_pool_dir: 共享池目录路径（空则不搜索共享池）
+            limit: 返回数量限制
+
+        Returns:
+            按相关度排序的规则列表（dict 格式，含 source 字段标识来源）
+        """
+        query_keywords = set(k.lower() for k in keywords)
+        if task_type:
+            query_keywords.add(task_type.lower())
+
+        results = []
+
+        # 1. 搜索本地规则
+        local_rules = self.retrieve_relevant_rules(task_type, keywords, team_id)
+        for rule in local_rules[:limit]:
+            rule_keywords = set(k.lower() for k in rule.keywords)
+            overlap = len(rule_keywords & query_keywords)
+            if rule.source_task_type.lower() == task_type.lower():
+                overlap += 2
+            results.append({
+                "score": overlap,
+                "source": "local",
+                "trigger_condition": rule.trigger_condition,
+                "action": rule.action,
+                "note": rule.note,
+                "keywords": rule.keywords,
+                "rule_type": rule.rule_type,
+            })
+
+        # 2. 搜索共享池
+        if shared_pool_dir:
+            try:
+                from shared_experience_pool import SharedExperiencePool
+                pool = SharedExperiencePool(shared_pool_dir)
+                shared_rules = pool.search(task_type=task_type, keywords=list(keywords), limit=limit)
+                for rule in shared_rules:
+                    rule_keywords = set(k.lower() for k in rule.keywords)
+                    overlap = len(rule_keywords & query_keywords)
+                    if task_type and rule.rule_type.lower() == task_type.lower():
+                        overlap += 2
+                    results.append({
+                        "score": overlap,
+                        "source": f"shared:{rule.source_project}",
+                        "trigger_condition": rule.trigger_condition,
+                        "action": rule.action,
+                        "note": rule.note,
+                        "keywords": rule.keywords,
+                        "rule_type": rule.rule_type,
+                        "usage_count": rule.usage_count,
+                    })
+            except Exception as e:
+                logger.debug("共享池搜索跳过: %s", e)
+
+        # 3. 按分数排序，去重
+        results.sort(key=lambda x: -x["score"])
+        return results[:limit]
+
     def migrate_rules_team_id(self, team_id: str, rule_ids: Optional[List[str]] = None) -> int:
         """存量规则 team_id 回填（规则级团队隔离迁移）。
 
