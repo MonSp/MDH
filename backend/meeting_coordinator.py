@@ -972,7 +972,7 @@ class MeetingCoordinator:
     # _exec_run_linter 在 python -m pylint 缺模块时 error 为 "<python路径>: No module named pylint"）；
     # output 通道承载命令 stdout（真实检查失败、未收集到测试均出现在此处）。
     # 工具特定匹配使 conftest/插件导入错误（如 "ModuleNotFoundError: No module named foo"）
-    # 不再被误判为工具缺失 → fail-closed，暴露真实项目缺陷。
+    # 门禁信号常量（保留向后兼容，实际逻辑委托给 GateEngine）
     _GATE_ERROR_CHANNEL_SIGNALS = (
         "no module named pytest",
         "no module named pylint",
@@ -986,77 +986,19 @@ class MeetingCoordinator:
 
     @staticmethod
     def _gate_check_unavailable(error: str, output: str) -> bool:
-        """判断 lint/test 工具结果为工具缺失（基础设施不可用）
-
-        通道感知 + 工具特定：error 通道只匹配 pytest/pylint 的缺失文本
-        （未安装、spawn OSError），不做通用 "no module named / no such file"
-        匹配——conftest/插件导入错误（如 "ModuleNotFoundError: No module
-        named 'conftest_dep'"）不会被误判为工具缺失，保持 fail-closed；
-        无测试信号（未收集到测试）出现在 output 通道。真实检查失败（如 pytest
-        输出 "FileNotFoundError: No such file or directory: 'missing_data.csv'"）
-        位于 output 通道，不匹配 error 通道信号 → 不会被误判为工具缺失而
-        fail-open。返回 True 表示工具缺失/无测试（→ skipped）。
-        """
-        error_text = (error or "").strip().lower()
-        output_text = (output or "").strip().lower()
-        return (
-            any(sig in error_text for sig in MeetingCoordinator._GATE_ERROR_CHANNEL_SIGNALS)
-            or any(sig in output_text for sig in MeetingCoordinator._GATE_OUTPUT_CHANNEL_SIGNALS)
-        )
+        """委托给 GateEngine"""
+        from gate_engine import GateEngine
+        return GateEngine._check_unavailable(error, output)
 
     def _run_deterministic_gate(self, workspace_root: Optional[str] = None) -> Dict[str, Any]:
-        """确定性门禁：对工作区运行测试与代码检查，失败即 revision_required
-
-        门禁对工具缺失采用 fail-open（跳过并记录 skipped，不产生失败），
-        对真实检查失败（lint/test 确定性失败）采用 fail-closed（passed=False）。
+        """确定性门禁：委托给 GateEngine
 
         Returns:
             {"passed": bool, "failures": List, "skipped": List}
         """
-        result: Dict[str, Any] = {"passed": True, "failures": [], "skipped": []}
-        if not workspace_root:
-            return result
-        try:
-            from agent_toolset import create_agent_toolset
-            toolset = create_agent_toolset(
-                agent_id="gate", agent_role="reviewer", workspace_root=workspace_root
-            )
-            lint = toolset.run_linter(".")
-            if not lint.success:
-                if self._gate_check_unavailable(lint.error or "", lint.output or ""):
-                    # 基础设施不可用（如 pylint 未安装）→ fail-open：跳过并记录，不产生失败
-                    lint_detail = (lint.error or lint.output or "lint 工具不可用")[:200]
-                    result["skipped"].append({
-                        "type": "lint_skipped", "location": ".",
-                        "detail": lint_detail,
-                    })
-                    self.logger.info("确定性门禁跳过: %s", lint_detail)
-                else:
-                    result["passed"] = False
-                    result["failures"].append({
-                        "type": "lint_failure", "location": ".",
-                        "detail": (lint.error or lint.output or "lint 未通过")[:200],
-                    })
-            tests = toolset.run_tests(verbose=False)
-            if not tests.success:
-                if self._gate_check_unavailable(tests.error or "", tests.output or ""):
-                    # 基础设施不可用（如 pytest 未安装 / 未收集到测试）→ fail-open：跳过并记录
-                    test_detail = (tests.error or tests.output or "测试工具不可用")[:200]
-                    result["skipped"].append({
-                        "type": "test_skipped", "location": ".",
-                        "detail": test_detail,
-                    })
-                    self.logger.info("确定性门禁跳过: %s", test_detail)
-                else:
-                    result["passed"] = False
-                    result["failures"].append({
-                        "type": "test_failure", "location": ".",
-                        "detail": (tests.error or tests.output or "测试未通过")[:200],
-                    })
-        except Exception as e:
-            result["passed"] = False
-            result["failures"].append({"type": "gate_error", "location": ".", "detail": str(e)[:200]})
-        return result
+        from gate_engine import GateEngine
+        engine = GateEngine()
+        return engine.run_gate(workspace_root)
 
     async def semantic_analyze(self, user_message: str, team_id: str = "") -> SemanticAnalysisResult:
         """语义分析用户消息（委托给SemanticAnalyzer，带缓存）
