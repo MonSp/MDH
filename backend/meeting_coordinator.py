@@ -144,7 +144,10 @@ class MeetingCoordinator:
         routing_table_path = os.path.join(data_dir, "routing_table.json")
         self._ensure_default_routing_table(routing_table_path)
         self.router = DynamicRouter(routing_table_path)
-        self._task_routing: Dict[str, str] = {}  # task_id -> dept_id
+
+        # RoutingStatsManager：路由统计管理
+        from routing_stats_manager import RoutingStatsManager
+        self._routing_stats = RoutingStatsManager(self.router)
 
         # PlannerAgent 用于生成结构化验收反馈
         self.planner = PlannerAgent(name="coordinator_planner")
@@ -202,6 +205,15 @@ class MeetingCoordinator:
     def _model_pool_ids(self) -> Dict[str, str]:
         """模型池 ID 映射（委托给 ModelManager，保持向后兼容）"""
         return self._model_manager._model_pool_ids
+
+    @property
+    def _task_routing(self) -> Dict[str, str]:
+        """任务路由映射（委托给 RoutingStatsManager，保持向后兼容）"""
+        return self._routing_stats._task_routing
+
+    @_task_routing.setter
+    def _task_routing(self, value):
+        self._routing_stats._task_routing = value
 
     @property
     def last_routing_decision(self):
@@ -853,28 +865,12 @@ class MeetingCoordinator:
         return await self._task_orchestrator.execute(on_progress=self._on_message)
 
     def _update_routing_stats(self) -> None:
-        """统一更新路由统计：修复自适应学习断链（auto_assign_task 写入的 _task_routing 从未被消费）
-
-        消费即删：每条消息只统计一次，避免多消息会议重复计数。
-        """
-        for task_id in list(self._task_routing.keys()):
-            dept_id = self._task_routing[task_id]
-            task = next((t for t in self.meeting.tasks if getattr(t, "id", None) == task_id), None)
-            if task is None:
-                del self._task_routing[task_id]
-                continue
-            self.router.update_stats(dept_id, success=task.status == "completed")
-            del self._task_routing[task_id]
+        """委托给 RoutingStatsManager"""
+        self._routing_stats.update_stats(self.meeting.tasks)
 
     def _update_routing_stats_safe(self) -> None:
-        """路由统计安全包装：异常不中断后续流程（项目总结/技能进化）"""
-        try:
-            self._update_routing_stats()
-        except Exception as e:
-            self.logger.warning("更新路由统计失败: %s", e)
-        finally:
-            # 无论统计是否成功，都清理剩余跟踪条目，避免残留导致重复统计
-            self._task_routing.clear()
+        """委托给 RoutingStatsManager"""
+        self._routing_stats.update_stats_safe(self.meeting.tasks)
 
     def _finalize_skill_evolution(
         self,
@@ -1055,6 +1051,7 @@ class MeetingCoordinator:
         routing = self.last_routing_decision
         if routing and routing.selected_dept:
             self._task_routing[task.id] = routing.selected_dept
+            self._routing_stats.track_task(task.id, routing.selected_dept)
 
         ceo_id = self._find_agent_id(AgentRole.CEO)
         if ceo_id:
