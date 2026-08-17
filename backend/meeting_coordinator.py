@@ -123,10 +123,16 @@ class MeetingCoordinator:
             self._tool_registry = None
             self._tool_executor = None
             self._workspace = None
-        self._agent_pool = agent_pool
-        self._models: Dict[str, Agent] = {}
-        # role.value -> AgentPool 实例 id（用于模型失败时标记不健康，触发 failover 重取）
-        self._model_pool_ids: Dict[str, str] = {}
+
+        # ModelManager：模型生命周期管理
+        from model_manager import ModelManager
+        self._model_manager = ModelManager(
+            provider=provider,
+            api_key=api_key,
+            base_url=base_url or "",
+            model_name=model_name or "",
+            agent_pool=agent_pool,
+        )
         self._tasks: List[Dict[str, Any]] = []
         self._on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
         self._current_on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
@@ -177,6 +183,25 @@ class MeetingCoordinator:
         
         # 混合位置讨论引擎（支持本地/远端Agent并行讨论）
         self._mixed_discussion: Optional[MixedLocationDiscussion] = None
+
+    @property
+    def _agent_pool(self):
+        """Agent pool（委托给 ModelManager）"""
+        return self._model_manager._agent_pool
+
+    @_agent_pool.setter
+    def _agent_pool(self, value):
+        self._model_manager._agent_pool = value
+
+    @property
+    def _models(self) -> Dict[str, Agent]:
+        """模型缓存（委托给 ModelManager，保持向后兼容）"""
+        return self._model_manager._models
+
+    @property
+    def _model_pool_ids(self) -> Dict[str, str]:
+        """模型池 ID 映射（委托给 ModelManager，保持向后兼容）"""
+        return self._model_manager._model_pool_ids
 
     @property
     def last_routing_decision(self):
@@ -455,49 +480,20 @@ class MeetingCoordinator:
             )
 
     def _create_model(self, role: AgentRole) -> Agent:
-        from model_factory import create_agent
-
-        self.logger.info("创建模型: role=%s provider=%s model=%s api_key=%s",
-                        role.value, self.provider, self.model_name or "(默认)",
-                        "已设置" if self.api_key else "未设置")
-
-        return create_agent(
-            provider=self.provider,
-            api_key=self.api_key,
-            base_url=self.base_url or "",
-            model_name=self.model_name or "",
-            system_prompt=AGENT_ROLE_PROMPTS[role],
-            agent_name=role.value,
-            stream=True,
-        )
+        """委托给 ModelManager"""
+        return self._model_manager._create_model(role)
 
     def _get_model(self, role: AgentRole) -> Agent:
-        key = role.value
-        if key not in self._models:
-            # 优先从 AgentPool 获取（支持复用和负载均衡）
-            if self._agent_pool:
-                instance = self._agent_pool.get_agent_by_role(key)
-                if instance:
-                    self._models[key] = instance.agent
-                    self._model_pool_ids[key] = instance.id
-                    return instance.agent
-            self._models[key] = self._create_model(role)
-        return self._models[key]
+        """委托给 ModelManager"""
+        return self._model_manager.get_model(role)
 
     def _mark_model_failed(self, role: AgentRole) -> None:
-        """模型调用失败：驱逐缓存 + 标记 pool 实例不健康（下次 _get_model 重新获取健康实例）"""
-        key = role.value
-        self._models.pop(key, None)
-        pool_id = self._model_pool_ids.pop(key, None)
-        if pool_id and self._agent_pool:
-            self._agent_pool.mark_unhealthy(pool_id)
+        """委托给 ModelManager"""
+        self._model_manager.mark_failed(role)
 
     def _safe_mark_model_failed(self, role: AgentRole) -> None:
-        """模型失败通知：回调自身异常不顶掉原模型异常（fallback 契约异常安全）"""
-        try:
-            self._mark_model_failed(role)
-        except Exception as e:
-            self.logger.warning("模型失败通知回调异常: %s", e)
+        """委托给 ModelManager"""
+        self._model_manager.safe_mark_failed(role)
 
     async def decompose_task(self, task_description: str) -> List[Dict[str, Any]]:
         planner = self._get_model(AgentRole.PLANNER)
