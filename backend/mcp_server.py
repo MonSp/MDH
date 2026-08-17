@@ -152,6 +152,10 @@ class MDHMCPServer:
         self._register_workflow_tools()
         self._register_skill_tools()
         self._register_experience_tools()
+        self._register_asset_tools()
+        self._register_marketplace_tools()
+        self._register_role_tools()
+        self._register_minutes_tools()
 
     def _register_workflow_tools(self) -> None:
         """注册工作流管理工具（P0）"""
@@ -291,6 +295,120 @@ class MDHMCPServer:
                 "required": ["rule_id"],
             },
             "handler": self._reject_experience_rule,
+        }
+
+    def _register_asset_tools(self) -> None:
+        """注册资产管理工具（P1）"""
+        self._tools["search_assets"] = {
+            "description": "搜索资产（产出物/模板/技能规则）。返回匹配的资产列表。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "keywords": {"type": "string", "description": "搜索关键词"},
+                    "asset_type": {"type": "string", "description": "资产类型（artifacts/templates/rules）", "default": ""},
+                    "team_id": {"type": "string", "description": "团队 ID", "default": ""},
+                },
+            },
+            "handler": self._search_assets,
+        }
+        self._tools["create_artifact"] = {
+            "description": "创建产出物资产。将文件注册为可复用资产。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "资产名称"},
+                    "description": {"type": "string", "description": "资产描述"},
+                    "content": {"type": "string", "description": "资产内容"},
+                    "team_id": {"type": "string", "description": "团队 ID", "default": ""},
+                },
+                "required": ["name", "content"],
+            },
+            "handler": self._create_artifact,
+        }
+        self._tools["list_assets"] = {
+            "description": "列出所有资产。可按类型过滤。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "asset_type": {"type": "string", "description": "资产类型过滤", "default": ""},
+                    "team_id": {"type": "string", "description": "团队 ID", "default": ""},
+                },
+            },
+            "handler": self._list_assets,
+        }
+
+    def _register_marketplace_tools(self) -> None:
+        """注册市场工具（P1）"""
+        self._tools["search_shared_experience"] = {
+            "description": "搜索共享经验池中的经验规则。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "keywords": {"type": "string", "description": "搜索关键词（逗号分隔）"},
+                    "task_type": {"type": "string", "description": "任务类型", "default": ""},
+                },
+            },
+            "handler": self._search_shared_experience,
+        }
+        self._tools["publish_experience"] = {
+            "description": "发布经验规则到共享池。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "trigger_condition": {"type": "string", "description": "触发条件"},
+                    "action": {"type": "string", "description": "建议动作"},
+                    "keywords": {"type": "string", "description": "关键词（逗号分隔）"},
+                    "rule_type": {"type": "string", "description": "规则类型", "default": "success_pattern"},
+                },
+                "required": ["trigger_condition", "action"],
+            },
+            "handler": self._publish_experience,
+        }
+        self._tools["fork_skill_from_marketplace"] = {
+            "description": "从共享池 Fork 技能包到项目本地。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "skill_name": {"type": "string", "description": "技能名称"},
+                    "project_id": {"type": "string", "description": "目标项目 ID", "default": "current"},
+                },
+                "required": ["skill_name"],
+            },
+            "handler": self._fork_skill_from_marketplace,
+        }
+
+    def _register_role_tools(self) -> None:
+        """注册角色管理工具（P2）"""
+        self._tools["get_roles_config"] = {
+            "description": "获取角色配置。返回所有可用角色及其工具/技能。",
+            "inputSchema": {"type": "object", "properties": {}},
+            "handler": self._get_roles_config,
+        }
+        self._tools["get_role"] = {
+            "description": "获取单个角色详情。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "role_id": {"type": "string", "description": "角色 ID"},
+                },
+                "required": ["role_id"],
+            },
+            "handler": self._get_role,
+        }
+
+    def _register_minutes_tools(self) -> None:
+        """注册会议纪要工具（P2）"""
+        self._tools["create_minutes"] = {
+            "description": "从速记/转录创建会议纪要。自动识别意图并生成 DAG 工作流。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "transcript": {"type": "string", "description": "速记/转录内容"},
+                    "submitter": {"type": "string", "description": "提交者", "default": ""},
+                },
+                "required": ["transcript"],
+            },
+            "handler": self._create_minutes,
         }
 
     async def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
@@ -469,6 +587,93 @@ class MDHMCPServer:
         """拒绝经验规则"""
         result = _proxy_rest("POST", f"/api/experience/rules/{rule_id}/reject",
                            json_data={"reason": reason})
+        return json.dumps(result, ensure_ascii=False, indent=2)
+
+    # ── Phase 2 P1: 资产 + 市场工具实现 ──
+
+    async def _search_assets(self, keywords: str = "", asset_type: str = "", team_id: str = "") -> str:
+        """搜索资产"""
+        params = {}
+        if keywords:
+            params["keywords"] = keywords
+        if asset_type:
+            params["asset_type"] = asset_type
+        if team_id:
+            params["team_id"] = team_id
+        result = _proxy_rest("GET", "/api/assets/search", params=params)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+
+    async def _create_artifact(self, name: str, content: str, description: str = "", team_id: str = "") -> str:
+        """创建产出物"""
+        result = _proxy_rest("POST", "/api/assets/artifacts", json_data={
+            "name": name,
+            "content": content,
+            "description": description,
+            "team_id": team_id,
+        })
+        return json.dumps(result, ensure_ascii=False, indent=2)
+
+    async def _list_assets(self, asset_type: str = "", team_id: str = "") -> str:
+        """列出资产"""
+        params = {}
+        if asset_type:
+            params["asset_type"] = asset_type
+        if team_id:
+            params["team_id"] = team_id
+        result = _proxy_rest("GET", "/api/assets", params=params)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+
+    async def _search_shared_experience(self, keywords: str = "", task_type: str = "") -> str:
+        """搜索共享经验"""
+        params = {}
+        if keywords:
+            params["keywords"] = keywords
+        if task_type:
+            params["task_type"] = task_type
+        result = _proxy_rest("GET", "/api/marketplace/experience/search", params=params)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+
+    async def _publish_experience(self, trigger_condition: str, action: str,
+                                  keywords: str = "", rule_type: str = "success_pattern") -> str:
+        """发布经验到共享池"""
+        kw_list = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
+        result = _proxy_rest("POST", "/api/marketplace/experience/publish", json_data={
+            "rule": {
+                "trigger_condition": trigger_condition,
+                "action": action,
+                "keywords": kw_list,
+                "rule_type": rule_type,
+            },
+            "source_project": "mcp",
+        })
+        return json.dumps(result, ensure_ascii=False, indent=2)
+
+    async def _fork_skill_from_marketplace(self, skill_name: str, project_id: str = "current") -> str:
+        """从市场 Fork 技能"""
+        result = _proxy_rest("POST", "/api/marketplace/skills/fork", json_data={
+            "skill_name": skill_name,
+            "project_id": project_id,
+        })
+        return json.dumps(result, ensure_ascii=False, indent=2)
+
+    # ── Phase 2 P2: 角色 + 会议工具实现 ──
+
+    async def _get_roles_config(self) -> str:
+        """获取角色配置"""
+        result = _proxy_rest("GET", "/api/roles/config")
+        return json.dumps(result, ensure_ascii=False, indent=2)
+
+    async def _get_role(self, role_id: str) -> str:
+        """获取角色详情"""
+        result = _proxy_rest("GET", f"/api/roles/{role_id}")
+        return json.dumps(result, ensure_ascii=False, indent=2)
+
+    async def _create_minutes(self, transcript: str, submitter: str = "") -> str:
+        """创建会议纪要"""
+        result = _proxy_rest("POST", "/api/minutes", json_data={
+            "transcript": transcript,
+            "submitter": submitter,
+        })
         return json.dumps(result, ensure_ascii=False, indent=2)
 
     # ── JSON-RPC 辅助 ──

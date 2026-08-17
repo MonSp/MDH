@@ -209,10 +209,43 @@ class TestMDHMCPServerHighLevelTools:
         assert "reject_experience_rule" in tool_names
 
     @pytest.mark.asyncio
+    async def test_list_tools_includes_assets(self, mcp_server):
+        """工具列表包含资产工具"""
+        response = await mcp_server.handle_request({
+            "jsonrpc": "2.0", "id": 104, "method": "tools/list", "params": {},
+        })
+        tool_names = {t["name"] for t in response["result"]["tools"]}
+        assert "search_assets" in tool_names
+        assert "create_artifact" in tool_names
+        assert "list_assets" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_list_tools_includes_marketplace(self, mcp_server):
+        """工具列表包含市场工具"""
+        response = await mcp_server.handle_request({
+            "jsonrpc": "2.0", "id": 105, "method": "tools/list", "params": {},
+        })
+        tool_names = {t["name"] for t in response["result"]["tools"]}
+        assert "search_shared_experience" in tool_names
+        assert "publish_experience" in tool_names
+        assert "fork_skill_from_marketplace" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_list_tools_includes_roles_and_minutes(self, mcp_server):
+        """工具列表包含角色和会议纪要工具"""
+        response = await mcp_server.handle_request({
+            "jsonrpc": "2.0", "id": 106, "method": "tools/list", "params": {},
+        })
+        tool_names = {t["name"] for t in response["result"]["tools"]}
+        assert "get_roles_config" in tool_names
+        assert "get_role" in tool_names
+        assert "create_minutes" in tool_names
+
+    @pytest.mark.asyncio
     async def test_total_tool_count(self, mcp_server):
-        """总工具数 = 8 低级 + 11 高级 = 19"""
+        """总工具数 = 8 低级 + 5 工作流 + 3 技能 + 3 经验 + 3 资产 + 3 市场 + 2 角色 + 1 会议 = 28"""
         response = await mcp_server.handle_request({
             "jsonrpc": "2.0", "id": 103, "method": "tools/list", "params": {},
         })
         tools = response["result"]["tools"]
-        assert len(tools) == 19  # 8 + 5 workflow + 3 skill + 3 experience
+        assert len(tools) == 28  # 8 + 5 + 3 + 3 + 3 + 3 + 2 + 1
