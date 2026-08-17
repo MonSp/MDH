@@ -2988,6 +2988,58 @@ async def marketplace_pull_skill(request: Request):
     return {"success": True, "updated": updated}
 
 
+@app.post("/api/marketplace/export")
+async def marketplace_export(request: Request):
+    """导出技能包为 zip"""
+    body = await request.json()
+    skill_name = body.get("skill_name", "")
+    include_experience = body.get("include_experience", True)
+
+    from skill_exporter import SkillExporter
+    exporter = SkillExporter(
+        os.path.join(os.path.dirname(__file__), "..", "skill_packs"),
+        os.path.join(os.path.dirname(__file__), "data", "shared_experience"),
+    )
+    path = exporter.export_skill(skill_name, include_experience=include_experience)
+    if path:
+        return {"success": True, "path": path}
+    return {"success": False, "error": "导出失败"}
+
+
+@app.post("/api/marketplace/import")
+async def marketplace_import(request: Request):
+    """导入技能包 zip"""
+    body = await request.json()
+    zip_path = body.get("zip_path", "")
+    overwrite = body.get("overwrite", False)
+
+    from skill_exporter import SkillExporter
+    exporter = SkillExporter(
+        os.path.join(os.path.dirname(__file__), "..", "skill_packs"),
+        os.path.join(os.path.dirname(__file__), "data", "shared_experience"),
+    )
+    result = exporter.import_skill(zip_path, overwrite=overwrite)
+    return {
+        "success": result.success,
+        "skill_name": result.skill_name,
+        "skill_version": result.skill_version,
+        "rules_imported": result.rules_imported,
+        "warnings": result.warnings,
+        "error": result.error,
+    }
+
+
+@app.get("/api/marketplace/exports")
+async def marketplace_list_exports():
+    """列出导出包"""
+    from skill_exporter import SkillExporter
+    exporter = SkillExporter(
+        os.path.join(os.path.dirname(__file__), "..", "skill_packs"),
+        os.path.join(os.path.dirname(__file__), "data", "shared_experience"),
+    )
+    return {"success": True, "exports": exporter.list_exports()}
+
+
 if __name__ == "__main__":
     import uvicorn
     logging.basicConfig(
