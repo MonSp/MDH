@@ -343,3 +343,116 @@ class ApprovalManager:
         del self._pending[request_id]
         self._history.append(approval)
         return True
+
+
+# ── HITL 分级自动化 ──
+
+# 白名单操作：只读、无副作用，自动通过
+WHITELIST_OPERATIONS = frozenset({
+    "read_file", "list_directory", "git_status", "git_diff", "git_log",
+    "search_files", "grep_content",
+})
+
+# 高危操作：需要人工审批
+HIGH_RISK_OPERATIONS = frozenset({
+    "git_push", "git_commit",
+})
+
+# Shell 命令中的高危模式
+HIGH_RISK_BASH_PATTERNS = [
+    r'\brm\s+-rf\b', r'\bsudo\b', r'\bshutdown\b', r'\breboot\b',
+    r'\bkill\s+-9\b', r'\bmkfs\b', r'\bdd\s+if=', r'\bformat\b',
+    r'\bchmod\s+777\b', r'\bchown\s+root\b',
+]
+
+
+def classify_approval_tier(
+    operation: str,
+    description: str = "",
+    context: Optional[Dict] = None,
+) -> str:
+    """分级判定审批层级。
+
+    Returns:
+        "auto_approve" — 白名单操作，无需审批
+        "classifier" — 中等风险，由规则分类器判定
+        "human" — 高危操作，需要人工审批
+    """
+    import re
+
+    # Tier 1: 白名单 → 自动通过
+    if operation in WHITELIST_OPERATIONS:
+        return "auto_approve"
+
+    # Tier 3: 高危操作 → 人工审批
+    if operation in HIGH_RISK_OPERATIONS:
+        return "human"
+
+    # bash 操作需要检查命令内容
+    if operation == "bash" and description:
+        for pattern in HIGH_RISK_BASH_PATTERNS:
+            if re.search(pattern, description, re.IGNORECASE):
+                return "human"
+
+    # Tier 2: 其他操作 → 分类器
+    return "classifier"
+
+
+def risk_classify(
+    operation: str,
+    description: str = "",
+    context: Optional[Dict] = None,
+) -> Dict:
+    """风险分类器：对 classifier 层级的操作进行风险评估。
+
+    Returns:
+        {"approved": bool, "reason": str, "risk_score": float}
+    """
+    risk_score = 0.0
+    reasons = []
+
+    # 基于操作类型的基础风险分
+    op_risk = {
+        "write_file": 0.3,
+        "edit_file": 0.3,
+        "create_document": 0.2,
+        "edit_document": 0.2,
+        "bash": 0.6,
+        "run_tests": 0.4,
+        "run_linter": 0.2,
+        "git_branch": 0.5,
+    }
+    risk_score = op_risk.get(operation, 0.5)
+
+    # 上下文调整
+    if context:
+        # 文件路径风险
+        path = context.get("path", "")
+        if path:
+            if any(p in path for p in ["/etc/", "/root/", "/var/", "/usr/"]):
+                risk_score += 0.3
+                reasons.append("系统目录")
+            if path.endswith((".env", ".key", ".pem", "credentials")):
+                risk_score += 0.4
+                reasons.append("敏感文件")
+
+    # bash 命令内容风险
+    if operation == "bash" and description:
+        import re
+        # 中等风险命令
+        medium_patterns = [
+            r'\bcurl\b', r'\bwget\b', r'\bssh\b', r'\bscp\b',
+            r'\bdocker\b', r'\bnpm\s+install\b', r'\bpip\s+install\b',
+        ]
+        for pattern in medium_patterns:
+            if re.search(pattern, description, re.IGNORECASE):
+                risk_score += 0.2
+                reasons.append(f"网络/包管理命令")
+
+    # 阈值判定
+    if risk_score < 0.5:
+        return {"approved": True, "reason": "低风险自动通过", "risk_score": risk_score}
+    elif risk_score < 0.8:
+        return {"approved": True, "reason": f"中等风险通过（{', '.join(reasons) or '操作类型'}）", "risk_score": risk_score}
+    else:
+        return {"approved": False, "reason": f"高风险需人工审批（{', '.join(reasons) or '综合评分'}）", "risk_score": risk_score}

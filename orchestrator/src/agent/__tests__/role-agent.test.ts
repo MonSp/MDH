@@ -126,6 +126,70 @@ describe('RoleAgent', () => {
   });
 });
 
+describe('RoleAgent.spawnSubagent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockResponses = [{ content: 'test response', tool_calls: [] }];
+    responseIndex = 0;
+  });
+
+  it('子 agent 有独立上下文', async () => {
+    setMockToolSequence([
+      { content: '子任务完成', tool_calls: [] },
+    ]);
+
+    const parent = new RoleAgent(makeConfig({ id: 'parent' }));
+    await parent.chat('父任务消息');
+
+    const { result, childId } = await parent.spawnSubagent('子任务描述');
+    expect(result).toBe('子任务完成');
+    expect(childId).toContain('parent:sub:');
+    // 父 agent 的上下文不包含子任务的 user 消息
+    expect(parent.getContextSummary()).not.toContain('子任务描述');
+  });
+
+  it('子 agent 文件产出以引用形式注入父上下文', async () => {
+    setMockToolSequence([
+      { content: '创建文件', tool_calls: [makeToolCall('write_file', { path: 'output.js', content: 'x' })] },
+      { content: '子任务完成', tool_calls: [] },
+    ]);
+
+    const parent = new RoleAgent(makeConfig({ id: 'parent' }));
+    const { summary } = await parent.spawnSubagent('创建文件');
+
+    expect(summary.filesCreated).toEqual(['output.js']);
+    // 父 agent 的消息数增加（system + 子任务注入消息）
+    expect(parent.messageCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('子 agent 使用自定义 roleId 和 systemPrompt', async () => {
+    setMockToolSequence([
+      { content: '审查完成', tool_calls: [] },
+    ]);
+
+    const parent = new RoleAgent(makeConfig({ id: 'parent' }));
+    const { childId } = await parent.spawnSubagent('审查代码', {
+      roleId: 'reviewer',
+      systemPrompt: '你是审查员。',
+    });
+
+    expect(childId).toContain('parent:sub:');
+  });
+
+  it('onEvent 收到 subagent_spawn 和 subagent_complete 事件', async () => {
+    setMockToolSequence([
+      { content: '完成', tool_calls: [] },
+    ]);
+
+    const events: any[] = [];
+    const parent = new RoleAgent(makeConfig({ id: 'parent' }));
+    await parent.spawnSubagent('任务', { onEvent: (e) => events.push(e) });
+
+    expect(events.some(e => e.type === 'subagent_spawn')).toBe(true);
+    expect(events.some(e => e.type === 'subagent_complete')).toBe(true);
+  });
+});
+
 describe('RoleAgent.chatWithTools — ExecutionSummary', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -267,6 +267,9 @@ class NegotiationEngine:
     def get_decision_graph(self) -> List[DecisionNode]:
         return list(self._decision_graph)
 
+    def set_default_strategy(self, strategy: ConsensusStrategy) -> None:
+        self._default_strategy = strategy
+
     def set_agent_weight(self, agent_id: str, weight: float) -> None:
         self._agent_weights[agent_id] = weight
 

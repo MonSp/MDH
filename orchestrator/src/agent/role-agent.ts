@@ -172,6 +172,65 @@ export class RoleAgent {
     });
   }
 
+  /**
+   * 委托子任务给子 agent 执行（orchestrator-worker 模式）。
+   *
+   * 子 agent 拥有独立上下文，执行结果以轻量引用形式返回（artifact 模式）。
+   * 子 agent 的文件产出直接落到文件系统，父 agent 只收到摘要。
+   */
+  async spawnSubagent(
+    task: string,
+    options?: {
+      roleId?: string;
+      systemPrompt?: string;
+      maxIterations?: number;
+      onEvent?: EventHandler;
+    },
+  ): Promise<{ result: string; summary: ExecutionSummary; childId: string }> {
+    const childId = `${this.id}:sub:${Date.now().toString(36)}`;
+    const childConfig: AgentConfig = {
+      ...this.config,
+      id: childId,
+      roleId: options?.roleId || this.config.roleId,
+      roleName: `${this.config.roleName}(子任务)`,
+      systemPrompt: options?.systemPrompt || this.config.systemPrompt,
+    };
+
+    const child = new RoleAgent(childConfig);
+
+    options?.onEvent?.({
+      type: 'subagent_spawn',
+      parentId: this.id,
+      childId,
+      task: task.substring(0, 200),
+    });
+
+    const output = await child.chatWithTools(task, options?.onEvent, options?.maxIterations);
+
+    // 将子 agent 的执行摘要注入父 agent 上下文（artifact 引用模式）
+    const artifactRef = [
+      `[子任务完成: ${childId}]`,
+      `产出文件: ${output.summary.filesCreated.length > 0 ? output.summary.filesCreated.join(', ') : '(无)'}`,
+      `修改文件: ${output.summary.filesModified.length > 0 ? output.summary.filesModified.join(', ') : '(无)'}`,
+      `结果: ${output.result.substring(0, 500)}`,
+    ].join('\n');
+
+    this.messages.push({
+      role: 'user',
+      content: artifactRef,
+    });
+
+    options?.onEvent?.({
+      type: 'subagent_complete',
+      parentId: this.id,
+      childId,
+      filesCreated: output.summary.filesCreated,
+      filesModified: output.summary.filesModified,
+    });
+
+    return { result: output.result, summary: output.summary, childId };
+  }
+
   /** 消息数量（调试用） */
   get messageCount(): number {
     return this.messages.length;
