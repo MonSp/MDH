@@ -221,15 +221,15 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
             )
           }
 
-          const subtype = (msg as any)._msgSubtype as string | undefined
-          const isFeedback = subtype === 'feedback' || !!(msg as any)._structuredFeedback
-          const isRouting = subtype === 'routing' || !!(msg as any)._routingDecision
+          const subtype = msg._msgSubtype
+          const isFeedback = subtype === 'feedback' || !!msg._structuredFeedback
+          const isRouting = subtype === 'routing' || !!msg._routingDecision
           const isExperience = subtype === 'experience'
-          const isIteration = subtype === 'iteration' || !!(msg as any)._iterationStatus
+          const isIteration = subtype === 'iteration' || !!msg._iterationStatus
 
           // 结构化反馈消息的特殊渲染
-          if (isFeedback && (msg as any)._structuredFeedback) {
-            const fb = (msg as any)._structuredFeedback
+          if (isFeedback && msg._structuredFeedback) {
+            const fb = msg._structuredFeedback
             const isApproved = fb.status === 'approved'
             return (
               <div key={index} style={{ ...styles.chatMessage, justifyContent: 'center' }}>
@@ -298,8 +298,8 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
           }
 
           // 路由决策消息的特殊渲染
-          if (isRouting && (msg as any)._routingDecision) {
-            const rd = (msg as any)._routingDecision
+          if (isRouting && msg._routingDecision) {
+            const rd = msg._routingDecision
             return (
               <div key={index} style={{ ...styles.chatMessage, justifyContent: 'center' }}>
                 <div style={{
@@ -366,8 +366,8 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
           }
 
           // 迭代状态消息
-          if (isIteration && (msg as any)._iterationStatus) {
-            const it = (msg as any)._iterationStatus
+          if (isIteration && msg._iterationStatus) {
+            const it = msg._iterationStatus
             return (
               <div key={index} style={{ ...styles.chatMessage, justifyContent: 'center' }}>
                 <div style={{
