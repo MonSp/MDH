@@ -154,36 +154,22 @@ class CeoAgent:
 
     def _create_model(self, role: str) -> Agent:
         """创建指定角色的Agent模型"""
+        from model_factory import create_agent
+
         role_prompts = {
             "ceo": "你是编程团队的CTO。请用简洁果断的技术语言发言。",
             "planner": "你是团队的系统架构师。请用专业的技术语言发言。",
             "executor": "你是团队的全栈开发工程师。请用务实高效的开发语言发言。",
         }
 
-        provider = self._session.provider or "deepseek"
-        reg = PROVIDER_REGISTRY.get(provider)
-        if reg is None:
-            raise ValueError(f"不支持的模型提供商: {provider}")
-
-        class _TempSession:
-            pass
-        temp_session = _TempSession()
-        temp_session.api_key = self._session.api_key
-        temp_session.base_url = self._session.base_url
-
-        credential = reg["credential_cls"](**reg["credential_kwargs"](temp_session))
-        formatter = reg["formatter_cls"]()
-        model_name = self._session.model_name or reg["default_model"]
-        model = reg["model_cls"](
-            credential=credential,
-            model=model_name,
-            stream=True,
-            formatter=formatter,
-        )
-        return Agent(
-            name=role,
+        return create_agent(
+            provider=self._session.provider or "deepseek",
+            api_key=self._session.api_key,
+            base_url=self._session.base_url or "",
+            model_name=self._session.model_name or "",
             system_prompt=role_prompts.get(role, "你是一个AI助手。"),
-            model=model,
+            agent_name=role,
+            stream=True,
         )
 
     def _send_fn(self, send_message: Callable) -> Callable:

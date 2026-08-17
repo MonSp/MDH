@@ -455,36 +455,21 @@ class MeetingCoordinator:
             )
 
     def _create_model(self, role: AgentRole) -> Agent:
-        reg = PROVIDER_REGISTRY.get(self.provider)
-        if reg is None:
-            raise ValueError(f"不支持的模型提供商: {self.provider}")
+        from model_factory import create_agent
 
         self.logger.info("创建模型: role=%s provider=%s model=%s api_key=%s",
                         role.value, self.provider, self.model_name or "(默认)",
                         "已设置" if self.api_key else "未设置")
 
-        class _Session:
-            pass
-
-        session = _Session()
-        session.api_key = self.api_key
-        session.base_url = self.base_url
-
-        credential = reg["credential_cls"](**reg["credential_kwargs"](session))
-        formatter = reg["formatter_cls"]()
-        model_name = self.model_name or reg["default_model"]
-        model = reg["model_cls"](
-            credential=credential,
-            model=model_name,
-            stream=True,
-            formatter=formatter,
-        )
-        agent = Agent(
-            name=role.value,
+        return create_agent(
+            provider=self.provider,
+            api_key=self.api_key,
+            base_url=self.base_url or "",
+            model_name=self.model_name or "",
             system_prompt=AGENT_ROLE_PROMPTS[role],
-            model=model,
+            agent_name=role.value,
+            stream=True,
         )
-        return agent
 
     def _get_model(self, role: AgentRole) -> Agent:
         key = role.value

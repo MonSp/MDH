@@ -39,6 +39,13 @@ from team import RuntimeType, TeamRuntime
 from team_assembler import TeamAssembler
 from employee_directory import get_directory
 
+# ── 路由模块（渐进迁移：内联端点保留，新代码使用路由器）──
+from routers import skills as skills_router
+from routers import workflow as workflow_router
+from routers import marketplace as marketplace_router
+from routers import mcp_config as mcp_router
+from routers import community as community_router
+
 logger = logging.getLogger("server")
 
 # ──────────────────── 认证配置 ────────────────────
@@ -81,6 +88,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 注册路由模块（渐进迁移：内联端点保留，新代码使用路由器）
+# app.include_router(skills_router.router)
+# app.include_router(workflow_router.router)
+# app.include_router(marketplace_router.router)
+# app.include_router(mcp_router.router)
+# app.include_router(community_router.router)
 
 # M1 演示：把关点引擎（仅演示用；会话内审批接线保持不变）
 _demo_gate_manager = ApprovalManager()
@@ -820,6 +834,22 @@ async def generate_skill(body: dict = Body(...)):
 
         # 获取session和API配置
         from agent import PROVIDER_REGISTRY
+        from model_factory import init_provider_registry
+
+        # 初始化模型工厂（如果尚未初始化）
+        if not hasattr(init_provider_registry, '_called'):
+            credential_classes = {}
+            model_classes = {}
+            formatter_classes = {}
+            for name, reg in PROVIDER_REGISTRY.items():
+                if reg.get("credential_cls"):
+                    credential_classes[name] = reg["credential_cls"]
+                if reg.get("model_cls"):
+                    model_classes[name] = reg["model_cls"]
+                if reg.get("formatter_cls"):
+                    formatter_classes[name] = reg["formatter_cls"]
+            init_provider_registry(credential_classes, model_classes, formatter_classes)
+            init_provider_registry._called = True
 
         session_id = body.get("session_id")
         session = sessions.get(session_id) if session_id else None
@@ -874,34 +904,26 @@ async def generate_skill(body: dict = Body(...)):
             return _fail("未配置API密钥，请先在CEO对话中设置API Key")
 
         # 创建模型
+        from model_factory import create_agent, get_default_base_url
+
         # 确保base_url有协议前缀
         if base_url and not base_url.startswith(("http://", "https://")):
             base_url = "https://" + base_url
 
         # 如果没有base_url，使用provider的默认值
         if not base_url:
-            # 从provider registry获取默认base_url
-            if provider == "deepseek":
-                base_url = "https://api.deepseek.com"
-            elif provider == "openai":
-                base_url = "https://api.openai.com/v1"
-            # 其他provider由credential_kwargs处理
+            base_url = get_default_base_url(provider)
 
-        class _TempSession:
-            pass
-        temp_session = _TempSession()
-        temp_session.api_key = api_key
-        temp_session.base_url = base_url
-
-        credential = reg["credential_cls"](**reg["credential_kwargs"](temp_session))
-        formatter = reg["formatter_cls"]()
-        final_model_name = model_name or reg["default_model"]
-        model = reg["model_cls"](
-            credential=credential,
-            model=final_model_name,
+        agent = create_agent(
+            provider=provider,
+            api_key=api_key,
+            base_url=base_url,
+            model_name=model_name or "",
+            system_prompt="你是一位AI技能设计专家。",
+            agent_name="skill-generator",
             stream=False,
-            formatter=formatter,
         )
+        model = agent.model
 
         # 构建prompt
         existing_skills = list((_load_roles_config() or {}).get("skills", {}).keys())
