@@ -3,10 +3,20 @@
  *
  * 使用 docx 库在离线环境下生成真正的 .docx Word 文档。
  * executeTool 的 create_document 分支调用本模块，便于单元测试。
+ *
+ * 动态导入：docx 库 (~100KB) 仅在实际生成文档时加载。
  */
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType } from 'docx';
 import { join, relative, isAbsolute } from 'path';
 import { mkdirSync, writeFileSync } from 'fs';
+
+// 懒加载 docx 模块（首次调用时加载，后续复用缓存）
+let _docx: typeof import('docx') | null = null;
+async function getDocx() {
+  if (!_docx) {
+    _docx = await import('docx');
+  }
+  return _docx;
+}
 
 export interface DocxSection {
   heading?: string;
@@ -22,8 +32,9 @@ export interface DocxSpec {
   sections?: DocxSection[];
 }
 
-function buildBlocks(section: DocxSection): Array<Paragraph | Table> {
-  const out: Array<Paragraph | Table> = [];
+function buildBlocks(section: DocxSection, docx: typeof import('docx')): Array<import('docx').Paragraph | import('docx').Table> {
+  const { Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType } = docx;
+  const out: Array<import('docx').Paragraph | import('docx').Table> = [];
 
   if (section.heading) {
     out.push(new Paragraph({
@@ -89,6 +100,10 @@ export async function buildDocx(workspace: string, spec: DocxSpec): Promise<stri
     throw new Error('路径越界: 仅允许 workspace 内');
   }
 
+  // 动态加载 docx 模块
+  const docx = await getDocx();
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+
   const sections: DocxSection[] = Array.isArray(spec.sections) ? spec.sections : [];
   const doc = new Document({
     numbering: {
@@ -106,7 +121,7 @@ export async function buildDocx(workspace: string, spec: DocxSpec): Promise<stri
           : []),
         ...(sections.length === 0
           ? [new Paragraph({ children: [new TextRun('（空文档）')] })]
-          : sections.flatMap(s => buildBlocks(s))),
+          : sections.flatMap(s => buildBlocks(s, docx))),
       ],
     }],
   });

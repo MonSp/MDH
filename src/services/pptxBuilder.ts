@@ -3,10 +3,20 @@
  *
  * 使用 pptxgenjs 在离线环境下生成 .pptx 文件。
  * executeTool 的 create_slide 分支调用本模块，便于单元测试。
+ *
+ * 动态导入：pptxgenjs 库 (~200KB) 仅在实际生成 PPT 时加载。
  */
-import pptxgen from 'pptxgenjs';
 import { join, relative, isAbsolute } from 'path';
 import { mkdirSync } from 'fs';
+
+// 懒加载 pptxgenjs 模块
+let _pptxgen: typeof import('pptxgenjs') | null = null;
+async function getPptxgen() {
+  if (!_pptxgen) {
+    _pptxgen = await import('pptxgenjs');
+  }
+  return _pptxgen;
+}
 
 export interface SlideSpec {
   title?: string;
@@ -43,7 +53,8 @@ export async function buildPptx(workspace: string, spec: PptSpec): Promise<strin
     throw new Error('路径越界: 仅允许 workspace 内');
   }
 
-  const pptx = new pptxgen();
+  const pptxgenModule = await getPptxgen();
+  const pptx = new pptxgenModule.default();
   pptx.defineLayout({ name: 'WIDE', width: 13.33, height: 7.5 });
   pptx.layout = 'WIDE';
   pptx.author = 'MDH 智能体';
