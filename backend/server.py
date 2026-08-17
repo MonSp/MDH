@@ -181,6 +181,20 @@ def _fail(error: str):
     return {"success": False, "data": None, "error": error}
 
 
+def _build_agenda_snapshot(agenda, session, proposal_id=None) -> dict:
+    """构建议程快照（消除 WebSocket handler 中的重复代码）"""
+    return {
+        "type": "agenda_update",
+        "phase": agenda.get_phase().value,
+        "topic": agenda._topic,
+        "current_speaker": agenda.get_current_speaker(),
+        "proposal_id": proposal_id,
+        "token_queue": [{"agent_id": t.agent_id, "relevance_score": t.relevance_score} for t in agenda.get_token_queue()],
+        "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
+        "sequence_no": session.next_sequence(),
+    }
+
+
 # ── 统一异常处理 ──
 
 @app.exception_handler(Exception)
@@ -653,22 +667,45 @@ async def remove_route_entry(dept_id: str):
 # ──────────────────── 角色配置 REST API ────────────────────
 
 _ROLES_CONFIG_PATH = os.path.join(_BASE_DIR, "roles_config.yaml")
+_roles_config_cache = None
+_roles_config_mtime = 0
 
 
 def _load_roles_config():
-    """加载角色配置"""
+    """加载角色配置（mtime 缓存：文件未变则返回缓存）"""
+    global _roles_config_cache, _roles_config_mtime
     import yaml
+
     if not os.path.exists(_ROLES_CONFIG_PATH):
         return {"tools": {}, "skills": {}, "prompt_templates": {}, "base_roles": {}, "custom_roles": {}}
+
+    try:
+        current_mtime = os.path.getmtime(_ROLES_CONFIG_PATH)
+    except OSError:
+        current_mtime = 0
+
+    if _roles_config_cache is not None and current_mtime == _roles_config_mtime:
+        return _roles_config_cache
+
     with open(_ROLES_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+    _roles_config_cache = config
+    _roles_config_mtime = current_mtime
+    return config
 
 
 def _save_roles_config(config):
     """保存角色配置"""
+    global _roles_config_cache, _roles_config_mtime
     import yaml
     with open(_ROLES_CONFIG_PATH, "w", encoding="utf-8") as f:
         yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+    # 更新缓存
+    _roles_config_cache = config
+    try:
+        _roles_config_mtime = os.path.getmtime(_ROLES_CONFIG_PATH)
+    except OSError:
+        _roles_config_mtime = 0
     # 清除 agent_toolset 的缓存，确保下次读取生效
     try:
         from agent_toolset import invalidate_roles_config_cache
@@ -1600,16 +1637,7 @@ async def ws_handler(ws: WebSocket):
                 elif action == "resolve_emergency":
                     result = agenda.resolve_emergency()
 
-                agenda_snapshot = {
-                    "type": "agenda_update",
-                    "phase": agenda.get_phase().value,
-                    "topic": agenda._topic,
-                    "current_speaker": agenda.get_current_speaker(),
-                    "proposal_id": None,
-                    "token_queue": [{"agent_id": t.agent_id, "relevance_score": t.relevance_score} for t in agenda.get_token_queue()],
-                    "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
-                    "sequence_no": session.next_sequence(),
-                }
+                agenda_snapshot = _build_agenda_snapshot(agenda, session)
                 await session.send_and_buffer(agenda_snapshot)
 
             elif msg_type == "override_decision":
@@ -1675,16 +1703,7 @@ async def ws_handler(ws: WebSocket):
 
                 # 同步更新议程状态
                 if agenda:
-                    agenda_snapshot = {
-                        "type": "agenda_update",
-                        "phase": agenda.get_phase().value,
-                        "topic": agenda._topic,
-                        "current_speaker": agenda.get_current_speaker(),
-                        "proposal_id": proposal.id,
-                        "token_queue": [{"agent_id": t.agent_id, "relevance_score": t.relevance_score} for t in agenda.get_token_queue()],
-                        "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
-                        "sequence_no": session.next_sequence(),
-                    }
+                    agenda_snapshot = _build_agenda_snapshot(agenda, session, proposal_id=proposal.id)
                     await session.send_and_buffer(agenda_snapshot)
 
             elif msg_type == "cast_vote":
@@ -1830,16 +1849,7 @@ async def ws_handler(ws: WebSocket):
 
                 # 同步更新议程状态
                 if agenda:
-                    agenda_snapshot = {
-                        "type": "agenda_update",
-                        "phase": agenda.get_phase().value,
-                        "topic": agenda._topic,
-                        "current_speaker": agenda.get_current_speaker(),
-                        "proposal_id": proposal_id,
-                        "token_queue": [{"agent_id": t.agent_id, "relevance_score": t.relevance_score} for t in agenda.get_token_queue()],
-                        "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
-                        "sequence_no": session.next_sequence(),
-                    }
+                    agenda_snapshot = _build_agenda_snapshot(agenda, session, proposal_id=proposal_id)
                     await session.send_and_buffer(agenda_snapshot)
 
             elif msg_type == "request_retransmit":
