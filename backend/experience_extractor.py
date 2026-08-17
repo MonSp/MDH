@@ -580,7 +580,7 @@ class ExperienceExtractor:
         return migrated
 
     def build_experience_context(self, rules: List[ExperienceRule]) -> str:
-        """将规则格式化为可注入的提示上下文
+        """将规则格式化为可注入的提示上下文（完整版）
 
         Args:
             rules: 经验规则列表
@@ -600,6 +600,24 @@ class ExperienceExtractor:
             lines.append(f"- **来源类型**: {rule.rule_type}")
             lines.append(f"- **关键词**: {', '.join(rule.keywords)}")
             lines.append("")
+
+        return "\n".join(lines)
+
+    def build_experience_summary(self, rules: List[ExperienceRule], max_rules: int = 5) -> str:
+        """渐进披露：生成精简版经验摘要（仅触发条件 + 建议动作），减少 context 消耗。
+
+        完整详情在 agent 需要时可通过 retrieve_relevant_rules 按需加载。
+        """
+        if not rules:
+            return ""
+
+        lines = ["## 经验摘要（精简版）", ""]
+        for i, rule in enumerate(rules[:max_rules], 1):
+            action_preview = rule.action[:80] + ("..." if len(rule.action) > 80 else "")
+            lines.append(f"{i}. [{rule.rule_type}] {rule.trigger_condition} → {action_preview}")
+
+        if len(rules) > max_rules:
+            lines.append(f"\n（共 {len(rules)} 条，显示前 {max_rules} 条，完整版可按需加载）")
 
         return "\n".join(lines)
 

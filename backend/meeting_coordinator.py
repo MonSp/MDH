@@ -16,7 +16,7 @@ from approval_manager import ApprovalManager
 from collaboration.planner_agent import PlannerAgent
 from discussion_utils import parse_stance_from_content, resolve_agent_role, strip_stance_tags
 from dynamic_router import DynamicRouter
-from meeting import MeetingSession
+from meeting import MeetingSession, SessionEventType
 from negotiation import NegotiationEngine, ConsensusStrategy, Stance
 from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict, WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowNodeStatus, LLM_FALLBACK_TEMPLATE
 from team import Team
@@ -1266,11 +1266,19 @@ class MeetingCoordinator:
                 content_kw |= extractor._extract_content_keywords(dr.get("content", ""))
             past_rules = extractor.retrieve_relevant_rules(task_type, sorted(content_kw))
             if past_rules:
-                exp_context = extractor.build_experience_context(past_rules[:5])
+                # 渐进披露：先注入精简摘要，减少 context 消耗
+                exp_context = extractor.build_experience_summary(past_rules[:5])
                 enhanced_description = f"{enhanced_description}\n\n{exp_context}"
                 coordinator_exp_text = f"项目经理：已注入 {len(past_rules)} 条历史经验到任务描述。"
                 await self._msg(coordinator_id, coordinator_exp_text)
                 self.meeting.add_message("agent", coordinator_exp_text, coordinator_id)
+                # 记录经验注入事件（Context Engineering）
+                self.meeting.append_event(
+                    SessionEventType.EXPERIENCE_INJECTION,
+                    content=f"注入 {len(past_rules)} 条经验规则 (task_type={task_type}, keywords={sorted(content_kw)[:5]})",
+                    agent_id=coordinator_id,
+                    phase="pre_execution",
+                )
                 self.logger.info("注入 %d 条历史经验 (task_type=%s)", len(past_rules), task_type)
         except Exception as e:
             self.logger.debug("历史经验注入跳过: %s", e)
@@ -1432,6 +1440,9 @@ class MeetingCoordinator:
         execution_results = []
         all_review_feedback = []
 
+        from review_pipeline import ReviewReport, ReviewIteration
+        review_report = ReviewReport(task_id=target_agent_id)
+
         # 从讨论中提取决策摘要，供审查阶段使用
         discussion_context = self._extract_discussion_decisions(discussion_results)
 
@@ -1495,6 +1506,27 @@ class MeetingCoordinator:
             # 判断是否需要继续修复
             structured = review_result.get("structured_feedback", {})
             feedback_status = structured.get("status", "approved")
+
+            # 累积审查报告
+            critic_result = review_result.get("critic_result", {})
+            grounding_result = review_result.get("grounding_result", {})
+            written_files = [f for er in exec_results for f in er.get("written_files", [])] if exec_results else []
+            review_iteration = ReviewIteration(
+                iteration=dev_iter,
+                status=feedback_status,
+                critic_severity=critic_result.get("severity", "unknown"),
+                critic_findings=critic_result.get("findings", []),
+                grounding_grounded=grounding_result.get("grounded", False),
+                grounding_sources=grounding_result.get("sources", []),
+                issues=structured.get("issues", []),
+                reviewer_feedback=reviewer_feedback,
+                monitor_feedback=monitor_feedback,
+                coordinator_summary=coordinator_summary,
+                gate_passed=gate_result.get("passed") if gate_result else None,
+                gate_failures=[f.get("detail", "") for f in (gate_result or {}).get("failures", [])],
+                files_written=written_files,
+            )
+            review_report.add_iteration(review_iteration)
 
             if feedback_status == "approved" or dev_iter >= max_dev_iterations:
                 # 审查通过或达到最大迭代次数
@@ -1594,6 +1626,12 @@ class MeetingCoordinator:
         await self._msg(ceo_id, ceo_report_text)
         self.meeting.add_message("agent", ceo_report_text, ceo_id)
 
+        # 发送审查报告
+        if review_report.total_iterations > 0:
+            await on_message(coordinator_id, f"[审查报告] 共 {review_report.total_iterations} 轮，"
+                            f"最终状态: {review_report.final_status}，"
+                            f"累计发现 {review_report.total_issues_found} 个问题", "")
+
         # 返回所有阶段结果
         return {
             "type": "serial_completed",
@@ -1603,6 +1641,7 @@ class MeetingCoordinator:
             "review_result": review_result,
             "execution_results": execution_results,
             "project_summary": project_summary,
+            "review_report": review_report.to_dict(),
         }
 
     def _enhance_task_description(self, original_description: str, discussion_results: list) -> str:
