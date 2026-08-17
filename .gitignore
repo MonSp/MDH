@@ -75,3 +75,11 @@ orchestrator/src/**/*.js
 orchestrator/src/**/*.js.map
 orchestrator/src/**/*.d.ts
 /templates.js
+
+# IDE / tool configs
+.trae/
+.codegraph/
+.design_library/
+
+# Mock SSO (removed from repo)
+mock-sso/
