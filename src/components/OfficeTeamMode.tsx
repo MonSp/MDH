@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, Suspense } from 'react'
 import type { ViewState, ProjectDetail } from './office-team/types'
 import OfficeHeader from './office-team/OfficeHeader'
 import OfficeScene from './office-team/OfficeScene'
 import MeetingChatPanel from './office-team/MeetingChatPanel'
 import TaskAssignPanel from './office-team/TaskAssignPanel'
 import AgendaPanel from './office-team/AgendaPanel'
-import TechTowerView from './TechTowerView'
 import WorkflowPanel from './WorkflowPanel'
 import WorkspacePanel from './office-team/WorkspacePanel'
 import SkillEvolutionPanel from './skill-evolution/SkillEvolutionPanel'
@@ -18,6 +17,9 @@ import RoleEditorPanel from './office-team/RoleEditorPanel'
 import HistoryPanel from './office-team/HistoryPanel'
 import SkillMarketplace from './office-team/SkillMarketplace'
 import AssetBrowserPanel from './office-team/AssetBrowserPanel'
+
+// 懒加载 3D 场景（减少初始包体积 ~500KB）
+const TechTowerView = React.lazy(() => import('./TechTowerView'))
 import useMeetingSocket from '../hooks/useMeetingSocket'
 import { useAgentSystem } from '../hooks/useAgentSystem'
 import { AgentRole, AgentCapability } from '../modules/agentTypes'
@@ -180,14 +182,16 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
   // 第一层：公司大楼
   if (isTower) {
     return (
-      <TechTowerView
-        wsRef={wsRef}
-        onStartMeeting={() => handleTowerSendTask('开始新会议')}
-        onSendTask={handleTowerSendTask}
-        onBackToSingle={onBackToSingle}
-        onEnterProject={handleEnterOffice}
-        refreshKey={refreshKey}
-      />
+      <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#a78bfa' }}>加载 3D 场景...</div>}>
+        <TechTowerView
+          wsRef={wsRef}
+          onStartMeeting={() => handleTowerSendTask('开始新会议')}
+          onSendTask={handleTowerSendTask}
+          onBackToSingle={onBackToSingle}
+          onEnterProject={handleEnterOffice}
+          refreshKey={refreshKey}
+        />
+      </Suspense>
     )
   }
 
