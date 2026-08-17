@@ -13,6 +13,20 @@
 - **虚拟办公室可视化**: 3D 科技大厦场景，实时展示智能体状态
 - **本地/远端智能体混合执行**: 每个智能体可独立选择在用户浏览器本地(Node.js)或远端(Python Executor)执行工具调用
 
+### v1.2.0 改进项（2026-08-17，全部完成）
+
+基于多智能体架构调研（43 来源）和 DSH 代码级取证，实施了 14 项全栈改进：
+
+| 类别 | 改进项 | 状态 |
+|------|--------|------|
+| 代码级修复 | 投票策略激活、TS 重复模块清理 | ✅ |
+| 架构演进 | Subagent 委托、HITL 分级、Review 报告闭环、Context Engineering、LLM 守卫 | ✅ |
+| 标准化 | MCP 协议评估、Agent Skills 对齐评估 | ✅ |
+| 生态建设 | 配置层插件化（5 Phase）、技能市场（3 Stage） | ✅ |
+| 智能化 | 模型自产工作流 | ✅ |
+
+详细使用指南见 [改进使用指南](docs/guides/improvements-guide.md)，进度记录见 [PROGRESS.md](PROGRESS.md)。
+
 ---
 
 ## 系统架构
@@ -1227,6 +1241,9 @@ EXECUTOR_TOKEN=your_token_here
 
 ## 相关文档
 
+- [项目进度记录](PROGRESS.md) — v1.2.0 改进项完成状态
+- [改进使用指南](docs/guides/improvements-guide.md) — 14 项改进的使用指南、API 参考
+- [集成测试报告](docs/guides/integration-test-report-2026-08-17.md) — 端到端测试结果
 - [Agent 角色配置](docs/agent-roles.md)
 - [Agent 工具系统](docs/agent-tools.md)
 - [设计文档](docs/design.md)
