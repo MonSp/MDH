@@ -6,6 +6,8 @@ Review Pipeline - 审查流水线
 """
 
 import logging
+import time
+from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from agentscope.agent import Agent
@@ -18,6 +20,66 @@ from collaboration.grounding_agent import GroundingAgent, GroundingResult
 from protocol import AgentRole, MeetingAgentStatus, LLM_FALLBACK_TEMPLATE
 
 logger = logging.getLogger("review_pipeline")
+
+
+@dataclass
+class ReviewIteration:
+    """单轮审查结果"""
+    iteration: int
+    status: str  # "approved" | "revision_required" | "skipped"
+    critic_severity: str = "unknown"
+    critic_findings: List[str] = field(default_factory=list)
+    grounding_grounded: bool = False
+    grounding_sources: List[str] = field(default_factory=list)
+    issues: List[Dict[str, str]] = field(default_factory=list)
+    reviewer_feedback: str = ""
+    monitor_feedback: str = ""
+    coordinator_summary: str = ""
+    gate_passed: Optional[bool] = None
+    gate_failures: List[str] = field(default_factory=list)
+    files_written: List[str] = field(default_factory=list)
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass
+class ReviewReport:
+    """跨迭代审查报告 — 累积每轮审查结果"""
+    task_id: str = ""
+    final_status: str = "pending"  # "approved" | "revision_required" | "max_iterations_reached"
+    total_iterations: int = 0
+    iterations: List[ReviewIteration] = field(default_factory=list)
+    total_issues_found: int = 0
+    total_files_written: List[str] = field(default_factory=list)
+
+    def add_iteration(self, iteration: ReviewIteration) -> None:
+        self.iterations.append(iteration)
+        self.total_iterations = len(self.iterations)
+        self.total_issues_found += len(iteration.issues)
+        self.total_files_written.extend(iteration.files_written)
+        self.final_status = iteration.status
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "task_id": self.task_id,
+            "final_status": self.final_status,
+            "total_iterations": self.total_iterations,
+            "total_issues_found": self.total_issues_found,
+            "total_files_written": list(set(self.total_files_written)),
+            "iterations": [
+                {
+                    "iteration": it.iteration,
+                    "status": it.status,
+                    "critic_severity": it.critic_severity,
+                    "critic_findings": it.critic_findings,
+                    "grounding_grounded": it.grounding_grounded,
+                    "issues": it.issues,
+                    "gate_passed": it.gate_passed,
+                    "gate_failures": it.gate_failures,
+                    "files_written": it.files_written,
+                }
+                for it in self.iterations
+            ],
+        }
 
 
 class ReviewPipeline:

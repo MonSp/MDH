@@ -359,6 +359,44 @@ class MeetingSession:
             return SessionEventType.AGENT_MESSAGE
         return SessionEventType.SYSTEM
 
+    def append_event(
+        self,
+        event_type: SessionEventType,
+        content: str,
+        agent_id: Optional[str] = None,
+        phase: Optional[str] = None,
+        actor: Optional[str] = None,
+    ) -> dict:
+        """追加结构化事件（不经过 add_message，直接写入事件流）。
+
+        用于记录非消息类事件：EXPERIENCE_INJECTION、REVIEW、EXECUTION、TOOL、AUDIT 等。
+        """
+        event_id = str(uuid.uuid4())[:8]
+        event = SessionEvent(
+            event_id=event_id,
+            event_type=event_type,
+            role=event_type.value,
+            content=content,
+            agent_id=agent_id,
+            phase=phase,
+            actor=actor,
+            timestamp=time.time(),
+        )
+        event_dict = event.to_dict()
+        self._events.append(event_dict)
+        if self._session_log_dir:
+            try:
+                path = os.path.join(self._session_log_dir, f"{self.meeting_id}.jsonl")
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(event_dict, ensure_ascii=False) + "\n")
+            except (IOError, OSError):
+                logger.warning(
+                    "SessionEvent JSONL 追加失败（降级为内存模式）: %s/%s.jsonl",
+                    self._session_log_dir,
+                    self.meeting_id,
+                )
+        return event_dict
+
     def deriveMessages(
         self,
         event_types: Optional[list] = None,
