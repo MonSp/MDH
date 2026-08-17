@@ -1,0 +1,8 @@
+name: presentation_coaching
+version: "1.0.0"
+description: 演讲技巧，PPT优化，Q&A准备
+category: product
+methodology: STAR法则 — 情境→任务→行动→结果
+required_tools:
+  - read_file
+  - write_file

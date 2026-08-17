@@ -1,0 +1,9 @@
+name: ml_engineering
+version: "1.0.0"
+description: 模型训练，特征工程，模型评估，MLOps
+category: data
+methodology: MLOps生命周期 — 数据→训练→评估→部署→监控→迭代
+required_tools:
+  - read_file
+  - write_file
+  - bash

@@ -1,0 +1,8 @@
+name: data_presentation
+version: "1.0.0"
+description: 数据报告，商业演示，洞察传达
+category: data
+methodology: 金字塔原理 — 结论先行，以上统下，归类分组
+required_tools:
+  - read_file
+  - write_file

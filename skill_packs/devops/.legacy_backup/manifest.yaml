@@ -1,0 +1,9 @@
+name: devops
+version: "1.0.0"
+description: CI/CD流水线，容器化部署，基础设施即代码
+category: ops
+methodology: GitOps — 以Git为唯一事实来源，通过PR驱动基础设施变更
+required_tools:
+  - read_file
+  - write_file
+  - bash

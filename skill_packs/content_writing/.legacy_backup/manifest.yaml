@@ -1,0 +1,8 @@
+name: content_writing
+version: "1.0.0"
+description: 深度文章，技术写作，SEO优化
+category: content
+methodology: 倒金字塔写作 — 最重要的信息放在最前面
+required_tools:
+  - read_file
+  - write_file

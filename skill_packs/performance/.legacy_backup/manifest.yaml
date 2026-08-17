@@ -1,0 +1,9 @@
+name: performance
+version: "1.0.0"
+description: 性能分析，瓶颈定位，缓存策略，负载优化
+category: ops
+methodology: 度量驱动优化 — 先基准测试，定位瓶颈，优化后再度量验证
+required_tools:
+  - read_file
+  - write_file
+  - bash

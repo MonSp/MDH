@@ -1,0 +1,8 @@
+name: user_research
+version: "1.0.0"
+description: 用户访谈，可用性测试，需求洞察
+category: product
+methodology: 设计思维 — 共情→定义→构思→原型→测试
+required_tools:
+  - read_file
+  - write_file

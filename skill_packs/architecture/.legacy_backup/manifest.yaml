@@ -1,0 +1,9 @@
+name: architecture
+version: "1.0.0"
+description: 系统架构设计，技术选型，可扩展性规划
+category: dev
+methodology: 渐进式架构 — 从简单开始，随需求复杂度逐步演进架构
+required_tools:
+  - read_file
+  - write_file
+  - list_directory

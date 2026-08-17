@@ -1,0 +1,8 @@
+name: risk_management
+version: "1.0.0"
+description: 风险识别，影响评估，缓解策略
+category: product
+methodology: 风险矩阵 — 概率×影响的二维评估
+required_tools:
+  - read_file
+  - write_file

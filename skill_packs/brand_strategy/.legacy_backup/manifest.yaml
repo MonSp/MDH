@@ -1,0 +1,8 @@
+name: brand_strategy
+version: "1.0.0"
+description: 品牌定位，市场分析，竞争策略
+category: brand
+methodology: 定位三角 — 用户需求×竞争差异×自身优势
+required_tools:
+  - read_file
+  - write_file

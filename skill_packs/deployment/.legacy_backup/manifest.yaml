@@ -1,0 +1,9 @@
+name: deployment
+version: "1.0.0"
+description: 蓝绿部署，金丝雀发布，回滚策略
+category: ops
+methodology: 渐进式发布 — 蓝绿/金丝雀发布，逐步扩大流量比例
+required_tools:
+  - read_file
+  - write_file
+  - bash

@@ -1,0 +1,9 @@
+name: security_audit
+version: "1.0.0"
+description: OWASP检查，依赖漏洞扫描，安全编码审查
+category: testing
+methodology: STRIDE威胁建模 — 系统性识别欺骗、篡改、抵赖、信息泄露、拒绝服务、提权
+required_tools:
+  - read_file
+  - bash
+  - grep_content

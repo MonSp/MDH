@@ -1,0 +1,8 @@
+name: graphic_design
+version: "1.0.0"
+description: 视觉设计，品牌设计，排版布局
+category: design
+methodology: 格式塔原则 — 接近、相似、连续、闭合、图底关系
+required_tools:
+  - read_file
+  - write_file

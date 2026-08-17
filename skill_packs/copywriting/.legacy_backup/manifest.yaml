@@ -1,0 +1,8 @@
+name: copywriting
+version: "1.0.0"
+description: 广告文案，品牌故事，营销内容
+category: content
+methodology: AIDA模型 — 注意→兴趣→欲望→行动
+required_tools:
+  - read_file
+  - write_file

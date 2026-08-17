@@ -1,0 +1,8 @@
+name: video_editing
+version: "1.0.0"
+description: 剪辑节奏，转场设计，音频处理
+category: design
+methodology: J-cut/L-cut — 音频先于/后于画面切换，保持叙事连贯
+required_tools:
+  - read_file
+  - write_file

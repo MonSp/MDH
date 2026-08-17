@@ -1,0 +1,8 @@
+name: content_editing
+version: "1.0.0"
+description: 审校润色，事实核查，风格统一
+category: content
+methodology: 三轮审校 — 第一轮结构，第二轮逻辑，第三轮文字
+required_tools:
+  - read_file
+  - write_file
