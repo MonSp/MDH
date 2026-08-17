@@ -26,12 +26,10 @@
   "dependencies": {
     "@agentscope-ai/chat": "^1.1.65",
     "@agentscope-ai/design": "^1.0.32",
-    "@ant-design/icons": "^5.0.0",
     "@react-three/drei": "^9.120.4",
     "@react-three/fiber": "^8.17.10",
     "@react-three/postprocessing": "^2.19.1",
     "@types/three": "^0.170.0",
-    "antd": "^6.4.3",
     "docx": "^9.7.1",
     "electron-updater": "^6.3.0",
     "postprocessing": "^6.39.1",
