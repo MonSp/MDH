@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 
 interface SharedRule {
   rule_id: string
@@ -24,18 +24,30 @@ interface MarketplaceStats {
   rule_types: Record<string, number>
 }
 
+interface SkillDetail {
+  name: string
+  description: string
+  version: string
+  category: string
+  required_tools: string[]
+}
+
 type Tab = 'skills' | 'experience' | 'forks' | 'export'
+
+const PAGE_SIZE = 10
 
 export default function SkillMarketplace() {
   const [tab, setTab] = useState<Tab>('skills')
-  const [skills, setSkills] = useState<{ name: string; description: string; version: string }[]>([])
+  const [skills, setSkills] = useState<SkillDetail[]>([])
   const [sharedRules, setSharedRules] = useState<SharedRule[]>([])
   const [forks, setForks] = useState<SkillFork[]>([])
   const [stats, setStats] = useState<MarketplaceStats | null>(null)
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState('')
-  const [searchKw, setSearchKw] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
   const [message, setMessage] = useState('')
+  const [expandedSkill, setExpandedSkill] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
 
   // ── 数据加载 ──
 
@@ -53,13 +65,13 @@ export default function SkillMarketplace() {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      if (searchKw) params.set('keywords', searchKw)
+      if (filter) params.set('keywords', filter)
       const res = await fetch(`/api/marketplace/experience/search?${params}`)
       const data = await res.json()
       setSharedRules(data.rules || [])
     } catch { /* ignore */ }
     setLoading(false)
-  }, [searchKw])
+  }, [filter])
 
   const fetchForks = useCallback(async () => {
     setLoading(true)
@@ -84,6 +96,7 @@ export default function SkillMarketplace() {
     else if (tab === 'experience') fetchSharedRules()
     else if (tab === 'forks') fetchForks()
     fetchStats()
+    setPage(0)
   }, [tab, fetchSkills, fetchSharedRules, fetchForks, fetchStats])
 
   // ── 操作 ──
@@ -144,24 +157,65 @@ export default function SkillMarketplace() {
     } catch { setMessage('更新失败') }
   }
 
-  // ── 过滤 ──
+  // ── 过滤与分页 ──
 
-  const filteredSkills = skills.filter(s =>
-    !filter || s.name.toLowerCase().includes(filter.toLowerCase()) ||
-    (s.description || '').toLowerCase().includes(filter.toLowerCase())
-  )
+  const categories = useMemo(() => {
+    const cats = new Set(skills.map(s => s.category).filter(Boolean))
+    return Array.from(cats).sort()
+  }, [skills])
 
-  const filteredRules = sharedRules.filter(r =>
-    !filter || r.trigger_condition.toLowerCase().includes(filter.toLowerCase()) ||
-    r.action.toLowerCase().includes(filter.toLowerCase())
-  )
+  const filteredSkills = useMemo(() => {
+    let result = skills
+    if (filter) {
+      const q = filter.toLowerCase()
+      result = result.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        (s.description || '').toLowerCase().includes(q)
+      )
+    }
+    if (categoryFilter) {
+      result = result.filter(s => s.category === categoryFilter)
+    }
+    return result
+  }, [skills, filter, categoryFilter])
+
+  const filteredRules = useMemo(() => {
+    if (!filter) return sharedRules
+    const q = filter.toLowerCase()
+    return sharedRules.filter(r =>
+      r.trigger_condition.toLowerCase().includes(q) ||
+      r.action.toLowerCase().includes(q)
+    )
+  }, [sharedRules, filter])
+
+  const pagedSkills = useMemo(() => {
+    const start = page * PAGE_SIZE
+    return filteredSkills.slice(start, start + PAGE_SIZE)
+  }, [filteredSkills, page])
+
+  const totalPages = Math.ceil(filteredSkills.length / PAGE_SIZE)
+
+  // ── 高亮匹配文本 ──
+
+  const highlight = (text: string, query: string) => {
+    if (!query || !text) return text
+    const idx = text.toLowerCase().indexOf(query.toLowerCase())
+    if (idx === -1) return text
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark style={s.highlight}>{text.slice(idx, idx + query.length)}</mark>
+        {text.slice(idx + query.length)}
+      </>
+    )
+  }
 
   // ── 渲染 ──
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'skills', label: '技能包' },
-    { key: 'experience', label: '共享经验' },
-    { key: 'forks', label: '我的 Fork' },
+    { key: 'skills', label: `技能包 (${filteredSkills.length})` },
+    { key: 'experience', label: `共享经验 (${filteredRules.length})` },
+    { key: 'forks', label: `我的 Fork (${forks.length})` },
     { key: 'export', label: '导入导出' },
   ]
 
@@ -176,17 +230,24 @@ export default function SkillMarketplace() {
       <div style={s.tabs}>
         {tabs.map(t => (
           <button key={t.key} style={tab === t.key ? s.tabActive : s.tab}
-            onClick={() => { setTab(t.key); setFilter('') }}>
+            onClick={() => { setTab(t.key); setFilter(''); setCategoryFilter(''); setExpandedSkill(null) }}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* 搜索栏 */}
+      {/* 搜索 + 筛选栏 */}
       {tab !== 'export' && (
         <div style={s.searchRow}>
           <input style={s.search} placeholder="搜索..." value={filter}
-            onChange={e => setFilter(e.target.value)} />
+            onChange={e => { setFilter(e.target.value); setPage(0) }} />
+          {tab === 'skills' && categories.length > 0 && (
+            <select style={s.categorySelect} value={categoryFilter}
+              onChange={e => { setCategoryFilter(e.target.value); setPage(0) }}>
+              <option value="">全部类别</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
           {tab === 'experience' && (
             <button style={s.btn} onClick={publishRule}>发布经验</button>
           )}
@@ -200,31 +261,62 @@ export default function SkillMarketplace() {
       <div style={s.list}>
         {loading ? <div style={s.empty}>加载中...</div> :
 
-        tab === 'skills' && (filteredSkills.length === 0 ?
-          <div style={s.empty}>暂无可用技能</div> :
-          filteredSkills.map(sk => (
-            <div key={sk.name} style={s.item}>
-              <div style={s.itemHeader}>
-                <span style={s.skillName}>{sk.name}</span>
-                {sk.version && <span style={s.version}>v{sk.version}</span>}
+        tab === 'skills' && (pagedSkills.length === 0 ?
+          <div style={s.empty}>{filter || categoryFilter ? '无匹配结果' : '暂无可用技能'}</div> :
+          <>
+            {pagedSkills.map(sk => (
+              <div key={sk.name} style={s.item}>
+                <div style={s.itemHeader}>
+                  <span style={s.skillName} onClick={() => setExpandedSkill(expandedSkill === sk.name ? null : sk.name)}>
+                    {highlight(sk.name, filter)}
+                  </span>
+                  <div style={s.itemBadges}>
+                    {sk.version && <span style={s.version}>v{sk.version}</span>}
+                    {sk.category && <span style={s.categoryBadge}>{sk.category}</span>}
+                  </div>
+                </div>
+                {sk.description && <div style={s.desc}>{highlight(sk.description, filter)}</div>}
+
+                {/* 展开详情 */}
+                {expandedSkill === sk.name && (
+                  <div style={s.detail}>
+                    {sk.required_tools && sk.required_tools.length > 0 && (
+                      <div style={s.detailRow}>
+                        <span style={s.detailLabel}>工具:</span>
+                        <span style={s.detailValue}>{sk.required_tools.join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div style={s.itemFooter}>
+                  <button style={s.btn} onClick={() => forkSkill(sk.name)}>Fork</button>
+                  <button style={s.btnSecondary} onClick={() => setExpandedSkill(expandedSkill === sk.name ? null : sk.name)}>
+                    {expandedSkill === sk.name ? '收起' : '详情'}
+                  </button>
+                </div>
               </div>
-              {sk.description && <div style={s.desc}>{sk.description}</div>}
-              <div style={s.itemFooter}>
-                <button style={s.btn} onClick={() => forkSkill(sk.name)}>Fork</button>
+            ))}
+            {/* 分页 */}
+            {totalPages > 1 && (
+              <div style={s.pagination}>
+                <button style={s.pageBtn} disabled={page === 0} onClick={() => setPage(p => p - 1)}>上一页</button>
+                <span style={s.pageInfo}>{page + 1} / {totalPages}</span>
+                <button style={s.pageBtn} disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>下一页</button>
               </div>
-            </div>
-          ))
+            )}
+          </>
         )}
 
         {tab === 'experience' && (filteredRules.length === 0 ?
-          <div style={s.empty}>暂无共享经验</div> :
+          <div style={s.empty}>{filter ? '无匹配结果' : '暂无共享经验'}</div> :
           filteredRules.map(r => (
             <div key={r.rule_id} style={s.item}>
               <div style={s.itemHeader}>
-                <span style={s.skillName}>{r.trigger_condition.slice(0, 60)}</span>
+                <span style={s.skillName}>{highlight(r.trigger_condition.slice(0, 60), filter)}</span>
                 <span style={s.badge}>{r.rule_type}</span>
               </div>
-              <div style={s.desc}>{r.action.slice(0, 120)}</div>
+              <div style={s.desc}>{highlight(r.action.slice(0, 120), filter)}</div>
               <div style={s.itemFooter}>
                 <span style={s.meta}>来源: {r.source_project || '未知'} · 复用: {r.usage_count}</span>
                 <button style={s.btn} onClick={() => forkRule(r.rule_id)}>Fork</button>
@@ -287,7 +379,7 @@ const s: Record<string, React.CSSProperties> = {
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: '14px', fontWeight: 600, color: '#e2e8f0' },
   stats: { fontSize: '10px', color: '#94a3b8' },
-  tabs: { display: 'flex', gap: '4px' },
+  tabs: { display: 'flex', gap: '4px', flexWrap: 'wrap' as const },
   tab: {
     padding: '4px 10px', background: 'transparent',
     border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px',
@@ -304,25 +396,52 @@ const s: Record<string, React.CSSProperties> = {
     border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px',
     color: '#e2e8f0', fontSize: '12px', outline: 'none',
   },
+  categorySelect: {
+    padding: '6px 8px', background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px',
+    color: '#e2e8f0', fontSize: '11px', minWidth: '80px',
+  },
   list: { display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'auto', maxHeight: '350px' },
   item: {
     padding: '10px', borderRadius: '6px',
     background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
   },
   itemHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' },
-  skillName: { fontSize: '13px', fontWeight: 600, color: '#e2e8f0' },
+  itemBadges: { display: 'flex', gap: '4px', alignItems: 'center' },
+  skillName: { fontSize: '13px', fontWeight: 600, color: '#e2e8f0', cursor: 'pointer' },
   version: { fontSize: '10px', color: '#a78bfa', background: 'rgba(139,92,246,0.15)', padding: '1px 6px', borderRadius: '3px' },
+  categoryBadge: { fontSize: '10px', color: '#60a5fa', background: 'rgba(96,165,250,0.15)', padding: '1px 6px', borderRadius: '3px' },
   badge: { fontSize: '10px', color: '#fbbf24', background: 'rgba(251,191,36,0.15)', padding: '1px 6px', borderRadius: '3px' },
   desc: { fontSize: '11px', color: '#94a3b8', lineHeight: 1.4, marginBottom: '6px' },
   meta: { fontSize: '10px', color: '#6b7280' },
+  detail: {
+    padding: '8px', marginBottom: '6px', borderRadius: '4px',
+    background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
+  },
+  detailRow: { display: 'flex', gap: '8px', marginBottom: '4px' },
+  detailLabel: { fontSize: '11px', color: '#94a3b8', fontWeight: 600, minWidth: '40px' },
+  detailValue: { fontSize: '11px', color: '#e2e8f0' },
   itemFooter: { display: 'flex', gap: '8px', alignItems: 'center' },
   btn: {
     padding: '4px 10px', background: 'rgba(139,92,246,0.2)',
     border: '1px solid rgba(139,92,246,0.4)', borderRadius: '4px',
     color: '#a78bfa', fontSize: '11px', cursor: 'pointer',
   },
+  btnSecondary: {
+    padding: '4px 10px', background: 'transparent',
+    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px',
+    color: '#94a3b8', fontSize: '11px', cursor: 'pointer',
+  },
   empty: { fontSize: '12px', color: '#6b7280', textAlign: 'center' as const, padding: '20px' },
   msg: { fontSize: '11px', color: '#34d399', padding: '4px 8px', background: 'rgba(52,211,153,0.1)', borderRadius: '4px' },
+  highlight: { background: 'rgba(251,191,36,0.3)', color: '#fbbf24', padding: '0 2px', borderRadius: '2px' },
+  pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', padding: '8px 0' },
+  pageBtn: {
+    padding: '4px 10px', background: 'rgba(139,92,246,0.2)',
+    border: '1px solid rgba(139,92,246,0.4)', borderRadius: '4px',
+    color: '#a78bfa', fontSize: '11px', cursor: 'pointer',
+  },
+  pageInfo: { fontSize: '11px', color: '#94a3b8' },
   exportPanel: { display: 'flex', flexDirection: 'column', gap: '8px' },
   exportRow: { display: 'flex', gap: '6px', alignItems: 'center' },
   select: {
