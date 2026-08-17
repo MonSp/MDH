@@ -83,3 +83,6 @@ orchestrator/src/**/*.d.ts
 
 # Mock SSO (removed from repo)
 mock-sso/
+
+# Compose specs and plans
+docs/compose/
