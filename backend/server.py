@@ -181,6 +181,21 @@ def _fail(error: str):
     return {"success": False, "data": None, "error": error}
 
 
+# ── 统一异常处理 ──
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """全局异常处理器：捕获未处理的异常，返回统一格式"""
+    logger.exception("未处理的异常: %s %s", request.method, request.url.path)
+    return {"success": False, "data": None, "error": str(exc)}
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """HTTP 异常处理器：保持状态码，返回统一格式"""
+    return {"success": False, "data": None, "error": exc.detail}
+
+
 # ──────────────────── SkillRegistry REST API ────────────────────
 
 
