@@ -347,3 +347,144 @@ class RegistryClient:
             return True
         except Exception:
             return False
+
+    # ── 社区市场：GitHub API 远程搜索 ──
+
+    def search_remote(self, query: str = "", limit: int = 20) -> List[SkillMeta]:
+        """通过 GitHub API 搜索远程注册表（无需 clone 整个仓库）
+
+        Args:
+            query: 搜索关键词
+            limit: 返回数量限制
+
+        Returns:
+            技能包元数据列表
+        """
+        import re as _re
+        import urllib.request
+        import urllib.error
+
+        # 从 repo_url 提取 owner/repo
+        repo_path = self._extract_repo_path()
+        if not repo_path:
+            logger.warning("无法解析仓库路径: %s", self._repo_url)
+            return []
+
+        api_url = f"https://api.github.com/repos/{repo_path}/contents/skills"
+        try:
+            req = urllib.request.Request(api_url, headers={"User-Agent": "MDH-RegistryClient"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                dirs = json.loads(resp.read().decode())
+        except Exception as e:
+            logger.warning("GitHub API 请求失败: %s", e)
+            return []
+
+        results = []
+        for d in dirs:
+            if d.get("type") != "dir":
+                continue
+            skill_name = d["name"]
+
+            # 下载 SKILL.md frontmatter
+            skill_md_url = f"https://raw.githubusercontent.com/{repo_path}/main/skills/{skill_name}/SKILL.md"
+            meta = self._fetch_skill_meta_from_url(skill_md_url, skill_name)
+            if not meta:
+                continue
+
+            # 关键词过滤
+            if query:
+                q_lower = query.lower()
+                if (q_lower not in meta.name.lower() and
+                    q_lower not in meta.description.lower() and
+                    not any(q_lower in kw.lower() for kw in meta.keywords)):
+                    continue
+
+            meta.repository = self._repo_url
+            results.append(meta)
+            if len(results) >= limit:
+                break
+
+        return results
+
+    def install_from_remote(self, skill_name: str, target_dir: str) -> bool:
+        """从 GitHub 远程安装技能包
+
+        Args:
+            skill_name: 技能名称
+            target_dir: 目标目录（skill_packs/）
+
+        Returns:
+            是否成功
+        """
+        import urllib.request
+
+        repo_path = self._extract_repo_path()
+        if not repo_path:
+            return False
+
+        target_path = Path(target_dir) / skill_name
+        if target_path.exists():
+            logger.info("技能 %s 已存在，跳过安装", skill_name)
+            return True
+
+        target_path.mkdir(parents=True, exist_ok=True)
+
+        # 下载 SKILL.md
+        skill_md_url = f"https://raw.githubusercontent.com/{repo_path}/main/skills/{skill_name}/SKILL.md"
+        try:
+            content = self._fetch_url(skill_md_url)
+            (target_path / "SKILL.md").write_text(content, encoding="utf-8")
+        except Exception as e:
+            logger.warning("下载 SKILL.md 失败: %s", e)
+            shutil.rmtree(str(target_path))
+            return False
+
+        # 尝试下载 references/ 目录
+        refs_url = f"https://api.github.com/repos/{repo_path}/contents/skills/{skill_name}/references"
+        try:
+            req = urllib.request.Request(refs_url, headers={"User-Agent": "MDH-RegistryClient"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                files = json.loads(resp.read().decode())
+            refs_dir = target_path / "references"
+            refs_dir.mkdir(exist_ok=True)
+            for f in files:
+                if f.get("type") == "file":
+                    file_content = self._fetch_url(f["download_url"])
+                    (refs_dir / f["name"]).write_text(file_content, encoding="utf-8")
+        except Exception:
+            pass  # references 可选
+
+        logger.info("已从远程安装技能: %s", skill_name)
+        return True
+
+    def _extract_repo_path(self) -> str:
+        """从 repo_url 提取 owner/repo 路径"""
+        import re
+        # https://github.com/owner/repo.git → owner/repo
+        match = re.search(r'github\.com/([^/]+/[^/.]+)', self._repo_url)
+        if match:
+            return match.group(1).rstrip('.git')
+        return ""
+
+    def _fetch_skill_meta_from_url(self, url: str, fallback_name: str) -> Optional[SkillMeta]:
+        """从 URL 下载 SKILL.md 并解析 frontmatter"""
+        import re as _re
+        try:
+            content = self._fetch_url(url)
+            # 解析 frontmatter
+            match = _re.match(r'^---\s*\n(.*?)\n---\s*\n', content, _re.DOTALL)
+            if match:
+                import yaml
+                meta_data = yaml.safe_load(match.group(1)) or {}
+                return SkillMeta.from_dict(meta_data)
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _fetch_url(url: str) -> str:
+        """下载 URL 内容"""
+        import urllib.request
+        req = urllib.request.Request(url, headers={"User-Agent": "MDH-RegistryClient"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.read().decode("utf-8")

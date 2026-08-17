@@ -3099,6 +3099,47 @@ async def mcp_test_connection(name: str):
     return result
 
 
+# ── 社区市场 API ──
+
+_registry_client = None
+
+
+def _get_registry_client():
+    """延迟加载 RegistryClient"""
+    global _registry_client
+    if _registry_client is None:
+        from registry_client import RegistryClient
+        _registry_client = RegistryClient(
+            repo_url="https://github.com/mdh-community/skill-registry",
+            auto_clone=False,
+        )
+    return _registry_client
+
+
+@app.get("/api/community/search")
+async def community_search(q: str = "", limit: int = 20):
+    """搜索社区技能"""
+    client = _get_registry_client()
+    results = client.search_remote(query=q, limit=limit)
+    return {"success": True, "skills": [r.to_dict() for r in results]}
+
+
+@app.post("/api/community/install")
+async def community_install(request: Request):
+    """从社区安装技能"""
+    body = await request.json()
+    skill_name = body.get("skill_name", "")
+    if not skill_name:
+        return {"success": False, "error": "未指定技能名称"}
+
+    client = _get_registry_client()
+    skill_dir = os.path.join(os.path.dirname(__file__), "..", "skill_packs")
+    success = client.install_from_remote(skill_name, skill_dir)
+    if success:
+        return {"success": True, "message": f"已安装: {skill_name}"}
+    return {"success": False, "error": "安装失败"}
+
+
 if __name__ == "__main__":
     import uvicorn
     logging.basicConfig(

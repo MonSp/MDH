@@ -32,7 +32,16 @@ interface SkillDetail {
   required_tools: string[]
 }
 
-type Tab = 'skills' | 'experience' | 'forks' | 'export'
+interface CommunitySkill {
+  name: string
+  version: string
+  description: string
+  category: string
+  keywords: string[]
+  repository: string
+}
+
+type Tab = 'skills' | 'experience' | 'forks' | 'export' | 'community'
 
 const PAGE_SIZE = 10
 
@@ -48,6 +57,8 @@ export default function SkillMarketplace() {
   const [message, setMessage] = useState('')
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null)
   const [page, setPage] = useState(0)
+  const [communitySkills, setCommunitySkills] = useState<CommunitySkill[]>([])
+  const [communitySearch, setCommunitySearch] = useState('')
 
   // ── 数据加载 ──
 
@@ -91,13 +102,38 @@ export default function SkillMarketplace() {
     } catch { /* ignore */ }
   }, [])
 
+  const searchCommunity = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (communitySearch) params.set('q', communitySearch)
+      const res = await fetch(`/api/community/search?${params}`)
+      const data = await res.json()
+      setCommunitySkills(data.skills || [])
+    } catch { /* ignore */ }
+    setLoading(false)
+  }, [communitySearch])
+
+  const installFromCommunity = async (skillName: string) => {
+    try {
+      const res = await fetch('/api/community/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skill_name: skillName }),
+      })
+      const data = await res.json()
+      setMessage(data.success ? `已安装: ${skillName}` : `安装失败: ${data.error}`)
+    } catch { setMessage('安装失败') }
+  }
+
   useEffect(() => {
     if (tab === 'skills') fetchSkills()
     else if (tab === 'experience') fetchSharedRules()
     else if (tab === 'forks') fetchForks()
+    else if (tab === 'community') searchCommunity()
     fetchStats()
     setPage(0)
-  }, [tab, fetchSkills, fetchSharedRules, fetchForks, fetchStats])
+  }, [tab, fetchSkills, fetchSharedRules, fetchForks, fetchStats, searchCommunity])
 
   // ── 操作 ──
 
@@ -217,6 +253,7 @@ export default function SkillMarketplace() {
     { key: 'experience', label: `共享经验 (${filteredRules.length})` },
     { key: 'forks', label: `我的 Fork (${forks.length})` },
     { key: 'export', label: '导入导出' },
+    { key: 'community', label: '社区' },
   ]
 
   return (
@@ -365,6 +402,43 @@ export default function SkillMarketplace() {
             <div style={s.desc}>导入 zip 文件（开发中）</div>
           </div>
         )}
+
+        {tab === 'community' && (
+          <div style={s.communityPanel}>
+            <div style={s.communitySearchRow}>
+              <input style={s.search} placeholder="搜索社区技能..." value={communitySearch}
+                onChange={e => setCommunitySearch(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && searchCommunity()} />
+              <button style={s.btn} onClick={searchCommunity}>搜索</button>
+            </div>
+            <div style={s.desc}>
+              社区技能来自 GitHub 注册表（mdh-community/skill-registry）
+            </div>
+            {communitySkills.length === 0 ? (
+              <div style={s.empty}>{communitySearch ? '无匹配结果' : '输入关键词搜索社区技能'}</div>
+            ) : (
+              communitySkills.map(sk => (
+                <div key={sk.name} style={s.item}>
+                  <div style={s.itemHeader}>
+                    <span style={s.skillName}>🌐 {sk.name}</span>
+                    <div style={s.itemBadges}>
+                      {sk.version && <span style={s.version}>v{sk.version}</span>}
+                      {sk.category && <span style={s.categoryBadge}>{sk.category}</span>}
+                    </div>
+                  </div>
+                  {sk.description && <div style={s.desc}>{sk.description}</div>}
+                  <div style={s.itemFooter}>
+                    <button style={s.btn} onClick={() => installFromCommunity(sk.name)}>安装</button>
+                    {sk.repository && (
+                      <a href={sk.repository} target="_blank" rel="noopener noreferrer"
+                        style={s.link}>查看源</a>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -448,5 +522,10 @@ const s: Record<string, React.CSSProperties> = {
     padding: '6px 10px', background: 'rgba(255,255,255,0.05)',
     border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px',
     color: '#e2e8f0', fontSize: '12px', flex: 1,
+  },
+  communityPanel: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  communitySearchRow: { display: 'flex', gap: '6px' },
+  link: {
+    fontSize: '11px', color: '#60a5fa', textDecoration: 'none',
   },
 }
