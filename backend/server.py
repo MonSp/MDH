@@ -46,6 +46,19 @@ from routers import marketplace as marketplace_router
 from routers import mcp_config as mcp_router
 from routers import community as community_router
 
+# ── 请求模型 ──
+from schemas import (
+    SkillRegisterRequest, SkillCloneRequest,
+    ProjectCreateRequest, TaskCreateRequest,
+    RouteEntryRequest,
+    WorkflowCreateRequest,
+    ApprovalDecisionRequest,
+    SkillForkRequest, ExperiencePublishRequest, ExperienceForkRequest,
+    SkillExportRequest, SkillImportRequest,
+    MCPServerRequest, MCPServerUpdateRequest,
+    CommunityInstallRequest,
+)
+
 logger = logging.getLogger("server")
 
 # ──────────────────── 认证配置 ────────────────────
@@ -223,24 +236,22 @@ async def list_skills():
 
 
 @app.post("/api/skills")
-async def register_skill(body: dict = Body(...)):
+async def register_skill(body: SkillRegisterRequest):
     try:
-        skill_dir = body["skill_dir"]
-        pkg = skill_registry.register(skill_dir)
+        pkg = skill_registry.register(body.skill_dir)
         return _ok(asdict(pkg))
-    except KeyError:
-        return _fail("缺少必填字段: skill_dir")
     except ValueError as e:
         return _fail(str(e))
 
 
 @app.post("/api/skills/{skill_id}/clone")
-async def clone_skill(skill_id: str, body: dict = Body(...)):
+async def clone_skill(skill_id: str, body: SkillCloneRequest):
     try:
-        target_dir = body["target_dir"]
-        path = skill_registry.clone(skill_id, target_dir)
+        path = skill_registry.clone(skill_id, body.target_dir)
         return _ok({"cloned_path": path})
     except KeyError as e:
+        return _fail(str(e))
+    except ValueError as e:
         return _fail(str(e))
     except ValueError as e:
         return _fail(str(e))
@@ -277,14 +288,11 @@ async def list_projects():
 
 
 @app.post("/api/projects")
-async def create_project(body: dict = Body(...)):
+async def create_project(body: ProjectCreateRequest):
     try:
-        name = body["name"]
-        brief = body.get("brief", {})
-        project = project_manager.create_project(name, brief)
+        brief = {"name": body.name, "description": body.description, "category": body.category}
+        project = project_manager.create_project(body.name, brief)
         return _ok(asdict(project))
-    except KeyError:
-        return _fail("缺少必填字段: name")
     except ValueError as e:
         return _fail(str(e))
 
