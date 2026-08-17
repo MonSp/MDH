@@ -219,82 +219,38 @@ class SemanticAnalyzer:
         )
     
     def _generate_workflow_definition(self, user_message: str, routing_decision: RoutingDecision):
-        """根据用户消息生成工作流定义"""
+        """根据用户消息生成工作流定义
+
+        优先使用 LLM 生成节点列表，失败时回退到确定性关键词匹配。
+        依赖关系始终由确定性推断保证 DAG 结构正确性。
+        """
         import uuid
         from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowNodeStatus
-        
+
         workflow_id = str(uuid.uuid4())[:8]
-        nodes = []
-        edges = []
-        
-        if '前端' in user_message or 'frontend' in user_message:
-            nodes.append(WorkflowNode(
-                node_id=f"node-{str(uuid.uuid4())[:4]}",
-                task_description="前端开发任务",
-                dept_id="dept-frontend",
-                status=WorkflowNodeStatus.PENDING,
-            ))
-        
-        if '后端' in user_message or 'backend' in user_message or 'api' in user_message.lower():
-            nodes.append(WorkflowNode(
-                node_id=f"node-{str(uuid.uuid4())[:4]}",
-                task_description="后端开发任务",
-                dept_id="dept-backend",
-                status=WorkflowNodeStatus.PENDING,
-            ))
-        
-        if '测试' in user_message or 'test' in user_message:
-            nodes.append(WorkflowNode(
-                node_id=f"node-{str(uuid.uuid4())[:4]}",
-                task_description="测试任务",
-                dept_id="dept-qa",
-                status=WorkflowNodeStatus.PENDING,
-            ))
-        
-        if '部署' in user_message or 'deploy' in user_message:
-            nodes.append(WorkflowNode(
-                node_id=f"node-{str(uuid.uuid4())[:4]}",
-                task_description="部署任务",
-                dept_id="dept-devops",
-                status=WorkflowNodeStatus.PENDING,
-            ))
-        
-        if not nodes and routing_decision.selected_dept:
-            nodes.append(WorkflowNode(
-                node_id=f"node-{str(uuid.uuid4())[:4]}",
-                task_description=user_message[:100],
-                dept_id=routing_decision.selected_dept,
-                status=WorkflowNodeStatus.PENDING,
-            ))
-        
-        if not nodes:
-            nodes.append(WorkflowNode(
-                node_id=f"node-{str(uuid.uuid4())[:4]}",
-                task_description=user_message[:100],
-                dept_id="dept-fullstack",
-                status=WorkflowNodeStatus.PENDING,
-            ))
-        
-        # 依赖推断（替代硬编码 dept_order 线性链）：
-        # 实现类部门（前端/后端/全栈/数据）互不依赖 → 可并行；
-        # qa 依赖所有实现类节点；devops 依赖 qa 与实现类节点；docs 独立。
-        IMPL_DEPTS = {"dept-frontend", "dept-backend", "dept-fullstack", "dept-data"}
-        for node in nodes:
-            if node.dept_id == "dept-qa":
-                for other in nodes:
-                    if other.node_id != node.node_id and other.dept_id in IMPL_DEPTS:
-                        edges.append(WorkflowEdge(source_node_id=other.node_id, target_node_id=node.node_id))
-            elif node.dept_id == "dept-devops":
-                for other in nodes:
-                    if other.node_id != node.node_id and other.dept_id in (IMPL_DEPTS | {"dept-qa"}):
-                        edges.append(WorkflowEdge(source_node_id=other.node_id, target_node_id=node.node_id))
 
-        if not edges and len(nodes) > 1 and not any(n.dept_id in IMPL_DEPTS for n in nodes):
-            # 兜底：仅当不含可并行的实现类节点时按原顺序线性连接，保证可执行
-            for i in range(len(nodes) - 1):
-                edges.append(WorkflowEdge(source_node_id=nodes[i].node_id, target_node_id=nodes[i + 1].node_id))
+        # 1. 尝试 LLM 生成节点
+        llm_nodes = self._llm_generate_nodes_sync(user_message)
 
-        # 执行策略：根节点（无入边）> 1 → parallel；否则 sequential
+        # 2. 验证 LLM 输出
+        if llm_nodes and self._validate_workflow_nodes(llm_nodes):
+            nodes = [
+                WorkflowNode(
+                    node_id=f"node-{str(uuid.uuid4())[:4]}",
+                    task_description=n.get("task", ""),
+                    dept_id=n.get("dept", "dept-fullstack"),
+                    status=WorkflowNodeStatus.PENDING,
+                )
+                for n in llm_nodes
+            ]
+        else:
+            # 3. 回退到确定性生成
+            nodes = self._deterministic_generate_nodes(user_message, routing_decision)
+
+        # 4. 依赖推断（两种路径共用）
+        edges = self._infer_dependencies(nodes)
+
+        # 5. 执行策略
         incoming = {e.target_node_id for e in edges}
         root_count = sum(1 for n in nodes if n.node_id not in incoming)
         execution_strategy = "parallel" if root_count > 1 else "sequential"
@@ -307,3 +263,161 @@ class SemanticAnalyzer:
             edges=edges,
             execution_strategy=execution_strategy,
         )
+
+    def _llm_generate_nodes_sync(self, user_message: str) -> list:
+        """使用 LLM 生成工作流节点列表（同步版本，用于确定性路径）
+
+        Returns:
+            [{"task": str, "dept": str, "description": str}, ...] 或空列表
+        """
+        try:
+            model = self._get_model(AgentRole.CEO)
+            if not model:
+                return []
+
+            prompt = (
+                f"请分析以下任务，将其拆解为工作流节点。\n\n"
+                f"任务：{user_message}\n\n"
+                f"要求：\n"
+                f"1. 返回 JSON 数组，每个元素包含 task（任务名）、dept（部门）、description（描述）\n"
+                f"2. dept 只能是以下值之一：dept-frontend, dept-backend, dept-qa, dept-devops, dept-fullstack, dept-data, dept-docs\n"
+                f"3. 节点数 1-8 个\n"
+                f"4. 只返回 JSON，不要其他内容\n\n"
+                f"示例：\n"
+                f'[{{"task": "用户服务开发", "dept": "dept-backend", "description": "实现用户注册登录"}}]'
+            )
+
+            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+
+            # 使用同步方式调用（在确定性路径中）
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 如果事件循环已运行，跳过 LLM 调用（避免嵌套）
+                    return []
+                response = loop.run_until_complete(safe_llm_reply(model, msg, timeout=30))
+            except RuntimeError:
+                return []
+
+            text = _extract_text(response)
+
+            # 解析 JSON
+            json_match = re.search(r'\[.*\]', text, re.DOTALL)
+            if json_match:
+                nodes = json.loads(json_match.group())
+                if isinstance(nodes, list):
+                    return nodes
+
+        except Exception as e:
+            logger.debug("LLM 工作流生成失败，回退到确定性: %s", e)
+
+        return []
+
+    def _validate_workflow_nodes(self, nodes: list) -> bool:
+        """验证 LLM 生成的工作流节点
+
+        规则：
+        1. 节点数 1-8
+        2. 每个节点有 task 和 dept
+        3. dept 映射到已知部门
+        4. task 非空
+        """
+        VALID_DEPTS = {
+            "dept-frontend", "dept-backend", "dept-qa", "dept-devops",
+            "dept-fullstack", "dept-data", "dept-docs",
+        }
+
+        if not nodes or len(nodes) < 1 or len(nodes) > 8:
+            return False
+
+        for node in nodes:
+            if not isinstance(node, dict):
+                return False
+            if not node.get("task", "").strip():
+                return False
+            dept = node.get("dept", "")
+            if dept not in VALID_DEPTS:
+                return False
+
+        return True
+
+    def _deterministic_generate_nodes(self, user_message: str, routing_decision: RoutingDecision):
+        """确定性关键词匹配生成节点（回退路径）"""
+        from protocol import WorkflowNode, WorkflowNodeStatus
+        import uuid
+
+        nodes = []
+
+        if '前端' in user_message or 'frontend' in user_message:
+            nodes.append(WorkflowNode(
+                node_id=f"node-{str(uuid.uuid4())[:4]}",
+                task_description="前端开发任务",
+                dept_id="dept-frontend",
+                status=WorkflowNodeStatus.PENDING,
+            ))
+
+        if '后端' in user_message or 'backend' in user_message or 'api' in user_message.lower():
+            nodes.append(WorkflowNode(
+                node_id=f"node-{str(uuid.uuid4())[:4]}",
+                task_description="后端开发任务",
+                dept_id="dept-backend",
+                status=WorkflowNodeStatus.PENDING,
+            ))
+
+        if '测试' in user_message or 'test' in user_message:
+            nodes.append(WorkflowNode(
+                node_id=f"node-{str(uuid.uuid4())[:4]}",
+                task_description="测试任务",
+                dept_id="dept-qa",
+                status=WorkflowNodeStatus.PENDING,
+            ))
+
+        if '部署' in user_message or 'deploy' in user_message:
+            nodes.append(WorkflowNode(
+                node_id=f"node-{str(uuid.uuid4())[:4]}",
+                task_description="部署任务",
+                dept_id="dept-devops",
+                status=WorkflowNodeStatus.PENDING,
+            ))
+
+        if not nodes and routing_decision.selected_dept:
+            nodes.append(WorkflowNode(
+                node_id=f"node-{str(uuid.uuid4())[:4]}",
+                task_description=user_message[:100],
+                dept_id=routing_decision.selected_dept,
+                status=WorkflowNodeStatus.PENDING,
+            ))
+
+        if not nodes:
+            nodes.append(WorkflowNode(
+                node_id=f"node-{str(uuid.uuid4())[:4]}",
+                task_description=user_message[:100],
+                dept_id="dept-fullstack",
+                status=WorkflowNodeStatus.PENDING,
+            ))
+
+        return nodes
+
+    def _infer_dependencies(self, nodes):
+        """推断节点依赖关系（确定性）"""
+        from protocol import WorkflowEdge
+
+        edges = []
+        IMPL_DEPTS = {"dept-frontend", "dept-backend", "dept-fullstack", "dept-data"}
+
+        for node in nodes:
+            if node.dept_id == "dept-qa":
+                for other in nodes:
+                    if other.node_id != node.node_id and other.dept_id in IMPL_DEPTS:
+                        edges.append(WorkflowEdge(source_node_id=other.node_id, target_node_id=node.node_id))
+            elif node.dept_id == "dept-devops":
+                for other in nodes:
+                    if other.node_id != node.node_id and other.dept_id in (IMPL_DEPTS | {"dept-qa"}):
+                        edges.append(WorkflowEdge(source_node_id=other.node_id, target_node_id=node.node_id))
+
+        if not edges and len(nodes) > 1 and not any(n.dept_id in IMPL_DEPTS for n in nodes):
+            for i in range(len(nodes) - 1):
+                edges.append(WorkflowEdge(source_node_id=nodes[i].node_id, target_node_id=nodes[i + 1].node_id))
+
+        return edges
