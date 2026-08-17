@@ -3,6 +3,7 @@ import type { TeamMember, TeamRuntime } from '../team/team.js';
 import { LocalToolkitRouter } from './local.js';
 import { RemoteToolkitRouter } from './remote.js';
 import { HybridToolkitRouter, createExecutionConfig, type ExecutionProfile } from './hybrid.js';
+import { MCPToolkitRouter } from './mcp.js';
 
 export interface IToolkitRouter {
   execute(toolCall: ToolCall, workspace: string): Promise<ToolResult>;
@@ -20,10 +21,26 @@ interface HybridRuntime {
  * - runtime.hybrid.profile  → HybridToolkitRouter (per-agent 混合路由)
  * - 'local'  → LocalToolkitRouter (本地文件系统)
  * - 'remote' → RemoteToolkitRouter (HTTP → Python Executor)
+ * - 'mcp:*'  → MCPToolkitRouter (MCP 服务器)
  */
 export class RouterFactory {
   private localRouter = new LocalToolkitRouter();
   private remoteRouters = new Map<string, RemoteToolkitRouter>();
+  private mcpRouter: MCPToolkitRouter | null = null;
+
+  /**
+   * 设置 MCP 路由器（由上层初始化并注入）
+   */
+  setMCPRouter(router: MCPToolkitRouter): void {
+    this.mcpRouter = router;
+  }
+
+  /**
+   * 获取 MCP 路由器
+   */
+  getMCPRouter(): MCPToolkitRouter | null {
+    return this.mcpRouter;
+  }
 
   getRouterForMember(member: TeamMember): IToolkitRouter {
     // Per-agent hybrid：runtime 携带 hybrid.profile 时返回混合路由
@@ -37,6 +54,14 @@ export class RouterFactory {
         localWorkspace: this.getWorkspaceForMember(member),
         remote,
       }));
+    }
+
+    // MCP 路由：location 以 'mcp:' 开头
+    if (member.location?.startsWith('mcp:')) {
+      if (!this.mcpRouter) {
+        throw new Error('MCP router not configured. Call setMCPRouter() first.');
+      }
+      return this.mcpRouter;
     }
 
     if (member.location === 'local') {
