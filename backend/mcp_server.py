@@ -22,7 +22,7 @@ import logging
 import os
 import re
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger("mcp_server")
 
@@ -118,15 +118,85 @@ def _proxy_rest(method: str, path: str, json_data: dict = None, params: dict = N
 class MDHMCPServer:
     """MDH MCP Server — 暴露 MDH 内置工具
 
+    支持动态工具发现：
+    - register_tool/unregister_tool 运行时注册/注销工具
+    - notifications/tools/list_changed 通知客户端
+    - 配置文件热重载
+
     用法：
         server = MDHMCPServer("/path/to/workspace")
         await server.run()
     """
 
-    def __init__(self, workspace: str = "/tmp"):
+    def __init__(self, workspace: str = "/tmp", config_path: str = ""):
         self._workspace = workspace
+        self._config_path = config_path
         self._tools: Dict[str, Dict[str, Any]] = {}
+        self._clients: List[Any] = []  # 已连接的客户端（用于广播通知）
+        self._tool_change_callbacks: List[Callable] = []
         self._register_builtin_tools()
+
+    def register_tool(self, name: str, description: str, input_schema: dict, handler: Callable) -> None:
+        """动态注册工具
+
+        Args:
+            name: 工具名称（唯一标识）
+            description: 工具描述
+            input_schema: JSON Schema 输入定义
+            handler: 异步处理函数
+        """
+        if name in self._tools:
+            logger.warning("覆盖已有工具: %s", name)
+
+        self._tools[name] = {
+            "description": _sanitize_description(description),
+            "inputSchema": input_schema,
+            "handler": handler,
+        }
+        logger.info("动态注册工具: %s", name)
+        self._notify_tools_changed()
+
+    def unregister_tool(self, name: str) -> bool:
+        """动态注销工具
+
+        Args:
+            name: 工具名称
+
+        Returns:
+            是否成功注销
+        """
+        if name not in self._tools:
+            logger.warning("工具不存在: %s", name)
+            return False
+
+        del self._tools[name]
+        logger.info("动态注销工具: %s", name)
+        self._notify_tools_changed()
+        return True
+
+    def has_tool(self, name: str) -> bool:
+        """检查工具是否存在"""
+        return name in self._tools
+
+    def get_tool_count(self) -> int:
+        """获取工具数量"""
+        return len(self._tools)
+
+    def on_tool_change(self, callback: Callable) -> None:
+        """注册工具变更回调"""
+        self._tool_change_callbacks.append(callback)
+
+    def _notify_tools_changed(self) -> None:
+        """通知所有客户端工具列表已变更"""
+        notification = {
+            "jsonrpc": "2.0",
+            "method": "notifications/tools/list_changed",
+        }
+        for callback in self._tool_change_callbacks:
+            try:
+                callback(notification)
+            except Exception as e:
+                logger.warning("工具变更回调异常: %s", e)
 
     def _register_builtin_tools(self) -> None:
         """注册 18 个内置工具"""
@@ -502,12 +572,12 @@ class MDHMCPServer:
         return {
             "protocolVersion": "2024-11-05",
             "capabilities": {
-                "tools": {"listChanged": False},
+                "tools": {"listChanged": True},
                 "resources": {"listChanged": False},
             },
             "serverInfo": {
                 "name": "mdh-tools",
-                "version": "1.1.0",
+                "version": "1.2.0",
             },
         }
 
@@ -862,14 +932,60 @@ class MDHMCPServer:
                 logger.error("MCP 服务器错误: %s", e)
                 break
 
+    async def watch_config(self, interval: float = 5.0) -> None:
+        """监控配置文件变更，自动重载 MCP 服务器
 
-def create_mcp_server(workspace: str = "/tmp") -> MDHMCPServer:
+        Args:
+            interval: 检查间隔（秒）
+        """
+        if not self._config_path or not os.path.exists(self._config_path):
+            return
+
+        last_mtime = os.path.getmtime(self._config_path)
+        logger.info("开始监控配置文件: %s (间隔 %ds)", self._config_path, interval)
+
+        while True:
+            await asyncio.sleep(interval)
+            try:
+                current_mtime = os.path.getmtime(self._config_path)
+                if current_mtime > last_mtime:
+                    logger.info("检测到配置文件变更，重载 MCP 服务器")
+                    last_mtime = current_mtime
+                    await self._reload_mcp_servers()
+            except Exception as e:
+                logger.warning("配置文件监控异常: %s", e)
+
+    async def _reload_mcp_servers(self) -> None:
+        """重载 MCP 服务器配置"""
+        from mcp_adapter import load_mcp_configs, MCPAdapter
+
+        configs = load_mcp_configs(self._config_path)
+        if configs:
+            adapter = MCPAdapter(configs)
+            await adapter.initialize()
+            # 将新发现的工具注册到服务器
+            for tool in adapter.get_all_tools():
+                tool_key = f"{tool.server_name}__{tool.name}"
+                if not self.has_tool(tool_key):
+                    self.register_tool(
+                        tool_key,
+                        tool.description,
+                        tool.input_schema,
+                        lambda **kw: adapter.call_tool(tool_key, kw),
+                    )
+
+
+def create_mcp_server(workspace: str = "/tmp", config_path: str = "") -> MDHMCPServer:
     """创建 MCP 服务器实例"""
-    return MDHMCPServer(workspace)
+    return MDHMCPServer(workspace, config_path)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     workspace = sys.argv[1] if len(sys.argv) > 1 else "/tmp"
-    server = MDHMCPServer(workspace)
-    asyncio.run(server.run())
+    config_path = sys.argv[2] if len(sys.argv) > 2 else ""
+    server = MDHMCPServer(workspace, config_path)
+    if config_path:
+        asyncio.gather(server.run(), server.watch_config())
+    else:
+        asyncio.run(server.run())

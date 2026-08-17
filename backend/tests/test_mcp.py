@@ -382,3 +382,98 @@ class TestMCPServerSecurity:
         for tool in tools:
             # 所有描述应该在 500 字符以内
             assert len(tool["description"]) <= 510
+
+
+class TestMCPServerDynamicTools:
+    """测试 Phase 3 T3.2 动态工具发现"""
+
+    def test_register_tool(self, mcp_server):
+        """动态注册工具"""
+        async def handler(x: int) -> str:
+            return str(x * 2)
+
+        initial_count = mcp_server.get_tool_count()
+        mcp_server.register_tool(
+            "double_number",
+            "将数字翻倍",
+            {"type": "object", "properties": {"x": {"type": "integer"}}, "required": ["x"]},
+            handler,
+        )
+        assert mcp_server.get_tool_count() == initial_count + 1
+        assert mcp_server.has_tool("double_number")
+
+    def test_unregister_tool(self, mcp_server):
+        """动态注销工具"""
+        async def handler() -> str:
+            return "ok"
+
+        mcp_server.register_tool("temp_tool", "临时工具", {"type": "object", "properties": {}}, handler)
+        assert mcp_server.has_tool("temp_tool")
+
+        result = mcp_server.unregister_tool("temp_tool")
+        assert result is True
+        assert not mcp_server.has_tool("temp_tool")
+
+    def test_unregister_nonexistent(self, mcp_server):
+        """注销不存在的工具返回 False"""
+        assert mcp_server.unregister_tool("nonexistent") is False
+
+    def test_register_overwrites_existing(self, mcp_server):
+        """注册同名工具覆盖已有"""
+        async def handler1() -> str:
+            return "v1"
+        async def handler2() -> str:
+            return "v2"
+
+        mcp_server.register_tool("my_tool", "v1", {"type": "object", "properties": {}}, handler1)
+        count_after_first = mcp_server.get_tool_count()
+        mcp_server.register_tool("my_tool", "v2", {"type": "object", "properties": {}}, handler2)
+        assert mcp_server.get_tool_count() == count_after_first  # 不增加，只是覆盖
+
+    def test_on_tool_change_callback(self, mcp_server):
+        """工具变更触发回调"""
+        notifications = []
+        mcp_server.on_tool_change(lambda n: notifications.append(n))
+
+        async def handler() -> str:
+            return "ok"
+        mcp_server.register_tool("callback_test", "测试", {"type": "object", "properties": {}}, handler)
+
+        assert len(notifications) == 1
+        assert notifications[0]["method"] == "notifications/tools/list_changed"
+
+    @pytest.mark.asyncio
+    async def test_registered_tool_appears_in_list(self, mcp_server):
+        """注册的工具出现在工具列表中"""
+        async def handler() -> str:
+            return "ok"
+        mcp_server.register_tool("new_tool", "新工具", {"type": "object", "properties": {}}, handler)
+
+        response = await mcp_server.handle_request({
+            "jsonrpc": "2.0", "id": 300, "method": "tools/list", "params": {},
+        })
+        tool_names = {t["name"] for t in response["result"]["tools"]}
+        assert "new_tool" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_unregistered_tool_not_in_list(self, mcp_server):
+        """注销的工具不出现在工具列表中"""
+        async def handler() -> str:
+            return "ok"
+        mcp_server.register_tool("temp", "临时", {"type": "object", "properties": {}}, handler)
+        mcp_server.unregister_tool("temp")
+
+        response = await mcp_server.handle_request({
+            "jsonrpc": "2.0", "id": 301, "method": "tools/list", "params": {},
+        })
+        tool_names = {t["name"] for t in response["result"]["tools"]}
+        assert "temp" not in tool_names
+
+    @pytest.mark.asyncio
+    async def test_initialize_indicates_list_changed(self, mcp_server):
+        """初始化响应表明支持 tools/list_changed"""
+        response = await mcp_server.handle_request({
+            "jsonrpc": "2.0", "id": 302, "method": "initialize", "params": {},
+        })
+        tools_capability = response["result"]["capabilities"]["tools"]
+        assert tools_capability["listChanged"] is True
