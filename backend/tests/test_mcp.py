@@ -168,3 +168,51 @@ class TestMCPTool:
         )
         assert tool.name == "test_tool"
         assert tool.server_name == "test_server"
+
+
+class TestMDHMCPServerHighLevelTools:
+    """测试 Phase 2 高级业务工具"""
+
+    @pytest.mark.asyncio
+    async def test_list_tools_includes_workflow(self, mcp_server):
+        """工具列表包含工作流工具"""
+        response = await mcp_server.handle_request({
+            "jsonrpc": "2.0", "id": 100, "method": "tools/list", "params": {},
+        })
+        tool_names = {t["name"] for t in response["result"]["tools"]}
+        assert "create_workflow" in tool_names
+        assert "execute_workflow" in tool_names
+        assert "pause_workflow" in tool_names
+        assert "resume_workflow" in tool_names
+        assert "get_workflow_status" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_list_tools_includes_skills(self, mcp_server):
+        """工具列表包含技能工具"""
+        response = await mcp_server.handle_request({
+            "jsonrpc": "2.0", "id": 101, "method": "tools/list", "params": {},
+        })
+        tool_names = {t["name"] for t in response["result"]["tools"]}
+        assert "list_skills" in tool_names
+        assert "get_skill" in tool_names
+        assert "create_skill" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_list_tools_includes_experience(self, mcp_server):
+        """工具列表包含经验工具"""
+        response = await mcp_server.handle_request({
+            "jsonrpc": "2.0", "id": 102, "method": "tools/list", "params": {},
+        })
+        tool_names = {t["name"] for t in response["result"]["tools"]}
+        assert "list_experience_rules" in tool_names
+        assert "approve_experience_rule" in tool_names
+        assert "reject_experience_rule" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_total_tool_count(self, mcp_server):
+        """总工具数 = 8 低级 + 11 高级 = 19"""
+        response = await mcp_server.handle_request({
+            "jsonrpc": "2.0", "id": 103, "method": "tools/list", "params": {},
+        })
+        tools = response["result"]["tools"]
+        assert len(tools) == 19  # 8 + 5 workflow + 3 skill + 3 experience
