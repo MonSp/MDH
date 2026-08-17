@@ -888,175 +888,45 @@ async def list_role_skills():
 async def generate_skill(body: dict = Body(...)):
     """用AI根据需求描述生成技能配置"""
     try:
-        description = body.get("description", "").strip()
-        if not description:
-            return _fail("请提供技能需求描述")
+        from skill_generator import SkillGenerator
+        generator = SkillGenerator(load_roles_config_fn=_load_roles_config)
 
-        # 获取session和API配置
-        from agent import PROVIDER_REGISTRY
-        from model_factory import init_provider_registry
-
-        # 初始化模型工厂（如果尚未初始化）
-        if not hasattr(init_provider_registry, '_called'):
-            credential_classes = {}
-            model_classes = {}
-            formatter_classes = {}
-            for name, reg in PROVIDER_REGISTRY.items():
-                if reg.get("credential_cls"):
-                    credential_classes[name] = reg["credential_cls"]
-                if reg.get("model_cls"):
-                    model_classes[name] = reg["model_cls"]
-                if reg.get("formatter_cls"):
-                    formatter_classes[name] = reg["formatter_cls"]
-            init_provider_registry(credential_classes, model_classes, formatter_classes)
-            init_provider_registry._called = True
-
-        session_id = body.get("session_id")
-        session = sessions.get(session_id) if session_id else None
-
-        # 如果没有指定session，找一个有API key的session
-        if not session:
-            for sid, s in sessions.items():
-                logger.info("检查session %s: api_key=%s", sid, bool(s.api_key))
-                if s.api_key:
-                    session = s
-                    logger.info("使用session %s", sid)
-                    break
-
+        # 解析 API 配置
+        api_key = body.get("api_key", "")
+        base_url = body.get("base_url", "")
         provider = "deepseek"
         model_name = None
-        api_key = None
-        base_url = None
 
-        # 优先从请求体获取API key
-        if body.get("api_key"):
-            api_key = body["api_key"]
-            base_url = body.get("base_url") or ""
-            logger.info("从请求体获取API key")
+        if not api_key:
+            session_id = body.get("session_id")
+            session = sessions.get(session_id) if session_id else None
+            if not session:
+                for sid, s in sessions.items():
+                    if s.api_key:
+                        session = s
+                        break
+            if session:
+                provider = session.provider or provider
+                model_name = session.model_name
+                api_key = session.api_key
+                base_url = session.base_url
 
-        # 其次从session获取
-        if not api_key and session:
-            provider = session.provider or provider
-            model_name = session.model_name
-            api_key = session.api_key
-            base_url = session.base_url
-            logger.info("从session获取配置: provider=%s model=%s api_key=%s", provider, model_name, bool(api_key))
-
-        # 尝试从环境变量获取
         if not api_key:
             api_key = os.environ.get("DEEPSEEK_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
-
-        # 尝试从config获取
         if not api_key:
             from config import DEEPSEEK_API_KEY
             api_key = DEEPSEEK_API_KEY
 
-        if not api_key and provider != "ollama":
-            return _fail("未配置API密钥，请先在CEO对话中设置API Key")
-
-        logger.info("最终API配置: provider=%s api_key=%s base_url=%s", provider, bool(api_key), base_url)
-
-        reg = PROVIDER_REGISTRY.get(provider)
-        if reg is None:
-            return _fail(f"不支持的模型提供商: {provider}")
-
-        if not api_key and provider != "ollama":
-            return _fail("未配置API密钥，请先在CEO对话中设置API Key")
-
-        # 创建模型
-        from model_factory import create_agent, get_default_base_url
-
-        # 确保base_url有协议前缀
-        if base_url and not base_url.startswith(("http://", "https://")):
-            base_url = "https://" + base_url
-
-        # 如果没有base_url，使用provider的默认值
-        if not base_url:
-            base_url = get_default_base_url(provider)
-
-        agent = create_agent(
+        result = await generator.generate(
+            description=body.get("description", ""),
             provider=provider,
             api_key=api_key,
             base_url=base_url,
             model_name=model_name or "",
-            system_prompt="你是一位AI技能设计专家。",
-            agent_name="skill-generator",
-            stream=False,
         )
-        model = agent.model
-
-        # 构建prompt
-        existing_skills = list((_load_roles_config() or {}).get("skills", {}).keys())
-        existing_list = ", ".join(existing_skills[:20]) if existing_skills else "无"
-
-        prompt = f"""你是一位AI Harness Engineering技能设计专家。请根据以下需求描述，生成一个完整的技能配置。
-
-用户需求：{description}
-
-当前已有的技能ID（请避免重复）：{existing_list}
-
-请严格按以下JSON格式返回，不要包含其他内容：
-{{
-    "id": "技能ID（英文snake_case，简短有意义）",
-    "name": "技能中文名称",
-    "description": "一句话描述（20字以内）",
-    "category": "分类（dev/testing/ops/data/ai/ux/design/content/sales/general 选一）",
-    "methodology": "方法论描述（用 — 连接方法名和简要说明）",
-    "practices": [
-        "最佳实践1（具体可执行，含量化指标）",
-        "最佳实践2",
-        "最佳实践3",
-        "最佳实践4",
-        "最佳实践5",
-        "最佳实践6"
-    ],
-    "workflow": {{
-        "1": "第一步",
-        "2": "第二步",
-        "3": "第三步",
-        "4": "第四步",
-        "5": "第五步",
-        "6": "第六步"
-    }},
-    "required_tools": ["工具列表，从以下选择：read_file, write_file, edit_file, list_directory, bash, git_status, git_commit, git_push, git_branch, git_diff, git_log, search_files, grep_content, run_tests, run_linter, create_document, edit_document, create_slide, edit_slide, run_sql, create_chart, run_etl, generate_image, generate_video, edit_media, write_copy, seo_optimize, web_fetch"]
-}}"""
-
-        # 调用LLM
-        from agentscope.agent import Agent
-        from agentscope.message import Msg
-        from agent import _extract_text
-
-        agent = Agent(
-            name="skill_generator",
-            system_prompt="你是一位AI Harness Engineering技能设计专家。请严格按照JSON格式返回结果。",
-            model=model,
-        )
-
-        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        response = await agent.reply(msg)
-
-        # 提取文本
-        text = _extract_text(response)
-        logger.info("AI生成技能返回: %s", text[:500])
-
-        # 解析JSON
-        import re
-        json_match = re.search(r'\{[\s\S]*\}', text)
-        if not json_match:
-            return _fail(f"AI未能生成有效配置，返回内容: {text[:200]}")
-
-        try:
-            skill_config = json.loads(json_match.group())
-        except json.JSONDecodeError as e:
-            return _fail(f"JSON解析失败: {str(e)}")
-
-        # 验证必要字段
-        if not skill_config.get("id"):
-            return _fail("AI未生成技能ID")
-        if not skill_config.get("name"):
-            skill_config["name"] = skill_config["id"]
-
-        return _ok(skill_config)
+        if result["success"]:
+            return _ok(result["data"])
+        return _fail(result["error"])
 
     except Exception as e:
         logger.exception("AI生成技能失败")
