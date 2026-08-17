@@ -2,6 +2,61 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.0] - 2026-08-17
+
+### Added
+
+**调研驱动的全栈改进（14 项，基于多智能体架构调研 + DSH 代码级取证）**
+
+**代码级修复**
+- 投票策略激活：`NegotiationEngine.set_default_strategy()` + `evaluate_consensus()` 传参 + `MeetingCoordinator` 构造参数 + `server.py` WS 消息字段
+- TS 重复模块清理：删除 `workflowEngine.ts`（REST shim，零生产引用）
+
+**架构演进**
+- Subagent 委托 PoC：`RoleAgent.spawnSubagent()` 独立上下文 + artifact 引用注入父上下文 + `subagent_spawn/complete` 事件
+- HITL 分级自动化：`classify_approval_tier()` 三级决策（白名单→分类器→人工）+ `risk_classify()` 风险评分，集成到会议审批流程
+- Review 报告闭环：`ReviewIteration` + `ReviewReport` 数据结构，跨迭代累积，返回 `review_report` 字段
+- Context Engineering 深化：`MeetingSession.append_event()` 结构化事件（EXPERIENCE_INJECTION/REVIEW/EXECUTION 等）+ `build_experience_summary()` 渐进披露
+
+**可靠性**
+- LLM 守卫系统：`safe_llm_reply()` 统一超时保护（120s 默认）+ 自动重试（2 次）+ `on_timeout` 回调，覆盖 meeting_coordinator/review_pipeline/semantic_analyzer/task_orchestrator 全部 LLM 调用点
+
+**标准化评估**
+- MCP 协议评估：402 行评估文档，推荐 `MCPAdapterRouter` 实现 `IToolkitRouter` 接口，Phase 1+2 约 26 人天
+- Agent Skills 标准对齐评估：评估文档，MDH 实际有 42 个 skill packs，推荐混合模式方案（5-8 人天）
+
+**配置层插件化（5 Phase）**
+- SkillBridge：统一加载接口，自动检测 SKILL.md（Agent Skills 标准）/ manifest.yaml（legacy）格式
+- ProgressiveSkillLoader：四层渐进披露（L0 索引/L1 指令/L2 参考/L3 脚本）
+- SkillRouter：技能路由桥接，L0 索引注入 DynamicRouter
+- 批量迁移：42 个技能全部迁移到 SKILL.md 格式（`.legacy_backup/` 保留原文件）
+- 迁移工具：`migrate_skills.py`（预览/执行/备份模式）
+
+**技能市场（三阶段）**
+- Stage 1：`SharedExperiencePool`（共享经验池：发布/搜索/fork）+ `SkillForkManager`（技能包 Fork：fork/list/pull）+ 7 个 REST API 端点
+- Stage 2：`SkillExporter`（导入导出：zip 序列化 + 脱敏）+ 增强 `SkillMarketplace.tsx`（4 Tab 面板：技能/经验/Fork/导入导出）
+- Stage 3：`RegistryClient`（Git 注册表客户端：clone/pull/search/install/publish）+ `RegistryServer`（HTTP 注册表服务：6 个 FastAPI 端点）
+
+**模型自产工作流**
+- LLM 节点生成：`_llm_generate_nodes_sync()` 分析任务描述生成工作流节点列表
+- 验证规则：节点数 1-8、部门映射校验、任务描述非空
+- 静默回退：LLM 失败时回退到确定性关键词匹配
+- 依赖推断：实现类节点可并行、qa 依赖实现类、devops 依赖 qa+实现类
+
+### Changed
+
+- `semantic_analyzer.py`：`_generate_workflow_definition()` 重构为 LLM 优先 + 确定性回退
+- `meeting_coordinator.py`：审批流程集成 HITL 分级，经验注入记录 SessionEvent
+- `experience_extractor.py`：新增 `retrieve_with_shared()` 联合搜索本地+共享池
+- `review_pipeline.py`：新增 `ReviewIteration`/`ReviewReport` 数据结构
+
+### Documentation
+
+- `docs/guides/improvements-guide.md`：全栈改进使用指南（14 项改进 + API 参考 + 使用示例）
+- `docs/compose/spec/mcp-integration-evaluation.md`：MCP 协议集成评估
+- `docs/compose/spec/agent-skills-alignment-evaluation.md`：Agent Skills 标准对齐评估
+- `docs/compose/spec/skill-marketplace.md`：技能市场设计文档
+
 ## [1.1.0] - 2026-08-16
 
 ### Added
