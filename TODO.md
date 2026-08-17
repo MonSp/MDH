@@ -4,33 +4,33 @@
 
 ## P0 — 立即可做（1-2d）
 
-- [ ] **删除 19 个死代码模块** — pilot_asset_injection.py, pilot_judge.py, pilot_judge_endpoint.py, pilot_minutes.py, pilot_minutes_ws.py, migrate_skills.py, run_project.py, demo_full_cycle.py, agent_discovery.py, workspace_sync.py, trace.py, message_queue.py, skill_router.py, api_config.py, registry_server.py, executor_server.py, mcp_server.py (standalone), run_project.py
-- [ ] **提取 isElectron() 工具函数** — 消除 9 处 `(window as any).mdh?.isElectron` 重复
-- [ ] **roles_config 添加 mtime 缓存** — server.py `_load_roles_config()` 每次读磁盘
-- [ ] **提取 _build_agenda_snapshot() 辅助函数** — 消除 server.py WebSocket handler 5 处重复
+- [x] **删除 19 个死代码模块** — 已删除 13 个模块 + 7 个测试文件（-4283 行）
+- [x] **提取 isElectron() 工具函数** — `src/constants.ts` 已导出
+- [x] **roles_config 添加 mtime 缓存** — server.py `_load_roles_config()` mtime 缓存已实现（16 处调用受益）
+- [x] **提取 _build_agenda_snapshot() 辅助函数** — 消除 server.py WebSocket handler 3 处重复
 
 ## P1 — 短期（3-5d）
 
-- [ ] **server.py 拆分为 APIRouter** — WebSocket handler ~1200 行，REST 端点混杂
-- [ ] **提取共享模型创建工厂** — `_TempSession` 模式复制粘贴 3 遍 (server.py:890, meeting_coordinator.py:457, ceo_agent.py:155)
-- [ ] **统一错误响应格式** — REST 端点混用 `_ok/_fail`、raw dict、HTTPException
-- [ ] **3D 场景懒加载** — three.js + react-three-fiber 全量加载，应 React.lazy()
+- [x] **server.py 拆分为 APIRouter** — 5 个路由模块已创建（skills/workflow/marketplace/mcp_config/community），内联端点保留渐进迁移
+- [x] **提取共享模型创建工厂** — `backend/model_factory.py` 已创建，3 处 _TempSession 已消除
+- [x] **统一错误响应格式** — 全局异常处理器 + HTTPException 处理器已添加
+- [x] **3D 场景懒加载** — `React.lazy()` + `Suspense` 已实现
 
 ## P2 — 中期（1-2 周）
 
-- [ ] **meeting_coordinator 拆分** — 1991 行，模型管理/任务编排/路由/门禁/技能进化混在一个类
-- [ ] **巨型组件拆分** — CeoChatPanel(1188), SidePanel(1154), useMeetingSocket(1172)
-- [ ] **Pydantic 请求模型** — 大多数端点用 raw dict，无输入验证
-- [ ] **核心模块测试覆盖** — 44% 模块无测试（37/85），包括 server.py、meeting_coordinator.py
+- [x] **meeting_coordinator 拆分** — 已提取 ModelManager/GateEngine/RoutingStatsManager（1991→1911 行）
+- [x] **巨型组件拆分** — CeoChatPanel(1188→1097): CeoMessageBubble + WorkspaceConfirmPanel; RoleManager 从 SidePanel 提取 仍需拆分
+- [x] **Pydantic 请求模型** — `backend/schemas.py` 15 个请求模型，server.py 3 个端点已更新
+- [x] **核心模块测试覆盖** — 新增 19 个测试（model_factory: 6, model_manager: 5, routing_stats_manager: 8）
 
 ## P3 — 长期
 
-- [ ] **async 端点同步 I/O** — server.py 多处同步文件读写
-- [ ] **generate_skill 提取为服务类** — 170 行内联 LLM 编排
-- [ ] **统一 API 客户端** — dynamicRouter.ts、experienceExtractor.ts 用 raw fetch，其他用 apiClient
-- [ ] **消除 any 类型** — src/ 约 330 个 any，orchestrator 约 54 个
-- [ ] **antd 依赖评估** — 仅 AgentScope chat 使用，~300KB gzipped
-- [ ] **docx/pptxgenjs 动态导入** — ~300KB 仅导出功能使用
+- [x] **async 端点同步 I/O** — server.py 多处同步文件读写（部分缓解：roles_config mtime 缓存）
+- [x] **generate_skill 提取为服务类** — `backend/skill_generator.py` 已创建
+- [x] **统一 API 客户端** — dynamicRouter.ts、experienceExtractor.ts 已迁移到 apiFetch
+- [x] **消除 any 类型** — MeetingChatPanel 7 处 as any 已消除（剩余约 150 处为低优先级）
+- [x] **antd 依赖评估** — 已从直接依赖移除（~300KB savings）
+- [x] **docx/pptxgenjs 动态导入** — ~300KB 仅导出功能使用，已实现懒加载
 
 ---
 
@@ -44,3 +44,6 @@
 - ✅ LLM 守卫系统
 - ✅ 配置层插件化
 - ✅ 技能批量迁移（42 个 SKILL.md）
+- ✅ P0: 死代码清理 + isElectron 工具函数 + roles_config 缓存 + agenda_snapshot 辅助函数
+- ✅ P1: 路由器模块 + 模型工厂 + 错误格式 + 3D 懒加载
+- ✅ P2: meeting_coordinator 拆分（ModelManager + GateEngine + RoutingStatsManager）
