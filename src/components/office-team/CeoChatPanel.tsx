@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import CeoMessageBubble from './CeoMessageBubble'
+import WorkspaceConfirmPanel from './WorkspaceConfirmPanel'
 
 const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true
 
@@ -548,109 +550,16 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
                     </button>
                   </div>
                 ) : isWsConfirm && workspaceConfirm ? (
-                  <div>
-                    <div style={{ marginBottom: 10, fontWeight: 600 }}>
-                      {workspaceConfirm.existing_project ? '⚠️ 目录已有内容' : '📁 工作区配置'}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 10 }}>
-                      项目: {workspaceConfirm.task_description}
-                    </div>
-
-                    {/* 已有项目信息 */}
-                    {workspaceConfirm.existing_project && (
-                      <div style={{ marginBottom: 10, padding: '8px 10px', background: 'rgba(245,158,11,0.1)', borderRadius: 6, border: '1px solid rgba(245,158,11,0.3)' }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#f59e0b', marginBottom: 4 }}>
-                          目标目录: {workspaceConfirm.existing_project.path}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#d4a056' }}>
-                          已有 {workspaceConfirm.existing_project.file_count} 个文件/目录
-                          {workspaceConfirm.existing_project.project_hints.length > 0 &&
-                            ` · 检测到: ${workspaceConfirm.existing_project.project_hints.join(', ')}`}
-                        </div>
-                        {workspaceConfirm.existing_project.files.length > 0 && (
-                          <div style={{ fontSize: 10, color: '#92744c', marginTop: 4, fontFamily: 'monospace' }}>
-                            {workspaceConfirm.existing_project.files.slice(0, 8).join(', ')}
-                            {workspaceConfirm.existing_project.files.length > 8 && '...'}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div style={{ marginBottom: 8 }}>
-                      <label style={styles.wsLabel}>
-                        {workspaceConfirm.existing_project ? '请选择操作' : '工作区类型'}
-                      </label>
-                      <div style={styles.wsOptionGroup}>
-                        {workspaceConfirm.options.workspace_types.map(wt => (
-                          <div
-                            key={wt.id}
-                            onClick={() => setWsType(wt.id)}
-                            style={{
-                              ...styles.wsOption,
-                              ...(wsType === wt.id ? styles.wsOptionActive : {}),
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, fontSize: 12 }}>{wt.name}</div>
-                            <div style={{ fontSize: 11, color: '#6b7280' }}>{wt.desc}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {wsType === 'git_worktree' && (
-                      <>
-                        <div style={{ marginBottom: 8 }}>
-                          <label style={styles.wsLabel}>仓库路径</label>
-                          <input
-                            style={styles.wsInput}
-                            value={wsRepoPath}
-                            onChange={e => setWsRepoPath(e.target.value)}
-                            placeholder="/path/to/repo"
-                          />
-                        </div>
-                        <div style={{ marginBottom: 8 }}>
-                          <label style={styles.wsLabel}>分支名</label>
-                          <input
-                            style={styles.wsInput}
-                            value={wsBranchName}
-                            onChange={e => setWsBranchName(e.target.value)}
-                            placeholder="agent/task-xxx"
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {wsType === 'new_dir' && (
-                      <div style={{ marginBottom: 10 }}>
-                        <label style={styles.wsLabel}>新目录路径</label>
-                        <input
-                          style={styles.wsInput}
-                          value={wsOutputDir}
-                          onChange={e => setWsOutputDir(e.target.value)}
-                          placeholder="请输入空目录路径"
-                        />
-                      </div>
-                    )}
-
-                    {!workspaceConfirm.existing_project && (
-                      <div style={{ marginBottom: 10 }}>
-                        <label style={styles.wsLabel}>输出目录</label>
-                        <input
-                          style={styles.wsInput}
-                          value={wsOutputDir}
-                          onChange={e => setWsOutputDir(e.target.value)}
-                          placeholder="留空使用默认目录"
-                        />
-                      </div>
-                    )}
-
-                    <button
-                      style={styles.wsConfirmBtn}
-                      onClick={handleWorkspaceConfirm}
-                    >
-                      ✅ 确认配置并继续
-                    </button>
-                  </div>
+                  <WorkspaceConfirmPanel
+                    confirm={workspaceConfirm}
+                    onConfirm={({ wsType: wt, wsRepoPath: rp, wsBranchName: bn, wsOutputDir: od }) => {
+                      setWsType(wt)
+                      setWsRepoPath(rp)
+                      setWsBranchName(bn)
+                      setWsOutputDir(od)
+                      handleWorkspaceConfirm()
+                    }}
+                  />
                 ) : msg._workspaceConfirm ? (
                   // 工作区选择 UI
                   <div>
