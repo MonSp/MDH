@@ -1076,8 +1076,8 @@ class MeetingCoordinator:
         team_id: str = "",
     ) -> Dict[str, Any]:
         """
-        处理用户消息
-        
+        处理用户消息（编排方法，协调各阶段子流程）
+
         架构说明：
         - CEO（主智能体）只负责团队创建和任务交接
         - COORDINATOR（团队负责人）接管所有内部流程管理
@@ -1085,148 +1085,149 @@ class MeetingCoordinator:
         self._on_message = on_message
         self._current_on_message = on_message
 
-        # 获取CEO和COORDINATOR的ID
         ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
         coordinator_id = self._find_agent_id(AgentRole.COORDINATOR) or "agent-coordinator"
-        
-        # CEO将任务交给COORDINATOR
-        ceo_handoff_text = f"CEO：收到任务「{user_message[:50]}...」，已交给项目经理处理。"
-        await self._msg(ceo_id, ceo_handoff_text)
-        
-        # COORDINATOR接管内部流程
-        coordinator = self._get_model(AgentRole.COORDINATOR)
-        
-        # 需求确认阶段 - 模拟人类公司的需求确认流程
-        confirmation_text = (
-            f"项目经理：收到需求，正在确认细节。\n"
-            f"需求概述：{user_message[:100]}\n"
-            f"正在分析需求复杂度和团队配置..."
-        )
-        await self._msg(coordinator_id, confirmation_text)
-        
-        # COORDINATOR进行语义分析
+
+        # CEO 交接
+        await self._msg(ceo_id, f"CEO：收到任务「{user_message[:50]}...」，已交给项目经理处理。")
+
+        # 需求确认 + 语义分析
+        await self._msg(coordinator_id, f"项目经理：收到需求，正在确认细节。\n需求概述：{user_message[:100]}\n正在分析需求复杂度和团队配置...")
         analysis = await self.semantic_analyze(user_message, team_id=team_id)
-        
-        # 发布分析结果和项目规划
-        analysis_text = (
+        await self._announce_analysis(coordinator_id, analysis)
+        await self._announce_plan(coordinator_id)
+
+        # 1. 工作流模式
+        if analysis.is_workflow and analysis.workflow_definition:
+            return await self._run_workflow_mode(analysis, coordinator_id, on_message)
+
+        # 2. 串行流程：讨论 → 投票 → 分派 → 审批 → 执行 → 审查
+        topic = (analysis.discussion_topic.strip() if analysis.discussion_topic else "") or user_message
+        await self._msg(coordinator_id, f"项目经理：组织团队讨论「{topic[:30]}...」")
+        team = getattr(self, '_team', None)
+        discussion_results = await self.run_discussion(topic, on_message, team=team)
+
+        original_description = analysis.task_description or user_message
+        enhanced_description = self._enhance_task_description(original_description, discussion_results)
+        enhanced_description = await self._inject_experience(coordinator_id, original_description, enhanced_description, discussion_results)
+        await self._msg(coordinator_id, "项目经理：已整合团队讨论结果，任务描述已更新。")
+
+        target_agent_id = analysis.target_agent_id or self._infer_target_agent(discussion_results) or "agent-executor"
+
+        # 投票
+        vote_passed = await self._run_voting_phase(coordinator_id, enhanced_description, discussion_results, on_message)
+        if not vote_passed:
+            return {"type": "vote_rejected"}
+
+        # 分派
+        await self._msg(coordinator_id, f"项目经理：将任务分派给{target_agent_id}执行。")
+        assign_result = await self.auto_assign_task(enhanced_description, target_agent_id, analysis.reason)
+
+        # 审批
+        await self._run_approval_phase(coordinator_id, target_agent_id, enhanced_description, on_message)
+
+        # 执行 + 审查循环
+        await self._msg(coordinator_id, "项目经理：监督任务执行和质量审查。")
+        discussion_context = self._extract_discussion_decisions(discussion_results)
+        execution_results, review_result, review_report = await self._run_dev_loop(
+            coordinator_id, enhanced_description, discussion_context, on_message,
+        )
+
+        # 总结 + 技能进化
+        self._update_routing_stats_safe()
+        project_summary = self._generate_project_summary(
+            user_message, analysis, discussion_results, assign_result, review_result, execution_results,
+        )
+        await self._msg(coordinator_id, "项目经理：已生成项目总结报告。")
+        await self._msg(coordinator_id, project_summary)
+        await self._run_skill_evolution(coordinator_id, user_message, discussion_results, review_result, execution_results)
+
+        # 汇报
+        await self._msg(coordinator_id, "项目经理：任务执行完成，向CEO汇报结果。")
+        await self._msg(ceo_id, "CEO：收到项目经理汇报，任务已完成。")
+        if review_report.total_iterations > 0:
+            await on_message(coordinator_id, f"[审查报告] 共 {review_report.total_iterations} 轮，最终状态: {review_report.final_status}，累计发现 {review_report.total_issues_found} 个问题", "")
+
+        return {
+            "type": "serial_completed",
+            "analysis": semantic_analysis_to_dict(analysis),
+            "discussion_results": discussion_results,
+            "assignment": assign_result,
+            "review_result": review_result,
+            "execution_results": execution_results,
+            "project_summary": project_summary,
+            "review_report": review_report.to_dict(),
+        }
+
+    # ── process_user_message 子流程 ──
+
+    async def _announce_analysis(self, coordinator_id, analysis):
+        text = (
             f"项目经理分析：\n"
             f"• 意图：{analysis.intent}\n"
             f"• 复杂度：{'高（需要多部门协作）' if analysis.is_workflow else '中（单部门执行）'}\n"
             f"• 预计工作量：将根据任务复杂度动态调整\n"
         )
         if analysis.is_task:
-            analysis_text += f"• 指派给：{analysis.target_agent_id}\n"
-            analysis_text += f"• 理由：{analysis.reason}"
+            text += f"• 指派给：{analysis.target_agent_id}\n• 理由：{analysis.reason}"
         else:
-            analysis_text += f"• 讨论主题：{analysis.discussion_topic}"
-        
-        await self._msg(coordinator_id, analysis_text)
-        self.meeting.add_message("agent", analysis_text, coordinator_id)
+            text += f"• 讨论主题：{analysis.discussion_topic}"
+        await self._msg(coordinator_id, text)
+        self.meeting.add_message("agent", text, coordinator_id)
 
-        # 项目规划阶段 - 模拟人类公司的项目规划流程
-        plan_text = (
-            f"项目经理：制定项目计划。\n"
-            f"阶段1：需求分析与讨论\n"
-            f"阶段2：任务分配与执行\n"
-            f"阶段3：质量审查与验收\n"
-            f"阶段4：交付与总结"
+    async def _announce_plan(self, coordinator_id):
+        text = (
+            "项目经理：制定项目计划。\n"
+            "阶段1：需求分析与讨论\n阶段2：任务分配与执行\n"
+            "阶段3：质量审查与验收\n阶段4：交付与总结"
         )
-        await self._msg(coordinator_id, plan_text)
-        self.meeting.add_message("agent", plan_text, coordinator_id)
+        await self._msg(coordinator_id, text)
+        self.meeting.add_message("agent", text, coordinator_id)
 
-        # 1. 工作流模式
-        if analysis.is_workflow and analysis.workflow_definition:
-            self.logger.info("工作流模式: 创建并执行工作流")
-            workflow_text = (
-                f"项目经理：检测到跨部门复杂任务，已创建工作流。\n"
-                f"工作流名称：{analysis.workflow_definition.name}\n"
-                f"节点数量：{len(analysis.workflow_definition.nodes)}\n"
-                f"执行策略：{analysis.workflow_definition.execution_strategy}"
-            )
-            await self._msg(coordinator_id, workflow_text)
-            self.meeting.add_message("agent", workflow_text, coordinator_id)
+    async def _run_workflow_mode(self, analysis, coordinator_id, on_message):
+        text = (
+            f"项目经理：检测到跨部门复杂任务，已创建工作流。\n"
+            f"工作流名称：{analysis.workflow_definition.name}\n"
+            f"节点数量：{len(analysis.workflow_definition.nodes)}\n"
+            f"执行策略：{analysis.workflow_definition.execution_strategy}"
+        )
+        await self._msg(coordinator_id, text)
+        self.meeting.add_message("agent", text, coordinator_id)
+        workflow_result = await self._execute_workflow(analysis.workflow_definition, on_message)
+        return {"type": "workflow_executed", "analysis": semantic_analysis_to_dict(analysis), "workflow_result": workflow_result}
 
-            # 创建并执行工作流
-            workflow_result = await self._execute_workflow(analysis.workflow_definition, on_message)
-
-            return {
-                "type": "workflow_executed",
-                "analysis": semantic_analysis_to_dict(analysis),
-                "workflow_result": workflow_result,
-            }
-
-        # 2. 非工作流模式：串行流程（讨论→分派→审查）
-        # COORDINATOR组织讨论
-        topic = (analysis.discussion_topic.strip() if analysis.discussion_topic else "") or user_message
-        self.logger.info("讨论阶段: topic=%s", topic[:50])
-        
-        coordinator_discuss_text = f"项目经理：组织团队讨论「{topic[:30]}...」"
-        await self._msg(coordinator_id, coordinator_discuss_text)
-        self.meeting.add_message("agent", coordinator_discuss_text, coordinator_id)
-        
-        # 尝试获取Team实例用于并行讨论
-        team = getattr(self, '_team', None)
-        discussion_results = await self.run_discussion(topic, on_message, team=team)
-
-        # COORDINATOR整合讨论结果
-        original_description = analysis.task_description or user_message
-        enhanced_description = self._enhance_task_description(original_description, discussion_results)
-        self.logger.info("串行流程 - 任务描述已整合讨论结果: 原始长度=%d, 增强后长度=%d",
-                        len(original_description), len(enhanced_description))
-
-        # 注入历史经验（本期保留现有实现，P3 后续可事件化）
+    async def _inject_experience(self, coordinator_id, original_description, enhanced_description, discussion_results):
         try:
             from experience_extractor import ExperienceExtractor
-            import os
             data_dir = os.path.join(os.path.dirname(__file__), "data")
             extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
             task_type = extractor._infer_task_type(original_description)
             content_kw = extractor._extract_content_keywords(original_description)
-            # 从讨论结果中也提取关键词
             for dr in discussion_results:
                 content_kw |= extractor._extract_content_keywords(dr.get("content", ""))
             past_rules = extractor.retrieve_relevant_rules(task_type, sorted(content_kw))
             if past_rules:
-                # 渐进披露：先注入精简摘要，减少 context 消耗
                 exp_context = extractor.build_experience_summary(past_rules[:5])
                 enhanced_description = f"{enhanced_description}\n\n{exp_context}"
-                coordinator_exp_text = f"项目经理：已注入 {len(past_rules)} 条历史经验到任务描述。"
-                await self._msg(coordinator_id, coordinator_exp_text)
-                self.meeting.add_message("agent", coordinator_exp_text, coordinator_id)
-                # 记录经验注入事件（Context Engineering）
+                await self._msg(coordinator_id, f"项目经理：已注入 {len(past_rules)} 条历史经验到任务描述。")
+                self.meeting.add_message("agent", f"项目经理：已注入 {len(past_rules)} 条历史经验到任务描述。", coordinator_id)
                 self.meeting.append_event(
                     SessionEventType.EXPERIENCE_INJECTION,
                     content=f"注入 {len(past_rules)} 条经验规则 (task_type={task_type}, keywords={sorted(content_kw)[:5]})",
-                    agent_id=coordinator_id,
-                    phase="pre_execution",
+                    agent_id=coordinator_id, phase="pre_execution",
                 )
-                self.logger.info("注入 %d 条历史经验 (task_type=%s)", len(past_rules), task_type)
         except Exception as e:
             self.logger.debug("历史经验注入跳过: %s", e)
+        return enhanced_description
 
-        coordinator_integrate_text = f"项目经理：已整合团队讨论结果，任务描述已更新。"
-        await self._msg(coordinator_id, coordinator_integrate_text)
-        self.meeting.add_message("agent", coordinator_integrate_text, coordinator_id)
+    async def _run_voting_phase(self, coordinator_id, enhanced_description, discussion_results, on_message):
+        await self._msg(coordinator_id, "项目经理：就讨论结果发起方案投票。")
+        self.meeting.add_message("agent", "项目经理：就讨论结果发起方案投票。", coordinator_id)
 
-        # COORDINATOR分派任务
-        target_agent_id = analysis.target_agent_id
-        if not target_agent_id:
-            # 如果没有明确的目标 Agent，从讨论结果中推断或使用默认值
-            target_agent_id = self._infer_target_agent(discussion_results) or "agent-executor"
-
-        # ── 方案投票阶段 ──
-        coordinator_vote_text = f"项目经理：就讨论结果发起方案投票。"
-        await self._msg(coordinator_id, coordinator_vote_text)
-        self.meeting.add_message("agent", coordinator_vote_text, coordinator_id)
-
-        proposal = self.negotiation.create_proposal(
-            coordinator_id,
-            f"方案: {enhanced_description[:200]}",
-        )
+        proposal = self.negotiation.create_proposal(coordinator_id, f"方案: {enhanced_description[:200]}")
         await on_message(coordinator_id, f"[提案] {proposal.content}", "")
 
-        # 各智能体投票 — 基于讨论阶段的 stance 和 confidence
-        stance_by_agent: dict[str, dict] = {}
+        stance_by_agent = {}
         for dr in discussion_results:
             aid = dr.get("agent_id", dr.get("agentId", ""))
             if aid:
@@ -1240,330 +1241,162 @@ class MeetingCoordinator:
             confidence = dr.get("parsed_confidence", dr.get("confidence", 0.5))
 
             if stance == "oppose":
-                vote_approve = False
-                vote_reason = f"{agent.role.value}反对方案（置信度{confidence:.0%}）"
+                vote_approve, vote_reason = False, f"{agent.role.value}反对方案（置信度{confidence:.0%}）"
             elif stance == "modify":
-                vote_approve = True
-                vote_reason = f"{agent.role.value}有条件赞成（建议修改，置信度{confidence:.0%}）"
+                vote_approve, vote_reason = True, f"{agent.role.value}有条件赞成（建议修改，置信度{confidence:.0%}）"
             elif stance == "support":
-                vote_approve = True
-                vote_reason = f"{agent.role.value}赞成方案（置信度{confidence:.0%}）"
-            else:  # neutral — 按 confidence 阈值决定
+                vote_approve, vote_reason = True, f"{agent.role.value}赞成方案（置信度{confidence:.0%}）"
+            else:
                 vote_approve = confidence >= 0.4
                 vote_reason = f"{agent.role.value}{'谨慎赞成' if vote_approve else '保留意见'}（置信度{confidence:.0%}）"
 
             self.negotiation.cast_vote(proposal.id, agent.id, vote_approve, reason=vote_reason)
-            # 同时提交论据，激活 argument_based 策略
             stance_enum = {"support": Stance.SUPPORT, "oppose": Stance.OPPOSE, "modify": Stance.MODIFY}.get(stance, Stance.NEUTRAL)
             arg_content = dr.get("content", "")[:200]
             if arg_content:
-                self.negotiation.add_argument(
-                    proposal.id, agent.id, stance_enum, confidence, arg_content,
-                )
+                self.negotiation.add_argument(proposal.id, agent.id, stance_enum, confidence, arg_content)
             await on_message(agent.id, f"[投票] {'赞成' if vote_approve else '反对'} - {vote_reason}", "")
 
-        # 评估共识
         vote_result = self.negotiation.evaluate_consensus(proposal.id, strategy=self.negotiation._default_strategy)
-        consensus_text = f"项目经理：投票结果 — {'通过' if vote_result.accepted else '未通过'} ({vote_result.approve_count}/{vote_result.total_votes})"
-        await self._msg(coordinator_id, consensus_text)
-        self.meeting.add_message("agent", consensus_text, coordinator_id)
+        text = f"项目经理：投票结果 — {'通过' if vote_result.accepted else '未通过'} ({vote_result.approve_count}/{vote_result.total_votes})"
+        await self._msg(coordinator_id, text)
+        self.meeting.add_message("agent", text, coordinator_id)
 
         if not vote_result.accepted:
-            reject_text = "项目经理：方案未获共识，任务终止。请重新描述需求。"
-            await self._msg(coordinator_id, reject_text)
-            return {"type": "vote_rejected", "vote_result": vote_result.__dict__}
+            await self._msg(coordinator_id, "项目经理：方案未获共识，任务终止。请重新描述需求。")
+        return vote_result.accepted
 
-        self.logger.info("串行流程 - 分派阶段: target=%s", target_agent_id)
-        
-        coordinator_assign_text = f"项目经理：将任务分派给{target_agent_id}执行。"
-        await self._msg(coordinator_id, coordinator_assign_text)
-        self.meeting.add_message("agent", coordinator_assign_text, coordinator_id)
-        
-        assign_result = await self.auto_assign_task(
-            enhanced_description,
-            target_agent_id,
-            analysis.reason,
-        )
-
-        # ── 执行审批阶段（HITL 分级自动化）──
+    async def _run_approval_phase(self, coordinator_id, target_agent_id, enhanced_description, on_message):
         from approval_manager import classify_approval_tier, risk_classify
-
         tier = classify_approval_tier("task_execution", enhanced_description[:200])
 
         if tier == "auto_approve":
-            approved = True
-            reason = "只读操作，自动通过"
-            coordinator_approve_text = f"项目经理：任务审批自动通过（白名单操作）。"
-            await self._msg(coordinator_id, coordinator_approve_text)
-            self.meeting.add_message("agent", coordinator_approve_text, coordinator_id)
+            await self._msg(coordinator_id, "项目经理：任务审批自动通过（白名单操作）。")
+            self.meeting.add_message("agent", "项目经理：任务审批自动通过（白名单操作）。", coordinator_id)
         elif tier == "classifier":
-            classifier_result = risk_classify("task_execution", enhanced_description[:200])
-            approved = classifier_result["approved"]
-            reason = classifier_result["reason"]
-            coordinator_approve_text = f"项目经理：风险分类器判定 — {reason}（风险分: {classifier_result['risk_score']:.2f}）。"
-            await self._msg(coordinator_id, coordinator_approve_text)
-            self.meeting.add_message("agent", coordinator_approve_text, coordinator_id)
+            r = risk_classify("task_execution", enhanced_description[:200])
+            text = f"项目经理：风险分类器判定 — {r['reason']}（风险分: {r['risk_score']:.2f}）。"
+            await self._msg(coordinator_id, text)
+            self.meeting.add_message("agent", text, coordinator_id)
         else:
-            # tier == "human" — 需要人工审批
             risk_keywords = ['rm -rf', 'chmod', 'drop table', 'delete', 'remove all', 'format']
-            is_high_risk = any(kw in enhanced_description.lower() for kw in risk_keywords)
-            risk_level = 'high' if is_high_risk else 'medium'
+            risk_level = 'high' if any(kw in enhanced_description.lower() for kw in risk_keywords) else 'medium'
+            await self._msg(coordinator_id, f"项目经理：提交任务执行审批（风险等级: {risk_level}）。")
+            self.meeting.add_message("agent", f"项目经理：提交任务执行审批（风险等级: {risk_level}）。", coordinator_id)
 
-            coordinator_approve_text = f"项目经理：提交任务执行审批（风险等级: {risk_level}）。"
-            await self._msg(coordinator_id, coordinator_approve_text)
-            self.meeting.add_message("agent", coordinator_approve_text, coordinator_id)
-
-            # 创建审批请求并真阻塞等待
             if self._approval_manager:
                 from protocol import RiskLevel
-
-                risk_map = {
-                    "low": RiskLevel.LOW,
-                    "medium": RiskLevel.MEDIUM,
-                    "high": RiskLevel.HIGH,
-                    "critical": RiskLevel.CRITICAL,
-                }
+                risk_map = {"low": RiskLevel.LOW, "medium": RiskLevel.MEDIUM, "high": RiskLevel.HIGH, "critical": RiskLevel.CRITICAL}
                 approval = await self._approval_manager.request_approval(
-                    requester_id=target_agent_id,
-                    operation="task_execution",
-                    description=enhanced_description[:200],
-                    risk_level=risk_map.get(risk_level, RiskLevel.MEDIUM),
-                    confidence=0.8,
-                    send_fn=_build_approval_send_fn(on_message),
+                    requester_id=target_agent_id, operation="task_execution",
+                    description=enhanced_description[:200], risk_level=risk_map.get(risk_level, RiskLevel.MEDIUM),
+                    confidence=0.8, send_fn=_build_approval_send_fn(on_message),
                 )
                 try:
-                    decision = await self._approval_manager.wait_for_decision(
-                        approval.id, timeout=self._approval_timeout
-                    )
-                    approved = bool(decision.get("approved", True))
-                    reason = decision.get("reason", "")
+                    decision = await self._approval_manager.wait_for_decision(approval.id, timeout=self._approval_timeout)
                 except asyncio.TimeoutError:
-                    approved = True
-                    reason = "审批超时，默认通过"
+                    decision = {"approved": True, "reason": "审批超时，默认通过"}
             else:
-                approved = True
-                reason = "未配置审批管理器，自动通过"
+                decision = {"approved": True, "reason": "未配置审批管理器，自动通过"}
 
-        approve_msg = _build_task_approval_message(approved, reason)
-        await self._msg(coordinator_id, approve_msg)
-        self.meeting.add_message("agent", approve_msg, coordinator_id)
+            approve_msg = _build_task_approval_message(decision.get("approved", True), decision.get("reason", ""))
+            await self._msg(coordinator_id, approve_msg)
+            self.meeting.add_message("agent", approve_msg, coordinator_id)
 
-        # COORDINATOR监督审查
-        self.logger.info("串行流程 - 审查阶段: task=%s", assign_result.get("task_id", ""))
-        
-        coordinator_review_text = f"项目经理：监督任务执行和质量审查。"
-        await self._msg(coordinator_id, coordinator_review_text)
-        self.meeting.add_message("agent", coordinator_review_text, coordinator_id)
-        
-        # ── 开发循环：执行 → 审查 → 修复 → 再审查 ──
+    async def _run_dev_loop(self, coordinator_id, enhanced_description, discussion_context, on_message):
+        from review_pipeline import ReviewReport, ReviewIteration
         max_dev_iterations = self._max_iterations
         review_result = {}
         execution_results = []
-        all_review_feedback = []
-
-        from review_pipeline import ReviewReport, ReviewIteration
-        review_report = ReviewReport(task_id=target_agent_id)
-
-        # 从讨论中提取决策摘要，供审查阶段使用
-        discussion_context = self._extract_discussion_decisions(discussion_results)
+        review_report = ReviewReport(task_id=coordinator_id)
 
         for dev_iter in range(1, max_dev_iterations + 1):
-            # 执行
-            coordinator_exec_text = f"项目经理：第 {dev_iter} 轮开发，监督任务执行。"
-            await self._msg(coordinator_id, coordinator_exec_text)
-            self.meeting.add_message("agent", coordinator_exec_text, coordinator_id)
+            await self._msg(coordinator_id, f"项目经理：第 {dev_iter} 轮开发，监督任务执行。")
+            self.meeting.add_message("agent", f"项目经理：第 {dev_iter} 轮开发，监督任务执行。", coordinator_id)
 
             try:
                 exec_results = await self.execute_assigned_tasks()
                 execution_results = exec_results
-
-                # 通知执行结果
                 for er in exec_results:
                     await on_message(er["agent_id"], er["result"], "")
-                    # 报告写入的文件
                     written = er.get("written_files", [])
                     if written:
-                        file_msg = f"[第{dev_iter}轮] 已写入 {len(written)} 个文件: {', '.join(written)}"
-                        await on_message(er["agent_id"], file_msg, "")
+                        await on_message(er["agent_id"], f"[第{dev_iter}轮] 已写入 {len(written)} 个文件: {', '.join(written)}", "")
             except Exception as e:
                 self.logger.warning("第 %d 轮执行失败: %s", dev_iter, e)
                 exec_results = []
 
-            # 审查
-            coordinator_review_text = f"项目经理：第 {dev_iter} 轮质量审查。"
-            await self._msg(coordinator_id, coordinator_review_text)
-            self.meeting.add_message("agent", coordinator_review_text, coordinator_id)
-
+            await self._msg(coordinator_id, f"项目经理：第 {dev_iter} 轮质量审查。")
+            self.meeting.add_message("agent", f"项目经理：第 {dev_iter} 轮质量审查。", coordinator_id)
             execution_text = self._build_execution_artifact_text(exec_results) if exec_results else ""
 
             try:
-                # 确定性门禁仅在本次迭代执行产出了文件/结果时运行（执行失败的迭代不门禁；
-                # 门禁即迭代验证点，每次有产出的迭代仍会跑）。
-                # 门禁内部为同步 subprocess（lint/test），通过 asyncio.to_thread
-                # 卸载到线程池，避免阻塞事件循环。
                 if exec_results:
-                    gate_result = await asyncio.to_thread(
-                        self._run_deterministic_gate,
-                        self._workspace.root_path if self._workspace else None,
-                    )
+                    gate_result = await asyncio.to_thread(self._run_deterministic_gate, self._workspace.root_path if self._workspace else None)
                 else:
                     gate_result = None
-                review_result = await self._review_pipeline.review(
-                    enhanced_description, execution_text, on_message,
-                    discussion_context=discussion_context,
-                    gate_result=gate_result,
-                )
+                review_result = await self._review_pipeline.review(enhanced_description, execution_text, on_message, discussion_context=discussion_context, gate_result=gate_result)
             except Exception as e:
                 self.logger.warning("第 %d 轮审查失败: %s", dev_iter, e)
                 review_result = {"status": "skipped", "reason": str(e)}
 
-            # 提取审查反馈
             reviewer_feedback = review_result.get("reviewer_feedback", "")
             monitor_feedback = review_result.get("monitor_feedback", "")
             coordinator_summary = review_result.get("coordinator_summary", "")
             feedback_text = f"[审查反馈]\n{reviewer_feedback}\n\n[评估反馈]\n{monitor_feedback}\n\n[总结]\n{coordinator_summary}"
-            all_review_feedback.append(feedback_text)
-
-            # 判断是否需要继续修复
             structured = review_result.get("structured_feedback", {})
             feedback_status = structured.get("status", "approved")
 
-            # 累积审查报告
             critic_result = review_result.get("critic_result", {})
             grounding_result = review_result.get("grounding_result", {})
             written_files = [f for er in exec_results for f in er.get("written_files", [])] if exec_results else []
-            review_iteration = ReviewIteration(
-                iteration=dev_iter,
-                status=feedback_status,
-                critic_severity=critic_result.get("severity", "unknown"),
-                critic_findings=critic_result.get("findings", []),
-                grounding_grounded=grounding_result.get("grounded", False),
-                grounding_sources=grounding_result.get("sources", []),
-                issues=structured.get("issues", []),
-                reviewer_feedback=reviewer_feedback,
-                monitor_feedback=monitor_feedback,
-                coordinator_summary=coordinator_summary,
-                gate_passed=gate_result.get("passed") if gate_result else None,
-                gate_failures=[f.get("detail", "") for f in (gate_result or {}).get("failures", [])],
-                files_written=written_files,
-            )
-            review_report.add_iteration(review_iteration)
+            review_report.add_iteration(ReviewIteration(
+                iteration=dev_iter, status=feedback_status,
+                critic_severity=critic_result.get("severity", "unknown"), critic_findings=critic_result.get("findings", []),
+                grounding_grounded=grounding_result.get("grounded", False), grounding_sources=grounding_result.get("sources", []),
+                issues=structured.get("issues", []), reviewer_feedback=reviewer_feedback, monitor_feedback=monitor_feedback,
+                coordinator_summary=coordinator_summary, gate_passed=gate_result.get("passed") if gate_result else None,
+                gate_failures=[f.get("detail", "") for f in (gate_result or {}).get("failures", [])], files_written=written_files,
+            ))
 
             if feedback_status == "approved" or dev_iter >= max_dev_iterations:
-                # 审查通过或达到最大迭代次数
-                if feedback_status == "approved":
-                    coordinator_pass_text = f"项目经理：第 {dev_iter} 轮审查通过！"
-                else:
-                    coordinator_pass_text = f"项目经理：已达最大迭代次数({max_dev_iterations})，结束开发循环。"
-                await self._msg(coordinator_id, coordinator_pass_text)
-                self.meeting.add_message("agent", coordinator_pass_text, coordinator_id)
+                text = f"项目经理：第 {dev_iter} 轮审查通过！" if feedback_status == "approved" else f"项目经理：已达最大迭代次数({max_dev_iterations})，结束开发循环。"
+                await self._msg(coordinator_id, text)
+                self.meeting.add_message("agent", text, coordinator_id)
                 break
 
-            # 审查未通过 → 将反馈注入下一轮任务描述
-            coordinator_fix_text = f"项目经理：第 {dev_iter} 轮审查发现问题，启动修复。"
-            await self._msg(coordinator_id, coordinator_fix_text)
-
-            # 将审查反馈作为修复要求注入任务描述（只保留最新一轮）
-            fix_description = (
-                f"{enhanced_description}\n\n"
-                f"## 审查反馈（请据此修复）\n"
-                f"{feedback_text}\n\n"
-                f"请根据以上反馈修改已有文件或创建补充文件，修复所有指出的问题。"
-            )
-
-            # 重置executor任务状态为assigned，更新描述
+            await self._msg(coordinator_id, f"项目经理：第 {dev_iter} 轮审查发现问题，启动修复。")
+            fix_description = f"{enhanced_description}\n\n## 审查反馈（请据此修复）\n{feedback_text}\n\n请根据以上反馈修改已有文件或创建补充文件，修复所有指出的问题。"
             for task in self.meeting.tasks:
                 if task.status == "completed":
                     task.status = "assigned"
                     task.description = fix_description
-
             self.logger.info("第 %d 轮审查未通过，启动第 %d 轮修复", dev_iter, dev_iter + 1)
 
-        # 更新路由统计（修复自适应学习断链）
-        self._update_routing_stats_safe()
+        return execution_results, review_result, review_report
 
-        # 生成项目总结报告
-        project_summary = self._generate_project_summary(
-            user_message, analysis, discussion_results, 
-            assign_result, review_result, execution_results
-        )
-        
-        coordinator_summary_text = f"项目经理：已生成项目总结报告。"
-        await self._msg(coordinator_id, coordinator_summary_text)
-        self.meeting.add_message("agent", coordinator_summary_text, coordinator_id)
-        
-        # 发送项目总结到前端
-        await self._msg(coordinator_id, project_summary)
-
-        # 技能进化：从项目结果中提取经验规则
+    async def _run_skill_evolution(self, coordinator_id, user_message, discussion_results, review_result, execution_results):
         try:
             from experience_extractor import ExperienceExtractor
-            import os
             data_dir = os.path.join(os.path.dirname(__file__), "data")
             extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
             evolution_rules = extractor.extract_from_meeting(
-                project_id=self.meeting.meeting_id,
-                task_description=user_message,
-                discussion_results=discussion_results,
-                review_result=review_result,
-                execution_results=execution_results,
+                project_id=self.meeting.meeting_id, task_description=user_message,
+                discussion_results=discussion_results, review_result=review_result, execution_results=execution_results,
             )
             if evolution_rules:
-                evolution_text = (
-                    f"项目经理：已从本次项目中提取 {len(evolution_rules)} 条经验规则，"
-                    f"将在「技能进化」面板中沉淀。"
-                )
-                await self._msg(coordinator_id, evolution_text)
-                self.meeting.add_message("agent", evolution_text, coordinator_id)
+                await self._msg(coordinator_id, f"项目经理：已从本次项目中提取 {len(evolution_rules)} 条经验规则，将在「技能进化」面板中沉淀。")
+                self.meeting.add_message("agent", f"项目经理：已从本次项目中提取 {len(evolution_rules)} 条经验规则。", coordinator_id)
 
-            # 技能闭环自动触发：审核 pending → 写增量区 → 打包
             from skill_packager import SkillPackager
-
             skill_packager = SkillPackager(output_dir=os.path.join(data_dir, "packages"))
-            finalize = self._finalize_skill_evolution(
-                extractor, skill_packager, project_id=self.meeting.meeting_id
-            )
+            finalize = self._finalize_skill_evolution(extractor, skill_packager, project_id=self.meeting.meeting_id)
             if finalize["written"]:
-                packaged_text = (
-                    f"，打包技能包: {', '.join(finalize['packaged'])}"
-                    if finalize["packaged"] else ""
-                )
-                finalize_text = (
-                    f"项目经理：已自动审核并沉淀 {finalize['written']} 条经验规则"
-                    f"{packaged_text}。"
-                )
-                await self._msg(coordinator_id, finalize_text)
-                self.meeting.add_message("agent", finalize_text, coordinator_id)
+                packaged = f"，打包技能包: {', '.join(finalize['packaged'])}" if finalize["packaged"] else ""
+                await self._msg(coordinator_id, f"项目经理：已自动审核并沉淀 {finalize['written']} 条经验规则{packaged}。")
+                self.meeting.add_message("agent", f"项目经理：已自动审核并沉淀 {finalize['written']} 条经验规则{packaged}。", coordinator_id)
         except Exception as e:
             self.logger.warning("技能进化提取失败: %s", e)
-
-        # COORDINATOR汇报结果
-        coordinator_report_text = f"项目经理：任务执行完成，向CEO汇报结果。"
-        await self._msg(coordinator_id, coordinator_report_text)
-        self.meeting.add_message("agent", coordinator_report_text, coordinator_id)
-
-        # CEO接收汇报
-        ceo_report_text = f"CEO：收到项目经理汇报，任务已完成。"
-        await self._msg(ceo_id, ceo_report_text)
-        self.meeting.add_message("agent", ceo_report_text, ceo_id)
-
-        # 发送审查报告
-        if review_report.total_iterations > 0:
-            await on_message(coordinator_id, f"[审查报告] 共 {review_report.total_iterations} 轮，"
-                            f"最终状态: {review_report.final_status}，"
-                            f"累计发现 {review_report.total_issues_found} 个问题", "")
-
-        # 返回所有阶段结果
-        return {
-            "type": "serial_completed",
-            "analysis": semantic_analysis_to_dict(analysis),
-            "discussion_results": discussion_results,
-            "assignment": assign_result,
-            "review_result": review_result,
-            "execution_results": execution_results,
-            "project_summary": project_summary,
-            "review_report": review_report.to_dict(),
-        }
 
     def _enhance_task_description(self, original_description: str, discussion_results: list) -> str:
         """整合讨论结果到任务描述
