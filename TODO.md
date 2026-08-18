@@ -41,7 +41,7 @@
 ### 前端 god hook
 
 - [ ] **拆分 useMeetingSocket** — 1172 行，21 个 useState，636 行 switch handler。拆为 useMeetingState / useVoting / useApproval / useCheckpoints
-- [ ] **消除双重消息处理** — CeoChatPanel 和 useMeetingSocket 各自独立监听 WebSocket，形成竞争管线
+- [x] **消除双重消息处理** — CeoChatPanel 不再处理 agent_message，委托给 useMeetingSocket
 
 ### 前端 god 组件
 
