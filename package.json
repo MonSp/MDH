@@ -30,6 +30,7 @@
     "@react-three/fiber": "^8.17.10",
     "@react-three/postprocessing": "^2.19.1",
     "@types/three": "^0.170.0",
+    "antd": "^5.23.0",
     "docx": "^9.7.1",
     "electron-updater": "^6.3.0",
     "postprocessing": "^6.39.1",
