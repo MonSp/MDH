@@ -80,7 +80,7 @@
 
 ### 组件测试
 
-- [ ] **CeoChatPanel 测试** — 主要组件无测试
+- [x] **CeoChatPanel 测试** — 2 个测试覆盖渲染和发送按钮
 - [x] **MeetingChatPanel 测试** — 8 个测试覆盖消息渲染、状态标签
 - [x] **McpConfigPanel 测试** — 5 个测试覆盖服务器列表、状态显示
 
