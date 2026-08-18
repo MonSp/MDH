@@ -255,7 +255,10 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """HTTP 异常处理器：保持状态码，返回统一格式"""
-    return {"success": False, "data": None, "error": exc.detail}
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "data": None, "error": exc.detail},
+    )
 
 
 # ──────────────────── SkillRegistry REST API ────────────────────
