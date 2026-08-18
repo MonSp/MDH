@@ -53,7 +53,7 @@
 | 前端 | React 18 + TypeScript + Vite 6 + Three.js | 3D 虚拟办公室、实时通信 |
 | 后端 | Python 3.11 + FastAPI + WebSocket | 智能体协调、工具执行 |
 | AI 引擎 | AgentScope + DeepSeek API | 多模型支持 (DeepSeek/OpenAI/Anthropic) |
-| 测试 | Vitest (TS) + pytest (Python) | 1700+ TS 测试（前端 1630 + orchestrator 110）+ 860+ Python 测试 |
+| 测试 | Vitest (TS) + pytest (Python) | 1809 TS 测试用例（前端 1647 + orchestrator 162）+ 89 Python 测试文件 |
 
 ### 项目结构
 
@@ -61,20 +61,46 @@
 MDH/
 ├── src/                          # React + TypeScript 前端
 │   ├── components/               # UI 组件
-│   │   ├── techtower/            # 3D 科技大厦
+│   │   ├── techtower/            # 3D 科技大厦 (BuildingScene, TowerScene, SidePanel)
 │   │   ├── office-team/          # 办公团队面板
+│   │   │   ├── CeoChatPanel.tsx  # CEO 对话面板（含角色选择+位置选择）
 │   │   │   ├── VotingPanel.tsx   # 投票面板
 │   │   │   ├── ApprovalPanel.tsx # 审批面板
 │   │   │   ├── CheckpointPanel.tsx # 检查点面板
 │   │   │   ├── AuditLogPanel.tsx # 审计日志面板
+│   │   │   ├── SkillMarketplace.tsx # 技能市场面板 (v1.2.0)
+│   │   │   ├── AssetBrowserPanel.tsx # 资产浏览器面板
+│   │   │   ├── McpConfigPanel.tsx # MCP 配置面板
+│   │   │   ├── RoleEditorPanel.tsx # 角色编辑面板
+│   │   │   ├── TaskAssignPanel.tsx # 任务分派面板
+│   │   │   ├── HistoryPanel.tsx  # 历史记录面板
+│   │   │   ├── MeetingChatPanel.tsx # 会议聊天面板
+│   │   │   ├── AgendaPanel.tsx   # 议程面板
 │   │   │   └── ...
 │   │   ├── skill-evolution/      # 技能进化
-│   │   └── cyberpunk/            # 赛博朋克视觉效果
+│   │   │   ├── SkillEvolutionDashboard.tsx # 技能进化仪表盘
+│   │   │   ├── SkillEvolutionPanel.tsx # 技能进化面板
+│   │   │   ├── SkillRegistryPanel.tsx # 技能注册面板
+│   │   │   ├── SkillPackagePreview.tsx # 技能包预览
+│   │   │   ├── ExperienceRulePanel.tsx # 经验规则面板
+│   │   │   ├── RouteTablePanel.tsx # 路由表面板
+│   │   │   └── ...
+│   │   ├── cyberpunk/            # 赛博朋克视觉效果
+│   │   ├── AgentRoleCard.tsx     # 智能体角色卡片
+│   │   ├── AgentStatusPanel.tsx  # 智能体状态面板
+│   │   ├── CollaborationVisualizer.tsx # 协作可视化
+│   │   ├── ConversationStream.tsx # 对话流
+│   │   ├── MeetingTable.tsx      # 会议桌
+│   │   ├── TaskDecompositionGraph.tsx # 任务分解图
+│   │   ├── WorkflowPanel.tsx     # 工作流面板
+│   │   └── ...
 │   ├── hooks/                    # React Hooks
 │   │   ├── useMeetingSocket.ts   # WebSocket 会议通信
 │   │   ├── useAgentSystem.ts     # TS 智能体系统
-│   │   └── useApproval.ts        # 审批队列
-│   ├── modules/                  # 核心模块 (45+ 模块)
+│   │   ├── useApproval.ts        # 审批队列
+│   │   ├── useBrowserStorage.ts  # 浏览器存储
+│   │   └── ...
+│   ├── modules/                  # 核心模块 (60+ 模块)
 │   │   ├── webSocketBridge.ts    # TS-Python 桥接
 │   │   ├── agentCoordinator.ts   # 智能体协调器
 │   │   ├── communicationBus.ts   # 消息总线
@@ -84,10 +110,16 @@ MDH/
 │   │   ├── taskScheduler.ts      # 任务调度器
 │   │   ├── negotiationEngine.ts  # 投票协商引擎
 │   │   ├── dynamicRouter.ts      # 动态路由器
+│   │   ├── dynamicRouterLocal.ts # 本地动态路由器
 │   │   ├── workflowEngine.ts     # 工作流引擎
+│   │   ├── workflowEngineLocal.ts # 本地工作流引擎
 │   │   ├── skillRegistry.ts      # 技能注册表
 │   │   ├── skillPackager.ts      # 技能打包器
+│   │   ├── skillPackagerLocal.ts # 本地技能打包器
+│   │   ├── skillStore.ts         # 技能存储
+│   │   ├── skillParser.ts        # 技能解析器
 │   │   ├── experienceExtractor.ts # 经验提炼器
+│   │   ├── experienceExtractorLocal.ts # 本地经验提炼器
 │   │   ├── compensationEngine.ts # 补偿引擎
 │   │   ├── checkpointManager.ts  # 检查点管理
 │   │   ├── approvalQueue.ts      # 审批队列
@@ -95,8 +127,55 @@ MDH/
 │   │   ├── deadlockDetector.ts   # 死锁检测
 │   │   ├── metricsCollector.ts   # 指标收集
 │   │   ├── speakingCoordinator.ts # 发言协调
+│   │   ├── agentPool.ts          # 智能体池
+│   │   ├── agentRegistry.ts      # 智能体注册表
+│   │   ├── agentTypes.ts         # 智能体类型定义
+│   │   ├── agentReferenceSystem.ts # 智能体引用系统
+│   │   ├── agentDiscoveryLocal.ts # 本地智能体发现
+│   │   ├── collaboration/        # 协作模块
+│   │   │   ├── planner_agent.ts  # 规划智能体
+│   │   │   ├── executor_agent.ts # 执行智能体
+│   │   │   ├── critic_agent.ts   # 审查智能体
+│   │   │   └── grounding_agent.ts # 接地智能体
+│   │   ├── collaborationState.ts # 协作状态
+│   │   ├── communicationProtocol.ts # 通信协议
+│   │   ├── complexityClassifier.ts # 复杂度分类器
+│   │   ├── configSchema.ts       # 配置模式
+│   │   ├── conversationFlowController.ts # 对话流控制器
+│   │   ├── crossNetworkBridgeLocal.ts # 本地跨网络桥接
+│   │   ├── deadLetterQueue.ts    # 死信队列
+│   │   ├── dependencyAnalyzer.ts # 依赖分析器
+│   │   ├── earsValidator.ts      # EARS 验证器
+│   │   ├── evidenceChain.ts      # 证据链
+│   │   ├── fallbackChain.ts      # 回退链
+│   │   ├── gateManager.ts        # 门禁管理器
+│   │   ├── gitIntegration.ts     # Git 集成
+│   │   ├── llmCache.ts           # LLM 缓存
+│   │   ├── meetingProtocol.ts    # 会议协议
+│   │   ├── messageQueue.ts       # 消息队列
+│   │   ├── multiAgentConversation.ts # 多智能体对话
+│   │   ├── officeStateManager.ts # 办公室状态管理
+│   │   ├── officeWorkflow.ts     # 办公室工作流
+│   │   ├── pageContextStore.ts   # 页面上下文存储
+│   │   ├── parallelDiscussionManagerLocal.ts # 本地并行讨论管理
+│   │   ├── projectManager.ts     # 项目管理器
+│   │   ├── projectManagerLocal.ts # 本地项目管理器
+│   │   ├── retry.ts              # 重试机制
+│   │   ├── specTreeValidator.ts  # Spec Tree 验证器
+│   │   ├── structuredLogger.ts   # 结构化日志
+│   │   ├── traceContext.ts       # 追踪上下文
+│   │   ├── workspaceSyncLocal.ts # 本地工作区同步
+│   │   ├── codeExtractor.ts      # 代码提取器
 │   │   └── ...
-│   └── services/                 # 服务层
+│   ├── services/                 # 服务层
+│   │   ├── apiFetch.ts           # API 请求封装
+│   │   ├── bashGuard.ts          # Bash 命令守卫
+│   │   ├── browserStorage.ts     # 浏览器存储服务
+│   │   ├── docxBuilder.ts        # DOCX 文档构建器
+│   │   ├── pptxBuilder.ts        # PPTX 演示构建器
+│   │   ├── electronStorage.ts    # Electron 存储服务
+│   │   └── fileSystemStorage.ts  # 文件系统存储
+│   └── ...
 ├── backend/                      # Python 后端
 │   ├── server.py                 # FastAPI + WebSocket 服务
 │   ├── meeting_coordinator.py    # 会议协调器（复杂任务协作实现）
@@ -121,7 +200,7 @@ MDH/
 │   ├── agent_discovery.py        # 智能体发现服务
 │   ├── workspace_sync.py         # 工作区同步器
 │   ├── workspace_manager.py      # 工作区管理
-│   ├── approval_manager.py       # 审批管理器
+│   ├── approval_manager.py       # 审批管理器 + HITL 分级
 │   ├── security.py               # 安全中间件
 │   ├── compensation.py           # 检查点管理
 │   ├── agent_toolset.py          # Agent 工具集
@@ -130,7 +209,7 @@ MDH/
 │   ├── skill_registry.py         # 技能注册中心
 │   ├── skill_packager.py         # 技能打包器
 │   ├── experience_extractor.py   # 经验提炼器
-│   ├── roles_config.yaml         # 角色配置 (1973行，定义所有角色)
+│   ├── roles_config.yaml         # 角色配置
 │   ├── llm_cache.py              # LLM 响应缓存 (MD5 key, TTL 300s, LRU)
 │   ├── message_queue.py          # 异步消息队列 (SQLite 持久化)
 │   ├── spec_manager.py           # 规格管理器
@@ -142,20 +221,62 @@ MDH/
 │   ├── agent_pool.py             # Agent 池管理
 │   ├── key_manager.py            # API 密钥管理
 │   ├── trace.py                  # 结构化日志 + TraceSpan
-│   └── tests/                    # Python 测试 (532 tests)
-├── mock-sso/                     # Mock SSO 服务 + 后端镜像
-│   ├── server.py                 # SSO 服务器
-│   ├── login.html                # 登录页面
-│   └── collaboration/            # 多智能体协作模块
-│       ├── planner_agent.py      # 规划智能体
-│       ├── executor_agent.py     # 执行智能体
-│       ├── critic_agent.py       # 审查智能体
-│       ├── grounding_agent.py    # 接地智能体
-│       └── collaborative_agent.py # 协作智能体
+│   │── protocol.py               # 全局数据结构与协议定义 (64 个类/函数)
+│   ├── schemas.py                # REST API Pydantic 验证模型
+│   ├── session.py                # WebSocket 会话管理
+│   ├── config.py                 # 全局配置常量
+│   ├── agent.py                  # AgentScope 智能体流式调用封装
+│   ├── model_factory.py          # 共享 LLM Agent 创建工厂
+│   ├── model_manager.py          # 模型生命周期管理 (创建/缓存/故障转移)
+│   ├── gate_engine.py            # 确定性门禁引擎 (lint/test 检查)
+│   ├── routing_stats_manager.py  # 路由统计管理器
+│   ├── discussion_utils.py       # 讨论投影共享辅助函数
+│   ├── code_extractor.py         # 代码块提取器
+│   ├── employee_directory.py     # 员工目录
+│   ├── git_integration.py        # Git 操作封装 (分支/commit/push/PR)
+│   ├── template_confirmation.py  # 模板固化流程 (评测→把关→入库)
+│   ├── minutes_workflow.py       # 会议纪要 DAG 构建
+│   ├── agentscope_task_bridge.py # 工作流↔AgentScope Task 桥接
+│   ├── executor_server.py        # 远端工具执行服务 (local/docker/nfs/s3)
+│   ├── skill_evolution.py        # 技能进化接线 (反馈→经验→增量区)
+│   ├── skill_generator.py        # AI 技能生成服务
+│   ├── skills.py                 # 浏览器自动化技能管理
+│   ├── llm_guard.py              # LLM 调用超时守卫 (v1.2.0)
+│   ├── skill_bridge.py           # 统一技能加载接口 (v1.2.0)
+│   ├── progressive_skill_loader.py # 四层渐进披露加载器 (v1.2.0)
+│   ├── skill_router.py           # 技能路由桥接器 (v1.2.0)
+│   ├── shared_experience_pool.py # 共享经验池管理器 (v1.2.0)
+│   ├── skill_fork_manager.py     # 技能包 Fork 管理器 (v1.2.0)
+│   ├── skill_exporter.py         # 技能包导入导出器 (v1.2.0)
+│   ├── registry_client.py        # Git 注册表客户端 (v1.2.0)
+│   ├── registry_server.py        # HTTP 注册表服务 (v1.2.0)
+│   ├── migrate_skills.py         # 技能格式迁移工具 (v1.2.0)
+│   ├── mcp_adapter.py            # MCP 协议集成适配器 (v1.2.0)
+│   ├── mcp_config.py             # MCP 服务器配置管理器 (v1.2.0)
+│   ├── mcp_server.py             # MDH 内置工具暴露为 MCP 服务器 (v1.2.0)
+│   ├── asset_store.py            # 资产存储：知识库+模板库 (v1.2.0)
+│   ├── asset_evaluator.py        # 资产入库前质量评测器 (v1.2.0)
+│   ├── asset_judge.py            # LLM judge 资产质量评分 (v1.2.0)
+│   ├── asset_judge_benchmark.py  # LLM judge 评测基准 (v1.2.0)
+│   ├── asset_benchmark_gate.py   # LLM judge 质量 CI 门禁 (v1.2.0)
+│   ├── asset_injection.py        # 会议节点注入团队资产 (v1.2.0)
+│   ├── asset_search.py           # 三类资产合并检索 (v1.2.0)
+│   ├── routers/                  # API 路由模块
+│   │   ├── workflow.py           # 工作流 API
+│   │   ├── marketplace.py        # 技能市场 API (v1.2.0)
+│   │   ├── community.py          # 社区市场 API (v1.2.0)
+│   │   ├── skills.py             # 技能管理 API
+│   │   └── mcp_config.py         # MCP 配置 API (v1.2.0)
+│   └── tests/                    # Python 测试 (89 测试文件)
 ├── orchestrator/                 # TS 编排器服务 (用户本地 Node.js)
 │   └── src/
 │       ├── cli.ts                # CLI 入口
 │       ├── server.ts             # HTTP + WebSocket 服务
+│       ├── agent/                # 智能体核心
+│       │   ├── index.ts          # 智能体入口
+│       │   ├── role-agent.ts     # 角色智能体
+│       │   ├── system-prompt.ts  # 系统提示词
+│       │   └── tools.ts          # 工具定义
 │       ├── team/                 # 团队管理
 │       │   ├── coordinator.ts    # TeamCoordinator
 │       │   ├── assembler.ts      # TeamAssembler
@@ -174,12 +295,15 @@ MDH/
 │       │   └── types.ts          # ToolCall/ToolResult 类型
 │       ├── skill/                # 技能包加载
 │       │   └── loader.ts         # SkillPack 加载器
+│       ├── mcp/                  # MCP 客户端
+│       │   └── client.ts         # MCP 客户端
 │       └── loop/                 # 循环执行引擎
 │           ├── loop.ts           # 主循环
 │           ├── executor.ts       # 循环执行器
 │           ├── scanner.ts        # 场景扫描器
 │           ├── scheduler.ts      # 调度器
 │           ├── validator.ts      # 验证器
+│           ├── snapshot.ts       # 快照管理
 │           └── persistence.ts    # 持久化
 ├── loop-engineering/             # 循环工程优化 (独立产品)
 │   └── src/
@@ -195,23 +319,70 @@ MDH/
 │       ├── ci/                   # CI 集成
 │       │   ├── gate.ts           # CI 质量门禁
 │       │   └── baseline.ts       # 基线管理
+│       ├── replay/               # 回放引擎
 │       └── scenarios/            # 测试场景
 │           └── registry.ts       # 场景注册表
-├── skill_packs/                  # 技能包 (5 个)
-│   ├── frontend_dev/             # 前端开发技能
-│   ├── backend_dev/              # 后端开发技能
-│   ├── code_review/              # 代码审查技能
-│   ├── testing/                  # 测试技能
-│   └── task_decomposition/       # 任务分解技能
-├── protocol/                     # 协议文档
-│   ├── V4.6_BRIDGE_PROTOCOL.md
-│   ├── V4.8_BRIDGE_PROTOCOL.md
-│   └── V4.9_BRIDGE_PROTOCOL.md
+├── electron/                     # Electron 桌面应用
+│   ├── main.ts                   # 主进程入口
+│   ├── preload.ts                # 预加载脚本
+│   └── ipc-handlers.ts           # IPC 处理器
+├── skill_packs/                  # 技能包 (43 个)
+│   ├── frontend_dev/             # 前端开发
+│   ├── backend_dev/              # 后端开发
+│   ├── fullstack_dev/            # 全栈开发
+│   ├── code_review/              # 代码审查
+│   ├── testing/                  # 测试
+│   ├── task_decomposition/       # 任务分解
+│   ├── architecture/             # 架构设计
+│   ├── api_design/               # API 设计
+│   ├── database/                 # 数据库
+│   ├── devops/                   # DevOps
+│   ├── deployment/               # 部署
+│   ├── monitoring/               # 监控
+│   ├── performance/              # 性能优化
+│   ├── security_audit/           # 安全审计
+│   ├── incident_response/        # 事件响应
+│   ├── data_analysis/            # 数据分析
+│   ├── data_engineering/         # 数据工程
+│   ├── data_visualization/       # 数据可视化
+│   ├── data_presentation/        # 数据展示
+│   ├── ml_engineering/           # ML 工程
+│   ├── image_generation/         # 图像生成
+│   ├── video_generation/         # 视频生成
+│   ├── video_editing/            # 视频编辑
+│   ├── sound_design/             # 音效设计
+│   ├── script_writing/           # 剧本写作
+│   ├── content_writing/          # 内容写作
+│   ├── content_editing/          # 内容编辑
+│   ├── copywriting/              # 文案写作
+│   ├── graphic_design/           # 平面设计
+│   ├── brand_identity/           # 品牌标识
+│   ├── brand_strategy/           # 品牌策略
+│   ├── brand_voice/              # 品牌声音
+│   ├── ppt_design/               # PPT 设计
+│   ├── presentation_coaching/    # 演示辅导
+│   ├── persona_development/      # 人设开发
+│   ├── user_research/            # 用户研究
+│   ├── usability_testing/        # 可用性测试
+│   ├── competitive_analysis/     # 竞品分析
+│   ├── sales_enablement/         # 销售赋能
+│   ├── sales_qualification/      # 销售资质
+│   ├── progress_tracking/        # 进度跟踪
+│   └── risk_management/          # 风险管理
+├── data/                         # 运行时数据
+│   ├── exports/                  # 导出文件
+│   ├── mailbox/                  # 消息信箱
+│   ├── routing_table.json        # 路由表持久化
+│   └── workspaces/               # 工作区目录
+├── research/                     # 调研文档
 ├── docs/                         # 文档
 │   ├── agent-roles.md            # Agent 角色配置
 │   ├── agent-tools.md            # Agent 工具系统
 │   ├── design.md                 # 设计文档
 │   ├── user-guide.md             # 用户指南
+│   ├── guides/                   # 使用指南
+│   │   ├── improvements-guide.md # v1.2.0 改进使用指南
+│   │   └── integration-test-report-2026-08-17.md # 集成测试报告
 │   └── compose/                  # 设计规格和计划
 │       ├── specs/                # 设计规格文档
 │       └── plans/                # 实施计划
@@ -237,15 +408,15 @@ MDH/
 
 ### 协作智能体模块 (collaboration/)
 
-除核心角色外，系统还包含专用协作智能体：
+除核心角色外，系统还包含专用协作智能体（后端 `backend/collaboration/` + 前端 `src/modules/collaboration/` 双端实现）：
 
-| 智能体 | 文件 | 职责 |
-|--------|------|------|
-| **PlannerAgent** | `collaboration/planner_agent.py` | 任务规划、DAG 生成、子任务分配 |
-| **ExecutorAgent** | `collaboration/executor_agent.py` | 迭代执行、经验提取、状态报告 |
-| **CriticAgent** | `collaboration/critic_agent.py` | 伴随式审查、发现漏洞和矛盾约束 |
-| **GroundingAgent** | `collaboration/grounding_agent.py` | 接地验证、确保结论有真实代码/文件出处 |
-| **CollaborativeAgent** | `collaboration/collaborative_agent.py` | 协调器，组合 Planner + Executors |
+| 智能体 | 后端文件 | 前端文件 | 职责 |
+|--------|----------|----------|------|
+| **PlannerAgent** | `backend/collaboration/planner_agent.py` | `src/modules/collaboration/plannerAgent.ts` | 任务规划、DAG 生成、子任务分配 |
+| **ExecutorAgent** | `backend/collaboration/executor_agent.py` | `src/modules/collaboration/executorAgent.ts` | 迭代执行、经验提取、状态报告 |
+| **CriticAgent** | `backend/collaboration/critic_agent.py` | `src/modules/collaboration/criticAgent.ts` | 伴随式审查、发现漏洞和矛盾约束 |
+| **GroundingAgent** | `backend/collaboration/grounding_agent.py` | `src/modules/collaboration/groundingAgent.ts` | 接地验证、确保结论有真实代码/文件出处 |
+| **CollaborativeAgent** | `backend/collaboration/collaborative_agent.py` | `src/modules/collaboration/collaborativeAgent.ts` | 协调器，组合 Planner + Executors |
 
 通信接口：`CommunicationInterface` (InMemoryCommunication 实现)
 
@@ -870,6 +1041,58 @@ def _select_roles_for_dag(dag):
 - 最大尝试次数: 3
 - 全部失败触发 CompensationEngine
 
+### 资产管理系统 (v1.2.0)
+
+资产即知识：产出物（artifacts）+ 模板（templates）+ 技能规则，团队级目录 + JSON 索引。
+
+| 模块 | 职责 |
+|------|------|
+| `asset_store.py` | 知识库+模板库存储，团队级目录结构，审批流程（approve/reject） |
+| `asset_evaluator.py` | 资产入库前确定性检查 + 可注入 LLM judge |
+| `asset_judge.py` | LLM judge 资产质量评分（0-1），标准库 urllib 直调 OpenAI 兼容 API |
+| `asset_judge_benchmark.py` | LLM judge 评测基准：准确率/校准/区分度 |
+| `asset_benchmark_gate.py` | LLM judge 质量 CI 门禁 |
+| `asset_injection.py` | 会议节点执行时注入团队资产上下文 |
+| `asset_search.py` | 三类资产合并检索（产出物+模板+技能规则） |
+| `template_confirmation.py` | 模板固化流程：评测→员工把关→入库/拒绝 |
+
+### MCP 协议集成 (v1.2.0)
+
+| 模块 | 职责 |
+|------|------|
+| `mcp_adapter.py` | MCP 客户端适配器：Stdio 传输连接外部 MCP 服务器，工具发现与调用 |
+| `mcp_config.py` | MCP 服务器配置管理：增删改查 + 连接测试，配置持久化 |
+| `mcp_server.py` | MDH 内置工具暴露为 MCP 服务器（含注入防护），Phase 1-3 分阶段实现 |
+
+### 模型管理层 (v1.2.0)
+
+| 模块 | 职责 |
+|------|------|
+| `model_factory.py` | 共享 LLM Agent 创建工厂，消除重复 provider registry 调用 |
+| `model_manager.py` | 模型生命周期管理：创建/缓存/故障转移，AgentPool 集成 |
+| `agent.py` | AgentScope 智能体流式调用封装，多 provider 适配（OpenAI/Anthropic/DeepSeek/Gemini 等） |
+| `llm_guard.py` | LLM 调用超时守卫，fail-closed 策略 |
+
+### 协议与基础设施
+
+| 模块 | 职责 |
+|------|------|
+| `protocol.py` | 全局数据结构与协议定义（64 个类/函数），覆盖工作流/会议/投票/审批/检查点 |
+| `schemas.py` | REST API Pydantic 验证模型（20 个 Request 类） |
+| `session.py` | WebSocket 会话管理：消息缓冲区、provider/模型状态、审批队列 |
+| `config.py` | 全局配置常量：DeepSeek API 参数、浏览器自动化系统提示词 |
+| `gate_engine.py` | 确定性门禁引擎：lint/test 检查，区分工具缺失(fail-open)与真实失败(fail-closed) |
+| `routing_stats_manager.py` | 路由统计管理器：消费任务路由映射，更新部门成功率 |
+| `git_integration.py` | Git 操作封装：分支/commit/push/PR 创建（含 GitHub API 集成） |
+| `employee_directory.py` | 员工目录：employee_id → 姓名/邮箱/职位解析 |
+| `code_extractor.py` | 从 Agent 回复中提取代码块（支持文件名/语言标识） |
+| `executor_server.py` | 远端工具执行服务：多存储后端（local/docker/nfs/s3）+ API Token 认证 |
+| `discussion_utils.py` | 讨论投影共享辅助函数：STANCE 标签剥离/立场解析，消除重复实现 |
+| `minutes_workflow.py` | 会议纪要 DAG 构建（速记文本→纪要流水线） |
+| `agentscope_task_bridge.py` | 工作流节点与 AgentScope Task 系统的双向转换与同步 |
+| `skill_evolution.py` | 技能进化接线：审查反馈→经验规则→CoW 增量区 |
+| `skill_generator.py` | AI 技能生成服务：根据用户需求描述生成技能配置 |
+
 ---
 
 ## REST API
@@ -893,6 +1116,25 @@ def _select_roles_for_dag(dag):
 | `POST /api/roles/{id}` | 创建角色 |
 | `PUT /api/roles/{id}` | 更新角色 |
 | `DELETE /api/roles/{id}` | 删除角色 |
+
+### 技能市场 (v1.2.0)
+
+| 端点 | 说明 |
+|------|------|
+| `GET /api/marketplace/shared-pool` | 获取共享经验池 |
+| `POST /api/marketplace/fork` | 从共享池 Fork 技能到项目本地 |
+| `GET /api/marketplace/export/{id}` | 导出技能包 |
+| `POST /api/marketplace/import` | 导入技能包 |
+| `GET /api/community/search` | 社区技能搜索（Git 注册表） |
+
+### MCP 配置 (v1.2.0)
+
+| 端点 | 说明 |
+|------|------|
+| `GET /api/mcp/servers` | 获取 MCP 服务器列表 |
+| `POST /api/mcp/servers` | 添加 MCP 服务器 |
+| `DELETE /api/mcp/servers/{id}` | 删除 MCP 服务器 |
+| `POST /api/mcp/servers/{id}/test` | 测试 MCP 服务器连接 |
 
 ### 监控
 
@@ -1201,6 +1443,27 @@ EXECUTOR_TOKEN=your_token_here
 - **跳过传播**：节点被跳过时，递归跳过所有下游节点
 - **生命周期管理**：暂停/恢复/取消/重试
 
+### 11. 资产管理系统 (v1.2.0)
+
+- **资产即知识**：产出物（artifacts）+ 模板（templates）+ 技能规则，团队级目录 + JSON 索引
+- **质量门禁**：确定性检查 + LLM judge（0-1 评分），CI 门禁确保 judge 本身质量
+- **模板固化流程**：评测→员工把关确认→入库/拒绝，复用 ApprovalManager
+- **资产注入**：会议节点执行时自动注入相关团队资产上下文
+
+### 12. MCP 协议集成 (v1.2.0)
+
+- **三阶段实现**：Phase 1 低级工具（8个）→ Phase 2 高级业务工具 → Phase 3 资源暴露
+- **双向集成**：mcp_adapter.py 连接外部 MCP 服务器，mcp_server.py 暴露 MDH 工具
+- **注入防护**：工具描述安全清洗，防止 prompt injection
+- **配置持久化**：MCP 服务器配置 JSON 存储，支持连接测试
+
+### 13. 模型管理重构 (v1.2.0)
+
+- **提取复用**：从 MeetingCoordinator 提取 model_factory/model_manager，消除重复代码
+- **多 provider 适配**：agent.py 支持 OpenAI/Anthropic/DeepSeek/Gemini/Moonshot/Ollama/XAI
+- **流式调用**：AgentScope 事件流推送，支持 DataBlock/TextBlock/ToolCall 等事件
+- **故障转移**：ModelManager 管理模型生命周期，AgentPool 集成
+
 ---
 
 ## 安全机制
@@ -1244,6 +1507,7 @@ EXECUTOR_TOKEN=your_token_here
 - [项目进度记录](PROGRESS.md) — v1.2.0 改进项完成状态
 - [改进使用指南](docs/guides/improvements-guide.md) — 14 项改进的使用指南、API 参考
 - [集成测试报告](docs/guides/integration-test-report-2026-08-17.md) — 端到端测试结果
+- [优化日志](docs/optimization-log.md) — 优化记录
 - [Agent 角色配置](docs/agent-roles.md)
 - [Agent 工具系统](docs/agent-tools.md)
 - [设计文档](docs/design.md)
