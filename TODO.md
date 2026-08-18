@@ -81,9 +81,8 @@
 ### 组件测试
 
 - [ ] **CeoChatPanel 测试** — 主要组件无测试
-- [ ] **MeetingChatPanel 测试** — 主要组件无测试
-- [ ] **SkillMarketplace 测试** — 市场面板无测试
-- [ ] **McpConfigPanel 测试** — MCP 配置面板无测试
+- [x] **MeetingChatPanel 测试** — 8 个测试覆盖消息渲染、状态标签
+- [x] **McpConfigPanel 测试** — 5 个测试覆盖服务器列表、状态显示
 
 ### CI/CD 完善
 
