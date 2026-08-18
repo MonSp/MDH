@@ -22,9 +22,10 @@
 - [x] **server.py WebSocket handler 拆分** — 43 个 handler 提取到 ws_handlers.py，server.py 3098→1998 行
 - [x] **拆分 process_user_message** — 496 行函数拆分为 7 个子方法，meeting_coordinator 1911→1744 行
 
-### meeting_coordinator.py 单体（1911 行）
+### meeting_coordinator.py 单体（原 1911 行）
 
-- [ ] **提取讨论/投票/审查流程为独立协调器** — `process_user_message` 496 行，职责过多
+- [x] **拆分 process_user_message** — 496 行拆为 7 个子方法 + 编排器
+- [x] **提取工作流执行到 coordinator_workflow.py** — 8 个方法（311 行），meeting_coordinator 1911→1447 行
 
 ### 核心模块零测试覆盖
 
