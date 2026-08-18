@@ -96,11 +96,40 @@ async def pause_workflow(execution_id: str):
 
 @router.post("/resume/{execution_id}")
 async def resume_workflow(execution_id: str):
-    """恢复工作流"""
+    """恢复工作流
+
+    内存分支：PAUSED → resume_workflow；RUNNING → 报错；
+    内存终态（COMPLETED/FAILED/CANCELLED/CREATED）→ 报错，不覆盖内存状态。
+    否则走 durable 分支：从持久化目录加载后重新启动。
+    """
     try:
-        await _workflow_engine.resume_workflow(execution_id)
-        return {"success": True, "data": None}
+        try:
+            in_memory = _workflow_engine.get_workflow_status(execution_id)
+        except KeyError:
+            in_memory = None
+
+        if in_memory is not None:
+            from protocol import WorkflowExecutionStatus
+            if in_memory.status == WorkflowExecutionStatus.PAUSED:
+                await _workflow_engine.resume_workflow(execution_id)
+                return {"success": True, "data": None}
+            if in_memory.status == WorkflowExecutionStatus.RUNNING:
+                return {"success": False, "error": f"工作流正在运行中: {execution_id}"}
+            return {"success": False, "error": f"工作流已处于终态 {in_memory.status.value}，无法恢复"}
+
+        # durable resume
+        restored = _workflow_engine.load_execution(execution_id)
+        if restored is None:
+            return {"success": False, "error": f"执行实例不存在或无法恢复: {execution_id}"}
+        task = _workflow_engine.start_workflow(execution_id)
+        await task
+        execution = _workflow_engine.get_workflow_status(execution_id)
+        return {"success": True, "data": _workflow_execution_to_dict(execution)}
+    except asyncio.CancelledError:
+        return {"success": False, "error": "cancelled"}
     except (KeyError, ValueError) as e:
+        return {"success": False, "error": str(e)}
+    except Exception as e:
         return {"success": False, "error": str(e)}
 
 
@@ -136,17 +165,9 @@ async def get_workflow_status(execution_id: str):
 
 @router.get("/visualization/{execution_id}")
 async def get_workflow_visualization(execution_id: str):
-    """获取工作流可视化"""
+    """获取工作流可视化数据"""
     try:
-        execution = _workflow_engine.get_workflow_status(execution_id)
-        nodes = []
-        for n in execution.definition.nodes:
-            nodes.append({
-                "id": n.node_id,
-                "label": n.task_description[:30],
-                "status": execution.node_states.get(n.node_id, "pending"),
-            })
-        edges = [{"from": e.source_node_id, "to": e.target_node_id} for e in execution.definition.edges]
-        return {"success": True, "data": {"nodes": nodes, "edges": edges}}
+        vis = _workflow_engine.get_workflow_visualization(execution_id)
+        return {"success": True, "data": vis}
     except KeyError as e:
         return {"success": False, "error": str(e)}

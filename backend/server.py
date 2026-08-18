@@ -104,12 +104,12 @@ app.add_middleware(
 )
 
 # 注册路由模块（渐进迁移：内联端点保留，新代码使用路由器）
-# TODO: 逐个验证路由器与内联端点行为一致后再启用
-# app.include_router(skills_router.router)
+app.include_router(skills_router.router)
+app.include_router(mcp_router.router)
+app.include_router(marketplace_router.router)
+app.include_router(community_router.router)
+# TODO: workflow router 的 resume 端点需要进一步调试（测试访问 engine 内部状态）
 # app.include_router(workflow_router.router)
-# app.include_router(marketplace_router.router)
-# app.include_router(mcp_router.router)
-# app.include_router(community_router.router)
 
 # M1 演示：把关点引擎（仅演示用；会话内审批接线保持不变）
 _demo_gate_manager = ApprovalManager()
@@ -160,7 +160,6 @@ _BASE_DIR = os.path.dirname(__file__)
 _DATA_DIR = os.path.join(_BASE_DIR, "data")
 
 skill_registry = SkillRegistry(base_dir=os.path.join(_DATA_DIR, "skill_packages"))
-skills_router.init(skill_registry)
 skill_packager = SkillPackager(
     output_dir=os.path.join(_DATA_DIR, "packages"),
 )
@@ -172,6 +171,7 @@ project_manager = ProjectManager(
 experience_extractor = ExperienceExtractor(
     incremental_dir=os.path.join(_DATA_DIR, "experience"),
 )
+skills_router.init(skill_registry, skill_packager, experience_extractor)
 dynamic_router = DynamicRouter(
     routing_table_path=os.path.join(_DATA_DIR, "routing_table.json"),
 )
