@@ -89,6 +89,7 @@
 - [x] **修复被 deselect 的测试** — test_skill_packs_structure 已通过，test_performance 已删除，移除 deselect
 - [x] **添加依赖缓存** — CI 添加 pip 和 npm 缓存
 - [x] **添加 Docker 镜像构建流水线** — CI 添加 docker-build job，构建并验证 backend/frontend 镜像
+- [x] **修复 CI Docker 构建** — antd 依赖恢复 + build 脚本清理 + lock file 同步
 
 ---
 
