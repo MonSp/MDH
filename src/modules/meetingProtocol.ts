@@ -304,3 +304,32 @@ export type MeetingWSMessage =
   | CheckpointRestoreMsg
   | AuditLogMsg
   | RequestRetransmitMsg
+
+// 已知消息类型集合（用于运行时校验）
+const KNOWN_MESSAGE_TYPES = new Set<string>([
+  'start_meeting', 'end_meeting', 'meeting_message', 'task_assign', 'get_meeting_status',
+  'meeting_started', 'meeting_ended', 'meeting_message_ack', 'agent_message', 'task_assigned',
+  'agent_status_update', 'meeting_error', 'agenda_update', 'proposal', 'vote', 'vote_result',
+  'critical_blocker', 'human_approval_request', 'human_approval_response',
+  'checkpoint_save', 'checkpoint_restore', 'audit_log', 'request_retransmit',
+  'task_auto_assigned', 'structured_feedback', 'iteration_update', 'review_completed',
+  'workflow_executed', 'workflow_node_status_update', 'experience_injected', 'skill_mounted',
+  'task_result', 'task_deleted', 'workspace_confirm_request', 'complexity_result',
+  'path_selected', 'path_upgrade', 'workspace_created', 'tool_result',
+  'semantic_analysis_result', 'pending_approvals', 'checkpoint_deleted',
+  'meeting_snapshot_saved', 'meeting_snapshot_restored',
+  'bridge_agent_registered', 'bridge_message', 'config_updated',
+  'audit_log_list', 'checkpoints_list', 'workspace_list', 'workspace_destroyed',
+  'decision_overridden', 'agent_weight_adjusted', 'task_paused', 'task_resumed',
+  'skill_saved', 'skill_list', 'skill_deleted', 'skill_summary',
+])
+
+/** 运行时消息类型守卫 */
+export function isWsMessage(data: unknown): data is { type: string } & Record<string, unknown> {
+  return typeof data === 'object' && data !== null && 'type' in data && typeof (data as any).type === 'string'
+}
+
+/** 检查是否为已知消息类型 */
+export function isKnownMessageType(type: string): boolean {
+  return KNOWN_MESSAGE_TYPES.has(type)
+}

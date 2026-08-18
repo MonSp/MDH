@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import type { MeetingAgentInfo, MeetingSummary, AgendaPhase } from '../modules/meetingProtocol'
+import { isWsMessage, isKnownMessageType } from '../modules/meetingProtocol'
 import type { TeamAgent, Task, ChatMessage, AgendaState } from '../components/office-team/types'
 import { AgentRole } from '../modules/agentTypes'
 import type { WorkflowExecution, WorkflowDefinition } from '../modules/agentTypes'
@@ -268,11 +269,19 @@ export default function useMeetingSocket({
     if (!ws) return
 
     const handleMessage = (event: MessageEvent) => {
-      let msg: any
+      let raw: unknown
       try {
-        msg = JSON.parse(event.data)
+        raw = JSON.parse(event.data)
       } catch {
         return
+      }
+
+      if (!isWsMessage(raw)) return
+      const msg = raw
+      const msgType = msg.type
+
+      if (!isKnownMessageType(msgType)) {
+        console.warn('[useMeetingSocket] 未知消息类型:', msgType)
       }
 
       const seqNo = msg.sequence_no ?? msg.sequenceNo
