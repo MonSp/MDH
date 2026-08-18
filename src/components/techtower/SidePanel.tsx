@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import type { Project, ProjectDept, CustomTeam, PanelState, RoleConfig, ToolInfo, SkillInfo } from './types'
 import { DEFAULT_DEPTS, STATUS_MAP, ALL_AGENTS } from './constants'
+import { STORAGE_KEYS } from '../../constants'
 
 /* ───────── 样式常量 ───────── */
 
@@ -150,8 +151,8 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           description: aiPrompt,
-          api_key: localStorage.getItem('deepseek_api_key') || undefined,
-          base_url: localStorage.getItem('deepseek_base_url') || undefined,
+          api_key: localStorage.getItem(STORAGE_KEYS.API_KEY) || undefined,
+          base_url: localStorage.getItem(STORAGE_KEYS.BASE_URL) || undefined,
         })
       })
       const data = await res.json()

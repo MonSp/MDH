@@ -6,6 +6,7 @@ import { AgentRole } from '../modules/agentTypes'
 import type { WorkflowExecution, WorkflowDefinition } from '../modules/agentTypes'
 import { dispatchMessage } from './useMeetingSocket/handlers'
 import type { HandlerSetters, HandlerRefs } from './useMeetingSocket/handlers'
+import { STORAGE_KEYS } from '../constants'
 
 export type MeetingPhase =
   | 'idle'
@@ -192,10 +193,10 @@ export default function useMeetingSocket({
   const startMeeting = useCallback(() => {
     send({
       type: 'start_meeting',
-      provider: localStorage.getItem('llm_provider') || undefined,
-      model_name: localStorage.getItem('llm_model_name') || undefined,
-      api_key: localStorage.getItem('deepseek_api_key') || undefined,
-      base_url: localStorage.getItem('deepseek_base_url') || undefined,
+      provider: localStorage.getItem(STORAGE_KEYS.PROVIDER) || undefined,
+      model_name: localStorage.getItem(STORAGE_KEYS.MODEL_NAME) || undefined,
+      api_key: localStorage.getItem(STORAGE_KEYS.API_KEY) || undefined,
+      base_url: localStorage.getItem(STORAGE_KEYS.BASE_URL) || undefined,
       max_iterations: maxIterations,
     })
   }, [send, maxIterations])

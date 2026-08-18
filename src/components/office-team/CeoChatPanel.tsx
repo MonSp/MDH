@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import CeoMessageBubble from './CeoMessageBubble'
 import WorkspaceConfirmPanel from './WorkspaceConfirmPanel'
-import { isElectron, getMdH } from '../../constants'
+import { isElectron, getMdH, STORAGE_KEYS } from '../../constants'
 
 const isElectronMode = isElectron()
 
@@ -358,10 +358,10 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
       content,
       selected_roles: autoMode ? [] : selectedRoles,
       role_locations: autoMode ? {} : roleLocations,
-      provider: localStorage.getItem('llm_provider') || undefined,
-      model_name: localStorage.getItem('llm_model_name') || undefined,
-      api_key: localStorage.getItem('deepseek_api_key') || undefined,
-      base_url: localStorage.getItem('deepseek_base_url') || undefined,
+      provider: localStorage.getItem(STORAGE_KEYS.PROVIDER) || undefined,
+      model_name: localStorage.getItem(STORAGE_KEYS.MODEL_NAME) || undefined,
+      api_key: localStorage.getItem(STORAGE_KEYS.API_KEY) || undefined,
+      base_url: localStorage.getItem(STORAGE_KEYS.BASE_URL) || undefined,
     }))
   }, [wsRef, addMsg, selectedRoles, onProjectCreated])
 
