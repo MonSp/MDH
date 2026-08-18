@@ -20,7 +20,7 @@
 
 - [x] **启用 Router 模块** — 5/5 已启用（skills/mcp/marketplace/community/workflow），1250 tests passing
 - [x] **server.py WebSocket handler 拆分** — 43 个 handler 提取到 ws_handlers.py，server.py 3098→1998 行
-- [ ] **拆分 `_run_meeting_message`** — 872 行的单体函数，需拆分为独立的 WebSocket 消息处理器
+- [x] **拆分 process_user_message** — 496 行函数拆分为 7 个子方法，meeting_coordinator 1911→1744 行
 
 ### meeting_coordinator.py 单体（1911 行）
 
