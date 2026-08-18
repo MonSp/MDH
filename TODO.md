@@ -29,7 +29,7 @@
 
 ### 核心模块零测试覆盖
 
-- [ ] **server.py 集成测试** — 3075 行，零直接测试，CRITICAL
+- [x] **server.py 集成测试** — 35 个测试覆盖 86 个 REST 端点，修复 http_exception_handler bug
 - [ ] **meeting_coordinator.py 集成测试** — 1911 行，核心编排逻辑未测试
 - [ ] **mcp_server.py 测试** — 991 行 MCP 协议实现，HIGH
 - [ ] **ceo_agent.py 测试** — 709 行 CEO 智能体逻辑，HIGH
