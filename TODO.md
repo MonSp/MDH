@@ -9,7 +9,7 @@
 - [x] **Docker DEEPSEEK_BASE_URL 修复** — 默认值补充 `/v1` 后缀
 - [x] **移除损坏的 mock-sso 服务** — 引用已删除目录，启动必失败
 - [x] **Docker healthcheck + restart 策略** — backend/executor 添加健康检查，所有服务添加重启策略
-- [x] **路由模块 init() 调用就绪** — skills/workflow/marketplace/mcp/community 路由器已接线
+- [x] **启用全部 5 个 Router 模块** — skills/mcp/marketplace/community/workflow 全部验证通过并启用
 - [x] **.env.example 补充缺失变量** — EXECUTOR_WORKSPACE、EXECUTOR_STORAGE、CORS_ORIGINS
 
 ---
@@ -18,8 +18,7 @@
 
 ### server.py 单体巨石（3075 行）
 
-- [x] **启用 Router 模块** — 4/5 已启用（skills/mcp/marketplace/community），workflow router 待调试
-- [ ] **启用 workflow Router** — resume 端点已更新，但测试直接访问 engine 内部状态需重构
+- [x] **启用 Router 模块** — 5/5 已启用（skills/mcp/marketplace/community/workflow），1250 tests passing
 - [ ] **拆分 `_run_meeting_message`** — 872 行的单体函数，需拆分为独立的 WebSocket 消息处理器
 - [ ] **server.py WebSocket handler 拆分** — 1175 行的 if/elif 链处理 43 种消息类型，提取为独立 handler 类
 
