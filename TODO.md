@@ -57,7 +57,7 @@
 
 ### 类型安全
 
-- [ ] **封装 isElectron() 工具函数** — 消除 31 处 `(window as any).mdh` 重复模式
+- [x] **封装 isElectron() 工具函数** — 统一使用 constants.ts 的 isElectron()/getMdH()，消除 31 处 as any
 - [ ] **WebSocket 消息类型校验** — handler 参数为 any，用 Zod 做运行时校验
 - [ ] **拆分 protocol.py** — 64 个类/函数在单文件中
 
