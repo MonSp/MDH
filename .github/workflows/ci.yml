@@ -17,16 +17,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: 'pip'
       - name: Install dependencies
         run: |
           pip install -r backend/requirements.txt
           pip install pytest pytest-asyncio pytest-timeout
       - name: Run backend tests
         working-directory: backend
-        run: |
-          python -m pytest tests/ --timeout=60 \
-            --deselect tests/test_skill_packs_structure.py \
-            --deselect tests/test_performance.py::TestMessageQueuePerformance::test_publish_performance
+        run: python -m pytest tests/ --timeout=60
 
   frontend-tests:
     name: Frontend tests (vitest)
@@ -36,6 +34,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: 'npm'
       - name: Install dependencies
         run: npm install --no-audit --no-fund --legacy-peer-deps --ignore-scripts
       - name: Run frontend tests
