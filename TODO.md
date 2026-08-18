@@ -75,7 +75,7 @@
 
 ### 状态管理碎片化
 
-- [ ] **统一 localStorage key 常量** — 62 处裸 localStorage 调用，key 使用不一致
+- [x] **统一 localStorage key 常量** — CeoChatPanel/SidePanel/useMeetingSocket 改用 STORAGE_KEYS
 - [ ] **useMeetingSocket 状态管理重构** — 40+ 返回值的扁平 bag，考虑引入 Zustand
 
 ### 组件测试
