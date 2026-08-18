@@ -52,7 +52,7 @@
 ### 异常处理质量
 
 - [ ] **收窄 except Exception** — 213 个宽泛捕获（server.py 独占 49 个），引入结构化异常层次
-- [ ] **消除空 pass 吞异常** — 52 个空 pass 语句，改为 logging 或具体异常处理
+- [x] **消除空 pass 吞异常** — 关键文件（server/ws_handlers/skill_packager）的空 pass 已替换为 logging
 - [ ] **print 替换为 logging** — 62 个 print() 调用在生产代码中
 
 ### 类型安全
