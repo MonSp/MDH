@@ -108,8 +108,7 @@ app.include_router(skills_router.router)
 app.include_router(mcp_router.router)
 app.include_router(marketplace_router.router)
 app.include_router(community_router.router)
-# TODO: workflow router 的 resume 端点需要进一步调试（测试访问 engine 内部状态）
-# app.include_router(workflow_router.router)
+app.include_router(workflow_router.router)
 
 # M1 演示：把关点引擎（仅演示用；会话内审批接线保持不变）
 _demo_gate_manager = ApprovalManager()
@@ -2200,7 +2199,7 @@ from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowExe
 workflow_engine = WorkflowEngine(
     persistence_dir=os.path.join(os.path.dirname(__file__), "data", "workflows")
 )
-workflow_router.init(workflow_engine, workflow_execution_to_dict, WorkflowDefinition, WorkflowNode, WorkflowEdge)
+workflow_router.init(lambda: globals()["workflow_engine"], workflow_execution_to_dict, WorkflowDefinition, WorkflowNode, WorkflowEdge)
 
 # 活动 MeetingCoordinator（单用户本地形态：最近启动的会议）。
 # 共享引擎上的节点执行器与状态回调统一委托到该协调器，
