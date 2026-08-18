@@ -177,22 +177,6 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
     return () => clearInterval(timer)
   }, [meetingStartTime, meetingPhase])
 
-  const detectPhase = useCallback((text: string): MeetingPhase | null => {
-    if (text.includes('确认细节') || text.includes('需求确认')) return 'analyzing'
-    if (text.includes('项目经理分析') || text.includes('意图')) return 'analyzing'
-    if (text.includes('制定项目计划') || text.includes('阶段1')) return 'planning'
-    if (text.includes('组织团队讨论')) return 'discussing'
-    if (text.includes('整合') && text.includes('讨论')) return 'discussing'
-    if (text.includes('分派') && text.includes('任务')) return 'assigning'
-    if (text.includes('正在执行任务') || text.includes('轮开发')) return 'executing'
-    if (text.includes('写入文件')) return 'executing'
-    if (text.includes('轮质量审查') || text.includes('轮审查')) return 'reviewing'
-    if (text.includes('审查通过')) return 'reviewing'
-    if (text.includes('项目总结') || text.includes('总结报告')) return 'summarizing'
-    if (text.includes('汇报结果') || text.includes('任务已完成')) return 'done'
-    return null
-  }, [])
-
   const formatElapsed = useCallback((seconds: number): string => {
     const m = Math.floor(seconds / 60)
     const s = seconds % 60
@@ -293,6 +277,8 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
 
         // 会议启动后，显示关键进度消息
         if (meetingStarted) {
+          // 会议阶段：仅处理 CEO 特有的生命周期消息
+          // agent_message 由 useMeetingSocket 统一处理，避免双重管线
           if (t === 'task_result') {
             setIsProcessing(false)
             setMeetingPhase('done')
@@ -308,34 +294,10 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
             setMeetingPhase('done')
             addMsg('system', `❌ ${msg.message}`)
             cleanup()
-          } else if (t === 'agent_message' && !msg.delta) {
-            const agentId = msg.agentId || ''
-            const text = msg.content || ''
-            // 检测阶段变化
-            const phase = detectPhase(text)
-            if (phase) setMeetingPhase(phase)
-            // 实时显示所有代理消息
-            const isKeyMessage =
-              agentId === 'agent-coordinator' ||
-              agentId === 'agent-ceo' ||
-              agentId.startsWith('agent-') ||
-              text.includes('分析') ||
-              text.includes('讨论') ||
-              text.includes('审查') ||
-              text.includes('执行任务') ||
-              text.includes('分派') ||
-              text.includes('汇报') ||
-              text.includes('写入文件') ||
-              text.includes('已写入') ||
-              text.includes('总结') ||
-              text.includes('轮开发') ||
-              text.includes('轮审查') ||
-              text.includes('需求') ||
-              text.includes('计划') ||
-              text.includes('分配')
-            if (isKeyMessage) {
-              addMsg('system', `[${agentId}] ${text}`)
-            }
+          } else if (t === 'path_selected') {
+            addMsg('system', `📊 执行路径：${msg.path}`)
+          } else if (t === 'path_upgrade') {
+            addMsg('system', `⬆️ 路径升级：${msg.from} → ${msg.to}`)
           }
           return
         }
