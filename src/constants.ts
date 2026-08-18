@@ -3,6 +3,11 @@ export function isElectron(): boolean {
   return typeof window !== 'undefined' && (window as any).mdh?.isElectron === true;
 }
 
+// 获取 Electron mdh API 对象（非 Electron 环境返回 undefined）
+export function getMdH(): { isElectron?: boolean; invoke: (channel: string, ...args: any[]) => Promise<any>; on: (channel: string, handler: (...args: any[]) => void) => void; off: (channel: string, handler: (...args: any[]) => void) => void } | undefined {
+  return typeof window !== 'undefined' ? (window as any).mdh : undefined;
+}
+
 // 向后兼容的常量版本
 const _isElectron = isElectron();
 export const AGENT_URL_DEFAULT = _isElectron ? '' : `ws://${window.location.host}/ws/`;

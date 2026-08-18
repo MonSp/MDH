@@ -5,6 +5,8 @@
  * 这样所有现有的 fetch('/api/...') 调用都能正常工作，无需修改组件代码
  */
 
+import { getMdH } from '../constants'
+
 // API 路径 → IPC 通道映射
 const API_TO_IPC: Record<string, string> = {
   '/api/roles/config': 'mdh:getRolesConfig',
@@ -14,14 +16,10 @@ const API_TO_IPC: Record<string, string> = {
 // 原始 fetch 保存
 let originalFetch: typeof window.fetch | null = null;
 
-function getElectron(): any {
-  return typeof window !== 'undefined' ? (window as any).mdh : undefined;
-}
-
 // 拦截后的 fetch
 async function interceptedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-  const mdh = getElectron();
+  const mdh = getMdH();
 
   // 检查是否需要拦截（每次调用时动态检测）
   if (mdh?.isElectron && API_TO_IPC[url] && (!init || !init.method || init.method === 'GET')) {
@@ -51,7 +49,7 @@ async function interceptedFetch(input: RequestInfo | URL, init?: RequestInit): P
  * 在应用启动时调用一次即可
  */
 export function installElectronApiInterceptor() {
-  const mdh = getElectron();
+  const mdh = getMdH();
   if (!mdh?.isElectron) {
     console.log('[Electron] Not in Electron mode, skipping interceptor');
     return;

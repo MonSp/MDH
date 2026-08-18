@@ -1,5 +1,6 @@
 import React from 'react'
 import { VIEW_PRESETS } from './constants'
+import { isElectron } from '../../constants'
 
 /* ───────── 视角书签 ───────── */
 
@@ -36,14 +37,14 @@ export function OverlayButtons({ onStartMeeting, onBackToSingle }: {
   onStartMeeting: () => void; onBackToSingle: () => void
 }) {
   // Electron 模式是独立应用，无"返回单智能体"入口，隐藏返回按钮
-  const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true
+  const isElectronMode = isElectron()
 
   return (
     <div style={{
       position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
       display: 'flex', gap: 12, zIndex: 10,
     }}>
-      {!isElectron && (
+      {!isElectronMode && (
         <button onClick={onBackToSingle} style={{
           padding: '10px 20px',
           background: 'rgba(0,0,0,0.7)',

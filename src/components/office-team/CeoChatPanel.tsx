@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import CeoMessageBubble from './CeoMessageBubble'
 import WorkspaceConfirmPanel from './WorkspaceConfirmPanel'
+import { isElectron, getMdH } from '../../constants'
 
-const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true
+const isElectronMode = isElectron()
 
 const AGENT_NAMES: Record<string, string> = {
   'agent-ceo': 'CTO',
@@ -213,8 +214,8 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
     addMsg('user', content)
 
     // Electron 模式：通过 IPC 发送
-    if (isElectron) {
-      const mdh = (window as any).mdh
+    if (isElectronMode) {
+      const mdh = getMdH()!
       mdh.invoke('mdh:sendMessage', {
         content,
         roles: autoMode ? [] : selectedRoles,
@@ -440,8 +441,8 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
         }
 
     // Electron 模式：通过 IPC 发送
-    if (isElectron) {
-      (window as any).mdh.invoke('mdh:workspaceConfirmResponse', confirmData)
+    if (isElectronMode) {
+      getMdH()?.invoke('mdh:workspaceConfirmResponse', confirmData)
     } else {
       // WebSocket 模式
       const ws = wsRef.current
@@ -574,7 +575,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
                         style={styles.wsConfirmBtn}
                         onClick={() => {
                           addMsg('system', '✅ 使用默认工作区')
-                          mdh.invoke('mdh:workspaceConfirmResponse', { workspace_type: 'standalone' })
+                          getMdH()?.invoke('mdh:workspaceConfirmResponse', { workspace_type: 'standalone' })
                         }}
                       >
                         📂 使用默认工作区
@@ -582,10 +583,10 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
                       <button
                         style={{ ...styles.wsConfirmBtn, background: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.3)' }}
                         onClick={() => {
-                          mdh.invoke('mdh:selectWorkspace').then((result: any) => {
+                          getMdH()?.invoke('mdh:selectWorkspace').then((result: any) => {
                             if (result && !result.canceled && result.path) {
                               addMsg('system', `✅ 已选择工作区：${result.path}`)
-                              mdh.invoke('mdh:workspaceConfirmResponse', {
+                              getMdH()?.invoke('mdh:workspaceConfirmResponse', {
                                 workspace_type: 'standalone',
                                 output_dir: result.path,
                               })

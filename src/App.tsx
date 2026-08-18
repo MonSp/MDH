@@ -19,6 +19,8 @@ import {
   AGENT_URL_DEFAULT,
   STORAGE_KEYS,
   SSO_KEYS,
+  isElectron,
+  getMdH,
   type SettingsConfig,
   type SkillInfo,
   type EditingSkill,
@@ -29,7 +31,7 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
   // Electron 模式默认进入团队视图，浏览器模式保留单智能体
-  const isElectronMode = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true;
+  const isElectronMode = isElectron();
   const isTeamMode = isElectronMode
     ? !location.pathname.startsWith('/single')  // Electron: 默认团队，/single 才切回单智能体
     : location.pathname.startsWith('/team');     // 浏览器: /team 切团队
@@ -281,9 +283,9 @@ function AppContent() {
     localStorage.setItem(STORAGE_KEYS.BACKEND_TOKEN, settingsCfg.backendToken.trim());
 
     // Electron 模式：同步配置到主进程
-    const mdh = (window as any).mdh;
+    const mdh = getMdH();
     if (mdh?.isElectron) {
-      mdh.invoke('mdh:setLlmConfig', {
+      mdh!.invoke('mdh:setLlmConfig', {
         provider: settingsCfg.provider,
         apiKey: settingsCfg.apiKey.trim(),
         baseUrl: settingsCfg.baseUrl.trim(),
@@ -439,8 +441,8 @@ function AppContent() {
 
 export default function App() {
   // Electron 环境使用 HashRouter（file:// 协议不支持 History API）
-  const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true;
-  const Router = isElectron ? HashRouter : BrowserRouter;
+  const isElectronMode = isElectron();
+  const Router = isElectronMode ? HashRouter : BrowserRouter;
 
   return (
     <Router>

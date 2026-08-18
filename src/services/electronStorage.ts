@@ -5,33 +5,33 @@
  * 替代浏览器端的 File System Access API。
  */
 
-export function isElectron(): boolean {
-  return typeof window !== 'undefined' && (window as any).mdh?.isElectron === true
-}
+import { isElectron, getMdH } from '../constants'
+
+export { isElectron }
 
 export async function listProjects(): Promise<any[]> {
-  const mdh = (window as any).mdh
+  const mdh = getMdH()
   if (!mdh) return []
   const result = await mdh.invoke('mdh:projectList')
   return result?.success ? (result.data || []) : []
 }
 
 export async function saveProject(project: any): Promise<boolean> {
-  const mdh = (window as any).mdh
+  const mdh = getMdH()
   if (!mdh) return false
   const result = await mdh.invoke('mdh:projectSave', { project })
   return !!result?.success
 }
 
 export async function deleteProject(projectId: string): Promise<boolean> {
-  const mdh = (window as any).mdh
+  const mdh = getMdH()
   if (!mdh) return false
   const result = await mdh.invoke('mdh:projectDelete', { projectId })
   return !!result?.success
 }
 
 export async function getProject(projectId: string): Promise<any | null> {
-  const mdh = (window as any).mdh
+  const mdh = getMdH()
   if (!mdh) return null
   const result = await mdh.invoke('mdh:projectGet', { projectId })
   return result?.success ? result.data : null

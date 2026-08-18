@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import type { Task } from './types'
 import type { MeetingPhase } from '../../hooks/useMeetingSocket'
 import { PHASE_LABELS } from '../../hooks/useMeetingSocket'
+import { isElectron } from '../../constants'
 
 const PHASE_ORDER: MeetingPhase[] = [
   'analyzing', 'planning', 'discussing', 'assigning', 'executing', 'reviewing', 'summarizing',
@@ -55,16 +56,16 @@ export default function OfficeHeader({
 
   const isActive = meetingPhase !== 'idle' && meetingPhase !== 'done'
 
-  const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true
+  const isElectronMode = isElectron()
 
   return (
     <div style={styles.header}>
-      {!isElectron && (
+      {!isElectronMode && (
         <button style={styles.backButton} onClick={viewState === 'meeting' ? onBackToTower : onBackToSingle}>
           {viewState === 'meeting' ? '← 返回对话' : '← 返回'}
         </button>
       )}
-      {isElectron && viewState === 'meeting' && (
+      {isElectronMode && viewState === 'meeting' && (
         <button style={styles.backButton} onClick={onBackToTower}>
           ← 返回大厦
         </button>

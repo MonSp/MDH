@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ConfigProvider, carbonTheme } from '@agentscope-ai/design';
 import App from './App';
+import { isElectron } from './constants';
 import { installElectronApiInterceptor } from './utils/electronApiInterceptor';
 
 import './theme-dark.css';
@@ -21,7 +22,7 @@ const SSO_TOKEN_KEY = 'sso_auth_token';
 const SSO_USERNAME_KEY = 'sso_auth_username';
 
 // 检测是否在 Electron 环境
-const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true;
+const isElectronMode = isElectron();
 
 function getSSOUrl() {
   return `${window.location.origin}/sso/login`;
@@ -29,7 +30,7 @@ function getSSOUrl() {
 
 function checkSSOAuth(): boolean {
   // Electron 环境跳过 SSO 检查
-  if (isElectron) {
+  if (isElectronMode) {
     return true;
   }
 

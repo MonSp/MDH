@@ -4,6 +4,7 @@ import type { Project, ProjectDept, CustomTeam, PanelState, CameraTarget } from 
 import { DEFAULT_DEPTS, DEFAULT_PROJECTS, ALL_AGENTS, TowerScene, SidePanel, ViewBookmarks, OverlayButtons } from './techtower'
 import CeoChatPanel from './office-team/CeoChatPanel'
 import { useLocalStorage } from '../hooks/useLocalStorage'
+import { isElectron } from '../constants'
 
 const CATEGORY_ICONS: Record<string, string> = {
   '软件开发': '💻',
@@ -43,7 +44,7 @@ interface TechTowerViewProps {
 export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBackToSingle, onEnterProject, refreshKey }: TechTowerViewProps) {
   void onSendTask
 
-  const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true
+  const isElectronMode = isElectron()
 
   const {
     isReady,
@@ -246,7 +247,7 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
     input.click()
   }, [importData])
 
-  const [skipSetup, setSkipSetup] = useState(isElectron) // Electron 模式自动跳过文件系统设置
+  const [skipSetup, setSkipSetup] = useState(isElectronMode) // Electron 模式自动跳过文件系统设置
 
   // 如果需要授权访问已保存的目录
   if (isSupported && needPermission && !skipSetup) {
@@ -353,7 +354,7 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
           ))}
         </div>
         <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          {!isElectron && (
+          {!isElectronMode && (
             <button onClick={onBackToSingle} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#9ca3af', cursor: 'pointer', fontSize: 12 }}>← 返回单智能体</button>
           )}
         </div>

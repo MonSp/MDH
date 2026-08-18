@@ -5,7 +5,9 @@
  * 在浏览器环境下通过 HTTP fetch 获取数据
  */
 
-const isElectron = typeof window !== 'undefined' && (window as any).mdh?.isElectron === true;
+import { isElectron, getMdH } from '../constants';
+
+const isElectronMode = isElectron();
 
 // Electron IPC 映射：API 路径 → IPC 通道
 const IPC_MAP: Record<string, string> = {
@@ -18,9 +20,9 @@ const IPC_MAP: Record<string, string> = {
  * Electron 模式下自动路由到 IPC，浏览器模式下使用 fetch
  */
 export async function apiFetch<T = any>(url: string, options?: RequestInit): Promise<T> {
-  if (isElectron && IPC_MAP[url] && (!options || options.method === 'GET' || !options.method)) {
+  if (isElectronMode && IPC_MAP[url] && (!options || options.method === 'GET' || !options.method)) {
     try {
-      const result = await (window as any).mdh.invoke(IPC_MAP[url]);
+      const result = await getMdH()?.invoke(IPC_MAP[url]);
       return result as T;
     } catch (e) {
       console.warn('[apiFetch] IPC failed, falling back to fetch:', e);
@@ -36,9 +38,9 @@ export async function apiFetch<T = any>(url: string, options?: RequestInit): Pro
  * 加载角色配置
  */
 export async function loadRolesConfig(): Promise<any> {
-  if (isElectron) {
+  if (isElectronMode) {
     try {
-      const result = await (window as any).mdh.invoke('mdh:getRolesConfig');
+      const result = await getMdH()?.invoke('mdh:getRolesConfig');
       if (result?.success && result?.data) {
         return result.data;
       }
@@ -60,9 +62,9 @@ export async function loadRolesConfig(): Promise<any> {
  * 加载技能包列表
  */
 export async function loadSkillsList(): Promise<any[]> {
-  if (isElectron) {
+  if (isElectronMode) {
     try {
-      const result = await (window as any).mdh.invoke('mdh:getSkillsList');
+      const result = await getMdH()?.invoke('mdh:getSkillsList');
       if (result?.success && result?.skills) {
         return result.skills;
       }
