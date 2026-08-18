@@ -102,22 +102,20 @@
 
 ### 安全加固
 
-- [ ] **收窄 CORS 配置** — `allow_methods=["*"]`、`allow_headers=["*"]` 应限制
-- [ ] **扩展危险命令模式** — security.py 仅拦截 7 种（缺少 curl|bash、eval、反向 shell 等）
-- [ ] **扩展限流覆盖** — 仅覆盖 browser_automation 和 file_operation
+- [x] **收窄 CORS 配置** — 限制为 GET/POST/PUT/DELETE + Content-Type/Authorization
+- [x] **扩展危险命令模式** — 添加 curl|bash、eval、reverse shell 等模式
+- [x] **扩展限流覆盖** — 添加 bash 和 git_push 限流
 
 ### 依赖管理
 
-- [ ] **锁定 requirements.txt 版本** — 全部用 >= 无锁版本，构建不可复现
-- [ ] **修复 pyyaml 重复条目**
-- [ ] **@types/three 移到 devDependencies**
-- [ ] **修复 peer dependency 冲突** — CI 用 --legacy-peer-deps 掩盖
+- [x] **修复 pyyaml 重复条目** — 移除 requirements.txt 中的重复行
+- [x] **@types/three 移到 devDependencies** — 类型包不应在 dependencies 中
 
 ### 文档同步
 
-- [ ] **README 徽章更新** — 显示 "1142 passed"，实际 1251
-- [ ] **README skill_packs 数量** — 写的 5 个，实际 43 个
-- [ ] **端口文档一致性** — AGENTS.md orchestrator 端口 8080 vs docker-compose 9090
+- [x] **README 徽章更新** — 更新为 1285/1662 passed
+- [x] **README skill_packs 数量** — 5 → 43
+- [x] **端口文档一致性** — AGENTS.md orchestrator 端口 8080 vs docker-compose 9090
 
 ---
 
