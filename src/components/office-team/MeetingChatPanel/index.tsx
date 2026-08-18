@@ -29,9 +29,15 @@ interface MeetingChatPanelProps {
 export default function MeetingChatPanel({ agents, messages, onEndMeeting, agendaPhase }: MeetingChatPanelProps) {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
+  const scrollRaf = useRef<number>(0)
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // 使用 requestAnimationFrame 防抖，避免快速消息流触发频繁布局抖动
+    cancelAnimationFrame(scrollRaf.current)
+    scrollRaf.current = requestAnimationFrame(() => {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    })
+    return () => cancelAnimationFrame(scrollRaf.current)
   }, [messages])
 
   const getAgentById = (id?: string) => agents.find(a => a.id === id)

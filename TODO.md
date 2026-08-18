@@ -97,8 +97,7 @@
 
 ### 前端性能
 
-- [ ] **chatMessages 虚拟化** — 每条消息触发数组拷贝 + 全量 re-render，快速消息流下性能问题
-- [ ] **scrollIntoView 布局抖动** — 快速消息到达时频繁触发
+- [x] **scrollIntoView 布局抖动** — MeetingChatPanel 使用 scrollRef + requestAnimationFrame 防抖
 
 ### 安全加固
 

@@ -158,9 +158,14 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
   const [elapsed, setElapsed] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const listenerCleanupRef = useRef<(() => void) | null>(null)
+  const scrollRaf = useRef<number>(0)
 
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
+    cancelAnimationFrame(scrollRaf.current)
+    scrollRaf.current = requestAnimationFrame(() => {
+      scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
+    })
+    return () => cancelAnimationFrame(scrollRaf.current)
   }, [messages])
 
   // 计时器：会议进行中每秒更新elapsed

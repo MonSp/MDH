@@ -1204,7 +1204,7 @@ EXECUTOR_TOKEN=
         ▼                                    ▼
 ┌───────────────────────┐          ┌───────────────────────┐
 │  TS Orchestrator      │          │  Python Backend       │
-│  (端口 8080)          │          │  (端口 8765)          │
+│  (端口 9090)          │          │  (端口 8765)          │
 │  - TeamCoordinator    │          │  - MeetingCoordinator │
 │  - LLM 调用           │          │  - CEO Agent          │
 │  - 本地工具执行        │          │  - 投票/审批          │
@@ -1224,7 +1224,7 @@ EXECUTOR_TOKEN=
 | 进程 | 技术 | 端口 | 职责 |
 |------|------|------|------|
 | **React 前端** | React + TypeScript | 8080 | UI、WebSocket 客户端 |
-| **TS Orchestrator** | Node.js + TypeScript | 8080 | 本地 LLM 调用、团队管理、本地工具执行 |
+| **TS Orchestrator** | Node.js + TypeScript | 9090 | 本地 LLM 调用、团队管理、本地工具执行 |
 | **Python Backend** | Python + FastAPI | 8765 | 智能体协调（CEO 拆解/团队组装/审查）、投票审批（辅助）、技能进化 |
 | **Python Executor** | Python + FastAPI | 8767 | 远端工具执行、工作区隔离 |
 
@@ -1290,7 +1290,7 @@ MDH 支持每个智能体实例独立选择工具执行位置，实现灵活的�
 ```
 用户浏览器 (Chrome Side Panel)
 ┌─────────────────────────────────────────────────────────────┐
-│  TS Orchestrator (Node.js, 端口 8080)                        │
+│  TS Orchestrator (Node.js, 端口 9090)                        │
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │  TeamCoordinator                                    │    │
 │  │  ┌─────────┐  ┌─────────┐  ┌─────────┐            │    │
