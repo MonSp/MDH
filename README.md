@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1142%20passed-brightgreen)]()
-[![Frontend Tests](https://img.shields.io/badge/frontend-1657%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-1285%20passed-brightgreen)]()
+[![Frontend Tests](https://img.shields.io/badge/frontend-1662%20passed-brightgreen)]()
 [![Test Coverage](https://img.shields.io/badge/test%20coverage-84%25-brightgreen)]()
 
 **中文** | [English](README.en.md)
@@ -102,7 +102,7 @@ docker compose up -d
 │       ├── toolkit/              # 工具包路由（local/remote/hybrid）
 │       └── loop/                 # 循环执行引擎
 ├── loop-engineering/             # 循环工程优化（独立产品）
-├── skill_packs/                  # 技能包（5 个）
+├── skill_packs/                  # 技能包（43 个）
 ├── protocol/                     # Bridge 协议文档
 ├── docs/                         # 文档
 └── .env                          # 环境变量（API Key）

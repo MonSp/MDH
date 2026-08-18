@@ -81,10 +81,16 @@ class SecurityMiddleware:
             "rm -rf /", "rm -rf /*", "mkfs", "dd if=", "> /dev/",
             "chmod 777 /", "shutdown", "reboot", "halt",
             ":(){ :|:& };:",  # fork bomb
+            "curl.*\|.*bash", "wget.*\|.*sh",  # pipe to shell
+            "eval.*\$",  # eval injection
+            "nc -e", "ncat -e",  # reverse shell
+            "python -c 'import os;os.system",  # python injection
         ]
         self._rate_limits: Dict[str, RateLimitConfig] = {
             "browser_automation": RateLimitConfig("browser_automation", 10, 60.0),
             "file_operation": RateLimitConfig("file_operation", 10, 60.0),
+            "bash": RateLimitConfig("bash", 20, 60.0),
+            "git_push": RateLimitConfig("git_push", 5, 60.0),
         }
         self._audit_log: List[AuditEntry] = []
         self._operation_counts: Dict[str, Tuple[int, float]] = {}

@@ -26,4 +26,3 @@ tree_sitter_bash>=0.25.0
 jsonschema>=4.0.0
 typing-extensions>=4.0.0
 pyyaml>=6.0.0
-pyyaml>=6.0.0
