@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { browserStorage } from '../services/browserStorage'
+import type { SubTask, ProjectTask } from '../components/office-team/types'
 
 export interface Project {
   project_id: string
@@ -10,25 +11,7 @@ export interface Project {
   tasks: ProjectTask[]
 }
 
-export interface ProjectTask {
-  task_id: string
-  project_id: string
-  description: string
-  status: string
-  created_at: number
-  completed_at: number
-  meeting_id: string
-  subtasks: SubTask[]
-}
-
-export interface SubTask {
-  subtask_id: string
-  description: string
-  status: string
-  agent_id: string
-  created_at: number
-  completed_at: number
-}
+export type { SubTask, ProjectTask }
 
 export function useBrowserStorage() {
   const [isReady, setIsReady] = useState(false)
