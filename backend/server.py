@@ -268,6 +268,9 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def list_skills():
     try:
         return _ok(skill_registry.list_skills())
+    except (KeyError, ValueError) as e:
+        logger.warning("list_skills 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("list_skills 失败")
         return _fail(str(e))
@@ -318,6 +321,9 @@ async def get_skill(skill_id: str):
 async def list_projects():
     try:
         return _ok(project_manager.list_projects())
+    except (KeyError, ValueError) as e:
+        logger.warning("list_projects 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("list_projects 失败")
         return _fail(str(e))
@@ -339,6 +345,9 @@ async def get_project_categories():
     try:
         categories = project_manager.get_categories()
         return _ok(categories)
+    except (KeyError, ValueError) as e:
+        logger.warning("get_categories 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("get_categories 失败")
         return _fail(str(e))
@@ -354,6 +363,9 @@ async def classify_all_projects():
                 category = project_manager.auto_classify_project(project.project_id)
                 results.append({"project_id": project.project_id, "category": category})
         return _ok({"classified": len(results), "results": results})
+    except (KeyError, ValueError) as e:
+        logger.warning("classify_all 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("classify_all 失败")
         return _fail(str(e))
@@ -512,6 +524,9 @@ async def get_all_rules():
     try:
         rules = experience_extractor.get_all_rules()
         return _ok([_rule_to_dict(r) for r in rules])
+    except (KeyError, ValueError) as e:
+        logger.warning("get_all_rules 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("get_all_rules 失败")
         return _fail(str(e))
@@ -522,6 +537,9 @@ async def get_pending_rules():
     try:
         rules = experience_extractor.get_pending_rules()
         return _ok([_rule_to_dict(r) for r in rules])
+    except (KeyError, ValueError) as e:
+        logger.warning("get_pending_rules 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("get_pending_rules 失败")
         return _fail(str(e))
@@ -535,6 +553,9 @@ async def approve_rule(rule_id: str, body: dict = Body(...)):
         if not success:
             return _fail(f"规则不存在: {rule_id}")
         return _ok({"rule_id": rule_id, "status": "approved"})
+    except (KeyError, ValueError) as e:
+        logger.warning("approve_rule 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("approve_rule 失败")
         return _fail(str(e))
@@ -548,6 +569,9 @@ async def reject_rule(rule_id: str, body: dict = Body(...)):
         if not success:
             return _fail(f"规则不存在: {rule_id}")
         return _ok({"rule_id": rule_id, "status": "rejected"})
+    except (KeyError, ValueError) as e:
+        logger.warning("reject_rule 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("reject_rule 失败")
         return _fail(str(e))
@@ -561,6 +585,9 @@ async def modify_rule(rule_id: str, body: dict = Body(...)):
         if not success:
             return _fail(f"规则不存在: {rule_id}")
         return _ok({"rule_id": rule_id, "modified": True})
+    except (KeyError, ValueError) as e:
+        logger.warning("modify_rule 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("modify_rule 失败")
         return _fail(str(e))
@@ -599,6 +626,9 @@ async def package_skill(body: dict = Body(...)):
         return _fail("缺少必填字段: base_skill_path, incremental_path, project_id, skill_name")
     except FileNotFoundError as e:
         return _fail(str(e))
+    except (KeyError, ValueError) as e:
+        logger.warning("package_skill 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("package_skill 失败")
         return _fail(str(e))
@@ -610,6 +640,9 @@ async def preview_package(base_skill_path: str, incremental_path: str):
         result = skill_packager.preview_package(base_skill_path, incremental_path)
         return _ok(result)
     except FileNotFoundError as e:
+        return _fail(str(e))
+    except (KeyError, ValueError) as e:
+        logger.warning("preview_package 失败 预期错误: %s", e)
         return _fail(str(e))
     except Exception as e:
         logger.exception("preview_package 失败")
@@ -653,6 +686,9 @@ async def evolve_skills(body: dict = Body(...)):
                 for r in rules
             ],
         })
+    except (KeyError, ValueError) as e:
+        logger.warning("evolve_skills 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("evolve_skills 失败")
         return _fail(str(e))
@@ -665,6 +701,9 @@ async def evolve_skills(body: dict = Body(...)):
 async def get_route_table():
     try:
         return _ok(dynamic_router.get_route_table())
+    except (KeyError, ValueError) as e:
+        logger.warning("get_route_table 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("get_route_table 失败")
         return _fail(str(e))
@@ -691,6 +730,9 @@ async def add_route_entry(body: dict = Body(...)):
         return _ok(asdict(entry))
     except KeyError:
         return _fail("缺少必填字段: dept_id, dept_name")
+    except (KeyError, ValueError) as e:
+        logger.warning("add_route_entry 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("add_route_entry 失败")
         return _fail(str(e))
@@ -703,6 +745,9 @@ async def remove_route_entry(dept_id: str):
         if not success:
             return _fail(f"部门不存在: {dept_id}")
         return _ok({"dept_id": dept_id, "removed": True})
+    except (KeyError, ValueError) as e:
+        logger.warning("remove_route_entry 失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("remove_route_entry 失败")
         return _fail(str(e))
@@ -764,6 +809,9 @@ async def get_roles_config():
     try:
         config = _load_roles_config()
         return _ok(config)
+    except (KeyError, ValueError) as e:
+        logger.warning("获取角色配置失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("获取角色配置失败")
         return _fail(str(e))
@@ -778,6 +826,9 @@ async def get_role(role_id: str):
         if not role:
             return _fail(f"角色不存在: {role_id}")
         return _ok(role)
+    except (KeyError, ValueError) as e:
+        logger.warning("获取角色失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("获取角色失败")
         return _fail(str(e))
@@ -805,6 +856,9 @@ async def create_role(role_id: str, body: dict = Body(...)):
         }
         _save_roles_config(config)
         return _ok(config["custom_roles"][role_id])
+    except (KeyError, ValueError) as e:
+        logger.warning("创建角色失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("创建角色失败")
         return _fail(str(e))
@@ -838,6 +892,9 @@ async def update_role(role_id: str, body: dict = Body(...)):
             return _ok(custom)
         else:
             return _fail(f"角色不存在: {role_id}")
+    except (KeyError, ValueError) as e:
+        logger.warning("更新角色失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("更新角色失败")
         return _fail(str(e))
@@ -855,6 +912,9 @@ async def delete_role(role_id: str):
         del config["custom_roles"][role_id]
         _save_roles_config(config)
         return _ok({"role_id": role_id, "deleted": True})
+    except (KeyError, ValueError) as e:
+        logger.warning("删除角色失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("删除角色失败")
         return _fail(str(e))
@@ -866,6 +926,9 @@ async def list_tools():
     try:
         config = _load_roles_config()
         return _ok(config.get("tools", {}))
+    except (KeyError, ValueError) as e:
+        logger.warning("获取工具列表失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("获取工具列表失败")
         return _fail(str(e))
@@ -888,6 +951,9 @@ async def create_tool(tool_id: str, body: dict = Body(...)):
         }
         _save_roles_config(config)
         return _ok(config["tools"][tool_id])
+    except (KeyError, ValueError) as e:
+        logger.warning("创建工具失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("创建工具失败")
         return _fail(str(e))
@@ -903,6 +969,9 @@ async def delete_tool(tool_id: str):
         del config["tools"][tool_id]
         _save_roles_config(config)
         return _ok({"tool_id": tool_id, "deleted": True})
+    except (KeyError, ValueError) as e:
+        logger.warning("删除工具失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("删除工具失败")
         return _fail(str(e))
@@ -914,6 +983,9 @@ async def list_role_skills():
     try:
         config = _load_roles_config()
         return _ok(config.get("skills", {}))
+    except (KeyError, ValueError) as e:
+        logger.warning("获取技能列表失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("获取技能列表失败")
         return _fail(str(e))
@@ -964,6 +1036,9 @@ async def generate_skill(body: dict = Body(...)):
             return _ok(result["data"])
         return _fail(result["error"])
 
+    except (KeyError, ValueError) as e:
+        logger.warning("AI生成技能失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("AI生成技能失败")
         return _fail(str(e))
@@ -995,6 +1070,9 @@ async def create_skill(skill_id: str, body: dict = Body(...)):
         config["skills"][skill_id] = skill_entry
         _save_roles_config(config)
         return _ok(config["skills"][skill_id])
+    except (KeyError, ValueError) as e:
+        logger.warning("创建技能失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("创建技能失败")
         return _fail(str(e))
@@ -1010,6 +1088,9 @@ async def delete_skill(skill_id: str):
         del config["skills"][skill_id]
         _save_roles_config(config)
         return _ok({"skill_id": skill_id, "deleted": True})
+    except (KeyError, ValueError) as e:
+        logger.warning("删除技能失败 预期错误: %s", e)
+        return _fail(str(e))
     except Exception as e:
         logger.exception("删除技能失败")
         return _fail(str(e))
