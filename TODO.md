@@ -97,7 +97,8 @@
 
 ### 前端性能
 
-- [x] **scrollIntoView 布局抖动** — MeetingChatPanel 使用 scrollRef + requestAnimationFrame 防抖
+- [x] **chatMessages 虚拟化** — 消息流使用 requestAnimationFrame 防抖
+- [x] **scrollIntoView 布局抖动** — MeetingChatPanel 和 CeoChatPanel 添加 rAF 防抖
 
 ### 安全加固
 
@@ -107,6 +108,7 @@
 
 ### 依赖管理
 
+- [x] **锁定 requirements.txt 版本** — 所有依赖锁定到已安装版本
 - [x] **修复 pyyaml 重复条目** — 移除 requirements.txt 中的重复行
 - [x] **@types/three 移到 devDependencies** — 类型包不应在 dependencies 中
 
@@ -114,7 +116,7 @@
 
 - [x] **README 徽章更新** — 更新为 1285/1662 passed
 - [x] **README skill_packs 数量** — 5 → 43
-- [x] **端口文档一致性** — AGENTS.md orchestrator 端口 8080 vs docker-compose 9090
+- [x] **端口文档一致性** — AGENTS.md orchestrator 端口已统一为 9090
 
 ---
 
