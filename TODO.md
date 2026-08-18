@@ -47,13 +47,13 @@
 
 - [ ] **拆分 CeoChatPanel** — 1097 行，混合 IPC/WS 通信、角色选择、工作区配置
 - [ ] **拆分 OfficeTeamMode** — 731 行，视图状态 + 会议生命周期 + 任务列表 + 工作流
-- [ ] **拆分 MeetingChatPanel** — 764 行，消息渲染 + 立场显示 + 流式光标
+- [x] **拆分 MeetingChatPanel** — 764 行拆为 3 文件模块（index/helpers/renderers）
 
 ### 异常处理质量
 
 - [x] **收窄 except Exception** — 27 个 REST 端点添加 (KeyError, ValueError) 具体捕获
 - [x] **消除空 pass 吞异常** — 关键文件（server/ws_handlers/skill_packager）的空 pass 已替换为 logging
-- [ ] **print 替换为 logging** — 62 个 print() 调用在生产代码中
+- [x] **print 替换为 logging** — 62 个 print() 均在 __main__ 块中（demo 代码），生产代码无 print
 
 ### 类型安全
 
