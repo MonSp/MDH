@@ -634,7 +634,7 @@ class SkillPackager:
                     if isinstance(manifest, dict):
                         base_version = manifest.get("version", "1.0.0")
                 except Exception:
-                    pass
+                    logger.debug("读取基础技能 manifest 失败，使用默认版本")
 
             # 解析规则摘要
             rules_summary: list[dict] = []
@@ -657,7 +657,7 @@ class SkillPackager:
                                             "rule_type": r.get("rule_type", ""),
                                         })
                         except Exception:
-                            pass
+                            logger.debug("解析规则文件失败: %s", fname)
 
             output_version = self._bump_version(base_version)
             readme_content = self.generate_readme(skill_name, base_version, diff_summary, rules_summary)

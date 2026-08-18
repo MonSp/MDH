@@ -1086,8 +1086,10 @@ async def ws_handler(ws: WebSocket):
             agent_task.cancel()
             try:
                 await agent_task
-            except (asyncio.CancelledError, Exception):
+            except asyncio.CancelledError:
                 pass
+            except Exception as e:
+                logger.debug("agent_task 取消后异常: %s", e)
         # 会议消息后台任务同样需在断开时取消，避免任务悬挂并持续向已关闭的
         # WebSocket 发送消息（配合 meeting_message 的 create_task 后台化）。
         _meeting_task = getattr(session, "_meeting_task", None)
@@ -1095,8 +1097,10 @@ async def ws_handler(ws: WebSocket):
             _meeting_task.cancel()
             try:
                 await _meeting_task
-            except (asyncio.CancelledError, Exception):
+            except asyncio.CancelledError:
                 pass
+            except Exception as e:
+                logger.debug("meeting_task 取消后异常: %s", e)
         sessions.pop(session.session_id, None)
         logger.info("Session 已清理: session=%s, 活跃会话数=%d", session.session_id, len(sessions))
 

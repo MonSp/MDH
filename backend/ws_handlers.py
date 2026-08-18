@@ -365,7 +365,7 @@ async def handle_meeting_message(msg, session, ctx):
                 try:
                     await session.send_error("会议消息处理出错")
                 except Exception:
-                    pass
+                    logger.debug("发送错误通知失败（WebSocket 可能已关闭）: session=%s", session.session_id)
 
         session._meeting_task = asyncio.create_task(_run_meeting_message())
         await session.ws.send_json({"type": "meeting_message_ack", "content": content})
@@ -905,8 +905,8 @@ async def handle_restore_meeting_snapshot(msg, session, ctx):
             try:
                 task = meeting.add_task(task_data["agent_id"], task_data["description"])
                 meeting.update_task_status(task.id, task_data["status"])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("恢复任务失败: %s", e)
         restored_messages = state.get("messages", [])
         meeting.messages = restored_messages
         meeting.rebuild_events_from_messages(restored_messages)
