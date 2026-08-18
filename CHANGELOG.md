@@ -2,6 +2,21 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.1] - 2026-08-18
+
+### Fixed
+- `clone_skill` 端点重复 `except ValueError`（不可达代码）
+- 全局异常处理器返回 HTTP 200 而非 500（编程错误伪装成正常响应）
+- Docker `DEEPSEEK_BASE_URL` 默认值缺少 `/v1` 后缀
+- 移除 docker-compose 中引用已删除目录的 `mock-sso` 服务
+- `routers/skills.py` 的 `_ok()`/`_fail()` 签名与 `server.py` 不一致
+- `SkillExporter` 初始化使用了错误的构造参数
+
+### Added
+- Docker 服务添加 healthcheck 和 restart 策略
+- `.env.example` 补充 `EXECUTOR_WORKSPACE`、`EXECUTOR_STORAGE`、`CORS_ORIGINS`
+- 路由模块 `init()` 调用已就绪（路由器暂未启用，待行为验证后逐个激活）
+
 ## [1.2.0] - 2026-08-17
 
 ### Added
