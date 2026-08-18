@@ -58,7 +58,7 @@
 ### 类型安全
 
 - [x] **封装 isElectron() 工具函数** — 统一使用 constants.ts 的 isElectron()/getMdH()，消除 31 处 as any
-- [ ] **WebSocket 消息类型校验** — handler 参数为 any，用 Zod 做运行时校验
+- [x] **WebSocket 消息类型校验** — 添加 isWsMessage/isKnownMessageType 类型守卫，50+ 已知消息类型
 - [x] **拆分 protocol.py** — 64 个类/函数拆为 protocol/ 包（workflow/meeting/voting/approval 4 模块）
 
 ---
