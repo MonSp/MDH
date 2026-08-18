@@ -67,7 +67,7 @@
 
 ### 重复类型定义
 
-- [ ] **统一 Project/SubTask/ProjectTask 类型** — 6 个文件中独立定义，形状略有不同，抽取 shared types
+- [x] **统一 Project/SubTask/ProjectTask 类型** — useBrowserStorage 改为导入 office-team/types
 
 ### Local/non-Local 命名
 
