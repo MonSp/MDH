@@ -9,6 +9,7 @@ services:
       - "8080:80"
     depends_on:
       - backend
+    restart: unless-stopped
     networks:
       - app-network
 
@@ -20,27 +21,23 @@ services:
       - "8765:8765"
     volumes:
       - backend-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - app-network
     environment:
       - PYTHONUNBUFFERED=1
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
       - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
       - BACKEND_TOKEN=${BACKEND_TOKEN:-}
     env_file:
       - .env
-
-  mock-sso:
-    image: mdh-backend:latest
-    working_dir: /app
-    volumes:
-      - ./mock-sso:/app
-    command: python server.py 8766
-    ports:
-      - "8766:8766"
-    networks:
-      - app-network
 
   executor:
     build:
@@ -51,6 +48,13 @@ services:
       - "8767:8767"
     volumes:
       - executor-workspace:/workspace
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8767/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - app-network
     environment:
@@ -67,11 +71,12 @@ services:
       - "9090:9090"
     volumes:
       - ./dist:/dist
+    restart: unless-stopped
     networks:
       - app-network
     environment:
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
       - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
       - EXECUTOR_TOKEN=${EXECUTOR_TOKEN:-}
     extra_hosts:

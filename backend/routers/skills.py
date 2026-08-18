@@ -16,12 +16,12 @@ def init(skill_registry):
     _skill_registry = skill_registry
 
 
-def _ok(data):
-    return {"success": True, "data": data}
+def _ok(data=None):
+    return {"success": True, "data": data, "error": None}
 
 
 def _fail(error: str):
-    return {"success": False, "error": error}
+    return {"success": False, "data": None, "error": error}
 
 
 @router.get("")

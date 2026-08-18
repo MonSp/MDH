@@ -13,6 +13,7 @@ from urllib.parse import parse_qs
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body, Depends, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import SKILLS_DIR
@@ -103,6 +104,7 @@ app.add_middleware(
 )
 
 # 注册路由模块（渐进迁移：内联端点保留，新代码使用路由器）
+# TODO: 逐个验证路由器与内联端点行为一致后再启用
 # app.include_router(skills_router.router)
 # app.include_router(workflow_router.router)
 # app.include_router(marketplace_router.router)
@@ -158,6 +160,7 @@ _BASE_DIR = os.path.dirname(__file__)
 _DATA_DIR = os.path.join(_BASE_DIR, "data")
 
 skill_registry = SkillRegistry(base_dir=os.path.join(_DATA_DIR, "skill_packages"))
+skills_router.init(skill_registry)
 skill_packager = SkillPackager(
     output_dir=os.path.join(_DATA_DIR, "packages"),
 )
@@ -214,7 +217,10 @@ def _build_agenda_snapshot(agenda, session, proposal_id=None) -> dict:
 async def global_exception_handler(request: Request, exc: Exception):
     """全局异常处理器：捕获未处理的异常，返回统一格式"""
     logger.exception("未处理的异常: %s %s", request.method, request.url.path)
-    return {"success": False, "data": None, "error": str(exc)}
+    return JSONResponse(
+        status_code=500,
+        content={"success": False, "data": None, "error": str(exc)},
+    )
 
 
 @app.exception_handler(HTTPException)
@@ -250,8 +256,6 @@ async def clone_skill(skill_id: str, body: SkillCloneRequest):
         path = skill_registry.clone(skill_id, body.target_dir)
         return _ok({"cloned_path": path})
     except KeyError as e:
-        return _fail(str(e))
-    except ValueError as e:
         return _fail(str(e))
     except ValueError as e:
         return _fail(str(e))
@@ -2196,6 +2200,7 @@ from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowExe
 workflow_engine = WorkflowEngine(
     persistence_dir=os.path.join(os.path.dirname(__file__), "data", "workflows")
 )
+workflow_router.init(workflow_engine, workflow_execution_to_dict, WorkflowDefinition, WorkflowNode, WorkflowEdge)
 
 # 活动 MeetingCoordinator（单用户本地形态：最近启动的会议）。
 # 共享引擎上的节点执行器与状态回调统一委托到该协调器，
@@ -2829,6 +2834,14 @@ _skill_forks = SkillForkManager(
     os.path.join(os.path.dirname(__file__), "..", "skill_packs"),
 )
 
+from skill_exporter import SkillExporter
+_skill_exporter = SkillExporter(
+    skill_dir=os.path.join(os.path.dirname(__file__), "..", "skill_packs"),
+    experience_dir=os.path.join(os.path.dirname(__file__), "data", "experience"),
+    export_dir=os.path.join(os.path.dirname(__file__), "data", "exports"),
+)
+marketplace_router.init(_shared_pool, _skill_forks, _skill_exporter)
+
 
 @app.post("/api/marketplace/experience/publish")
 async def marketplace_publish_experience(request: Request):
@@ -2970,6 +2983,7 @@ async def marketplace_list_exports():
 from mcp_config import MCPConfigManager, MCPServerEntry
 
 _mcp_config = MCPConfigManager(os.path.join(os.path.dirname(__file__), "data", "mcp_servers.json"))
+mcp_router.init(_mcp_config)
 
 
 @app.get("/api/mcp/servers")
@@ -3039,6 +3053,8 @@ def _get_registry_client():
             auto_clone=False,
         )
     return _registry_client
+
+community_router.init(_get_registry_client)
 
 
 @app.get("/api/community/search")
