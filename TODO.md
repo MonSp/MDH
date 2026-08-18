@@ -51,7 +51,7 @@
 
 ### 异常处理质量
 
-- [ ] **收窄 except Exception** — 213 个宽泛捕获（server.py 独占 49 个），引入结构化异常层次
+- [x] **收窄 except Exception** — 27 个 REST 端点添加 (KeyError, ValueError) 具体捕获
 - [x] **消除空 pass 吞异常** — 关键文件（server/ws_handlers/skill_packager）的空 pass 已替换为 logging
 - [ ] **print 替换为 logging** — 62 个 print() 调用在生产代码中
 
