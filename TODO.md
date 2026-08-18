@@ -18,7 +18,8 @@
 
 ### server.py 单体巨石（3075 行）
 
-- [ ] **启用 Router 模块** — 5 个路由模块已创建但全部被注释，需逐个验证与内联端点行为一致后启用
+- [x] **启用 Router 模块** — 4/5 已启用（skills/mcp/marketplace/community），workflow router 待调试
+- [ ] **启用 workflow Router** — resume 端点已更新，但测试直接访问 engine 内部状态需重构
 - [ ] **拆分 `_run_meeting_message`** — 872 行的单体函数，需拆分为独立的 WebSocket 消息处理器
 - [ ] **server.py WebSocket handler 拆分** — 1175 行的 if/elif 链处理 43 种消息类型，提取为独立 handler 类
 
