@@ -221,265 +221,40 @@ class MeetingCoordinator:
         return self._semantic_analyzer.last_routing_decision
 
     def _setup_workflow_engine(self):
-        """配置WorkflowEngine的节点执行器和回调函数"""
-        # 注册各部门的节点执行器
-        self.workflow_engine.register_node_executor("dept-frontend", self._execute_workflow_node)
-        self.workflow_engine.register_node_executor("dept-backend", self._execute_workflow_node)
-        self.workflow_engine.register_node_executor("dept-qa", self._execute_workflow_node)
-        self.workflow_engine.register_node_executor("dept-devops", self._execute_workflow_node)
-        self.workflow_engine.register_node_executor("dept-data", self._execute_workflow_node)
-        self.workflow_engine.register_node_executor("dept-docs", self._execute_workflow_node)
-        self.workflow_engine.register_node_executor("dept-fullstack", self._execute_workflow_node)
+        """配置 WorkflowEngine 的节点执行器和回调函数（委托给 coordinator_workflow）"""
+        from coordinator_workflow import setup_workflow_engine
+        setup_workflow_engine(self)
 
-        # 设置状态变化回调
-        self.workflow_engine.set_status_change_callback(self._on_workflow_status_change)
-        self.workflow_engine.set_node_status_change_callback(self._on_workflow_node_status_change)
-
-    async def _run_agent_execution_loop(
-        self,
-        model,
-        prompt: str,
-        agent_toolset,
-        max_tool_rounds: int = 5,
-        on_model_error: Optional[Callable[[], None]] = None,
-    ) -> Dict[str, Any]:
-        """LLM + 工具执行循环：代码块写文件、工具调用、产物收集
-
-        on_model_error: 模型层异常回调。仅当 model.reply 抛异常时触发
-            （先回调再 re-raise）。工具层异常（写文件/工具调用失败）不触发
-            ——failover 归因收窄：工具层错误不归因于模型，避免驱逐健康模型。
-        """
-        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        conversation = [msg]
-        files_written: List[str] = []
-        tool_outputs: List[Dict[str, Any]] = []
-        last_text = ""
-
-        from code_extractor import extract_code_blocks
-        from llm_guard import safe_llm_reply
-
-        for _ in range(max_tool_rounds + 1):
-            try:
-                response = await safe_llm_reply(model, conversation, timeout=120)
-            except Exception:
-                if on_model_error:
-                    try:
-                        on_model_error()
-                    except Exception as e:
-                        self.logger.warning("模型失败通知回调异常: %s", e)
-                raise
-            last_text = _extract_text(response)
-
-            code_blocks = extract_code_blocks(last_text)
-            if code_blocks and agent_toolset:
-                for block in code_blocks:
-                    wf = agent_toolset.write_file(block["filename"], block["content"])
-                    if wf.success:
-                        files_written.append(block["filename"])
-                    else:
-                        self.logger.warning("工作流节点写文件失败: %s", block["filename"])
-
-            if not code_blocks and agent_toolset:
-                tool_calls = self._extract_tool_calls_from_text(last_text)
-                for call in tool_calls:
-                    tc = agent_toolset.execute(call["tool"], call.get("arguments", {}))
-                    tool_outputs.append({"tool": call["tool"], "success": tc.success, "output": tc.output})
-
-            conversation.append(
-                Msg(name="assistant", role="assistant", content=[{"type": "text", "text": last_text}])
-            )
-            if files_written or tool_outputs:
-                break
-            if "完成" in last_text or "done" in last_text.lower():
-                break
-
-        return {"result": last_text, "files_written": files_written, "tool_outputs": tool_outputs}
+    async def _run_agent_execution_loop(self, model, prompt, agent_toolset, max_tool_rounds=5, on_model_error=None):
+        """LLM + 工具执行循环（委托给 coordinator_workflow）"""
+        from coordinator_workflow import run_agent_execution_loop
+        return await run_agent_execution_loop(self, model, prompt, agent_toolset, max_tool_rounds, on_model_error)
 
     @staticmethod
     def _extract_tool_calls_from_text(text: str) -> List[Dict[str, Any]]:
-        """从 LLM 文本提取工具调用 JSON（{"tool": "...", "arguments": {...}}）
-
-        使用花括号配对扫描而非简单正则，以支持 arguments 中嵌套的花括号
-        （例如 {"tool": "write_file", "arguments": {"path": "a.txt", "content": "1"}}）。
-
-        对解析失败或括号不平衡的候选，仅跳过起始的 `{` 继续扫描，避免散落的
-        花括号吞掉后续有效的工具调用（既不终止整个扫描，也不跳到 end + 1 跳过
-        候选内可能包含的有效调用）。
-        """
-        calls: List[Dict[str, Any]] = []
-        start = 0
-        while True:
-            begin = text.find("{", start)
-            if begin == -1:
-                break
-            depth = 0
-            in_str = False
-            escape = False
-            end = -1
-            for i in range(begin, len(text)):
-                ch = text[i]
-                if in_str:
-                    if escape:
-                        escape = False
-                    elif ch == "\\":
-                        escape = True
-                    elif ch == '"':
-                        in_str = False
-                else:
-                    if ch == '"':
-                        in_str = True
-                    elif ch == "{":
-                        depth += 1
-                    elif ch == "}":
-                        depth -= 1
-                        if depth == 0:
-                            end = i
-                            break
-            if end == -1:
-                # 括号不平衡：跳过起始 { 继续扫描
-                start = begin + 1
-                continue
-            candidate = text[begin:end + 1]
-            if '"tool"' in candidate:
-                try:
-                    parsed = json.loads(candidate)
-                    if isinstance(parsed, dict) and parsed.get("tool"):
-                        calls.append(parsed)
-                        start = end + 1
-                        continue
-                except Exception:
-                    pass
-            # 解析失败（如散落 { 与有效 JSON 的 } 误配对）：只跳过起始 { 继续扫描
-            start = begin + 1
-        return calls
+        """从 LLM 文本提取工具调用 JSON（委托给 coordinator_workflow）"""
+        from coordinator_workflow import extract_tool_calls_from_text
+        return extract_tool_calls_from_text(text)
 
     async def _execute_workflow_node(self, node: WorkflowNode, input_data: dict) -> dict:
-        """执行工作流节点：LLM + 工具调用 + 产物写入工作区"""
-        self.logger.info("执行工作流节点: %s (部门: %s)", node.node_id, node.dept_id)
-
-        role_map = {
-            "dept-frontend": AgentRole.EXECUTOR,
-            "dept-backend": AgentRole.EXECUTOR,
-            "dept-qa": AgentRole.REVIEWER,
-            "dept-devops": AgentRole.MONITOR,
-            "dept-data": AgentRole.EXECUTOR,
-            "dept-docs": AgentRole.COORDINATOR,
-            "dept-fullstack": AgentRole.EXECUTOR,
-        }
-        role = role_map.get(node.dept_id, AgentRole.EXECUTOR)
-        model = self._get_model(role)
-
-        agent_toolset = None
-        if self._workspace:
-            from agent_toolset import create_agent_toolset
-
-            agent_toolset = create_agent_toolset(
-                agent_id=node.node_id,
-                agent_role=role.value,
-                workspace_root=self._workspace.root_path,
-            )
-
-        tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}" if agent_toolset else ""
-        asset_context = ""
-        if self._asset_context_builder is not None and node.dept_id == "dept-docs":
-            try:
-                team_id = (input_data or {}).get("team_id", "")
-                if team_id:
-                    asset_context = self._asset_context_builder(team_id, "minutes", ["纪要", "待办"])
-            except Exception as exc:  # 注入是增强非必需——失败不影响节点执行
-                self.logger.warning("资产参考注入失败: %s", exc)
-        prompt = (
-            f"请执行以下任务：\n"
-            f"任务描述：{node.task_description}\n"
-            f"输入数据：{json.dumps(input_data, ensure_ascii=False)}\n"
-            f"{tool_prompt}"
-            f"{asset_context}\n\n"
-            f"需要产出文件时，用代码块输出：```文件名\n内容\n```；需要调用工具时输出 JSON："
-            f'{{"tool": "工具名", "arguments": {{...}}}}。'
-        )
-
-        try:
-            loop_result = await self._run_agent_execution_loop(
-                model, prompt, agent_toolset,
-                on_model_error=lambda: self._mark_model_failed(role),
-            )
-        except Exception as e:
-            self.logger.warning("工作流节点执行失败: %s", e)
-            # 单点治理：仅模型层异常触发 _mark_model_failed（loop 内 on_model_error
-            # 回调在 model.reply 抛错时先标记再 re-raise），驱逐缓存 + 标记 pool
-            # 实例不健康，下次 _get_model 重新获取健康实例（failover）。
-            # 工具层异常（写文件/工具调用失败）不归因于模型，不驱逐健康模型。
-            loop_result = {
-                "result": LLM_FALLBACK_TEMPLATE.format(role=node.dept_id, content_type="执行结果"),
-                "files_written": [],
-                "tool_outputs": [],
-            }
-
-        node_result = {
-            "result": loop_result["result"],
-            "node_id": node.node_id,
-            "dept_id": node.dept_id,
-            "files_written": loop_result["files_written"],
-            "tool_outputs": loop_result["tool_outputs"],
-        }
-
-        # 节点把关钩子：节点执行返回结果后（含异常降级）、返回前经 M1 把关引擎发起把关
-        gate_result = await self._run_node_gate(node)
-        if gate_result:
-            return {**node_result, "gate": gate_result}
-        return node_result
+        """执行工作流节点（委托给 coordinator_workflow）"""
+        from coordinator_workflow import execute_workflow_node
+        return await execute_workflow_node(self, node, input_data)
 
     async def _run_node_gate(self, node: WorkflowNode) -> Optional[dict]:
-        """节点把关：node.gate 非空且已注入 approval_manager 时发起把关。
-
-        返回 None=通过（含超时默认通过）；否则 rejected 详情。
-        """
-        gate = node.gate
-        if not gate or self._approval_manager is None:
-            return None
-        gate_id = f"{node.node_id}:{gate.get('stage', 'review')}"
-        approval = await self._approval_manager.request_gate(
-            requester_id=self._find_agent_id(AgentRole.CEO) or "agent",
-            operation="node_gate",
-            description=gate.get("reason") or f"节点 {node.node_id} 待把关",
-            task_id=node.node_id,
-            gate_id=gate_id,
-            approver=gate.get("approver", ""),
-            send_fn=_build_approval_send_fn(
-                getattr(self, "_on_message", None) or _noop_on_message,
-            ),
-        )
-        try:
-            decision = await self._approval_manager.wait_for_decision(
-                approval.id, timeout=self._approval_timeout
-            )
-        except asyncio.TimeoutError:
-            return None  # 超时默认通过（与既有串行审批语义一致）
-        if decision.get("approved") is False:
-            return {"status": "rejected", "reason": decision.get("reason", "")}
-        return None
+        """节点把关（委托给 coordinator_workflow）"""
+        from coordinator_workflow import run_node_gate
+        return await run_node_gate(self, node)
 
     async def _on_workflow_status_change(self, execution):
-        """工作流状态变化回调 — 推送到前端"""
-        status_value = execution.status.value if hasattr(execution.status, 'value') else str(execution.status)
-        self.logger.info("工作流状态变化: %s -> %s", execution.execution_id, status_value)
-
-        if self._on_message:
-            ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
-            status_text = f"工作流 {execution.workflow_id} 状态变更: {status_value}"
-            await self._on_message(
-                ceo_id, status_text, "",
-                msg_type="workflow_status_update",
-                workflow_id=execution.workflow_id,
-                execution_id=execution.execution_id,
-                status=status_value,
-            )
+        """工作流状态变化回调（委托给 coordinator_workflow）"""
+        from coordinator_workflow import on_workflow_status_change
+        await on_workflow_status_change(self, execution)
 
     async def _on_workflow_node_status_change(self, execution, node_id):
-        """工作流节点状态变化回调 — 推送到前端"""
-        node_status = execution.node_states.get(node_id)
-        status_value = node_status.value if node_status else "unknown"
-        self.logger.info("工作流节点状态变化: %s -> %s", node_id, status_value)
+        """工作流节点状态变化回调（委托给 coordinator_workflow）"""
+        from coordinator_workflow import on_workflow_node_status_change
+        await on_workflow_node_status_change(self, execution, node_id)
 
         if self._on_message:
             ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
@@ -1667,78 +1442,6 @@ class MeetingCoordinator:
         workflow_definition: WorkflowDefinition,
         on_message: Callable[[str, str, str], Awaitable[None]],
     ) -> Dict[str, Any]:
-        """执行工作流
-
-        Args:
-            workflow_definition: 工作流定义
-            on_message: 消息回调函数
-
-        Returns:
-            工作流执行结果
-        """
-        try:
-            # 创建工作流执行实例
-            execution = self.workflow_engine.create_workflow(workflow_definition)
-
-            # 推送工作流创建消息
-            ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
-            create_msg = f"工作流已创建: {workflow_definition.name} (ID: {execution.execution_id})"
-            await self._msg(ceo_id, create_msg)
-            self.meeting.add_message("agent", create_msg, ceo_id)
-
-            # 启动工作流执行（注册任务，支持暂停/取消真正生效）
-            task = self.workflow_engine.start_workflow(execution.execution_id)
-            try:
-                await task
-            except asyncio.CancelledError:
-                # 区分暂停与取消：暂停时引擎状态为 paused，取消时为 cancelled
-                cancelled_status = self.workflow_engine.get_workflow_status(execution.execution_id)
-                if cancelled_status.status.value == "paused":
-                    cancelled_msg = "工作流已暂停"
-                    cancelled_result_status = "paused"
-                else:
-                    cancelled_msg = "工作流已取消"
-                    cancelled_result_status = "cancelled"
-                await self._msg(ceo_id, cancelled_msg)
-                self.meeting.add_message("agent", cancelled_msg, ceo_id)
-                return {
-                    "execution_id": execution.execution_id,
-                    "status": cancelled_result_status,
-                    "results": cancelled_status.results,
-                }
-
-            # 获取执行结果
-            status = self.workflow_engine.get_workflow_status(execution.execution_id)
-
-            # 推送工作流完成消息
-            complete_msg = f"工作流执行完成: {status.status.value}"
-            await self._msg(ceo_id, complete_msg)
-            self.meeting.add_message("agent", complete_msg, ceo_id)
-
-            # 汇总结果
-            results_summary = []
-            for node_id, result in status.results.items():
-                if isinstance(result, dict) and "result" in result:
-                    results_summary.append(f"- {node_id}: {result['result'][:100]}...")
-
-            if results_summary:
-                summary_msg = "工作流执行结果汇总:\n" + "\n".join(results_summary)
-                await self._msg(ceo_id, summary_msg)
-                self.meeting.add_message("agent", summary_msg, ceo_id)
-
-            return {
-                "execution_id": execution.execution_id,
-                "status": status.status.value,
-                "results": status.results,
-            }
-
-        except Exception as e:
-            self.logger.error("工作流执行失败: %s", str(e))
-            ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
-            error_msg = f"工作流执行失败: {str(e)}"
-            await self._msg(ceo_id, error_msg)
-            self.meeting.add_message("agent", error_msg, ceo_id)
-
-            return {
-                "error": str(e),
-            }
+        """执行工作流（委托给 coordinator_workflow）"""
+        from coordinator_workflow import execute_workflow
+        return await execute_workflow(self, workflow_definition, on_message)
