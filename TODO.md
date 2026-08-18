@@ -46,7 +46,7 @@
 ### 前端 god 组件
 
 - [ ] **拆分 CeoChatPanel** — 1097 行，混合 IPC/WS 通信、角色选择、工作区配置
-- [ ] **拆分 OfficeTeamMode** — 731 行，视图状态 + 会议生命周期 + 任务列表 + 工作流
+- [x] **拆分 OfficeTeamMode** — 731 行拆为 3 文件模块（index/TaskList/MeetingPanel）
 - [x] **拆分 MeetingChatPanel** — 764 行拆为 3 文件模块（index/helpers/renderers）
 
 ### 异常处理质量
