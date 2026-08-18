@@ -3,7 +3,7 @@ import {
   ParallelDiscussionManagerLocal,
   type DiscussionResultLocal,
   type AgentCallFn,
-} from '../parallelDiscussionManagerLocal'
+} from '../parallelDiscussionManager'
 
 const agents = [
   { agentId: 'a1', agentName: 'Alice', role: 'executor' },

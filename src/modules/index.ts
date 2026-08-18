@@ -418,7 +418,7 @@ export {
   WorkflowEngineLocal,
   workflowEngineLocal,
   type NodeExecutor,
-} from './workflowEngineLocal'
+} from './workflowEngine'
 
 export {
   ProjectManagerLocal,
@@ -490,12 +490,12 @@ export {
   type AgentEndpointLocal,
   type NetworkMessageLocal,
   type MessageHandler,
-} from './crossNetworkBridgeLocal'
+} from './crossNetworkBridge'
 
 export {
   AgentDiscoveryLocal,
   type DiscoveryCallback,
-} from './agentDiscoveryLocal'
+} from './agentDiscovery'
 
 export {
   WorkspaceSyncLocal,
@@ -503,13 +503,13 @@ export {
   type WorkspaceStateLocal,
   type ConflictStrategy,
   type ConflictCallback,
-} from './workspaceSyncLocal'
+} from './workspaceSync'
 
 export {
   ParallelDiscussionManagerLocal,
   type DiscussionResultLocal,
   type AgentCallFn,
-} from './parallelDiscussionManagerLocal'
+} from './parallelDiscussionManager'
 
 export {
   GitIntegration,

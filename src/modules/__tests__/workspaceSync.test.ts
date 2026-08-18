@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { WorkspaceSyncLocal, type FileStateLocal } from '../workspaceSyncLocal'
+import { WorkspaceSyncLocal, type FileStateLocal } from '../workspaceSync'
 
 function makeFileState(overrides: Partial<FileStateLocal> = {}): FileStateLocal {
   return {

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { CrossNetworkBridgeLocal, type AgentEndpointLocal } from '../crossNetworkBridgeLocal'
-import { AgentDiscoveryLocal } from '../agentDiscoveryLocal'
+import { CrossNetworkBridgeLocal, type AgentEndpointLocal } from '../crossNetworkBridge'
+import { AgentDiscoveryLocal } from '../agentDiscovery'
 
 function makeEndpoint(overrides: Partial<AgentEndpointLocal> = {}): AgentEndpointLocal {
   return {

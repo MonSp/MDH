@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { WorkflowEngineLocal, type NodeExecutor } from '../workflowEngineLocal'
+import { WorkflowEngineLocal, type NodeExecutor } from '../workflowEngine'
 import {
   type WorkflowDefinition,
   type WorkflowNode,

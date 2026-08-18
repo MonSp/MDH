@@ -2,7 +2,7 @@ import type {
   AgentEndpointLocal,
   AgentLocation,
   CrossNetworkBridgeLocal,
-} from './crossNetworkBridgeLocal'
+} from './crossNetworkBridge'
 
 export type DiscoveryCallback = (agent: AgentEndpointLocal) => void
 

@@ -3,7 +3,7 @@ import {
   CrossNetworkBridgeLocal,
   type AgentEndpointLocal,
   type NetworkMessageLocal,
-} from '../crossNetworkBridgeLocal'
+} from '../crossNetworkBridge'
 
 function makeEndpoint(overrides: Partial<AgentEndpointLocal> = {}): AgentEndpointLocal {
   return {
