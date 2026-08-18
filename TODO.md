@@ -71,7 +71,7 @@
 
 ### Local/non-Local 命名
 
-- [ ] **统一 *Local.ts 命名约定** — 4 对文件有 API wrapper，5 个 Local 文件无对应 wrapper，命名暗示不存在的远程版本
+- [x] **统一 *Local.ts 命名约定** — 5 个无 wrapper 的 Local 文件已重命名去除 Local 后缀
 
 ### 状态管理碎片化
 
