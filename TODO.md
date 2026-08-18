@@ -19,8 +19,8 @@
 ### server.py 单体巨石（3075 行）
 
 - [x] **启用 Router 模块** — 5/5 已启用（skills/mcp/marketplace/community/workflow），1250 tests passing
+- [x] **server.py WebSocket handler 拆分** — 43 个 handler 提取到 ws_handlers.py，server.py 3098→1998 行
 - [ ] **拆分 `_run_meeting_message`** — 872 行的单体函数，需拆分为独立的 WebSocket 消息处理器
-- [ ] **server.py WebSocket handler 拆分** — 1175 行的 if/elif 链处理 43 种消息类型，提取为独立 handler 类
 
 ### meeting_coordinator.py 单体（1911 行）
 
