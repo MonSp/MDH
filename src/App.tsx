@@ -8,7 +8,7 @@ import ConversationStream, { type Conversation } from './components/Conversation
 import SettingsPanel from './components/SettingsPanel';
 import SkillPanel from './components/SkillPanel';
 import ApprovalDialog from './components/ApprovalDialog';
-import OfficeTeamMode from './components/OfficeTeamMode';
+import OfficeTeamMode from './components/OfficeTeamMode/index'
 import ErrorBoundary from './components/ErrorBoundary';
 import type { ToolStep } from './components/ToolTree';
 
