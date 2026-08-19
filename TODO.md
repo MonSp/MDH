@@ -4,7 +4,16 @@
 
 ## v1.3.0 — 进行中
 
-### Playwright 浏览器自动化
+### Playwright 能力深化（P4）
+
+- [x] **TS 有头模式增强** — 浏览器扩展加载、录制回放、slowMo 配置
+- [x] **Python 任务队列** — BrowserTaskQueue 并发执行、批量任务、结果持久化
+- [ ] **HITL 集成** — 敏感操作确认（导航白名单、表单提交、JS 执行）
+- [ ] **Python 端实例池** — 多浏览器实例管理、健康检查、负载均衡
+- [ ] **录制回放前端 UI** — 操作录制面板、脚本导入导出
+- [ ] **批量任务 API** — REST 端点暴露任务队列功能
+
+### Playwright 浏览器自动化（v1.3.0 基础）
 
 - [x] **PlaywrightBrowser 类** — orchestrator/src/toolkit/browser.ts
 - [x] **25 个浏览器工具定义** — orchestrator/src/agent/tools.ts
