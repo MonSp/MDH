@@ -20,9 +20,9 @@
 
 ### C 线：OfficeTeamMode 拆分
 
-- [ ] **提取视图切换** — tower/office/meeting 视图切换逻辑提取
-- [ ] **提取会议面板** — 会议面板渲染逻辑已拆分到 MeetingPanel.tsx
-- [ ] **简化主组件** — 主组件仅保留布局和状态协调
+- [x] **提取视图切换** — tower/office/meeting 视图切换逻辑在 index.tsx 中
+- [x] **提取会议面板** — MeetingPanel.tsx (303 行) 独立组件
+- [x] **简化主组件** — 主组件仅保留布局和状态协调，删除旧 OfficeTeamMode.tsx
 
 ### D 线：质量提升
 
