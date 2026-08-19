@@ -1,5 +1,6 @@
 import type { LLMConfig, Message, ToolCall, ToolDefinition } from '../llm/types.js';
 import { chatStream } from '../llm/openai.js';
+import { safeChatStream } from '../llm/guard.js';
 import type { IToolkitRouter } from '../toolkit/router.js';
 import { validateToolCall } from './tools.js';
 
@@ -273,7 +274,7 @@ export class RoleAgent {
 
   private async callLLMOnce(messages: Message[]): Promise<string> {
     let content = '';
-    for await (const chunk of chatStream(this.config.llm, messages)) {
+    for await (const chunk of safeChatStream(this.config.llm, messages)) {
       content += chunk.delta;
     }
     return content;
@@ -285,7 +286,7 @@ export class RoleAgent {
     const contentParts: string[] = [];
     const toolCalls: ToolCall[] = [];
 
-    for await (const chunk of chatStream(this.config.llm, messages, this.config.tools)) {
+    for await (const chunk of safeChatStream(this.config.llm, messages, this.config.tools)) {
       if (chunk.delta) contentParts.push(chunk.delta);
       for (const tc of chunk.tool_calls) {
         if (tc.id) {
