@@ -11,7 +11,7 @@
 - [x] **HITL 集成** — 敏感操作确认（导航白名单、表单提交、JS 执行）
 - [x] **Python 端实例池** — BrowserPool 多实例管理、健康检查、负载均衡
 - [x] **录制回放前端 UI** — BrowserRecordingPanel 操作录制面板、脚本导入导出
-- [ ] **批量任务 API** — REST 端点暴露任务队列功能
+- [x] **批量任务 API** — 7 个 REST 端点暴露任务队列功能
 
 ### Playwright 浏览器自动化（v1.3.0 基础）
 
