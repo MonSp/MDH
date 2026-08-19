@@ -2,7 +2,15 @@
 
 > 基于 2026-08-18 v1.2.2 规划，按优先级排列。
 
-## v1.2.2 — 进行中
+## v1.3.0 — 进行中
+
+### Playwright 浏览器自动化
+
+- [x] **PlaywrightBrowser 类** — orchestrator/src/toolkit/browser.ts
+- [x] **25 个浏览器工具定义** — orchestrator/src/agent/tools.ts
+- [x] **执行器集成** — orchestrator/src/toolkit/local.ts
+- [ ] **集成测试** — 使用本地 HTML 文件测试完整流程
+- [ ] **Python 端集成** — 通过 remote toolkit router 暴露给 Python Agent
 
 ### A 线：TS 安全补齐（P0）
 
