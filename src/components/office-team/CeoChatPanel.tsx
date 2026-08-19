@@ -280,46 +280,24 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
         const msg = JSON.parse(event.data)
         const t = msg.type
 
-        // 会议启动后，显示关键进度消息
-        if (meetingStarted) {
-          // 会议阶段：仅处理 CEO 特有的生命周期消息
-          // agent_message 由 useMeetingSocket 统一处理，避免双重管线
-          if (t === 'task_result') {
-            setIsProcessing(false)
-            setMeetingPhase('done')
-            if (currentProjectId && currentMeetingId) {
-              setProjectReady({ projectId: currentProjectId, meetingId: currentMeetingId })
-              addMsg('ceo', 'task_done:enter_project')
-            } else {
-              addMsg('ceo', '任务已完成。')
-            }
-            cleanup()
-          } else if (t === 'meeting_error') {
-            setIsProcessing(false)
-            setMeetingPhase('done')
-            addMsg('system', `❌ ${msg.message}`)
-            cleanup()
-          } else if (t === 'path_selected') {
-            addMsg('system', `📊 执行路径：${msg.path}`)
-          } else if (t === 'path_upgrade') {
-            addMsg('system', `⬆️ 路径升级：${msg.from} → ${msg.to}`)
-          }
-          return
-        }
+        // 仅处理 CeoChatPanel 特有的消息类型
+        // 其他消息（meeting_started, agent_message, meeting_error 等）由 useMeetingSocket 统一处理
 
-        // 会议启动前，正常显示CEO消息
-        if (t === 'agent_message' && !msg.delta) {
-          const agentId = msg.agentId || ''
-          const text = msg.content || ''
-          if (agentId === 'agent-ceo') {
-            addMsg('ceo', text)
+        if (t === 'task_result') {
+          // CEO 特有：任务完成时更新状态
+          setIsProcessing(false)
+          setMeetingPhase('done')
+          if (currentProjectId && currentMeetingId) {
+            setProjectReady({ projectId: currentProjectId, meetingId: currentMeetingId })
+            addMsg('ceo', 'task_done:enter_project')
+          } else {
+            addMsg('ceo', '任务已完成。')
           }
+          cleanup()
         } else if (t === 'complexity_result') {
           const level = msg.level === 'simple' ? '简单任务' : '复杂任务'
           addMsg('system', `📊 任务分析：${level}（置信度 ${Math.round((msg.confidence || 0) * 100)}%）`)
         } else if (t === 'workspace_confirm_request') {
-          // 收到工作区确认请求，显示配置UI
-          console.log('[CeoChatPanel] 收到 workspace_confirm_request:', msg)
           const req: WorkspaceConfirmRequest = {
             project_id: msg.project_id || '',
             task_description: msg.task_description || '',
@@ -343,11 +321,12 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
           setMeetingPhase('analyzing')
           addMsg('ceo', `meeting_ready:${agentCount}`)
           if (currentProjectId) onProjectCreated?.(currentProjectId)
-        } else if (t === 'meeting_error') {
-          setIsProcessing(false)
-          addMsg('system', `❌ ${msg.message}`)
-          cleanup()
+        } else if (t === 'path_selected') {
+          addMsg('system', `📊 执行路径：${msg.path}`)
+        } else if (t === 'path_upgrade') {
+          addMsg('system', `⬆️ 路径升级：${msg.from} → ${msg.to}`)
         }
+        // meeting_error, agent_message 等由 useMeetingSocket 统一处理
       } catch {}
     }
 
