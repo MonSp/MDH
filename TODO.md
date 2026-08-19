@@ -37,6 +37,15 @@
 
 ## 已完成的历史优化
 
+### v1.2.2（2026-08-18）
+
+- ✅ A 线：TS 安全补齐（Shell 黑白名单、工具参数校验、LLM 调用超时守卫）
+- ✅ B 线：TS 能力补齐（9 个 LLM 提供商、思维链流式、HITL 确认流、技能渐进加载）
+- ✅ C 线：Python 架构治理（server.py -1012 行、meeting_coordinator -631 行）
+- ✅ 严重问题修复（Node 20 兼容、glob 依赖、Docker 配置、LLM 超时保护）
+- ✅ 死代码清理（删除遗留文件、未使用组件、移动测试脚本）
+- ✅ 文档同步（README 版本历史/测试数量、AGENTS.md mock-sso）
+
 ### v1.2.1（2026-08-18）
 
 - ✅ 启用 5 个 Router 模块（skills/mcp/marketplace/community/workflow）
