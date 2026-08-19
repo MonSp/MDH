@@ -21,8 +21,8 @@
 - [x] **xAI/Grok 支持** — baseUrl: api.x.ai, model: grok-3
 - [x] **思维链流式支持** — 解析 reasoning_content + thinking_start/delta/end 事件 + 前端折叠展示
 - [x] **HITL 确认流** — agent/hitl.ts，危险操作用户确认，30s 超时自动拒绝
-- [ ] **技能渐进加载** — L0-L3 四层渐进披露
-- [ ] **技能到任务匹配** — 关键词匹配自动选择技能
+- [x] **技能渐进加载** — skill/progressive.ts，L0-L3 四层渐进披露
+- [x] **技能到任务匹配** — findSkillsForTask() 关键词匹配自动选择技能
 
 ### C 线：Python 架构治理（P2）
 
