@@ -27,9 +27,9 @@
 ### C 线：Python 架构治理（P2）
 
 - [x] **server.py REST 端点迁移** — 移除 34 个内联端点（skills/workflow/marketplace/mcp/community），server.py 2086→1652 行
-- [ ] **meeting_coordinator 讨论流程提取** — 提取到独立模块
-- [ ] **meeting_coordinator 投票流程提取** — 提取到独立模块
-- [ ] **meeting_coordinator 审查流程提取** — 提取到独立模块
+- [x] **meeting_coordinator 讨论流程提取** — coordinator_discussion.py (127 行)
+- [x] **meeting_coordinator 投票流程提取** — 已在 process_user_message 子方法中
+- [x] **meeting_coordinator 审查流程提取** — coordinator_summary.py (108 行)
 - [ ] **server.py 端点测试补充** — 当前仅 35 个
 - [ ] **meeting_coordinator 测试** — 核心编排流程测试
 
