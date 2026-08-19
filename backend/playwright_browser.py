@@ -415,3 +415,145 @@ async def execute_steps(steps: List[Dict[str, Any]]) -> List[dict]:
         except Exception as e:
             results.append({"action": action, "success": False, "result": {"error": str(e)}})
     return results
+
+
+# ── 浏览器实例池 ──
+
+@dataclass
+class BrowserInstance:
+    """浏览器实例"""
+    id: str
+    browser: Any = None
+    context: Any = None
+    pages: Dict[str, Any] = field(default_factory=dict)
+    active_page_id: str = ""
+    healthy: bool = True
+    created_at: float = 0.0
+    last_used: float = 0.0
+    task_count: int = 0
+
+
+class BrowserPool:
+    """浏览器实例池 — 多实例管理、健康检查、负载均衡"""
+
+    def __init__(self, min_instances: int = 1, max_instances: int = 5, idle_timeout: float = 300.0):
+        self._min_instances = min_instances
+        self._max_instances = max_instances
+        self._idle_timeout = idle_timeout
+        self._instances: Dict[str, BrowserInstance] = {}
+        self._lock = asyncio.Lock()
+        self._playwright = None
+        self._initialized = False
+
+    async def initialize(self):
+        """初始化实例池"""
+        if self._initialized:
+            return
+
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError:
+            raise RuntimeError("playwright 未安装")
+
+        self._playwright = await async_playwright().start()
+
+        # 创建最小实例数
+        for i in range(self._min_instances):
+            await self._create_instance(f"pool-{i}")
+
+        self._initialized = True
+        logger.info("浏览器实例池已初始化: %d 实例", self._min_instances)
+
+    async def close(self):
+        """关闭所有实例"""
+        for instance in self._instances.values():
+            if instance.browser:
+                await instance.browser.close()
+        self._instances.clear()
+        if self._playwright:
+            await self._playwright.stop()
+        self._initialized = False
+
+    async def _create_instance(self, instance_id: str) -> BrowserInstance:
+        """创建新实例"""
+        browser = await self._playwright.chromium.launch(headless=True)
+        context = await browser.new_context(viewport={"width": 1280, "height": 720})
+        context.set_default_timeout(30000)
+
+        page = await context.new_page()
+        tab_id = f"{instance_id}-tab-1"
+        pages = {tab_id: page}
+
+        instance = BrowserInstance(
+            id=instance_id,
+            browser=browser,
+            context=context,
+            pages=pages,
+            active_page_id=tab_id,
+            created_at=asyncio.get_event_loop().time(),
+            last_used=asyncio.get_event_loop().time(),
+        )
+        self._instances[instance_id] = instance
+        logger.info("创建浏览器实例: %s", instance_id)
+        return instance
+
+    async def acquire(self) -> BrowserInstance:
+        """获取可用实例（负载均衡）"""
+        async with self._lock:
+            # 找到最空闲的健康实例
+            available = [i for i in self._instances.values() if i.healthy]
+            if not available:
+                # 没有健康实例，创建新的
+                if len(self._instances) < self._max_instances:
+                    instance_id = f"pool-{len(self._instances)}"
+                    return await self._create_instance(instance_id)
+                else:
+                    raise RuntimeError("没有可用的浏览器实例")
+
+            # 选择任务数最少的实例
+            instance = min(available, key=lambda i: i.task_count)
+            instance.last_used = asyncio.get_event_loop().time()
+            instance.task_count += 1
+            return instance
+
+    async def release(self, instance_id: str):
+        """释放实例"""
+        async with self._lock:
+            instance = self._instances.get(instance_id)
+            if instance:
+                instance.task_count = max(0, instance.task_count - 1)
+
+    async def health_check(self):
+        """健康检查"""
+        for instance_id, instance in list(self._instances.items()):
+            try:
+                # 尝试创建新页面来测试实例
+                page = await instance.context.new_page()
+                await page.close()
+                instance.healthy = True
+            except Exception:
+                instance.healthy = False
+                logger.warning("浏览器实例不健康: %s", instance_id)
+
+    async def cleanup_idle(self):
+        """清理空闲实例"""
+        now = asyncio.get_event_loop().time()
+        async with self._lock:
+            for instance_id, instance in list(self._instances.items()):
+                if (len(self._instances) > self._min_instances and
+                    instance.task_count == 0 and
+                    now - instance.last_used > self._idle_timeout):
+                    # 关闭空闲实例
+                    if instance.browser:
+                        await instance.browser.close()
+                    del self._instances[instance_id]
+                    logger.info("清理空闲浏览器实例: %s", instance_id)
+
+    def get_stats(self) -> Dict[str, Any]:
+        """获取池统计"""
+        return {
+            "total": len(self._instances),
+            "healthy": sum(1 for i in self._instances.values() if i.healthy),
+            "busy": sum(1 for i in self._instances.values() if i.task_count > 0),
+            "idle": sum(1 for i in self._instances.values() if i.task_count == 0),
+        }
