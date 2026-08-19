@@ -294,6 +294,123 @@ class TestMCPAPI:
         assert body["success"] is False
 
 
+# ──────────────────── 项目管理扩展 ────────────────────
+
+class TestProjectsExtended:
+    def test_get_project_by_id(self):
+        # Create a project first
+        resp = client.post("/api/projects", json={"name": "test-proj-ext", "description": "test"})
+        assert resp.status_code == 200
+        pid = resp.json()["data"]["project_id"]
+
+        # Get by ID
+        resp = client.get(f"/api/projects/{pid}")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+        # Cleanup
+        client.delete(f"/api/projects/{pid}")
+
+    def test_delete_project(self):
+        resp = client.post("/api/projects", json={"name": "to-delete", "description": ""})
+        pid = resp.json()["data"]["project_id"]
+        resp = client.delete(f"/api/projects/{pid}")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+    def test_get_project_status(self):
+        resp = client.post("/api/projects", json={"name": "status-test", "description": ""})
+        pid = resp.json()["data"]["project_id"]
+        resp = client.get(f"/api/projects/{pid}/status")
+        assert resp.status_code == 200
+        client.delete(f"/api/projects/{pid}")
+
+    def test_archive_project(self):
+        resp = client.post("/api/projects", json={"name": "archive-test", "description": ""})
+        pid = resp.json()["data"]["project_id"]
+        resp = client.post(f"/api/projects/{pid}/archive")
+        assert resp.status_code == 200
+        client.delete(f"/api/projects/{pid}")
+
+    def test_project_tasks(self):
+        resp = client.post("/api/projects", json={"name": "task-test", "description": ""})
+        pid = resp.json()["data"]["project_id"]
+
+        # List tasks
+        resp = client.get(f"/api/projects/{pid}/tasks")
+        assert resp.status_code == 200
+
+        # Create task
+        resp = client.post(f"/api/projects/{pid}/tasks", json={"description": "test task"})
+        assert resp.status_code == 200
+
+        client.delete(f"/api/projects/{pid}")
+
+
+# ──────────────────── 角色管理扩展 ────────────────────
+
+class TestRolesExtended:
+    def test_get_role_by_id(self):
+        # Create a role first
+        client.post("/api/roles/test-role-ext", json={"name": "Test Role Ext", "tools": ["read_file"]})
+        resp = client.get("/api/roles/test-role-ext")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        client.delete("/api/roles/test-role-ext")
+
+    def test_update_role(self):
+        client.post("/api/roles/update-role", json={"name": "Original", "tools": ["read_file"]})
+        resp = client.put("/api/roles/update-role", json={"name": "Updated"})
+        assert resp.status_code == 200
+        client.delete("/api/roles/update-role")
+
+    def test_list_role_tools(self):
+        resp = client.get("/api/roles/tools/list")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+    def test_list_role_skills(self):
+        resp = client.get("/api/roles/skills/list")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+
+# ──────────────────── 门禁系统 ────────────────────
+
+class TestGatesAPI:
+    def test_get_pending_gates(self):
+        resp = client.get("/api/gates/pending")
+        assert resp.status_code == 200
+
+
+# ──────────────────── 资产管理 ────────────────────
+
+class TestAssetsAPI:
+    def test_list_assets(self):
+        resp = client.get("/api/assets", params={"team_id": "test-team"})
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+    def test_search_assets(self):
+        resp = client.get("/api/assets/search", params={"q": "test", "team_id": "test-team"})
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+    def test_reuse_metrics(self):
+        resp = client.get("/api/assets/reuse-metrics")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+
+# ──────────────────── 员工管理 ────────────────────
+
+class TestEmployeesAPI:
+    def test_list_employees(self):
+        resp = client.get("/api/employees")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+
 # ──────────────────── 认证中间件 ────────────────────
 
 class TestAuthMiddleware:
