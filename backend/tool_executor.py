@@ -263,6 +263,9 @@ class ToolExecutor:
         for definition, executor in tools:
             self.registry.register(definition, executor)
 
+        # 注册浏览器自动化工具
+        self._register_browser_tools()
+
     def _resolve_path(self, relative_path: str) -> str:
         resolved = os.path.realpath(os.path.join(self.workspace_root, relative_path))
         if not resolved.startswith(self.workspace_root):
@@ -758,6 +761,67 @@ class ToolExecutor:
             return ToolResult(
                 success=True,
                 output=content[:10000],  # 限制输出大小
+                call_id=tool_call.call_id,
+            )
+        except Exception as e:
+            return ToolResult(success=False, error=str(e), call_id=tool_call.call_id)
+
+    # ───── 浏览器自动化工具 (Playwright) ─────
+
+    def _register_browser_tools(self) -> None:
+        """注册 Playwright 浏览器工具"""
+        browser_tools = [
+            ("navigate", "导航到指定网页", [("url", "string", "目标 URL", True)]),
+            ("click", "点击页面上的元素", [("selector", "string", "CSS 选择器", True)]),
+            ("fill", "填写表单输入框", [("selector", "string", "CSS 选择器", True), ("value", "string", "要填写的值", True)]),
+            ("type_text", "逐字输入文本", [("selector", "string", "CSS 选择器", True), ("text", "string", "要输入的文本", True), ("delay", "integer", "每个字符的延迟（毫秒）", False)]),
+            ("press_key", "按下键盘按键", [("key", "string", "按键名称", True)]),
+            ("hover", "悬停在元素上", [("selector", "string", "CSS 选择器", True)]),
+            ("select", "选择下拉框选项", [("selector", "string", "CSS 选择器", True), ("value", "string", "选项值", True)]),
+            ("scroll", "滚动页面", [("direction", "string", "滚动方向（up/down/left/right）", True), ("amount", "integer", "滚动像素值", False)]),
+            ("get_text", "获取元素文本内容", [("selector", "string", "CSS 选择器", True)]),
+            ("get_attribute", "获取元素属性值", [("selector", "string", "CSS 选择器", True), ("attribute", "string", "属性名", True)]),
+            ("get_url", "获取当前页面 URL", []),
+            ("get_title", "获取当前页面标题", []),
+            ("query", "查询元素是否存在", [("selector", "string", "CSS 选择器", True)]),
+            ("wait_for", "等待元素达到指定状态", [("selector", "string", "CSS 选择器", True), ("state", "string", "目标状态", False)]),
+            ("screenshot", "全页面截图", [("path", "string", "保存路径", False)]),
+            ("screenshot_element", "元素截图", [("selector", "string", "CSS 选择器", True), ("path", "string", "保存路径", False)]),
+            ("list_tabs", "列出所有标签页", []),
+            ("switch_tab", "切换标签页", [("tab_id", "string", "标签页 ID", True)]),
+            ("new_tab", "新建标签页", [("url", "string", "初始 URL", False)]),
+            ("close_tab", "关闭标签页", [("tab_id", "string", "标签页 ID", True)]),
+            ("evaluate_js", "执行 JavaScript", [("code", "string", "JavaScript 代码", True)]),
+            ("execute_steps", "批量执行步骤", [("steps", "array", "步骤列表", True)]),
+        ]
+
+        for name, desc, params in browser_tools:
+            self.registry.register(
+                ToolDefinition(
+                    name=name,
+                    description=desc,
+                    parameters=[ToolParameter(name=p[0], type=p[1], description=p[2], required=p[3]) for p in params],
+                    category="browser",
+                ),
+                lambda tc, _name=name: self._exec_browser_tool(tc, _name),
+            )
+
+    def _exec_browser_tool(self, tool_call: ToolCall, tool_name: str) -> ToolResult:
+        """通用浏览器工具执行器"""
+        import asyncio
+        import playwright_browser as pw
+
+        try:
+            # 获取对应的异步函数
+            func = getattr(pw, tool_name, None)
+            if not func:
+                return ToolResult(success=False, error=f"Unknown browser tool: {tool_name}", call_id=tool_call.call_id)
+
+            # 调用异步函数
+            result = asyncio.get_event_loop().run_until_complete(func(**tool_call.arguments))
+            return ToolResult(
+                success=True,
+                output=str(result),
                 call_id=tool_call.call_id,
             )
         except Exception as e:
