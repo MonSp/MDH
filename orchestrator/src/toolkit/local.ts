@@ -3,6 +3,7 @@ import { resolve, relative, dirname, isAbsolute } from 'node:path';
 import { execSync } from 'node:child_process';
 import { ToolCall, ToolResult } from '../team/types.js';
 import { IToolkitRouter } from './router.js';
+import { validateShellCommand } from './shellSafety.js';
 
 export class LocalToolkitRouter implements IToolkitRouter {
   async execute(toolCall: ToolCall, workspace: string): Promise<ToolResult> {
@@ -128,13 +129,13 @@ export class LocalToolkitRouter implements IToolkitRouter {
   private bash(args: Record<string, unknown>, workspace: string): string {
     const cmd = String(args.command);
     const timeout = Number(args.timeout ?? 30_000);
-    // 危险命令检测（与 Python executor 保持一致）
-    const dangerous = [/rm\s+-rf\s+\/[^a-z]/i, /mkfs/i, /dd\s+if=/i, /:(){ :|:& };:/i, /chmod\s+-R\s+777\s+\//i];
-    for (const pat of dangerous) {
-      if (pat.test(cmd)) {
-        throw new Error(`Blocked dangerous command: ${cmd}`);
-      }
+
+    // Shell 命令安全校验
+    const validation = validateShellCommand(cmd);
+    if (!validation.safe) {
+      throw new Error(`Blocked: ${validation.reason}`);
     }
+
     const shell = existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh';
     return execSync(cmd, { cwd: workspace, timeout, encoding: 'utf-8', stderr: 'pipe', shell });
   }

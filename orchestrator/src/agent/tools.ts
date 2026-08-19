@@ -272,3 +272,26 @@ export function getToolsForRole(roleId: string): ToolDefinition[] {
   const allowed = new Set(template.tools);
   return ALL_TOOL_DEFINITIONS.filter(td => allowed.has(td.function.name));
 }
+
+/**
+ * 校验工具调用参数。
+ * 对应 Python 侧 ToolRegistry.validate_tool_call()
+ */
+export function validateToolCall(
+  toolName: string,
+  args: Record<string, unknown>,
+): { valid: true } | { valid: false; error: string } {
+  const toolDef = ALL_TOOL_DEFINITIONS.find(t => t.function.name === toolName);
+  if (!toolDef) {
+    return { valid: false, error: `Unknown tool: ${toolName}` };
+  }
+
+  const required = (toolDef.function.parameters.required as string[]) ?? [];
+  for (const param of required) {
+    if (args[param] === undefined || args[param] === null || args[param] === '') {
+      return { valid: false, error: `Missing required parameter: ${param}` };
+    }
+  }
+
+  return { valid: true };
+}

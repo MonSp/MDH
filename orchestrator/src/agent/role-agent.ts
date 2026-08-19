@@ -1,6 +1,7 @@
 import type { LLMConfig, Message, ToolCall, ToolDefinition } from '../llm/types.js';
 import { chatStream } from '../llm/openai.js';
 import type { IToolkitRouter } from '../toolkit/router.js';
+import { validateToolCall } from './tools.js';
 
 export type EventHandler = (event: Record<string, unknown>) => void;
 
@@ -247,6 +248,12 @@ export class RoleAgent {
       args = JSON.parse(tc.function.arguments);
     } catch {
       return { call_id: tc.id, tool_name: tc.function.name, result: null, error: 'Invalid JSON' };
+    }
+
+    // 工具参数校验
+    const validation = validateToolCall(tc.function.name, args);
+    if (!validation.valid) {
+      return { call_id: tc.id, tool_name: tc.function.name, result: null, error: validation.error };
     }
 
     // 规范化路径参数：移除 workspace/ 前缀，防止双重嵌套
