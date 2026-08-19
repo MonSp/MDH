@@ -92,7 +92,7 @@ docker compose up -d
 │   ├── ceo_agent.py              # CEO 智能体
 │   ├── agent_bridge.py           # TS-Python 桥接
 │   ├── roles_config.yaml         # 角色配置（25+ 角色）
-│   └── tests/                    # Python 测试（532 tests）
+│   └── tests/                    # Python 测试（1285 tests）
 ├── orchestrator/                 # TS 编排器（用户本地 Node.js）
 │   └── src/
 │       ├── cli.ts                # CLI 入口
@@ -284,18 +284,14 @@ custom_roles:
 ## 测试
 
 ```bash
-# 前端测试 (1657 tests)
+# 前端测试 (1662 tests)
 npx vitest run
 
-# 后端测试 (1142 tests)
+# 后端测试 (1285 tests)
 cd backend && python -m pytest tests/ --timeout=60
 
-# Orchestrator 测试
-cd orchestrator && npx vitest run
-
-# LLM 集成测试
-export $(cat .env | grep -v '^#' | xargs)
-python backend/test_llm_integration.py
+# Orchestrator 测试 (164 tests)
+cd orchestrator && npm test
 
 # LLM 评测基准 CI 门禁（无 key 时确定性自检）
 python backend/asset_benchmark_gate.py
@@ -323,6 +319,9 @@ python backend/asset_benchmark_gate.py
 
 | 版本 | 日期 | 主要内容 |
 |------|------|----------|
+| **v1.2.2** | 2026-08-18 | 架构治理 + TS 能力补齐：Shell 安全、LLM 守卫、9 个 LLM 提供商、思维链流式、HITL 确认、技能渐进加载、server.py -1012 行、meeting_coordinator -631 行 |
+| **[v1.2.1](https://github.com/MonSp/MDH/releases/tag/v1.2.1)** | 2026-08-18 | Bug 修复：duplicate except、HTTP 500、Docker 配置、healthcheck、5 个 Router 启用、WebSocket handler 拆分 |
+| **[v1.2.0](https://github.com/MonSp/MDH/releases/tag/v1.2.0)** | 2026-08-17 | 调研驱动全栈改进（14 项）：投票策略、TS 清理、Subagent 委托、HITL 分级、MCP 集成、技能市场、资产管理系统、模型管理重构 |
 | **[v1.1.0](https://github.com/MonSp/MDH/releases/tag/v1.1.0)** | 2026-08-16 | 资产沉淀闭环（M3/M4）、LLM judge 评测 + CI 门禁、规则级团队隔离、M5 资产可视化 + 复用率指标、会议纪要全链路（真实试点 7/7） |
 | v1.0.0 | 2026-08-14 | 产品定型（人+agent 混合团队平台）+ M1-M2 会议纪要全链路、把关系统（gate 强制力）、前端把关 UI——初始发布基线 |
 | 开发史 | 2026-05-22 ~ 08-13 | 早期架构（TS 编排层/Electron 离线/多智能体协作）→ P0/P1/P2 实施 → P3 阶段一（session log/快照评测）→ dsh 深度调研 |

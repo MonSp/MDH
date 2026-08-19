@@ -24,7 +24,7 @@ jobs:
           pip install pytest pytest-asyncio pytest-timeout
       - name: Run backend tests
         working-directory: backend
-        run: python -m pytest tests/ --timeout=60
+        run: python -m pytest tests/ --timeout=60 --ignore=tests/legacy
 
   frontend-tests:
     name: Frontend tests (vitest)

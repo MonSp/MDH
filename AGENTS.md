@@ -1153,7 +1153,6 @@ def _select_roles_for_dag(dag):
 services:
   frontend:      # React 前端 (端口 8080)
   backend:       # Python 后端 (端口 8765)
-  mock-sso:      # Mock SSO 服务 (端口 8766)
   executor:      # 工具执行器 (端口 8767)
   orchestrator:  # 编排器 (端口 9090)
 ```

@@ -1403,6 +1403,17 @@ prompt_templates:
     4. 确保交付质量
 
     '
+  ceo_analysis: '你是技术CEO。分析任务复杂度，返回JSON格式：{"level": "simple" 或 "complex", "reason":
+    "原因"}
+
+
+    判断标准：
+
+    - simple: 创建/修改少量文件（1-3个）、简单脚本、单文件工具、读取/查看操作
+
+    - complex: 需要架构设计、多模块协作、前后端联调、需要团队讨论才能决定方案
+
+    '
   content_director: '你是{name}，一位内容总监。
 
 
@@ -1451,6 +1462,9 @@ prompt_templates:
     3. 保持信息透明和对称
 
     4. 平衡质量、进度和成本
+
+    '
+  coordinator_summary: '你是{name}。根据团队讨论，给出明确的执行方案：1)具体分工 2)技术方案选择 3)验收标准。简洁明了。
 
     '
   data_engineer: '你是{name}，一位数据工程师。
@@ -1526,6 +1540,12 @@ prompt_templates:
     3. 注重节奏和情感表达
 
     4. 高效利用AI工具提升效率
+
+    '
+  discussion: '你是{name}。{member_description}
+
+
+    你正在参加团队会议讨论一个技术任务。从你的专业角度给出具体建议，包括：1)你认为应该怎么实现 2)需要注意什么风险 3)你建议用什么技术方案。用2-3句话回答。
 
     '
   executor: '你是{name}，一位经验丰富的全栈开发工程师。
@@ -1641,6 +1661,15 @@ prompt_templates:
     4. 适配演讲节奏
 
     '
+  review: '{prompt}
+
+
+    审查代码：1)功能完整性 2)错误处理 3)代码结构。基本正确返回 approved: true，只在严重缺陷时返回 false。
+
+
+    返回JSON：{"approved": true/false, "feedback": "审查意见"}
+
+    '
   reviewer: '你是{name}，一位严谨的QA工程师。
 
 
@@ -1691,6 +1720,9 @@ prompt_templates:
     4. 节奏张弛有度
 
     '
+  summary: '你是一位技术项目经理，请用简洁的中文总结项目执行结果。使用 Markdown 表格格式。
+
+    '
   writer: '你是{name}，一位专业撰稿人。
 
 
@@ -1716,125 +1748,91 @@ prompt_templates:
     4. 注重读者体验
 
     '
-  ceo_analysis: '你是技术CEO。分析任务复杂度，返回JSON格式：{"level": "simple" 或 "complex",
-    "reason": "原因"}
-
-
-    判断标准：
-
-    - simple: 创建/修改少量文件（1-3个）、简单脚本、单文件工具、读取/查看操作
-
-    - complex: 需要架构设计、多模块协作、前后端联调、需要团队讨论才能决定方案
-
-    '
-  discussion: '你是{name}。{member_description}
-
-
-    你正在参加团队会议讨论一个技术任务。从你的专业角度给出具体建议，包括：1)你认为应该怎么实现 2)需要注意什么风险 3)你建议用什么技术方案。用2-3句话回答。
-
-    '
-  coordinator_summary: '你是{name}。根据团队讨论，给出明确的执行方案：1)具体分工 2)技术方案选择 3)验收标准。简洁明了。
-
-    '
-  review: '{prompt}
-
-
-    审查代码：1)功能完整性 2)错误处理 3)代码结构。基本正确返回 approved: true，只在严重缺陷时返回 false。
-
-
-    返回JSON：{"approved": true/false, "feedback": "审查意见"}
-
-    '
-  summary: '你是一位技术项目经理，请用简洁的中文总结项目执行结果。使用 Markdown 表格格式。
-
-    '
 skills:
-  # Skills are now defined in skill_packs/ directory.
-  # This section only lists available skill names for validation.
   api_design:
-    description: "API设计技能包"
+    description: API设计技能包
   architecture:
-    description: "架构设计技能包"
+    description: 架构设计技能包
   backend_dev:
-    description: "后端开发技能包"
+    description: 后端开发技能包
   brand_identity:
-    description: "品牌视觉技能包"
+    description: 品牌视觉技能包
   brand_strategy:
-    description: "品牌策略技能包"
+    description: 品牌策略技能包
   brand_voice:
-    description: "品牌声音技能包"
+    description: 品牌声音技能包
   code_review:
-    description: "代码审查技能包"
+    description: 代码审查技能包
   competitive_analysis:
-    description: "竞争分析技能包"
+    description: 竞争分析技能包
   content_editing:
-    description: "内容编辑技能包"
+    description: 内容编辑技能包
   content_writing:
-    description: "内容写作技能包"
+    description: 内容写作技能包
   copywriting:
-    description: "文案撰写技能包"
+    description: 文案撰写技能包
   data_analysis:
-    description: "数据分析技能包"
+    description: 数据分析技能包
   data_engineering:
-    description: "数据工程技能包"
+    description: 数据工程技能包
   data_presentation:
-    description: "数据呈现技能包"
+    description: 数据呈现技能包
   data_visualization:
-    description: "数据可视化技能包"
+    description: 数据可视化技能包
   database:
-    description: "数据库技能包"
+    description: 数据库技能包
   deployment:
-    description: "部署技能包"
+    description: 部署技能包
   devops:
-    description: "DevOps技能包"
+    description: DevOps技能包
   frontend_dev:
-    description: "前端开发技能包"
+    description: 前端开发技能包
   fullstack_dev:
-    description: "全栈开发技能包"
+    description: 全栈开发技能包
   graphic_design:
-    description: "平面设计技能包"
+    description: 平面设计技能包
   image_generation:
-    description: "图像生成技能包"
+    description: 图像生成技能包
   incident_response:
-    description: "故障响应技能包"
+    description: 故障响应技能包
   ml_engineering:
-    description: "机器学习技能包"
+    description: 机器学习技能包
   monitoring:
-    description: "监控技能包"
+    description: 监控技能包
   performance:
-    description: "性能优化技能包"
+    description: 性能优化技能包
   persona_development:
-    description: "用户画像技能包"
+    description: 用户画像技能包
   ppt_design:
-    description: "PPT设计技能包"
+    description: PPT设计技能包
   presentation_coaching:
-    description: "演讲辅导技能包"
+    description: 演讲辅导技能包
   progress_tracking:
-    description: "进度跟踪技能包"
+    description: 进度跟踪技能包
   risk_management:
-    description: "风险管理技能包"
+    description: 风险管理技能包
   sales_enablement:
-    description: "销售赋能技能包"
+    description: 销售赋能技能包
   sales_qualification:
-    description: "销售资质技能包"
+    description: 销售资质技能包
   script_writing:
-    description: "剧本创作技能包"
+    description: 剧本创作技能包
   security_audit:
-    description: "安全审计技能包"
+    description: 安全审计技能包
   sound_design:
-    description: "音效设计技能包"
+    description: 音效设计技能包
   task_decomposition:
-    description: "任务分解技能包"
+    description: 任务分解技能包
   testing:
-    description: "测试技能包"
+    description: 测试技能包
   usability_testing:
-    description: "可用性测试技能包"
+    description: 可用性测试技能包
   user_research:
-    description: "用户研究技能包"
+    description: 用户研究技能包
   video_editing:
-    description: "视频剪辑技能包"
+    description: 视频剪辑技能包
   video_generation:
-    description: "视频生成技能包"
+    description: 视频生成技能包
 tools:
   bash:
     category: shell
