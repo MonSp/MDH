@@ -325,31 +325,9 @@ class MeetingCoordinator:
         max_rounds: int = 2,
         team: Optional[Team] = None,
     ) -> List[Dict[str, str]]:
-        """
-        运行多角色讨论
-        
-        如果提供了Team实例，使用MixedLocationDiscussion进行并行讨论；
-        否则回退到串行的DiscussionManager。
-        """
-        # 如果有Team实例，使用并行讨论引擎
-        if team and hasattr(team, 'members') and team.members:
-            logger.info("使用并行讨论引擎 (成员数=%d)", len(team.members))
-            try:
-                if self._mixed_discussion is None:
-                    self._mixed_discussion = MixedLocationDiscussion(
-                        team=team,
-                        agenda=self.agenda,
-                        negotiation=self.negotiation,
-                        get_model_fn=self._get_model,
-                        meeting=self.meeting,
-                    )
-                return await self._mixed_discussion.run(topic, on_message, max_rounds)
-            except Exception as e:
-                logger.warning("并行讨论引擎初始化失败，回退到串行: %s", e)
-        
-        # 回退到串行讨论
-        logger.info("使用串行讨论引擎")
-        return await self._discussion_manager.run(topic, on_message, max_rounds)
+        """运行多角色讨论（委托给 coordinator_discussion）"""
+        from coordinator_discussion import run_discussion
+        return await run_discussion(self, topic, on_message, max_rounds, team)
 
     def _find_agent_id(self, role: AgentRole) -> Optional[str]:
         for a in self.meeting.agents:
@@ -1217,75 +1195,14 @@ class MeetingCoordinator:
         return enhanced
 
     def _extract_discussion_decisions(self, discussion_results: list) -> str:
-        """从讨论结果中提取结构化决策摘要
-        P3：优先从 SessionEvent 事件流投影（保留 support/modify 过滤与 8 条/120 字语义）；
-        无事件流时回退到 discussion_results 既有实现。
-
-        Args:
-            discussion_results: 讨论结果列表（回退路径使用）
-
-        Returns:
-            决策摘要文本（供审查阶段使用）
-        """
-        projected = self._project_discussion_decisions()
-        if projected is not None:
-            return projected
-
-        if not discussion_results:
-            return ""
-        
-        decisions = []
-        for result in discussion_results:
-            content = result.get("content", "")
-            stance = result.get("parsed_stance", result.get("stance", "neutral"))
-            role = result.get("role", "")
-            if stance in ["support", "modify"] and content:
-                core = re.sub(r'\[STANCE:.*?\]', '', content)
-                core = re.sub(r'\[CONFIDENCE:.*?\]', '', core).strip()
-                if len(core) > 120:
-                    core = core[:120] + "..."
-                icon = "+" if stance == "support" else "~"
-                decisions.append(f"  {icon} [{role}] {core}")
-        
-        if not decisions:
-            return ""
-        return "团队讨论确定的方案与约束：\n" + "\n".join(decisions[:8])
+        """从讨论结果中提取结构化决策摘要（委托给 coordinator_discussion）"""
+        from coordinator_discussion import _extract_discussion_decisions
+        return _extract_discussion_decisions(self, discussion_results)
 
     def _project_discussion_decisions(self) -> Optional[str]:
-        """从 SessionEvent 事件流投影讨论决策摘要。
-
-        保留 support/modify 过滤与 8 条/120 字语义：对投影到的 agent_message 事件
-        解析内容中的 [STANCE:] 标签（先于截断），仅保留 support/modify，每条剥标签后
-        截断到 120 字，最多取前 8 条。返回 None 时由调用方回退既有实现。
-        """
-        try:
-            projected = self.meeting.deriveMessages(
-                event_types=["agent_message"], window=50
-            )
-        except Exception as e:
-            self.logger.warning("讨论决策事件投影失败，回退既有实现: %s", e)
-            return None
-        if not projected:
-            return None
-
-        decisions = []
-        for m in projected:
-            content = m.get("content", "") or ""
-            if not content:
-                continue
-            stance = parse_stance_from_content(content)
-            if stance not in ("support", "modify"):
-                continue
-            role = resolve_agent_role(self.meeting, m.get("agent_id"))
-            core = strip_stance_tags(content)
-            if len(core) > 120:
-                core = core[:120] + "..."
-            icon = "+" if stance == "support" else "~"
-            decisions.append(f"  {icon} [{role}] {core}")
-
-        if not decisions:
-            return None
-        return "团队讨论确定的方案与约束：\n" + "\n".join(decisions[:8])
+        """从 SessionEvent 事件流投影讨论决策摘要（委托给 coordinator_discussion）"""
+        from coordinator_discussion import _project_discussion_decisions
+        return _project_discussion_decisions(self)
 
     def _infer_target_agent(self, discussion_results: list) -> str:
         """从讨论结果中推断目标 Agent
