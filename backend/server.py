@@ -264,56 +264,6 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 # ──────────────────── SkillRegistry REST API ────────────────────
 
 
-@app.get("/api/skills")
-async def list_skills():
-    try:
-        return _ok(skill_registry.list_skills())
-    except (KeyError, ValueError) as e:
-        logger.warning("list_skills 失败 预期错误: %s", e)
-        return _fail(str(e))
-    except Exception as e:
-        logger.exception("list_skills 失败")
-        return _fail(str(e))
-
-
-@app.post("/api/skills")
-async def register_skill(body: SkillRegisterRequest):
-    try:
-        pkg = skill_registry.register(body.skill_dir)
-        return _ok(asdict(pkg))
-    except ValueError as e:
-        return _fail(str(e))
-
-
-@app.post("/api/skills/{skill_id}/clone")
-async def clone_skill(skill_id: str, body: SkillCloneRequest):
-    try:
-        path = skill_registry.clone(skill_id, body.target_dir)
-        return _ok({"cloned_path": path})
-    except KeyError as e:
-        return _fail(str(e))
-    except ValueError as e:
-        return _fail(str(e))
-
-
-@app.get("/api/skills/{skill_id}/versions")
-async def get_skill_versions(skill_id: str):
-    try:
-        versions = skill_registry.get_versions(skill_id)
-        return _ok(versions)
-    except KeyError as e:
-        return _fail(str(e))
-
-
-@app.get("/api/skills/{skill_id}")
-async def get_skill(skill_id: str):
-    try:
-        pkg = skill_registry.get_skill(skill_id)
-        return _ok(asdict(pkg))
-    except KeyError as e:
-        return _fail(str(e))
-
-
 # ──────────────────── ProjectManager REST API ────────────────────
 
 
