@@ -10,7 +10,7 @@
 - [x] **25 个浏览器工具定义** — orchestrator/src/agent/tools.ts
 - [x] **执行器集成** — orchestrator/src/toolkit/local.ts
 - [x] **集成测试** — 33 个测试覆盖导航/交互/查询/截图/标签页/高级工具
-- [ ] **Python 端集成** — 通过 remote toolkit router 暴露给 Python Agent
+- [x] **Python 端集成** — playwright_browser.py + tool_executor.py 浏览器工具注册
 
 ### A 线：TS 安全补齐（P0）
 
