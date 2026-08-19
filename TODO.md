@@ -6,10 +6,10 @@
 
 ### A 线：TS 安全补齐（P0）
 
-- [ ] **Shell 命令黑名单** — orchestrator/src/toolkit/local.ts 添加危险命令拦截
-- [ ] **Shell 命令白名单** — 限制可执行命令范围
-- [ ] **路径遍历保护加固** — 添加 realpath 校验
-- [ ] **工具参数校验** — 执行前校验 required 参数
+- [x] **Shell 命令黑名单** — orchestrator/src/toolkit/shellSafety.ts，16 个危险模式
+- [x] **Shell 命令白名单** — 60+ 允许命令
+- [x] **路径遍历保护加固** — 已有 safePath()，无需额外修改
+- [x] **工具参数校验** — tools.ts validateToolCall()，执行前校验 required 参数
 - [ ] **工具超时** — 每个工具独立超时
 - [ ] **LLM 调用超时守卫** — 对齐 Python llm_guard.py
 
