@@ -19,7 +19,7 @@
 - [x] **Gemini 支持** — baseUrl: generativelanguage.googleapis.com, model: gemini-2.5-flash
 - [x] **Moonshot 支持** — baseUrl: api.moonshot.cn, model: moonshot-v1-8k
 - [x] **xAI/Grok 支持** — baseUrl: api.x.ai, model: grok-3
-- [ ] **思维链流式支持** — 解析 reasoning_content + 前端展示
+- [x] **思维链流式支持** — 解析 reasoning_content + thinking_start/delta/end 事件 + 前端折叠展示
 - [ ] **HITL 确认流** — 危险操作用户确认
 - [ ] **技能渐进加载** — L0-L3 四层渐进披露
 - [ ] **技能到任务匹配** — 关键词匹配自动选择技能
