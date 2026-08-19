@@ -39,7 +39,7 @@
 - [x] **meeting_coordinator 投票流程提取** — 已在 process_user_message 子方法中
 - [x] **meeting_coordinator 审查流程提取** — coordinator_summary.py (108 行)
 - [x] **server.py 端点测试补充** — 新增 14 个测试（项目/角色/门禁/资产/员工），总计 49 个
-- [ ] **meeting_coordinator 测试** — 核心编排流程测试
+- [x] **meeting_coordinator 测试** — 新增 6 个测试覆盖 run_discussion/assign_tasks/execute_tool_call
 
 ---
 
