@@ -2,21 +2,21 @@
 
 > 基于 2026-08-19 v1.3.1 规划，按优先级排列。
 
-## v1.3.1 — 前端架构治理（计划中）
+## v1.3.2 — 前端架构治理收尾（2026-08-18）
 
 ### A 线：useMeetingSocket 重构
 
 - [x] **拆分消息处理器** — handlers.ts 按领域拆分为 meeting/voting/approval/checkpoint/bridge 5 个子模块
 - [x] **引入状态管理** — Zustand store 替代 40+ useState，按领域拆分 5 个 slice
 - [x] **消除双重消息处理** — CeoChatPanel 仅处理 CEO 特有消息，其余委托给 useMeetingSocket
-- [ ] **添加单元测试** — 每个 handler 独立测试
+- [x] **添加单元测试** — 6 个测试文件，52 个用例覆盖所有 handler + dispatcher
 
 ### B 线：CeoChatPanel 拆分
 
 - [x] **提取通信逻辑** — useCeoCommunication hook 封装 IPC/WS 通信
 - [x] **提取角色选择** — RoleSelector 组件（部门分组 + 位置切换）
 - [x] **提取工作区配置** — WorkspaceConfig 组件（类型/路径/分支配置）
-- [ ] **简化主组件** — 主组件仅保留布局和状态协调
+- [x] **简化主组件** — CeoChatPanel 1044→547 行，接入 useCeoCommunication + RoleSelector，提取 ceo-types.ts/ceo-constants.ts
 
 ### C 线：OfficeTeamMode 拆分
 
@@ -28,7 +28,7 @@
 
 - [x] **Progressive loader 集成** — progressive.ts 已实现，system-prompt 使用既有 loadSkillPacks（路径一致性）
 - [x] **剩余 as any 清理** — ChatMessage 添加 _thinking/_workflowResult 类型定义
-- [x] **组件测试补充** — CeoChatPanel、OfficeTeamMode 测试已通过（1662 passed）
+- [x] **组件测试补充** — CeoChatPanel、OfficeTeamMode 测试已通过（1714 passed）
 
 ---
 

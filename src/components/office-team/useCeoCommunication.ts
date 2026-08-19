@@ -6,7 +6,7 @@
 
 import { useCallback, useRef, useEffect } from 'react'
 import { isElectron, getMdH, STORAGE_KEYS } from '../../constants'
-import type { CeoMessage, WorkspaceConfirmRequest } from './CeoChatPanel'
+import type { CeoMessage, WorkspaceConfirmRequest } from './ceo-types'
 
 const isElectronMode = isElectron()
 

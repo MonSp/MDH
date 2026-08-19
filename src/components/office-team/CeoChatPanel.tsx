@@ -1,139 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import CeoMessageBubble from './CeoMessageBubble'
 import WorkspaceConfirmPanel from './WorkspaceConfirmPanel'
+import RoleSelector from './RoleSelector'
+import { useCeoCommunication } from './useCeoCommunication'
 import { isElectron, getMdH, STORAGE_KEYS } from '../../constants'
+import type { CeoMessage, WorkspaceConfirmRequest, MeetingPhase, CeoChatPanelProps } from './ceo-types'
+import { AGENT_NAMES, AGENT_COLORS, PHASE_LABELS, PHASE_ORDER } from './ceo-constants'
 
 const isElectronMode = isElectron()
-
-const AGENT_NAMES: Record<string, string> = {
-  'agent-ceo': 'CTO',
-  'agent-coordinator': '项目经理',
-  'agent-planner': '架构师',
-  'agent-executor': '全栈开发',
-  'agent-reviewer': 'QA工程师',
-  'agent-monitor': 'DevOps',
-}
-
-const AGENT_COLORS: Record<string, string> = {
-  'agent-ceo': '#8b5cf6',
-  'agent-coordinator': '#3b82f6',
-  'agent-planner': '#10b981',
-  'agent-executor': '#f59e0b',
-  'agent-reviewer': '#ef4444',
-  'agent-monitor': '#06b6d4',
-}
-
-interface CeoMessage {
-  role: 'user' | 'ceo' | 'system' | 'agent'
-  content: string
-  timestamp: number
-  agentId?: string
-  agentName?: string
-  _workspaceConfirm?: boolean
-  _workspaceReq?: any
-}
-
-interface WorkspaceConfirmRequest {
-  project_id: string
-  task_description: string
-  suggested_type: string
-  suggested_path: string
-  existing_project?: {
-    path: string
-    has_git: boolean
-    file_count: number
-    files: string[]
-    project_hints: string[]
-  }
-  options: {
-    workspace_types: Array<{ id: string; name: string; desc: string }>
-    default_output_dir: string
-  }
-}
-
-type MeetingPhase =
-  | 'idle'
-  | 'analyzing'
-  | 'planning'
-  | 'discussing'
-  | 'assigning'
-  | 'executing'
-  | 'reviewing'
-  | 'summarizing'
-  | 'done'
-
-const PHASE_LABELS: Record<MeetingPhase, string> = {
-  idle: '等待中',
-  analyzing: '需求分析',
-  planning: '项目规划',
-  discussing: '团队讨论',
-  assigning: '任务分派',
-  executing: '代码执行',
-  reviewing: '质量审查',
-  summarizing: '生成报告',
-  done: '已完成',
-}
-
-const PHASE_ORDER: MeetingPhase[] = [
-  'analyzing', 'planning', 'discussing', 'assigning', 'executing', 'reviewing', 'summarizing',
-]
-
-interface RoleInfo {
-  id: string
-  name: string
-  description: string
-  department?: string
-}
-
-interface CeoChatPanelProps {
-  wsRef: React.MutableRefObject<WebSocket | null>
-  onEnterProject: (projectId: string, meetingId: string) => void
-  onProjectCreated?: (projectId: string) => void
-  onClose: () => void
-}
-
-// 预设角色列表（与后端 roles_config.yaml 对应）
-const PRESET_ROLES: RoleInfo[] = [
-  // 软件产品部
-  { id: 'coordinator', name: '产品经理', description: '需求分析与项目管理', department: 'dept-software' },
-  { id: 'planner', name: '架构师', description: '系统设计与技术选型', department: 'dept-software' },
-  { id: 'executor', name: '全栈开发', description: '前后端代码实现', department: 'dept-software' },
-  { id: 'reviewer', name: 'QA工程师', description: '测试与质量保障', department: 'dept-software' },
-  { id: 'monitor', name: 'DevOps', description: 'CI/CD与部署运维', department: 'dept-software' },
-  // AI影视部
-  { id: 'director', name: '导演', description: '创意把控与整体调度', department: 'dept-ai-movie' },
-  { id: 'screenwriter', name: '编剧', description: '剧本创作与分镜设计', department: 'dept-ai-movie' },
-  { id: 'image_artist', name: '图像生成师', description: 'AI图像生成', department: 'dept-ai-movie' },
-  { id: 'video_artist', name: '视频生成师', description: 'AI视频生成', department: 'dept-ai-movie' },
-  // 数据智能部
-  { id: 'data_lead', name: '数据负责人', description: '需求拆解与分析策略', department: 'dept-data' },
-  { id: 'data_engineer', name: '数据工程师', description: '数据采集/清洗/ETL', department: 'dept-data' },
-  { id: 'data_analyst', name: '数据分析师', description: '统计分析与洞察', department: 'dept-data' },
-  // 内容创作部
-  { id: 'content_director', name: '内容总监', description: '选题策划与风格把控', department: 'dept-content' },
-  { id: 'content_writer', name: '撰稿人', description: '深度文章与技术写作', department: 'dept-content' },
-  // 演示设计部
-  { id: 'ppt_lead', name: '演示负责人', description: '需求沟通与内容梳理', department: 'dept-ppt' },
-  { id: 'slide_designer', name: '视觉设计师', description: '版式/配色/图表设计', department: 'dept-ppt' },
-]
-
-// 部门颜色映射
-const DEPT_COLORS: Record<string, string> = {
-  'dept-software': '#0a84ff',
-  'dept-ai-movie': '#ff375f',
-  'dept-data': '#bf5af2',
-  'dept-content': '#ff9f0a',
-  'dept-ppt': '#30d158',
-}
-
-// 部门名称映射
-const DEPT_NAMES: Record<string, string> = {
-  'dept-software': '💻 软件产品部',
-  'dept-ai-movie': '🎬 AI影视部',
-  'dept-data': '📊 数据智能部',
-  'dept-content': '✍️ 内容创作部',
-  'dept-ppt': '🎯 演示设计部',
-}
 
 export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, onClose }: CeoChatPanelProps) {
   const [messages, setMessages] = useState<CeoMessage[]>([{
@@ -157,9 +30,19 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
   const [meetingStartTime, setMeetingStartTime] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const listenerCleanupRef = useRef<(() => void) | null>(null)
   const scrollRaf = useRef<number>(0)
 
+  const addMsg = useCallback((role: CeoMessage['role'], content: string, agentId?: string, agentName?: string) => {
+    setMessages(prev => [...prev, { role, content, timestamp: Date.now(), agentId, agentName }])
+  }, [])
+
+  const { sendToBackend, sendWorkspaceConfirm } = useCeoCommunication({
+    wsRef, addMsg, setIsProcessing, setMeetingPhase, setProjectReady,
+    setWorkspaceConfirm, setWsType, setWsRepoPath, setWsOutputDir,
+    setWsBranchName, setMeetingStartTime, onProjectCreated,
+  })
+
+  // Auto-scroll
   useEffect(() => {
     cancelAnimationFrame(scrollRaf.current)
     scrollRaf.current = requestAnimationFrame(() => {
@@ -168,13 +51,12 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
     return () => cancelAnimationFrame(scrollRaf.current)
   }, [messages])
 
-  // 计时器：会议进行中每秒更新elapsed
+  // 计时器
   useEffect(() => {
     if (!meetingStartTime || meetingPhase === 'idle' || meetingPhase === 'done') {
       setElapsed(0)
       return
     }
-    // 立即更新一次，不等 setInterval
     setElapsed(Math.floor((Date.now() - meetingStartTime) / 1000))
     const timer = setInterval(() => {
       setElapsed(Math.floor((Date.now() - meetingStartTime) / 1000))
@@ -188,173 +70,13 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
     return m > 0 ? `${m}分${s.toString().padStart(2, '0')}秒` : `${s}秒`
   }, [])
 
-  useEffect(() => {
-    return () => {
-      listenerCleanupRef.current?.()
-    }
-  }, [])
-
-  const addMsg = useCallback((role: CeoMessage['role'], content: string, agentId?: string, agentName?: string) => {
-    setMessages(prev => [...prev, { role, content, timestamp: Date.now(), agentId, agentName }])
-  }, [])
-
-  const sendToBackend = useCallback((content: string) => {
-    setIsProcessing(true)
-    addMsg('user', content)
-
-    // Electron 模式：通过 IPC 发送
-    if (isElectronMode) {
-      const mdh = getMdH()!
-      mdh.invoke('mdh:sendMessage', {
-        content,
-        roles: autoMode ? [] : selectedRoles,
-      }).then((result: any) => {
-        if (result?.error) {
-          addMsg('system', `❌ ${result.error}`)
-          setIsProcessing(false)
-        } else {
-          addMsg('system', '任务已发送，等待团队响应...')
-
-          // 监听工作区确认请求 — 在对话中显示选项
-          const wsConfirmHandler = (req: any) => {
-            setMessages(prev => [...prev, {
-              role: 'ceo',
-              content: '请选择项目工作区：',
-              timestamp: Date.now(),
-              _workspaceConfirm: true,
-              _workspaceReq: req,
-            }])
-          }
-          mdh.on('mdh:onWorkspaceConfirm', wsConfirmHandler)
-
-          // 监听 IPC 推送的消息
-          const handler = (event: any) => {
-            if (event.type === 'meeting_ended') {
-              setIsProcessing(false)
-              addMsg('ceo', '任务已完成。')
-              mdh.off('mdh:onAgentMessage', handler)
-              mdh.off('mdh:onWorkspaceConfirm', wsConfirmHandler)
-            } else if (event.type === 'error') {
-              setIsProcessing(false)
-              addMsg('system', `❌ ${event.message}`)
-              mdh.off('mdh:onAgentMessage', handler)
-              mdh.off('mdh:onWorkspaceConfirm', wsConfirmHandler)
-            } else if (event.type === 'assistant_message' && event.content) {
-              // 根据 agentId 判断角色
-              const agentId = event.agentId || ''
-              const agentName = AGENT_NAMES[agentId] || agentId.replace('agent-', '')
-              if (agentId === 'agent-ceo') {
-                addMsg('ceo', event.content)
-              } else if (agentId.startsWith('agent-')) {
-                addMsg('agent', event.content, agentId, agentName)
-              } else {
-                addMsg('ceo', event.content)
-              }
-            } else if (event.type === 'phase') {
-              // 阶段变化
-              setMeetingPhase?.(event.phase || 'idle')
-            }
-          }
-          mdh.on('mdh:onAgentMessage', handler)
-        }
-      }).catch((err: any) => {
-        addMsg('system', `❌ ${String(err)}`)
-        setIsProcessing(false)
-      })
-      return
-    }
-
-    // WebSocket 模式（浏览器）
-    const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      setIsProcessing(false)
-      return
-    }
-
-    let currentProjectId = ''
-    let currentMeetingId = ''
-    let meetingStarted = false
-
-    const handler = (event: MessageEvent) => {
-      try {
-        const msg = JSON.parse(event.data)
-        const t = msg.type
-
-        // 仅处理 CeoChatPanel 特有的消息类型
-        // 其他消息（meeting_started, agent_message, meeting_error 等）由 useMeetingSocket 统一处理
-
-        if (t === 'task_result') {
-          // CEO 特有：任务完成时更新状态
-          setIsProcessing(false)
-          setMeetingPhase('done')
-          if (currentProjectId && currentMeetingId) {
-            setProjectReady({ projectId: currentProjectId, meetingId: currentMeetingId })
-            addMsg('ceo', 'task_done:enter_project')
-          } else {
-            addMsg('ceo', '任务已完成。')
-          }
-          cleanup()
-        } else if (t === 'complexity_result') {
-          const level = msg.level === 'simple' ? '简单任务' : '复杂任务'
-          addMsg('system', `📊 任务分析：${level}（置信度 ${Math.round((msg.confidence || 0) * 100)}%）`)
-        } else if (t === 'workspace_confirm_request') {
-          const req: WorkspaceConfirmRequest = {
-            project_id: msg.project_id || '',
-            task_description: msg.task_description || '',
-            suggested_type: msg.suggested_type || 'standalone',
-            suggested_path: msg.suggested_path || '',
-            options: msg.options || { workspace_types: [], default_output_dir: '' },
-          }
-          setWorkspaceConfirm(req)
-          setWsType(req.existing_project ? 'continue' : req.suggested_type)
-          setWsRepoPath(req.suggested_path)
-          setWsOutputDir(req.options.default_output_dir)
-          setWsBranchName(`agent/task-${req.project_id.slice(0, 8)}`)
-          addMsg('ceo', 'workspace_confirm:pending')
-        } else if (t === 'meeting_started') {
-          meetingStarted = true
-          currentMeetingId = msg.meeting_id || ''
-          currentProjectId = msg.project_id || ''
-          const agentCount = (msg.agents || []).length
-          setProjectReady({ projectId: currentProjectId, meetingId: currentMeetingId })
-          setMeetingStartTime(Date.now())
-          setMeetingPhase('analyzing')
-          addMsg('ceo', `meeting_ready:${agentCount}`)
-          if (currentProjectId) onProjectCreated?.(currentProjectId)
-        } else if (t === 'path_selected') {
-          addMsg('system', `📊 执行路径：${msg.path}`)
-        } else if (t === 'path_upgrade') {
-          addMsg('system', `⬆️ 路径升级：${msg.from} → ${msg.to}`)
-        }
-        // meeting_error, agent_message 等由 useMeetingSocket 统一处理
-      } catch {}
-    }
-
-    const cleanup = () => {
-      ws.removeEventListener('message', handler)
-      listenerCleanupRef.current = null
-    }
-    listenerCleanupRef.current = cleanup
-    ws.addEventListener('message', handler)
-
-    ws.send(JSON.stringify({
-      type: 'unified_message',
-      content,
-      selected_roles: autoMode ? [] : selectedRoles,
-      role_locations: autoMode ? {} : roleLocations,
-      provider: localStorage.getItem(STORAGE_KEYS.PROVIDER) || undefined,
-      model_name: localStorage.getItem(STORAGE_KEYS.MODEL_NAME) || undefined,
-      api_key: localStorage.getItem(STORAGE_KEYS.API_KEY) || undefined,
-      base_url: localStorage.getItem(STORAGE_KEYS.BASE_URL) || undefined,
-    }))
-  }, [wsRef, addMsg, selectedRoles, onProjectCreated])
-
   const handleSend = useCallback(() => {
     if (!input.trim() || isProcessing) return
     const text = input.trim()
     setInput('')
-    sendToBackend(text)
-  }, [input, isProcessing, sendToBackend])
+    addMsg('user', text)
+    sendToBackend(text, selectedRoles, roleLocations, autoMode)
+  }, [input, isProcessing, sendToBackend, addMsg, selectedRoles, roleLocations, autoMode])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -386,14 +108,10 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
           output_dir: wsOutputDir,
         }
 
-    // Electron 模式：通过 IPC 发送
     if (isElectronMode) {
       getMdH()?.invoke('mdh:workspaceConfirmResponse', confirmData)
     } else {
-      // WebSocket 模式
-      const ws = wsRef.current
-      if (!ws || ws.readyState !== WebSocket.OPEN) return
-      ws.send(JSON.stringify({ type: 'workspace_confirm_response', ...confirmData }))
+      sendWorkspaceConfirm(confirmData)
     }
 
     if (isExistingProject) {
@@ -407,7 +125,23 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
       addMsg('system', `✅ 工作区配置已确认：${wsType === 'git_worktree' ? 'Git Worktree' : '独立工作区'}`)
     }
     setWorkspaceConfirm(null)
-  }, [wsRef, wsType, wsRepoPath, wsBranchName, wsOutputDir, addMsg, workspaceConfirm])
+  }, [wsType, wsRepoPath, wsBranchName, wsOutputDir, addMsg, workspaceConfirm, sendWorkspaceConfirm])
+
+  // RoleSelector 回调
+  const handleToggleRole = useCallback((roleId: string) => {
+    setSelectedRoles(prev =>
+      prev.includes(roleId) ? prev.filter(id => id !== roleId) : [...prev, roleId]
+    )
+  }, [])
+
+  const handleToggleLocation = useCallback((roleId: string) => {
+    setRoleLocations(prev => ({ ...prev, [roleId]: prev[roleId] === 'local' ? 'remote' : 'local' }))
+  }, [])
+
+  const handleAutoModeChange = useCallback((auto: boolean) => {
+    setAutoMode(auto)
+    if (auto) setSelectedRoles([])
+  }, [])
 
   return (
     <div style={styles.panel}>
@@ -426,7 +160,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
         <button style={styles.closeBtn} onClick={onClose}>×</button>
       </div>
 
-      {/* 进度条：会议进行中显示 */}
+      {/* 进度条 */}
       {meetingPhase !== 'idle' && meetingPhase !== 'done' && (
         <div style={styles.progressBar}>
           {PHASE_ORDER.map((phase, i) => {
@@ -479,20 +213,14 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
                 {isMeetingReady ? (
                   <div>
                     <div style={{ marginBottom: 8 }}>项目已创建，{agentCount} 人团队已就绪，会议正在处理中。</div>
-                    <button
-                      style={styles.inlineEnterBtn}
-                      onClick={handleEnter}
-                    >
+                    <button style={styles.inlineEnterBtn} onClick={handleEnter}>
                       🚀 进入项目工作间查看会议 →
                     </button>
                   </div>
                 ) : isTaskDone ? (
                   <div>
                     <div style={{ marginBottom: 8 }}>任务处理完成。</div>
-                    <button
-                      style={styles.inlineEnterBtn}
-                      onClick={handleEnter}
-                    >
+                    <button style={styles.inlineEnterBtn} onClick={handleEnter}>
                       🚀 进入项目工作间查看详情 →
                     </button>
                   </div>
@@ -508,7 +236,6 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
                     }}
                   />
                 ) : msg._workspaceConfirm ? (
-                  // 工作区选择 UI
                   <div>
                     <div style={{ marginBottom: 12, fontWeight: 600, fontSize: 14 }}>
                       📁 选择项目工作区
@@ -581,151 +308,16 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
         <div ref={scrollRef} />
       </div>
 
-      {/* 角色选择器 */}
-      <div style={styles.roleSection}>
-        <div
-          style={styles.roleHeader}
-          onClick={() => setShowRoleSelector(!showRoleSelector)}
-        >
-          <span style={{ fontSize: 12, color: '#8b9dc3' }}>
-            👥 团队成员 {autoMode ? '(CEO智能组队)' : `(${selectedRoles.length}人)`}
-          </span>
-          <span style={{ fontSize: 11, color: '#667', transform: showRoleSelector ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
-        </div>
-
-        {/* 已选角色标签 */}
-        {!showRoleSelector && (
-          <div style={styles.roleTags}>
-            {autoMode ? (
-              <span style={{ ...styles.roleTag, borderColor: '#8b5cf640', color: '#a78bfa' }}>
-                🤖 CEO智能组队
-              </span>
-            ) : (
-              selectedRoles.map(id => {
-                const role = PRESET_ROLES.find(r => r.id === id)
-                if (!role) return null
-                const color = DEPT_COLORS[role.department || ''] || '#64d2ff'
-                const loc = roleLocations[id] || 'local'
-                const locIcon = loc === 'local' ? '💻' : '☁️'
-                const locLabel = loc === 'local' ? '本地' : '远端'
-                return (
-                  <span
-                    key={id}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setRoleLocations(prev => ({ ...prev, [id]: prev[id] === 'local' ? 'remote' : 'local' }))
-                    }}
-                    style={{ ...styles.roleTag, borderColor: color + '40', color, cursor: 'pointer' }}
-                    title={`点击切换执行位置 (当前: ${locLabel})`}
-                  >
-                    {locIcon} {role.name}
-                  </span>
-                )
-              })
-            )}
-          </div>
-        )}
-
-        {/* 角色选择面板 */}
-        {showRoleSelector && (
-          <div style={styles.roleSelector}>
-            {/* CEO智能组队选项 */}
-            <div
-              onClick={() => {
-                setAutoMode(true)
-                setSelectedRoles([])
-              }}
-              style={{
-                ...styles.roleOption,
-                background: autoMode ? '#8b5cf620' : 'rgba(255,255,255,0.03)',
-                borderColor: autoMode ? '#8b5cf660' : 'rgba(255,255,255,0.08)',
-                marginBottom: 8,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <span style={{ fontSize: 16 }}>🤖</span>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: autoMode ? 700 : 400, color: autoMode ? '#a78bfa' : '#8b9dc3' }}>
-                  CEO智能组队
-                </div>
-                <div style={{ fontSize: 10, color: '#6b7280' }}>根据任务自动选择最佳团队配置</div>
-              </div>
-            </div>
-
-            {/* 手动选择分隔线 */}
-            <div style={{ fontSize: 10, color: '#4b5563', padding: '4px 0', marginBottom: 4, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8 }}>
-              或手动选择角色：
-            </div>
-
-            {Object.entries(DEPT_NAMES).map(([deptId, deptName]) => {
-              const deptRoles = PRESET_ROLES.filter(r => r.department === deptId)
-              if (deptRoles.length === 0) return null
-              const color = DEPT_COLORS[deptId]
-              return (
-                <div key={deptId} style={styles.deptGroup}>
-                  <div style={{ ...styles.deptLabel, color }}>{deptName}</div>
-                  <div style={styles.deptRoles}>
-                    {deptRoles.map(role => {
-                      const isSelected = selectedRoles.includes(role.id)
-                      const loc = roleLocations[role.id] || 'local'
-                      return (
-                        <div key={role.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <div
-                            onClick={() => {
-                              setAutoMode(false)
-                              setSelectedRoles(prev =>
-                                isSelected
-                                  ? prev.filter(id => id !== role.id)
-                                  : [...prev, role.id]
-                              )
-                            }}
-                            style={{
-                              ...styles.roleOption,
-                              flex: 1,
-                              background: isSelected ? color + '20' : 'rgba(255,255,255,0.03)',
-                              borderColor: isSelected ? color + '60' : 'rgba(255,255,255,0.08)',
-                              opacity: autoMode ? 0.5 : 1,
-                            }}
-                            title={role.description}
-                          >
-                            <div style={{ fontSize: 11, fontWeight: isSelected ? 600 : 400, color: isSelected ? color : '#8b9dc3' }}>
-                              {role.name}
-                            </div>
-                          </div>
-                          {isSelected && (
-                            <div
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setRoleLocations(prev => ({ ...prev, [role.id]: prev[role.id] === 'local' ? 'remote' : 'local' }))
-                              }}
-                              style={{
-                                fontSize: 9,
-                                padding: '2px 6px',
-                                borderRadius: 4,
-                                background: loc === 'local' ? '#0a84ff20' : '#ff9f0a20',
-                                color: loc === 'local' ? '#0a84ff' : '#ff9f0a',
-                                border: `1px solid ${loc === 'local' ? '#0a84ff40' : '#ff9f0a40'}`,
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap',
-                                userSelect: 'none',
-                              }}
-                              title="点击切换：本地💻 / 远端☁️"
-                            >
-                              {loc === 'local' ? '💻 本地' : '☁️ 远端'}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      <RoleSelector
+        selectedRoles={selectedRoles}
+        roleLocations={roleLocations}
+        autoMode={autoMode}
+        showRoleSelector={showRoleSelector}
+        onToggleRole={handleToggleRole}
+        onToggleLocation={handleToggleLocation}
+        onAutoModeChange={handleAutoModeChange}
+        onToggleShow={() => setShowRoleSelector(!showRoleSelector)}
+      />
 
       <div style={styles.inputArea}>
         <textarea
@@ -918,95 +510,6 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontFamily: 'inherit',
     alignSelf: 'flex-end',
-  },
-  roleSection: {
-    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-    background: 'rgba(0, 0, 0, 0.15)',
-  },
-  roleHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '8px 14px',
-    cursor: 'pointer',
-  },
-  roleTags: {
-    display: 'flex',
-    flexWrap: 'wrap' as const,
-    gap: 4,
-    padding: '0 14px 8px',
-  },
-  roleTag: {
-    padding: '2px 8px',
-    borderRadius: 10,
-    fontSize: 10,
-    border: '1px solid',
-    background: 'rgba(255,255,255,0.03)',
-  },
-  roleSelector: {
-    padding: '0 14px 10px',
-    maxHeight: 200,
-    overflowY: 'auto' as const,
-  },
-  deptGroup: {
-    marginBottom: 8,
-  },
-  deptLabel: {
-    fontSize: 10,
-    fontWeight: 600,
-    marginBottom: 4,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
-  },
-  deptRoles: {
-    display: 'flex',
-    flexWrap: 'wrap' as const,
-    gap: 4,
-  },
-  roleOption: {
-    padding: '4px 10px',
-    borderRadius: 6,
-    border: '1px solid',
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-  },
-  wsLabel: {
-    display: 'block',
-    fontSize: 11,
-    fontWeight: 600,
-    color: '#8b9dc3',
-    marginBottom: 4,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
-  },
-  wsOptionGroup: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: 4,
-  },
-  wsOption: {
-    padding: '8px 10px',
-    borderRadius: 6,
-    border: '1px solid rgba(255,255,255,0.1)',
-    background: 'rgba(255,255,255,0.03)',
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-  },
-  wsOptionActive: {
-    borderColor: 'rgba(139, 92, 246, 0.6)',
-    background: 'rgba(139, 92, 246, 0.15)',
-  },
-  wsInput: {
-    width: '100%',
-    padding: '6px 10px',
-    borderRadius: 6,
-    border: '1px solid rgba(255,255,255,0.1)',
-    background: 'rgba(0,0,0,0.3)',
-    color: '#e2e8f0',
-    fontSize: 12,
-    fontFamily: 'monospace',
-    outline: 'none',
-    boxSizing: 'border-box' as const,
   },
   wsConfirmBtn: {
     width: '100%',
