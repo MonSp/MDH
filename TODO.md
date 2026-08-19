@@ -6,7 +6,7 @@
 
 ### A 线：useMeetingSocket 重构
 
-- [ ] **拆分消息处理器** — 将 handlers.ts 按领域拆分为 meeting/voting/approval/checkpoint/bridge 5 个子模块
+- [x] **拆分消息处理器** — handlers.ts 按领域拆分为 meeting/voting/approval/checkpoint/bridge 5 个子模块
 - [ ] **引入状态管理** — 用 Zustand 替代 40+ useState 扁平 bag，按领域拆分 store
 - [ ] **消除双重消息处理** — CeoChatPanel 和 useMeetingSocket 的消息分发统一
 - [ ] **添加单元测试** — 每个 handler 独立测试
