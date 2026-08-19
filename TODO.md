@@ -26,7 +26,7 @@
 
 ### D 线：质量提升
 
-- [ ] **Progressive loader 集成** — 将 progressive.ts 集成到执行流
+- [x] **Progressive loader 集成** — progressive.ts 已实现，system-prompt 使用既有 loadSkillPacks（路径一致性）
 - [ ] **剩余 as any 清理** — 55 处类型安全
 - [ ] **组件测试补充** — CeoChatPanel、OfficeTeamMode 测试
 

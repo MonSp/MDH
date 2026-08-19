@@ -31,12 +31,16 @@ export interface ChatMessage {
   _stance?: 'support' | 'oppose' | 'modify' | 'neutral'
   _confidence?: number
   _streaming?: boolean
+  /** 思维链标记 */
+  _thinking?: boolean
   /** 结构化反馈 */
   _structuredFeedback?: StructuredFeedback
   /** 路由决策信息 */
   _routingDecision?: RoutingDecision
   /** 迭代状态 */
   _iterationStatus?: IterationStatus
+  /** 工作流结果 */
+  _workflowResult?: any
   /** 消息子类型 */
   _msgSubtype?: 'feedback' | 'routing' | 'experience' | 'iteration' | 'proposal' | 'vote' | 'vote_result' | 'workflow' | 'workflow_summary'
 }
