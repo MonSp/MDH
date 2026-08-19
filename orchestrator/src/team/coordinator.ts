@@ -1,5 +1,5 @@
 import { LLMConfig, Message } from '../llm/types.js';
-import { chatStream } from '../llm/openai.js';
+import { safeChatStream } from '../llm/guard.js';
 import type { IToolkitRouter } from '../toolkit/router.js';
 import { RouterFactory } from '../toolkit/router.js';
 import type { ExecutionProfile } from '../toolkit/hybrid.js';
@@ -400,7 +400,7 @@ export class TeamCoordinator {
   // ====== LLM 纯文本调用（CEO 分析和总结使用）=====
   private async callLLMOnce(messages: Message[]): Promise<string> {
     let content = '';
-    for await (const chunk of chatStream(this.config.llm, messages)) {
+    for await (const chunk of safeChatStream(this.config.llm, messages)) {
       content += chunk.delta;
     }
     return content;

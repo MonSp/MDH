@@ -5,10 +5,14 @@
  * 跨迭代记忆记录历史决策和模式，避免重复犯错。
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-const CHECKPOINTS_DIR = join(import.meta.dirname, '../checkpoints');
-const MEMORY_DIR = join(import.meta.dirname, '../memory');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const CHECKPOINTS_DIR = join(__dirname, '../checkpoints');
+const MEMORY_DIR = join(__dirname, '../memory');
 
 // ====== 数据类型 ======
 
