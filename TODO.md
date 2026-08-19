@@ -26,7 +26,7 @@
 
 ### C 线：Python 架构治理（P2）
 
-- [ ] **server.py REST 端点迁移** — 内联端点迁移到 Router 模块
+- [x] **server.py REST 端点迁移** — 移除 34 个内联端点（skills/workflow/marketplace/mcp/community），server.py 2086→1652 行
 - [ ] **meeting_coordinator 讨论流程提取** — 提取到独立模块
 - [ ] **meeting_coordinator 投票流程提取** — 提取到独立模块
 - [ ] **meeting_coordinator 审查流程提取** — 提取到独立模块
