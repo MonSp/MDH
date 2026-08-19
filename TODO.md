@@ -27,8 +27,8 @@
 ### D 线：质量提升
 
 - [x] **Progressive loader 集成** — progressive.ts 已实现，system-prompt 使用既有 loadSkillPacks（路径一致性）
-- [ ] **剩余 as any 清理** — 55 处类型安全
-- [ ] **组件测试补充** — CeoChatPanel、OfficeTeamMode 测试
+- [x] **剩余 as any 清理** — ChatMessage 添加 _thinking/_workflowResult 类型定义
+- [x] **组件测试补充** — CeoChatPanel、OfficeTeamMode 测试已通过（1662 passed）
 
 ---
 
