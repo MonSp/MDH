@@ -1279,5 +1279,114 @@ class TestTeamIdPassThrough:
         assert cache_calls == {"get": 1, "put": 1}
 
 
+# ──────────────────── run_discussion 测试 ────────────────────
+
+class TestRunDiscussion:
+    """测试 run_discussion 方法（委托给 coordinator_discussion）"""
+
+    def test_run_discussion_returns_list(self, coordinator, monkeypatch):
+        """run_discussion 应返回讨论结果列表"""
+        from unittest.mock import AsyncMock
+
+        mock_results = [
+            {"agent_id": "agent-executor", "content": "支持方案", "stance": "support"},
+            {"agent_id": "agent-reviewer", "content": "需要修改", "stance": "modify"},
+        ]
+
+        async def fake_run(*args, **kwargs):
+            return mock_results
+
+        monkeypatch.setattr("coordinator_discussion.run_discussion", fake_run)
+
+        async def _test():
+            result = await coordinator.run_discussion("测试主题", AsyncMock())
+            assert isinstance(result, list)
+            assert len(result) == 2
+            assert result[0]["agent_id"] == "agent-executor"
+
+        asyncio.run(_test())
+
+    def test_run_discussion_with_team(self, coordinator, monkeypatch):
+        """run_discussion 传入 team 时应使用 MixedLocationDiscussion"""
+        from unittest.mock import AsyncMock
+
+        called_with_team = []
+
+        async def fake_run(coord, topic, on_message, max_rounds=2, team=None):
+            called_with_team.append(team is not None)
+            return []
+
+        monkeypatch.setattr("coordinator_discussion.run_discussion", fake_run)
+
+        async def _test():
+            mock_team = MagicMock()
+            mock_team.members = [MagicMock()]
+            await coordinator.run_discussion("测试", AsyncMock(), team=mock_team)
+            assert called_with_team == [True]
+
+        asyncio.run(_test())
+
+
+# ──────────────────── assign_tasks 测试 ────────────────────
+
+class TestAssignTasks:
+    """测试 assign_tasks 方法"""
+
+    def test_assign_tasks_creates_meeting_tasks(self, coordinator):
+        """assign_tasks 应在 meeting 中创建任务"""
+        subtasks = [
+            {"name": "前端开发", "description": "实现 UI"},
+            {"name": "后端开发", "description": "实现 API"},
+        ]
+
+        async def _test():
+            assignments = await coordinator.assign_tasks(subtasks)
+            assert len(assignments) == 2
+            assert assignments[0]["agent_id"] == "agent-executor"
+            assert assignments[1]["agent_id"] == "agent-executor"
+            assert coordinator.meeting.tasks is not None
+
+        asyncio.run(_test())
+
+    def test_assign_tasks_classifies_roles(self, coordinator):
+        """assign_tasks 应根据任务内容分类角色"""
+        subtasks = [
+            {"name": "审查代码", "description": "代码审查"},
+            {"name": "监控部署", "description": "监控系统"},
+        ]
+
+        async def _test():
+            assignments = await coordinator.assign_tasks(subtasks)
+            # 审查任务应分配给 reviewer
+            assert any(a["agent_id"] == "agent-reviewer" for a in assignments)
+            # 监控任务应分配给 monitor
+            assert any(a["agent_id"] == "agent-monitor" for a in assignments)
+
+        asyncio.run(_test())
+
+
+# ──────────────────── execute_tool_call 测试 ────────────────────
+
+class TestExecuteToolCall:
+    """测试 execute_tool_call 方法"""
+
+    def test_execute_tool_call_returns_result(self, coordinator):
+        """execute_tool_call 应返回工具执行结果"""
+        async def _test():
+            result = await coordinator.execute_tool_call("read_file", {"path": "test.txt"})
+            assert isinstance(result, dict)
+            assert "success" in result or "error" in result
+
+        asyncio.run(_test())
+
+    def test_execute_tool_call_unknown_tool(self, coordinator):
+        """execute_tool_call 处理未知工具"""
+        async def _test():
+            result = await coordinator.execute_tool_call("nonexistent_tool", {})
+            assert result.get("success") is False or "error" in result
+
+        asyncio.run(_test())
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
