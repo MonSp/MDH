@@ -4,6 +4,10 @@ const PROVIDER_DEFAULTS: Record<string, { baseUrl: string; model: string }> = {
   deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
   openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4.1' },
   anthropic: { baseUrl: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-20250514' },
+  dashscope: { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' },
+  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash' },
+  moonshot: { baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k' },
+  xai: { baseUrl: 'https://api.x.ai/v1', model: 'grok-3' },
   ollama: { baseUrl: 'http://localhost:11434/v1', model: 'qwen3:14b' },
   custom: { baseUrl: '', model: '' },
 };

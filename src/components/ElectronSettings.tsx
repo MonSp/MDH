@@ -13,6 +13,7 @@ const providers = [
   { value: 'dashscope', label: 'DashScope (通义)' },
   { value: 'gemini', label: 'Google Gemini' },
   { value: 'moonshot', label: 'Moonshot (月之暗面)' },
+  { value: 'xai', label: 'xAI (Grok)' },
   { value: 'ollama', label: 'Ollama (本地)' },
   { value: 'custom', label: '自定义 (OpenAI 兼容)' },
 ];

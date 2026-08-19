@@ -1,5 +1,5 @@
 export interface LLMConfig {
-  provider: 'deepseek' | 'openai' | 'anthropic' | 'ollama' | 'custom';
+  provider: 'deepseek' | 'openai' | 'anthropic' | 'dashscope' | 'gemini' | 'moonshot' | 'xai' | 'ollama' | 'custom';
   apiKey: string;
   baseUrl: string;
   model: string;
