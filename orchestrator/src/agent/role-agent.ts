@@ -3,6 +3,7 @@ import { chatStream } from '../llm/openai.js';
 import { safeChatStream } from '../llm/guard.js';
 import type { IToolkitRouter } from '../toolkit/router.js';
 import { validateToolCall } from './tools.js';
+import { HITLManager } from './hitl.js';
 
 export type EventHandler = (event: Record<string, unknown>) => void;
 
@@ -15,6 +16,7 @@ export interface AgentConfig {
   router: IToolkitRouter;
   workspace: string;
   llm: LLMConfig;
+  hitl?: HITLManager;
 }
 
 export interface ToolResult {
@@ -109,7 +111,7 @@ export class RoleAgent {
           args: tc.function.arguments,
         });
 
-        const toolResult = await this.executeTool(tc);
+        const toolResult = await this.executeTool(tc, onEvent);
         const resultStr = toolResult.error
           ? `Error: ${toolResult.error}`
           : String(toolResult.result ?? '');
@@ -243,7 +245,7 @@ export class RoleAgent {
     return this.config.systemPrompt;
   }
 
-  private async executeTool(tc: ToolCall): Promise<ToolResult> {
+  private async executeTool(tc: ToolCall, onEvent?: EventHandler): Promise<ToolResult> {
     let args: Record<string, unknown>;
     try {
       args = JSON.parse(tc.function.arguments);
@@ -255,6 +257,28 @@ export class RoleAgent {
     const validation = validateToolCall(tc.function.name, args);
     if (!validation.valid) {
       return { call_id: tc.id, tool_name: tc.function.name, result: null, error: validation.error };
+    }
+
+    // HITL 确认：检查是否需要用户确认
+    if (this.config.hitl?.needsConfirmation(tc.function.name, args)) {
+      const reason = `危险操作: ${tc.function.name} ${JSON.stringify(args).slice(0, 100)}`;
+      onEvent?.({
+        type: 'confirm_request',
+        agentId: this.id,
+        toolName: tc.function.name,
+        args,
+        reason,
+        timestamp: Date.now(),
+      });
+      const result = await this.config.hitl.requestConfirmation(tc.function.name, args, reason);
+      if (!result.confirmed) {
+        return {
+          call_id: tc.id,
+          tool_name: tc.function.name,
+          result: null,
+          error: `用户拒绝执行: ${result.reason || '未提供理由'}`,
+        };
+      }
     }
 
     // 规范化路径参数：移除 workspace/ 前缀，防止双重嵌套
