@@ -15,10 +15,10 @@
 
 ### B 线：TS 能力补齐（P1）
 
-- [ ] **DashScope/Qwen 支持** — 新增 dashscope.ts
-- [ ] **Gemini 支持** — 新增 gemini.ts
-- [ ] **Moonshot 支持** — 新增 moonshot.ts
-- [ ] **xAI/Grok 支持** — 新增 xai.ts
+- [x] **DashScope/Qwen 支持** — baseUrl: dashscope.aliyuncs.com, model: qwen-plus
+- [x] **Gemini 支持** — baseUrl: generativelanguage.googleapis.com, model: gemini-2.5-flash
+- [x] **Moonshot 支持** — baseUrl: api.moonshot.cn, model: moonshot-v1-8k
+- [x] **xAI/Grok 支持** — baseUrl: api.x.ai, model: grok-3
 - [ ] **思维链流式支持** — 解析 reasoning_content + 前端展示
 - [ ] **HITL 确认流** — 危险操作用户确认
 - [ ] **技能渐进加载** — L0-L3 四层渐进披露
