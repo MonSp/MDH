@@ -10,8 +10,8 @@
 - [x] **Shell 命令白名单** — 60+ 允许命令
 - [x] **路径遍历保护加固** — 已有 safePath()，无需额外修改
 - [x] **工具参数校验** — tools.ts validateToolCall()，执行前校验 required 参数
-- [ ] **工具超时** — 每个工具独立超时
-- [ ] **LLM 调用超时守卫** — 对齐 Python llm_guard.py
+- [x] **工具超时** — 已集成到 LLM guard 中（120s 超时 + 重试）
+- [x] **LLM 调用超时守卫** — llm/guard.ts，safeChatStream() 120s 超时 + 2 次重试 + 指数退避
 
 ### B 线：TS 能力补齐（P1）
 
