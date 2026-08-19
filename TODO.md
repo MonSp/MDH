@@ -8,7 +8,7 @@
 
 - [x] **拆分消息处理器** — handlers.ts 按领域拆分为 meeting/voting/approval/checkpoint/bridge 5 个子模块
 - [x] **引入状态管理** — Zustand store 替代 40+ useState，按领域拆分 5 个 slice
-- [ ] **消除双重消息处理** — CeoChatPanel 和 useMeetingSocket 的消息分发统一
+- [x] **消除双重消息处理** — CeoChatPanel 仅处理 CEO 特有消息，其余委托给 useMeetingSocket
 - [ ] **添加单元测试** — 每个 handler 独立测试
 
 ### B 线：CeoChatPanel 拆分
