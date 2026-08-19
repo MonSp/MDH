@@ -145,6 +145,7 @@ async def _send_event_async(event_type: str, **data):
 
 
 def _make_browser_tool(name: str, description: str) -> FunctionTool:
+    """浏览器工具创建器（已禁用 — 依赖自研浏览器，与开源项目脱节）"""
     async def _noop(**kwargs) -> None:
         pass
 
@@ -157,33 +158,19 @@ MULTIMODAL_TOOLS = {"get_screenshot", "screenshot_element"}
 
 
 def _build_browser_tools(multimodal: bool = True) -> list:
-    tools = [
-        _make_browser_tool("navigate", "导航到指定网页"),
-        _make_browser_tool("resolve_selector", "将 CSS/XPath 选择器解析为可复用的 target_ref"),
-        _make_browser_tool("query_target", "查询 target_ref 当前状态"),
-        _make_browser_tool("wait_for_element", "等待元素达到指定状态"),
-        _make_browser_tool("search", "在页面中搜索内容"),
-        _make_browser_tool("click_button", "点击页面上的按钮或元素"),
-        _make_browser_tool("fill_field", "填写表单输入字段"),
-        _make_browser_tool("input_text", "在元素中输入文本"),
-        _make_browser_tool("hover", "悬停在元素上"),
-        _make_browser_tool("scroll", "滚动页面（像素值）"),
-        _make_browser_tool("scroll_into_view", "滚动元素到视图中"),
-        _make_browser_tool("wait", "等待指定毫秒数"),
-        _make_browser_tool("get_screenshot", "获取当前页面的截图"),
-        _make_browser_tool("screenshot_element", "获取指定元素的截图"),
-        _make_browser_tool("get_tabs", "获取所有打开的标签页列表"),
-        _make_browser_tool("switch_tab", "切换到指定标签页"),
-        _make_browser_tool("create_tab", "新建标签页"),
-        _make_browser_tool("close_tab", "关闭指定标签页"),
-        _make_browser_tool("press_key", "按下键盘按键"),
-        _make_browser_tool("evaluate_js", "在当前页面执行 JavaScript 代码"),
-        _make_browser_tool("execute_step", "执行单个步骤"),
-        _make_browser_tool("execute_plan", "批量执行计划"),
-    ]
-    if not multimodal:
-        tools = [t for t in tools if t.name not in MULTIMODAL_TOOLS]
-    return tools
+    """构建浏览器工具列表（已禁用 — 依赖自研浏览器，与开源项目脱节）
+
+    返回空列表，不注册任何浏览器工具。
+    如需浏览器自动化，请集成 Playwright 或其他开源方案。
+    """
+    # 浏览器工具已禁用：依赖自研浏览器，与开源项目脱节
+    # 原始工具列表（供参考）：
+    #   navigate, resolve_selector, query_target, wait_for_element,
+    #   search, click_button, fill_field, input_text, hover, scroll,
+    #   scroll_into_view, wait, get_screenshot, screenshot_element,
+    #   get_tabs, switch_tab, create_tab, close_tab, press_key,
+    #   evaluate_js, execute_step, execute_plan
+    return []
 
 
 def _extract_text(msg: Msg) -> str:
