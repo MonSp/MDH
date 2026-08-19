@@ -5,8 +5,8 @@ import type { TeamAgent, Task, ChatMessage, AgendaState } from '../components/of
 import { AgentRole } from '../modules/agentTypes'
 import type { WorkflowExecution, WorkflowDefinition } from '../modules/agentTypes'
 import { dispatchMessage } from './useMeetingSocket/handlers'
-import type { HandlerSetters, HandlerRefs } from './useMeetingSocket/handlers'
 import { STORAGE_KEYS } from '../constants'
+import { useMeetingStore } from './useMeetingSocket/meetingStore'
 
 export type MeetingPhase =
   | 'idle'
@@ -79,18 +79,31 @@ export default function useMeetingSocket({
   wsRef: React.MutableRefObject<WebSocket | null>
   url?: string
 }) {
-  const [meetingId, setMeetingId] = useState<string | null>(null)
-  const [agents, setAgents] = useState<TeamAgent[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
-  const [isMeetingActive, setIsMeetingActive] = useState(false)
+  // 使用 Zustand store 替代 40+ useState
+  const store = useMeetingStore()
+  const {
+    meetingId, setMeetingId,
+    agents, setAgents,
+    tasks, setTasks,
+    chatMessages, setChatMessages,
+    isMeetingActive, setIsMeetingActive,
+    lastWorkflow, setLastWorkflow,
+    agendaState, setAgendaState,
+    workspace, setWorkspace,
+    toolCallLogs, setToolCallLogs,
+    meetingPhase, setMeetingPhase,
+    meetingStartTime, setMeetingStartTime,
+    activeProposal, setActiveProposal,
+    votes, setVotes,
+    voteResults, setVoteResults,
+    pendingApprovals, setPendingApprovals,
+    checkpoints, setCheckpoints,
+    restoredState, setRestoredState,
+    auditLog, setAuditLog,
+    bridgeMessages, setBridgeMessages,
+  } = store
+
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected')
-  const [lastWorkflow, setLastWorkflow] = useState<WorkflowExecution | null>(null)
-  const [agendaState, setAgendaState] = useState<AgendaState | null>(null)
-  const [workspace, setWorkspace] = useState<Workspace | null>(null)
-  const [toolCallLogs, setToolCallLogs] = useState<ToolCallLog[]>([])
-  const [meetingPhase, setMeetingPhase] = useState<MeetingPhase>('idle')
-  const [meetingStartTime, setMeetingStartTime] = useState<number | null>(null)
 
   const pendingMessages = useRef<Map<string, string>>(new Map())
   const reconnectAttempts = useRef(0)
@@ -99,84 +112,15 @@ export default function useMeetingSocket({
   const bridgeCallbacks = useRef<Map<string, (msg: any) => void>>(new Map())
 
   // Bridge state
-  interface BridgeMessage {
-    fromAgentId: string
-    toAgentId: string
-    payload: any
-    timestamp: number
-  }
-  const [bridgeMessages, setBridgeMessages] = useState<BridgeMessage[]>([])
+  // Bridge 消息（从 store 获取）
 
-  // 投票决策状态
-  interface ActiveProposal {
-    id: string
-    proposerId: string
-    content: string
-    createdAt: number
-  }
-  interface VoteEntry {
-    voterId: string
-    approve: boolean
-    reason: string
-  }
-  interface VoteResults {
-    proposalId: string
-    totalVotes: number
-    approveCount: number
-    opposeCount: number
-    accepted: boolean
-  }
-  const [activeProposal, setActiveProposal] = useState<ActiveProposal | null>(null)
-  const [votes, setVotes] = useState<Map<string, VoteEntry>>(new Map())
-  const [voteResults, setVoteResults] = useState<VoteResults | null>(null)
+  // 投票决策状态（从 store 获取）
 
-  // 人工审批状态
-  interface PendingApprovalInfo {
-    id: string
-    requesterId: string
-    operation: string
-    description: string
-    riskLevel: string
-    confidence: number
-    status: string
-    createdAt: number
-    // 门禁把关上下文（可选，向后兼容）：所属任务 / 门禁节点 / 指定审批人
-    taskId?: string
-    gateId?: string
-    approver?: string
-    // 审批人显示名（员工目录解析；空串 = 未命中/系统）
-    approverName?: string
-  }
-  const [pendingApprovals, setPendingApprovals] = useState<Map<string, PendingApprovalInfo>>(new Map())
+  // 人工审批状态（从 store 获取）
 
-  // 检查点状态
-  interface CheckpointInfo {
-    id: string
-    taskId: string
-    stepIndex: number
-    createdAt: number
-  }
-  interface RestoredState {
-    checkpointId: string
-    taskId: string
-    stepIndex: number
-    state: Record<string, unknown>
-  }
-  const [checkpoints, setCheckpoints] = useState<CheckpointInfo[]>([])
-  const [restoredState, setRestoredState] = useState<RestoredState | null>(null)
+  // 检查点状态（从 store 获取）
 
-  // 审计日志状态
-  interface AuditLogEntry {
-    id: string
-    agentId: string
-    operation: string
-    target: string
-    riskLevel: string
-    allowed: boolean
-    reason: string
-    timestamp: number
-  }
-  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([])
+  // 审计日志（从 store 获取）
 
   // 迭代配置
   const [maxIterations, setMaxIterationsState] = useState(3)

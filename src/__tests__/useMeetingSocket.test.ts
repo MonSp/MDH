@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { useMeetingStore } from '../hooks/useMeetingSocket/meetingStore'
 import { renderHook, act } from '@testing-library/react'
 
 class MockWebSocket {
@@ -70,6 +71,16 @@ describe('useMeetingSocket', () => {
     vi.useRealTimers()
     globalThis.WebSocket = origWS
     globalThis.localStorage = origStorage
+    // Reset Zustand store between tests
+    useMeetingStore.getState().clearMeeting()
+    useMeetingStore.getState().setActiveProposal(null)
+    useMeetingStore.getState().setVotes(() => new Map())
+    useMeetingStore.getState().setVoteResults(null)
+    useMeetingStore.getState().setPendingApprovals(() => new Map())
+    useMeetingStore.getState().setCheckpoints(() => [])
+    useMeetingStore.getState().setRestoredState(null)
+    useMeetingStore.getState().setAuditLog(() => [])
+    useMeetingStore.getState().setBridgeMessages(() => [])
   })
 
   describe('PHASE_LABELS', () => {
