@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MDH Browser Test Page</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .hidden { display: none; }
+    #result { margin-top: 10px; padding: 10px; background: #f0f0f0; }
+    #counter { font-size: 24px; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1 id="title">MDH Browser Automation Test</h1>
+  <p id="description">This page is used for testing Playwright browser tools.</p>
+
+  <!-- Navigation test -->
+  <a id="link-page2" href="page2.html">Go to Page 2</a>
+
+  <!-- Form test -->
+  <form id="test-form">
+    <label for="name">Name:</label>
+    <input type="text" id="name" name="name" placeholder="Enter name">
+    <br>
+    <label for="email">Email:</label>
+    <input type="email" id="email" name="email" placeholder="Enter email">
+    <br>
+    <label for="role">Role:</label>
+    <select id="role" name="role">
+      <option value="">Select role</option>
+      <option value="developer">Developer</option>
+      <option value="designer">Designer</option>
+      <option value="manager">Manager</option>
+    </select>
+    <br>
+    <button type="button" id="submit-btn" onclick="handleSubmit()">Submit</button>
+  </form>
+
+  <!-- Counter test -->
+  <div id="counter">0</div>
+  <button id="increment-btn" onclick="increment()">Increment</button>
+  <button id="decrement-btn" onclick="decrement()">Decrement</button>
+
+  <!-- Hidden element test -->
+  <div id="hidden-element" class="hidden">I am hidden</div>
+  <button id="show-btn" onclick="showHidden()">Show Hidden</button>
+
+  <!-- Result area -->
+  <div id="result"></div>
+
+  <!-- Dynamic content -->
+  <div id="dynamic-content"></div>
+
+  <script>
+    let count = 0;
+
+    function handleSubmit() {
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const role = document.getElementById('role').value;
+      document.getElementById('result').textContent = 
+        `Submitted: ${name} (${email}) - ${role}`;
+    }
+
+    function increment() {
+      count++;
+      document.getElementById('counter').textContent = count;
+    }
+
+    function decrement() {
+      count--;
+      document.getElementById('counter').textContent = count;
+    }
+
+    function showHidden() {
+      document.getElementById('hidden-element').classList.remove('hidden');
+    }
+
+    // Dynamic content loading
+    setTimeout(() => {
+      document.getElementById('dynamic-content').innerHTML = 
+        '<p id="loaded-content">Content loaded dynamically</p>';
+    }, 1000);
+  </script>
+</body>
+</html>
