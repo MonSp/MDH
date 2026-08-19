@@ -4,8 +4,17 @@ import { execSync } from 'node:child_process';
 import { ToolCall, ToolResult } from '../team/types.js';
 import { IToolkitRouter } from './router.js';
 import { validateShellCommand } from './shellSafety.js';
+import { PlaywrightBrowser } from './browser.js';
 
 export class LocalToolkitRouter implements IToolkitRouter {
+  private browser: PlaywrightBrowser | null = null;
+
+  private getBrowser(): PlaywrightBrowser {
+    if (!this.browser) {
+      this.browser = new PlaywrightBrowser();
+    }
+    return this.browser;
+  }
   async execute(toolCall: ToolCall, workspace: string): Promise<ToolResult> {
     const { name, arguments: rawArgs } = toolCall.function;
     let args: Record<string, unknown>;
@@ -77,6 +86,51 @@ export class LocalToolkitRouter implements IToolkitRouter {
         return this.editFile({ path: args.path, old_string: args.old_text, new_string: args.new_text }, workspace);
       case 'web_fetch':
         return this.webFetch(args);
+      // --- 浏览器自动化工具 (Playwright) ---
+      case 'navigate':
+        return this.getBrowser().navigate(String(args.url));
+      case 'click':
+        return this.getBrowser().click(String(args.selector));
+      case 'fill':
+        return this.getBrowser().fill(String(args.selector), String(args.value));
+      case 'type_text':
+        return this.getBrowser().typeText(String(args.selector), String(args.text), args.delay as number | undefined);
+      case 'press_key':
+        return this.getBrowser().pressKey(String(args.key));
+      case 'hover':
+        return this.getBrowser().hover(String(args.selector));
+      case 'select':
+        return this.getBrowser().select(String(args.selector), String(args.value));
+      case 'scroll':
+        return this.getBrowser().scroll(args.direction as 'up' | 'down' | 'left' | 'right', args.amount as number | undefined);
+      case 'get_text':
+        return this.getBrowser().getText(String(args.selector));
+      case 'get_attribute':
+        return this.getBrowser().getAttribute(String(args.selector), String(args.attribute));
+      case 'get_url':
+        return this.getBrowser().getUrl();
+      case 'get_title':
+        return this.getBrowser().getTitle();
+      case 'query':
+        return this.getBrowser().query(String(args.selector));
+      case 'wait_for':
+        return this.getBrowser().waitFor(String(args.selector), (args.state as 'visible' | 'hidden' | 'attached') || 'visible');
+      case 'screenshot':
+        return this.getBrowser().screenshot(args.path as string | undefined);
+      case 'screenshot_element':
+        return this.getBrowser().screenshotElement(String(args.selector), args.path as string | undefined);
+      case 'list_tabs':
+        return this.getBrowser().listTabs();
+      case 'switch_tab':
+        return this.getBrowser().switchTab(String(args.tab_id));
+      case 'new_tab':
+        return this.getBrowser().newTab(args.url as string | undefined);
+      case 'close_tab':
+        return this.getBrowser().closeTab(String(args.tab_id));
+      case 'evaluate_js':
+        return this.getBrowser().evaluateJs(String(args.code));
+      case 'execute_steps':
+        return this.getBrowser().executeSteps(args.steps as Array<{ action: string; selector?: string; value?: string; key?: string }>);
       default:
         throw new Error(`Unknown tool: ${name}`);
     }

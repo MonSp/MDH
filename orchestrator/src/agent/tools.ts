@@ -259,6 +259,317 @@ export const ALL_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+
+  // ========== 浏览器自动化工具 (Playwright) ==========
+  {
+    type: 'function',
+    function: {
+      name: 'navigate',
+      description: '导航到指定网页。',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: '目标 URL' },
+        },
+        required: ['url'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'click',
+      description: '点击页面上的元素。',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'CSS 选择器' },
+        },
+        required: ['selector'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'fill',
+      description: '填写表单输入框。',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'CSS 选择器' },
+          value: { type: 'string', description: '要填写的值' },
+        },
+        required: ['selector', 'value'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'type_text',
+      description: '逐字输入文本（模拟键盘输入）。',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'CSS 选择器' },
+          text: { type: 'string', description: '要输入的文本' },
+          delay: { type: 'number', description: '每个字符的延迟（毫秒）' },
+        },
+        required: ['selector', 'text'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'press_key',
+      description: '按下键盘按键。',
+      parameters: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: '按键名称（如 Enter, Tab, Escape）' },
+        },
+        required: ['key'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'hover',
+      description: '悬停在元素上。',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'CSS 选择器' },
+        },
+        required: ['selector'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'select',
+      description: '选择下拉框选项。',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'CSS 选择器' },
+          value: { type: 'string', description: '选项值' },
+        },
+        required: ['selector', 'value'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'scroll',
+      description: '滚动页面。',
+      parameters: {
+        type: 'object',
+        properties: {
+          direction: { type: 'string', enum: ['up', 'down', 'left', 'right'], description: '滚动方向' },
+          amount: { type: 'number', description: '滚动像素值（默认 500）' },
+        },
+        required: ['direction'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_text',
+      description: '获取元素文本内容。',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'CSS 选择器' },
+        },
+        required: ['selector'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_attribute',
+      description: '获取元素属性值。',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'CSS 选择器' },
+          attribute: { type: 'string', description: '属性名' },
+        },
+        required: ['selector', 'attribute'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_url',
+      description: '获取当前页面 URL。',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_title',
+      description: '获取当前页面标题。',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query',
+      description: '查询元素是否存在及基本信息。',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'CSS 选择器' },
+        },
+        required: ['selector'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'wait_for',
+      description: '等待元素达到指定状态。',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'CSS 选择器' },
+          state: { type: 'string', enum: ['visible', 'hidden', 'attached'], description: '目标状态' },
+        },
+        required: ['selector'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'screenshot',
+      description: '全页面截图，返回 base64 编码的图片。',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: '保存路径（可选）' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'screenshot_element',
+      description: '对指定元素截图。',
+      parameters: {
+        type: 'object',
+        properties: {
+          selector: { type: 'string', description: 'CSS 选择器' },
+          path: { type: 'string', description: '保存路径（可选）' },
+        },
+        required: ['selector'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_tabs',
+      description: '列出所有打开的标签页。',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'switch_tab',
+      description: '切换到指定标签页。',
+      parameters: {
+        type: 'object',
+        properties: {
+          tab_id: { type: 'string', description: '标签页 ID' },
+        },
+        required: ['tab_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'new_tab',
+      description: '新建标签页。',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: '初始 URL（可选）' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'close_tab',
+      description: '关闭指定标签页。',
+      parameters: {
+        type: 'object',
+        properties: {
+          tab_id: { type: 'string', description: '标签页 ID' },
+        },
+        required: ['tab_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'evaluate_js',
+      description: '在当前页面执行 JavaScript 代码。',
+      parameters: {
+        type: 'object',
+        properties: {
+          code: { type: 'string', description: 'JavaScript 代码' },
+        },
+        required: ['code'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'execute_steps',
+      description: '批量执行浏览器步骤。',
+      parameters: {
+        type: 'object',
+        properties: {
+          steps: {
+            type: 'array',
+            description: '步骤列表',
+            items: {
+              type: 'object',
+              properties: {
+                action: { type: 'string', description: '动作（navigate/click/fill/type/press/hover/wait）' },
+                selector: { type: 'string', description: 'CSS 选择器' },
+                value: { type: 'string', description: '值' },
+                key: { type: 'string', description: '按键' },
+              },
+              required: ['action'],
+            },
+          },
+        },
+        required: ['steps'],
+      },
+    },
+  },
 ];
 
 /**
