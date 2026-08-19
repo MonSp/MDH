@@ -13,9 +13,9 @@
 
 ### B 线：CeoChatPanel 拆分
 
-- [ ] **提取通信逻辑** — IPC/WS 通信提取到 useCeoCommunication hook
-- [ ] **提取角色选择** — 角色选择逻辑提取到 RoleSelector 组件
-- [ ] **提取工作区配置** — 工作区配置提取到 WorkspaceConfig 组件
+- [x] **提取通信逻辑** — useCeoCommunication hook 封装 IPC/WS 通信
+- [x] **提取角色选择** — RoleSelector 组件（部门分组 + 位置切换）
+- [x] **提取工作区配置** — WorkspaceConfig 组件（类型/路径/分支配置）
 - [ ] **简化主组件** — 主组件仅保留布局和状态协调
 
 ### C 线：OfficeTeamMode 拆分
