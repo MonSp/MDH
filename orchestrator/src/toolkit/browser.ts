@@ -9,6 +9,19 @@ import { chromium, type Browser, type BrowserContext, type Page } from 'playwrig
 import { join } from 'path';
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 
+export interface HITLConfig {
+  /** 是否启用 HITL 确认 */
+  enabled: boolean;
+  /** 导航白名单（不需要确认的域名） */
+  navigationWhitelist: string[];
+  /** 需要确认的操作类型 */
+  confirmActions: Array<'navigate' | 'fill' | 'click_submit' | 'evaluate_js'>;
+  /** 敏感字段选择器（fill 操作需要确认） */
+  sensitiveSelectors: string[];
+  /** 确认超时（毫秒，默认 30s） */
+  confirmTimeout: number;
+}
+
 export interface BrowserConfig {
   headless: boolean;
   browser: 'chromium' | 'firefox' | 'webkit';
@@ -17,7 +30,18 @@ export interface BrowserConfig {
   extensions: string[];
   recordingDir: string;
   slowMo: number;
+  hitl: HITLConfig;
 }
+
+export type ConfirmCallback = (action: string, details: string) => Promise<boolean>;
+
+const DEFAULT_HITL_CONFIG: HITLConfig = {
+  enabled: false,
+  navigationWhitelist: ['localhost', '127.0.0.1', 'github.com'],
+  confirmActions: ['navigate', 'click_submit', 'evaluate_js'],
+  sensitiveSelectors: ['input[type="password"]', 'input[type="credit-card"]', '[data-sensitive]'],
+  confirmTimeout: 30000,
+};
 
 const DEFAULT_CONFIG: BrowserConfig = {
   headless: process.env.PLAYWRIGHT_HEADLESS !== 'false',
@@ -27,6 +51,7 @@ const DEFAULT_CONFIG: BrowserConfig = {
   extensions: process.env.PLAYWRIGHT_EXTENSIONS?.split(',') || [],
   recordingDir: process.env.PLAYWRIGHT_RECORDING_DIR || '/tmp/recordings',
   slowMo: parseInt(process.env.PLAYWRIGHT_SLOW_MO || '0'),
+  hitl: DEFAULT_HITL_CONFIG,
 };
 
 export interface RecordingEntry {
@@ -46,9 +71,42 @@ export class PlaywrightBrowser {
   private initialized = false;
   private recording: RecordingEntry[] = [];
   private isRecording = false;
+  private confirmCallback: ConfirmCallback | null = null;
 
   constructor(config: Partial<BrowserConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /** 设置 HITL 确认回调 */
+  setConfirmCallback(callback: ConfirmCallback): void {
+    this.confirmCallback = callback;
+  }
+
+  /** 请求 HITL 确认 */
+  private async requestConfirmation(action: string, details: string): Promise<boolean> {
+    if (!this.config.hitl.enabled || !this.confirmCallback) {
+      return true; // 未启用 HITL，自动通过
+    }
+    return this.confirmCallback(action, details);
+  }
+
+  /** 检查 URL 是否在白名单中 */
+  private isWhitelistedUrl(url: string): boolean {
+    try {
+      const hostname = new URL(url).hostname;
+      return this.config.hitl.navigationWhitelist.some(
+        pattern => hostname === pattern || hostname.endsWith('.' + pattern)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /** 检查选择器是否为敏感字段 */
+  private isSensitiveSelector(selector: string): boolean {
+    return this.config.hitl.sensitiveSelectors.some(
+      pattern => selector.includes(pattern) || selector.match(new RegExp(pattern))
+    );
   }
 
   /** 初始化浏览器 */
@@ -173,6 +231,15 @@ export class PlaywrightBrowser {
 
   async navigate(url: string): Promise<{ url: string; title: string }> {
     await this.ensureInitialized();
+
+    // HITL: 非白名单域名需要确认
+    if (!this.isWhitelistedUrl(url)) {
+      const confirmed = await this.requestConfirmation('navigate', `导航到 ${url}`);
+      if (!confirmed) {
+        throw new Error(`用户拒绝导航到: ${url}`);
+      }
+    }
+
     const page = this.getActivePage();
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     this.record({ timestamp: Date.now(), action: 'navigate', url });
@@ -212,6 +279,15 @@ export class PlaywrightBrowser {
 
   async fill(selector: string, value: string): Promise<{ success: boolean }> {
     await this.ensureInitialized();
+
+    // HITL: 敏感字段需要确认
+    if (this.isSensitiveSelector(selector)) {
+      const confirmed = await this.requestConfirmation('fill', `填写敏感字段: ${selector}`);
+      if (!confirmed) {
+        throw new Error(`用户拒绝填写敏感字段: ${selector}`);
+      }
+    }
+
     const page = this.getActivePage();
     await page.fill(selector, value);
     this.record({ timestamp: Date.now(), action: 'fill', selector, value });
@@ -377,6 +453,13 @@ export class PlaywrightBrowser {
 
   async evaluateJs(code: string): Promise<{ result: unknown }> {
     await this.ensureInitialized();
+
+    // HITL: JS 执行需要确认
+    const confirmed = await this.requestConfirmation('evaluate_js', `执行 JS: ${code.substring(0, 100)}...`);
+    if (!confirmed) {
+      throw new Error('用户拒绝执行 JavaScript');
+    }
+
     const page = this.getActivePage();
     const result = await page.evaluate(code);
     return { result };
