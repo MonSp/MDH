@@ -2,13 +2,15 @@
 Playwright 浏览器自动化 — Python 端实现
 
 对齐 TS 端 orchestrator/src/toolkit/browser.ts 的 25 个工具。
+支持任务队列和批量执行。
 """
 
 import asyncio
 import base64
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger("playwright_browser")
 
@@ -22,6 +24,120 @@ _initialized = False
 
 SCREENSHOT_DIR = os.environ.get("PLAYWRIGHT_SCREENSHOT_DIR", "/tmp/screenshots")
 
+
+@dataclass
+class BrowserTask:
+    """浏览器任务"""
+    id: str
+    url: str
+    actions: List[Dict[str, Any]] = field(default_factory=list)
+    priority: int = 0
+    timeout: float = 60.0
+
+
+@dataclass
+class TaskResult:
+    """任务结果"""
+    task_id: str
+    success: bool
+    data: Dict[str, Any] = field(default_factory=dict)
+    error: str = ""
+    screenshots: List[str] = field(default_factory=list)
+
+
+class BrowserTaskQueue:
+    """浏览器任务队列 — 支持批量执行和并发控制"""
+
+    def __init__(self, max_concurrent: int = 3):
+        self._queue: asyncio.Queue[BrowserTask] = asyncio.Queue()
+        self._results: Dict[str, TaskResult] = {}
+        self._max_concurrent = max_concurrent
+        self._running = False
+        self._workers: List[asyncio.Task] = []
+
+    async def submit(self, task: BrowserTask) -> str:
+        """提交任务到队列"""
+        await self._queue.put(task)
+        return task.id
+
+    async def start(self):
+        """启动工作线程"""
+        self._running = True
+        for i in range(self._max_concurrent):
+            worker = asyncio.create_task(self._worker(f"worker-{i}"))
+            self._workers.append(worker)
+
+    async def stop(self):
+        """停止工作线程"""
+        self._running = False
+        for worker in self._workers:
+            worker.cancel()
+        self._workers.clear()
+
+    async def _worker(self, name: str):
+        """工作线程：从队列取任务执行"""
+        while self._running:
+            try:
+                task = await asyncio.wait_for(self._queue.get(), timeout=1.0)
+                logger.info("[%s] 执行任务: %s (%s)", name, task.id, task.url)
+                result = await self._execute_task(task)
+                self._results[task.id] = result
+                self._queue.task_done()
+            except asyncio.TimeoutError:
+                continue
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error("[%s] 工作线程异常: %s", name, e)
+
+    async def _execute_task(self, task: BrowserTask) -> TaskResult:
+        """执行单个任务"""
+        screenshots = []
+        try:
+            result = await navigate(task.url)
+            for action in task.actions:
+                action_type = action.get("action", "")
+                if action_type == "click":
+                    await click(action["selector"])
+                elif action_type == "fill":
+                    await fill(action["selector"], action["value"])
+                elif action_type == "wait":
+                    await asyncio.sleep(int(action.get("value", "1000")) / 1000)
+                elif action_type == "screenshot":
+                    ss = await screenshot()
+                    screenshots.append(ss.get("path", ""))
+
+            # 最终截图
+            final_ss = await screenshot()
+            screenshots.append(final_ss.get("path", ""))
+
+            return TaskResult(
+                task_id=task.id,
+                success=True,
+                data={"url": _get_active_page().url if _initialized else ""},
+                screenshots=screenshots,
+            )
+        except Exception as e:
+            return TaskResult(task_id=task.id, success=False, error=str(e), screenshots=screenshots)
+
+    def get_result(self, task_id: str) -> Optional[TaskResult]:
+        """获取任务结果"""
+        return self._results.get(task_id)
+
+    def get_all_results(self) -> Dict[str, TaskResult]:
+        """获取所有结果"""
+        return dict(self._results)
+
+    @property
+    def pending_count(self) -> int:
+        return self._queue.qsize()
+
+    @property
+    def result_count(self) -> int:
+        return len(self._results)
+
+
+# ── 浏览器操作 ──
 
 async def _ensure_initialized():
     """确保浏览器已初始化"""

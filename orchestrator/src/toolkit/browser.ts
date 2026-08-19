@@ -1,18 +1,22 @@
 /**
- * Playwright 浏览器自动化
+ * Playwright 浏览器自动化 — 增强版
  *
- * 管理 Playwright 浏览器实例的生命周期，提供 25 个浏览器工具。
+ * 支持有头/无头模式、浏览器扩展加载、录制回放、HITL 集成。
+ * 提供 25 个浏览器工具 + 增强功能。
  */
 
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { join } from 'path';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
 
 export interface BrowserConfig {
   headless: boolean;
   browser: 'chromium' | 'firefox' | 'webkit';
   timeout: number;
   screenshotDir: string;
+  extensions: string[];
+  recordingDir: string;
+  slowMo: number;
 }
 
 const DEFAULT_CONFIG: BrowserConfig = {
@@ -20,7 +24,18 @@ const DEFAULT_CONFIG: BrowserConfig = {
   browser: (process.env.PLAYWRIGHT_BROWSER as any) || 'chromium',
   timeout: parseInt(process.env.PLAYWRIGHT_TIMEOUT || '30000'),
   screenshotDir: process.env.PLAYWRIGHT_SCREENSHOT_DIR || '/tmp/screenshots',
+  extensions: process.env.PLAYWRIGHT_EXTENSIONS?.split(',') || [],
+  recordingDir: process.env.PLAYWRIGHT_RECORDING_DIR || '/tmp/recordings',
+  slowMo: parseInt(process.env.PLAYWRIGHT_SLOW_MO || '0'),
 };
+
+export interface RecordingEntry {
+  timestamp: number;
+  action: string;
+  selector?: string;
+  value?: string;
+  url?: string;
+}
 
 export class PlaywrightBrowser {
   private browser: Browser | null = null;
@@ -29,6 +44,8 @@ export class PlaywrightBrowser {
   private activePageId: string = '';
   private config: BrowserConfig;
   private initialized = false;
+  private recording: RecordingEntry[] = [];
+  private isRecording = false;
 
   constructor(config: Partial<BrowserConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -38,11 +55,21 @@ export class PlaywrightBrowser {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    this.browser = await chromium.launch({
+    const launchOptions: Record<string, unknown> = {
       headless: this.config.headless,
-    });
+      slowMo: this.config.slowMo,
+    };
+
+    // 加载浏览器扩展（仅有头模式支持）
+    if (this.config.extensions.length > 0 && !this.config.headless) {
+      launchOptions.args = this.config.extensions.map(ext => `--load-extension=${ext}`);
+      launchOptions.args.push('--disable-extensions-except=' + this.config.extensions.join(','));
+    }
+
+    this.browser = await chromium.launch(launchOptions);
     this.context = await this.browser.newContext({
       viewport: { width: 1280, height: 720 },
+      recordVideo: this.isRecording ? { dir: this.config.recordingDir } : undefined,
     });
     this.context.setDefaultTimeout(this.config.timeout);
 
@@ -52,9 +79,12 @@ export class PlaywrightBrowser {
     this.pages.set(tabId, page);
     this.activePageId = tabId;
 
-    // 确保截图目录存在
+    // 确保目录存在
     if (!existsSync(this.config.screenshotDir)) {
       mkdirSync(this.config.screenshotDir, { recursive: true });
+    }
+    if (!existsSync(this.config.recordingDir)) {
+      mkdirSync(this.config.recordingDir, { recursive: true });
     }
 
     this.initialized = true;
@@ -86,12 +116,66 @@ export class PlaywrightBrowser {
     }
   }
 
+  /** 记录操作 */
+  private record(entry: RecordingEntry): void {
+    if (this.isRecording) {
+      this.recording.push(entry);
+    }
+  }
+
+  // ── 录制控制 ──
+
+  startRecording(): void {
+    this.isRecording = true;
+    this.recording = [];
+  }
+
+  stopRecording(): RecordingEntry[] {
+    this.isRecording = false;
+    return [...this.recording];
+  }
+
+  saveRecording(path: string): void {
+    writeFileSync(path, JSON.stringify(this.recording, null, 2));
+  }
+
+  loadRecording(path: string): RecordingEntry[] {
+    const data = readFileSync(path, 'utf-8');
+    return JSON.parse(data);
+  }
+
+  async replayRecording(entries: RecordingEntry[]): Promise<void> {
+    for (const entry of entries) {
+      switch (entry.action) {
+        case 'navigate':
+          await this.navigate(entry.url!);
+          break;
+        case 'click':
+          await this.click(entry.selector!);
+          break;
+        case 'fill':
+          await this.fill(entry.selector!, entry.value!);
+          break;
+        case 'type':
+          await this.typeText(entry.selector!, entry.value!);
+          break;
+        case 'press':
+          await this.pressKey(entry.value!);
+          break;
+        case 'wait':
+          await new Promise(r => setTimeout(r, parseInt(entry.value || '1000')));
+          break;
+      }
+    }
+  }
+
   // ── 导航工具 ──
 
   async navigate(url: string): Promise<{ url: string; title: string }> {
     await this.ensureInitialized();
     const page = this.getActivePage();
     await page.goto(url, { waitUntil: 'domcontentloaded' });
+    this.record({ timestamp: Date.now(), action: 'navigate', url });
     return { url: page.url(), title: await page.title() };
   }
 
@@ -122,6 +206,7 @@ export class PlaywrightBrowser {
     await this.ensureInitialized();
     const page = this.getActivePage();
     await page.click(selector);
+    this.record({ timestamp: Date.now(), action: 'click', selector });
     return { success: true };
   }
 
@@ -129,6 +214,7 @@ export class PlaywrightBrowser {
     await this.ensureInitialized();
     const page = this.getActivePage();
     await page.fill(selector, value);
+    this.record({ timestamp: Date.now(), action: 'fill', selector, value });
     return { success: true };
   }
 
@@ -136,6 +222,7 @@ export class PlaywrightBrowser {
     await this.ensureInitialized();
     const page = this.getActivePage();
     await page.type(selector, text, { delay: delay ?? 50 });
+    this.record({ timestamp: Date.now(), action: 'type', selector, value: text });
     return { success: true };
   }
 
@@ -143,6 +230,7 @@ export class PlaywrightBrowser {
     await this.ensureInitialized();
     const page = this.getActivePage();
     await page.keyboard.press(key);
+    this.record({ timestamp: Date.now(), action: 'press', value: key });
     return { success: true };
   }
 
@@ -150,6 +238,7 @@ export class PlaywrightBrowser {
     await this.ensureInitialized();
     const page = this.getActivePage();
     await page.hover(selector);
+    this.record({ timestamp: Date.now(), action: 'hover', selector });
     return { success: true };
   }
 
