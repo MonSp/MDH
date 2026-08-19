@@ -211,3 +211,43 @@ export function renderAssignmentNotification({ msg, index, styles }: RendererPro
     </div>
   )
 }
+
+/** 思维链消息渲染（折叠展示） */
+export function renderThinkingBlock({ msg, index, styles }: RendererProps): React.ReactElement | null {
+  if (!(msg as any)._thinking) return null
+  const isStreaming = (msg as any)._streaming
+  return (
+    <div key={index} style={{ ...styles.chatMessage, justifyContent: 'center' }}>
+      <div style={{
+        maxWidth: '85%',
+        padding: '8px 12px',
+        borderRadius: '10px',
+        background: 'rgba(139, 92, 246, 0.08)',
+        border: '1px solid rgba(139, 92, 246, 0.15)',
+        fontSize: '12px',
+        color: '#8b5cf6',
+        opacity: 0.85,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+          <span>🧠</span>
+          <span style={{ fontWeight: 600, fontSize: '11px' }}>
+            {isStreaming ? '思考中...' : '思维链'}
+          </span>
+          {isStreaming && (
+            <span style={{ animation: 'blink 1s infinite', color: '#8b5cf6' }}>▍</span>
+          )}
+        </div>
+        <div style={{
+          fontSize: '11px',
+          color: '#6b7280',
+          lineHeight: 1.5,
+          whiteSpace: 'pre-wrap' as const,
+          maxHeight: isStreaming ? 'none' : '150px',
+          overflow: isStreaming ? 'visible' : 'hidden',
+        }}>
+          {msg.content || (isStreaming ? '' : '(空)')}
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -79,7 +79,7 @@ export class RoleAgent {
 
     for (let i = 0; i < maxIterations; i++) {
       this.truncateIfNeeded();
-      const response = await this.callLLMWithTools(this.messages);
+      const response = await this.callLLMWithTools(this.messages, onEvent);
 
       if (response.content) {
         onEvent?.({
@@ -282,12 +282,39 @@ export class RoleAgent {
 
   private async callLLMWithTools(
     messages: Message[],
+    onEvent?: EventHandler,
   ): Promise<{ content: string | null; tool_calls: ToolCall[] }> {
     const contentParts: string[] = [];
+    const reasoningParts: string[] = [];
     const toolCalls: ToolCall[] = [];
+    let isThinking = false;
 
     for await (const chunk of safeChatStream(this.config.llm, messages, this.config.tools)) {
-      if (chunk.delta) contentParts.push(chunk.delta);
+      // 思维链处理
+      if (chunk.reasoning) {
+        if (!isThinking) {
+          isThinking = true;
+          onEvent?.({ type: 'thinking_start', agentId: this.id });
+        }
+        reasoningParts.push(chunk.reasoning);
+        onEvent?.({
+          type: 'thinking_delta',
+          agentId: this.id,
+          delta: chunk.reasoning,
+          timestamp: Date.now(),
+        });
+      }
+
+      // 正文处理
+      if (chunk.delta) {
+        if (isThinking) {
+          isThinking = false;
+          onEvent?.({ type: 'thinking_end', agentId: this.id });
+        }
+        contentParts.push(chunk.delta);
+      }
+
+      // 工具调用处理
       for (const tc of chunk.tool_calls) {
         if (tc.id) {
           toolCalls.push({
@@ -301,7 +328,15 @@ export class RoleAgent {
       }
     }
 
-    return { content: contentParts.join('') || null, tool_calls: toolCalls };
+    // 如果思维链还在活跃状态，结束它
+    if (isThinking) {
+      onEvent?.({ type: 'thinking_end', agentId: this.id });
+    }
+
+    return {
+      content: contentParts.join('') || null,
+      tool_calls: toolCalls,
+    };
   }
 
   private truncateIfNeeded(): void {

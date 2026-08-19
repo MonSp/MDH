@@ -17,6 +17,7 @@ import {
   renderExperience,
   renderIteration,
   renderAssignmentNotification,
+  renderThinkingBlock,
 } from './renderers'
 
 interface MeetingChatPanelProps {
@@ -112,6 +113,11 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
     const isRouting = subtype === 'routing' || !!msg._routingDecision
     const isExperience = subtype === 'experience'
     const isIteration = subtype === 'iteration' || !!msg._iterationStatus
+
+    // 思维链消息
+    if ((msg as any)._thinking) {
+      return renderThinkingBlock({ msg, index, styles })
+    }
 
     // 结构化反馈
     if (isFeedback && msg._structuredFeedback) {

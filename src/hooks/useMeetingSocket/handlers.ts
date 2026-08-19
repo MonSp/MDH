@@ -132,6 +132,60 @@ export function handleAgentMessage(msg: any, setters: HandlerSetters, refs: Hand
   }
 }
 
+// ── 思维链 handlers ──
+
+export function handleThinkingStart(msg: any, setters: HandlerSetters, refs: HandlerRefs) {
+  // 开始新的思维链消息
+  refs.pendingMessages.current.set(`thinking:${msg.agentId}`, '')
+  setters.setChatMessages(prev => [...prev, {
+    role: 'agent' as const,
+    agentId: msg.agentId,
+    content: '',
+    timestamp: Date.now(),
+    _thinking: true,
+    _streaming: true,
+  } as ChatMessage & { _thinking?: boolean; _streaming?: boolean }])
+}
+
+export function handleThinkingDelta(msg: any, setters: HandlerSetters, refs: HandlerRefs) {
+  const key = `thinking:${msg.agentId}`
+  const existing = refs.pendingMessages.current.get(key) ?? ''
+  const accumulated = existing + msg.delta
+  refs.pendingMessages.current.set(key, accumulated)
+
+  setters.setChatMessages(prev => {
+    const idx = [...prev].reverse().findIndex(
+      m => m.role === 'agent' && m.agentId === msg.agentId && (m as any)._thinking && (m as any)._streaming
+    )
+    if (idx !== -1) {
+      const actualIdx = prev.length - 1 - idx
+      const updated = [...prev]
+      updated[actualIdx] = { ...updated[actualIdx], content: accumulated }
+      return updated
+    }
+    return prev
+  })
+}
+
+export function handleThinkingEnd(msg: any, setters: HandlerSetters, refs: HandlerRefs) {
+  const key = `thinking:${msg.agentId}`
+  refs.pendingMessages.current.delete(key)
+
+  // 标记思维链消息为完成状态
+  setters.setChatMessages(prev => {
+    const idx = [...prev].reverse().findIndex(
+      m => m.role === 'agent' && m.agentId === msg.agentId && (m as any)._thinking && (m as any)._streaming
+    )
+    if (idx !== -1) {
+      const actualIdx = prev.length - 1 - idx
+      const updated = [...prev]
+      updated[actualIdx] = { ...updated[actualIdx], _streaming: false }
+      return updated
+    }
+    return prev
+  })
+}
+
 export function handleTaskAssigned(msg: any, setters: HandlerSetters) {
   const newTask: Task = {
     id: msg.taskId,
@@ -592,6 +646,9 @@ type Handler = (msg: any, setters: HandlerSetters, refs: HandlerRefs) => void
 const HANDLER_REGISTRY: Record<string, Handler> = {
   meeting_started: handleMeetingStarted,
   agent_message: handleAgentMessage,
+  thinking_start: handleThinkingStart,
+  thinking_delta: handleThinkingDelta,
+  thinking_end: handleThinkingEnd,
   task_assigned: handleTaskAssigned,
   task_deleted: handleTaskDeleted,
   agent_status_update: handleAgentStatusUpdate,

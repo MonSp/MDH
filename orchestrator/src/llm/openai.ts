@@ -82,6 +82,7 @@ export async function* chatStream(
 
         yield {
           delta: choice.delta?.content || '',
+          reasoning: choice.delta?.reasoning_content || '',
           tool_calls: choice.delta?.tool_calls || [],
           finish_reason: choice.finish_reason || null,
         };

@@ -32,6 +32,7 @@ export interface ToolDefinition {
 
 export interface LLMStreamChunk {
   delta: string;
+  reasoning?: string;  // 思维链/reasoning 内容（DeepSeek 等模型支持）
   tool_calls: Partial<ToolCall>[];
   finish_reason: string | null;
 }
