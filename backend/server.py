@@ -1637,6 +1637,124 @@ mcp_router.init(_mcp_config)
 
 
 
+# ──────────────────── 批量浏览器任务 API (v1.3.0) ────────────────────
+
+from playwright_browser import BrowserTask, BrowserTaskQueue, BrowserPool
+
+# 全局任务队列和实例池
+_task_queue = BrowserTaskQueue(max_concurrent=3)
+_browser_pool = BrowserPool(min_instances=1, max_instances=5)
+_browser_initialized = False
+
+
+async def _ensure_browser():
+    global _browser_initialized
+    if not _browser_initialized:
+        await _browser_pool.initialize()
+        _browser_initialized = True
+
+
+@app.post("/api/browser/submit")
+async def browser_submit_task(request: Request):
+    """提交浏览器任务到队列"""
+    try:
+        await _ensure_browser()
+        body = await request.json()
+        task_id = body.get("id", str(uuid.uuid4())[:8])
+        task = BrowserTask(
+            id=task_id,
+            url=body.get("url", ""),
+            actions=body.get("actions", []),
+            priority=body.get("priority", 0),
+            timeout=body.get("timeout", 60.0),
+        )
+        await _task_queue.submit(task)
+        return {"success": True, "task_id": task_id}
+    except Exception as e:
+        return _fail(str(e))
+
+
+@app.get("/api/browser/status")
+async def browser_status():
+    """获取任务队列和实例池状态"""
+    return {
+        "success": True,
+        "queue": {
+            "pending": _task_queue.pending_count,
+            "completed": _task_queue.result_count,
+        },
+        "pool": _browser_pool.get_stats(),
+    }
+
+
+@app.get("/api/browser/result/{task_id}")
+async def browser_get_result(task_id: str):
+    """获取任务结果"""
+    result = _task_queue.get_result(task_id)
+    if not result:
+        return _fail(f"任务不存在或未完成: {task_id}")
+    return {
+        "success": True,
+        "data": {
+            "task_id": result.task_id,
+            "success": result.success,
+            "data": result.data,
+            "error": result.error,
+            "screenshots": result.screenshots,
+        },
+    }
+
+
+@app.get("/api/browser/results")
+async def browser_get_all_results():
+    """获取所有任务结果"""
+    results = _task_queue.get_all_results()
+    return {
+        "success": True,
+        "data": {
+            task_id: {
+                "task_id": r.task_id,
+                "success": r.success,
+                "data": r.data,
+                "error": r.error,
+                "screenshots_count": len(r.screenshots),
+            }
+            for task_id, r in results.items()
+        },
+    }
+
+
+@app.post("/api/browser/start")
+async def browser_start_queue():
+    """启动任务队列"""
+    try:
+        await _ensure_browser()
+        await _task_queue.start()
+        return {"success": True, "message": "任务队列已启动"}
+    except Exception as e:
+        return _fail(str(e))
+
+
+@app.post("/api/browser/stop")
+async def browser_stop_queue():
+    """停止任务队列"""
+    try:
+        await _task_queue.stop()
+        return {"success": True, "message": "任务队列已停止"}
+    except Exception as e:
+        return _fail(str(e))
+
+
+@app.post("/api/browser/pool/health-check")
+async def browser_pool_health_check():
+    """执行实例池健康检查"""
+    try:
+        await _browser_pool.health_check()
+        return {"success": True, "stats": _browser_pool.get_stats()}
+    except Exception as e:
+        return _fail(str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     logging.basicConfig(
