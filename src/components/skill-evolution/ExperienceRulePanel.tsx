@@ -17,6 +17,12 @@ const statusCfg: Record<string, { label: string; bg: string; color: string }> = 
   rejected: { label: '已拒绝', bg: 'rgba(239,68,68,0.15)', color: '#ef4444' },
 }
 
+interface DemotionEntry {
+  rule_id: string; trigger_condition: string; action: string
+  effectiveness_score: number; usage_count: number; success_count: number
+  reason: string; demoted_at: string
+}
+
 export function ExperienceRulePanel({ mode = 'all' }: Props) {
   const [rules, setRules] = useState<ExperienceRule[]>([])
   const [filter, setFilter] = useState<'all' | 'pending_review' | 'approved' | 'rejected'>(mode === 'pending' ? 'pending_review' : 'all')
@@ -24,6 +30,8 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [actingId, setActingId] = useState<string | null>(null)
+  const [demotionAlerts, setDemotionAlerts] = useState<DemotionEntry[]>([])
+  const [alertsDismissed, setAlertsDismissed] = useState(false)
 
   const loadRules = async () => {
     setLoading(true); setError(null)
@@ -32,7 +40,18 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
     finally { setLoading(false) }
   }
 
-  useEffect(() => { loadRules() }, [mode])
+  const loadDemotionAlerts = async () => {
+    try {
+      const resp = await fetch('/api/experience/rules/demotion-log')
+      const data = await resp.json()
+      if (data.success && data.data?.summary?.recent_24h > 0) {
+        setDemotionAlerts(data.data.entries.slice(0, 5))
+        setAlertsDismissed(false)
+      }
+    } catch { /* silent */ }
+  }
+
+  useEffect(() => { loadRules(); loadDemotionAlerts() }, [mode])
 
   const handleApprove = async (id: string) => {
     setActingId(id)
@@ -69,6 +88,24 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
           <button key={k} onClick={() => setFilter(k as any)} style={{ ...s.filterBtn, ...(filter === k ? s.filterActive : {}) }}>{l}</button>
         ))}
       </div>
+
+      {demotionAlerts.length > 0 && !alertsDismissed && (
+        <div style={s.alertBanner}>
+          <div style={s.alertHeader}>
+            <span style={s.alertIcon}>⚠️</span>
+            <span style={s.alertTitle}>近 24 小时有 {demotionAlerts.length} 条规则因有效性不足被自动降级</span>
+            <button style={s.alertDismiss} onClick={() => setAlertsDismissed(true)}>✕</button>
+          </div>
+          {demotionAlerts.map((e, i) => (
+            <div key={i} style={s.alertEntry}>
+              <span style={s.alertRuleId}>{e.rule_id.slice(0, 8)}</span>
+              <span style={s.alertCondition}>{e.trigger_condition}</span>
+              <span style={s.alertScore}>{(e.effectiveness_score * 100).toFixed(0)}%</span>
+              <span style={s.alertUsage}>({e.success_count}/{e.usage_count})</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {error && <div style={s.error}>{error}</div>}
 
@@ -141,6 +178,16 @@ const s: Record<string, React.CSSProperties> = {
   filterRow: { display: 'flex', gap: 4, padding: '8px 16px', flexShrink: 0, flexWrap: 'wrap' as const, borderBottom: '1px solid rgba(255,255,255,0.06)' },
   filterBtn: { padding: '5px 14px', borderRadius: 14, borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#9ca3af', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', whiteSpace: 'nowrap' as const, flexShrink: 0 },
   filterActive: { background: 'rgba(139,92,246,0.2)', borderColor: 'rgba(139,92,246,0.5)', color: '#c4b5fd' },
+  alertBanner: { margin: '8px 12px 0', padding: '10px 14px', borderRadius: 8, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' },
+  alertHeader: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
+  alertIcon: { fontSize: 16, flexShrink: 0 },
+  alertTitle: { fontSize: 12, fontWeight: 600, color: '#fca5a5', flex: 1 },
+  alertDismiss: { background: 'none', border: 'none', color: '#6b7280', fontSize: 14, cursor: 'pointer', padding: '0 4px', lineHeight: 1 },
+  alertEntry: { display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', fontSize: 11, color: '#d1d5db' },
+  alertRuleId: { fontFamily: 'monospace', color: '#9ca3af', fontSize: 10 },
+  alertCondition: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  alertScore: { fontWeight: 700, color: '#ef4444' },
+  alertUsage: { color: '#6b7280', fontSize: 10 },
   error: { padding: '8px 16px', color: '#ef4444', fontSize: 12, background: 'rgba(239,68,68,0.1)' },
   list: { flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 },
   empty: { padding: 40, textAlign: 'center', color: '#6b7280', fontSize: 13 },

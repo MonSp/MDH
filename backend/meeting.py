@@ -36,6 +36,7 @@ class SessionEventType(str, Enum):
     REVIEW = "review"
     APPROVAL = "approval"
     EXPERIENCE_INJECTION = "experience_injection"
+    RULE_DEMOTION = "rule_demotion"
     TOOL = "tool"
     AUDIT = "audit"
 

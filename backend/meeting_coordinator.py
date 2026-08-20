@@ -625,19 +625,43 @@ class MeetingCoordinator:
         """委托给 RoutingStatsManager"""
         self._routing_stats.update_stats_safe(self.meeting.tasks)
 
-    def _update_injected_rule_effectiveness(
-        self, injected_rule_ids: List[str], review_result: Dict[str, Any]
+    async def _update_injected_rule_effectiveness(
+        self, coordinator_id: str, injected_rule_ids: List[str], review_result: Dict[str, Any]
     ) -> None:
-        """根据审查结果更新已注入规则的有效性评分"""
+        """根据审查结果更新已注入规则的有效性评分，降级时发出告警"""
         try:
             from experience_extractor import ExperienceExtractor
             data_dir = os.path.join(os.path.dirname(__file__), "data")
             extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
             structured = review_result.get("structured_feedback", {})
             task_success = structured.get("status", "approved") == "approved"
+            demoted_rules = []
             for rule_id in injected_rule_ids:
+                before = extractor._load_rule(rule_id)
+                before_status = before.status if before else None
                 extractor.update_rule_effectiveness(rule_id, task_success)
-            self.logger.info("已更新 %d 条注入规则有效性 (success=%s)", len(injected_rule_ids), task_success)
+                after = extractor._load_rule(rule_id)
+                if before_status == "approved" and after and after.status == "pending_review":
+                    demoted_rules.append(after)
+            self.logger.info("已更新 %d 条注入规则有效性 (success=%s, demoted=%d)",
+                             len(injected_rule_ids), task_success, len(demoted_rules))
+            # 降级告警
+            if demoted_rules:
+                alert_lines = [f"⚠️ 规则自动降级告警（{len(demoted_rules)} 条）："]
+                for r in demoted_rules:
+                    alert_lines.append(
+                        f"  - [{r.rule_id[:8]}] {r.trigger_condition} → {r.action}"
+                        f"  (score={r.effectiveness_score:.0%}, {r.success_count}/{r.usage_count})"
+                    )
+                alert_lines.append("已退回待审核队列，请检查并决定是否重新批准。")
+                alert_text = "\n".join(alert_lines)
+                await self._msg(coordinator_id, alert_text)
+                self.meeting.add_message("agent", alert_text, coordinator_id)
+                self.meeting.append_event(
+                    SessionEventType.RULE_DEMOTION,
+                    content=alert_text,
+                    agent_id=coordinator_id, phase="post_execution",
+                )
         except Exception as e:
             self.logger.debug("规则有效性更新跳过: %s", e)
 
@@ -911,9 +935,9 @@ class MeetingCoordinator:
         await self._msg(coordinator_id, project_summary)
         await self._run_skill_evolution(coordinator_id, user_message, discussion_results, review_result, execution_results)
 
-        # 更新已注入规则的有效性评分
+        # 更新已注入规则的有效性评分（降级时发出告警）
         if injected_rule_ids:
-            self._update_injected_rule_effectiveness(injected_rule_ids, review_result)
+            await self._update_injected_rule_effectiveness(coordinator_id, injected_rule_ids, review_result)
 
         # 汇报
         await self._msg(coordinator_id, "项目经理：任务执行完成，向CEO汇报结果。")
