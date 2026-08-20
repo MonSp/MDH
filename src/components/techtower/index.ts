@@ -1,5 +1,5 @@
 export type { TeamMember, ProjectDept, Project, CustomTeam, PanelState, CameraTarget } from './types'
-export { DEFAULT_DEPTS, DEFAULT_PROJECTS, ALL_AGENTS, STATUS_MAP, VIEW_PRESETS } from './constants'
+export { DEFAULT_DEPTS, DEFAULT_PROJECTS, ALL_AGENTS, STATUS_MAP, VIEW_PRESETS, CATEGORY_ICONS, CATEGORY_COLORS } from './constants'
 export { default as TowerScene } from './TowerScene'
 export { default as SidePanel } from './SidePanel'
 export { ViewBookmarks, OverlayButtons } from './OverlayUI'

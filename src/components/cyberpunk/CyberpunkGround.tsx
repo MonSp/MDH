@@ -1,145 +1,15 @@
-import React, { useMemo, useEffect, useState } from 'react'
+import React, { useMemo, useEffect } from 'react'
 import { MeshReflectorMaterial } from '@react-three/drei'
 import * as THREE from 'three'
 import { loadPBRTextures } from './PBRTextureLoader'
-import type { PBRTextureSet } from './PBRTextureLoader'
-import { createRoadNetwork, DEFAULT_ROAD_CONFIG } from './RoadNetworkManager'
-import type { RoadNetwork, RoadSegment } from './RoadNetworkManager'
 import RoadsFlat, { roadMaterial } from './RoadsFlat'
 import NeonLinesFlat from './NeonLinesFlat'
+import {
+  GROUND_SIZE, PLAZA_RADIUS, ROAD_WIDTH, SIDEWALK_WIDTH,
+  sidewalkMaterial, plazaMaterial, grassMaterial, curbMaterial, neonLineMaterial,
+} from './CyberpunkGround.materials'
 
 /* ───────── 赛博朋克城市地面系统 ───────── */
-
-const GROUND_SIZE = 120
-const PLAZA_RADIUS = 15
-const ROAD_WIDTH = 4
-const SIDEWALK_WIDTH = 2.5
-
-/* ───────── 程序化沥青纹理生成 ───────── */
-
-function generateAsphaltTexture(seed: number): THREE.CanvasTexture {
-  const size = 512
-  const canvas = document.createElement('canvas')
-  canvas.width = size
-  canvas.height = size
-  const ctx = canvas.getContext('2d')!
-
-  const rand = (s: number) => {
-    const x = Math.sin(s * 127.1 + seed * 311.7) * 43758.5453
-    return x - Math.floor(x)
-  }
-
-  // 深灰沥青基底
-  ctx.fillStyle = '#1a1a28'
-  ctx.fillRect(0, 0, size, size)
-
-  // 颗粒噪点
-  for (let i = 0; i < 5000; i++) {
-    const x = rand(i * 3) * size
-    const y = rand(i * 3 + 1) * size
-    const brightness = rand(i * 5) * 30 - 15
-    ctx.fillStyle = `rgba(${26 + brightness}, ${26 + brightness}, ${40 + brightness}, 0.2)`
-    ctx.fillRect(x, y, rand(i * 7) * 3 + 1, rand(i * 11) * 3 + 1)
-  }
-
-  // 裂缝
-  for (let i = 0; i < 4; i++) {
-    ctx.strokeStyle = `rgba(10, 10, 18, ${0.4 + rand(i * 19) * 0.3})`
-    ctx.lineWidth = 0.5 + rand(i * 23) * 1.5
-    ctx.beginPath()
-    let px = rand(i * 31) * size, py = rand(i * 37) * size
-    ctx.moveTo(px, py)
-    for (let j = 0; j < 5; j++) {
-      px += rand(i * 41 + j * 43) * 60 - 30
-      py += rand(i * 47 + j * 53) * 60
-      ctx.lineTo(px, py)
-    }
-    ctx.stroke()
-  }
-
-  // 污渍/油渍
-  for (let i = 0; i < 8; i++) {
-    ctx.fillStyle = `rgba(8, 8, 15, ${0.15 + rand(i * 59) * 0.2})`
-    ctx.beginPath()
-    ctx.ellipse(rand(i * 61) * size, rand(i * 67) * size, rand(i * 71) * 25 + 10, rand(i * 73) * 20 + 8, rand(i * 79) * Math.PI, 0, Math.PI * 2)
-    ctx.fill()
-  }
-
-  // 水渍反射高光
-  for (let i = 0; i < 3; i++) {
-    ctx.fillStyle = `rgba(40, 50, 80, ${0.08 + rand(i * 83) * 0.1})`
-    ctx.beginPath()
-    ctx.ellipse(rand(i * 89) * size, rand(i * 97) * size, rand(i * 101) * 40 + 15, rand(i * 103) * 30 + 10, rand(i * 107) * Math.PI, 0, Math.PI * 2)
-    ctx.fill()
-  }
-
-  const texture = new THREE.CanvasTexture(canvas)
-  texture.wrapS = THREE.RepeatWrapping
-  texture.wrapT = THREE.RepeatWrapping
-  texture.repeat.set(4, 4)
-  return texture
-}
-
-// 共享沥青纹理
-const asphaltDiffuse = generateAsphaltTexture(42)
-
-/* ───────── 地面材质定义 ───────── */
-// 马路材质 → 从 RoadsFlat 导入（PBR 纹理加载也用同一个实例）
-
-// 人行道材质 - 浅灰色混凝土，有纹理
-const sidewalkMaterial = new THREE.MeshStandardMaterial({
-  color: '#555570',
-  roughness: 0.6,
-  metalness: 0.15,
-  emissive: '#1a1a35',
-  emissiveIntensity: 0.6,
-})
-
-// 基础地面材质 - 深蓝色背景
-const baseGroundMaterial = new THREE.MeshStandardMaterial({
-  map: asphaltDiffuse,
-  color: '#2a2a4a',
-  roughness: 0.85,
-  metalness: 0.15,
-  emissive: '#151530',
-  emissiveIntensity: 0.5,
-})
-
-// 广场材质 - 亮紫色调，金属质感
-const plazaMaterial = new THREE.MeshStandardMaterial({
-  color: '#3d3d6a',
-  roughness: 0.3,
-  metalness: 0.7,
-  emissive: '#202050',
-  emissiveIntensity: 0.7,
-})
-
-// 草坪材质 - 深绿色
-const grassMaterial = new THREE.MeshStandardMaterial({
-  color: '#0a3020',
-  roughness: 0.9,
-  metalness: 0.02,
-  emissive: '#082818',
-  emissiveIntensity: 0.6,
-})
-
-// 路缘石材质 - 浅灰色，有高光
-const curbMaterial = new THREE.MeshStandardMaterial({
-  color: '#6a6a80',
-  roughness: 0.4,
-  metalness: 0.3,
-  emissive: '#2a2a40',
-  emissiveIntensity: 0.5,
-})
-
-// 霓虹道路线材质 - 亮青色
-const neonLineMaterial = new THREE.MeshStandardMaterial({
-  color: '#00eeff',
-  emissive: '#00ccff',
-  emissiveIntensity: 3.0,
-  roughness: 0.15,
-  metalness: 0.85,
-})
 
 /* ───────── 创建平铺在地面的矩形 ───────── */
 

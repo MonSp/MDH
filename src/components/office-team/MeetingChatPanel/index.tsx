@@ -5,8 +5,8 @@
  */
 
 import React, { useRef, useEffect, useState } from 'react'
-import { AgentRole } from '../../modules/agentTypes'
-import RoleAvatar from '../RoleAvatar'
+import { AgentRole } from '../../../modules/agentTypes'
+import RoleAvatar from '../../RoleAvatar'
 import type { TeamAgent, ChatMessage } from '../types'
 import { ROLE_EMOJI } from '../constants'
 import { formatTime } from '../utils'

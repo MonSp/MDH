@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import type { Project, ProjectDept, CustomTeam, PanelState, RoleConfig, ToolInfo, SkillInfo } from './types'
 import { DEFAULT_DEPTS, STATUS_MAP, ALL_AGENTS } from './constants'
-import { STORAGE_KEYS } from '../../constants'
+import { useRolesConfig } from './useRolesConfig'
 
 /* ───────── 样式常量 ───────── */
 
@@ -43,11 +43,15 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const deptList = depts ?? DEFAULT_DEPTS
 
-  // 角色管理状态
-  const [roles, setRoles] = useState<Record<string, RoleConfig>>({})
-  const [customRoles, setCustomRoles] = useState<Record<string, RoleConfig & { base_role?: string; extra_tools?: string[]; extra_skills?: string[]; custom_prompt?: string }>>({})
-  const [tools, setTools] = useState<Record<string, ToolInfo>>({})
-  const [skills, setSkills] = useState<Record<string, SkillInfo>>({})
+  // 角色/技能/工具配置（从 hook 获取数据和 CRUD 操作）
+  const {
+    roles, customRoles, tools, skills, loadingRoles,
+    loadRolesConfig, handleSaveRole, handleCreateRole, handleDeleteRole,
+    handleGenerateSkill, handleImportSkill, handleDeleteSkill,
+    handleImportTool, handleDeleteTool,
+  } = useRolesConfig()
+
+  // UI 状态
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const [editingRole, setEditingRole] = useState<string | null>(null)
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null)
@@ -57,7 +61,6 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
   const [editForm, setEditForm] = useState<any>({})
   const [showNewRole, setShowNewRole] = useState(false)
   const [newRoleForm, setNewRoleForm] = useState({ name: '', description: '', base_role: 'executor', extra_tools: [] as string[], extra_skills: [] as string[], custom_prompt: '' })
-  const [loadingRoles, setLoadingRoles] = useState(false)
 
   // 技能/工具导入状态
   const [showImportSkill, setShowImportSkill] = useState(false)
@@ -75,141 +78,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
 
   useEffect(() => {
     if (panel?.type === 'roles' || panel?.type === 'skills' || panel?.type === 'tools') loadRolesConfig()
-  }, [panel])
-
-  const loadRolesConfig = async () => {
-    setLoadingRoles(true)
-    try {
-      // 加载角色和工具配置
-      const res = await fetch('/api/roles/config')
-      if (!res.ok) {
-        console.error('API请求失败:', res.status, res.statusText)
-        return
-      }
-      const data = await res.json()
-      if (data.success && data.data) {
-        setRoles(data.data.base_roles || {})
-        setCustomRoles(data.data.custom_roles || {})
-        setTools(data.data.tools || {})
-      }
-
-      // 加载技能包完整数据（含 methodology、category 等）
-      try {
-        const skillsRes = await fetch('/api/skills/list')
-        if (skillsRes.ok) {
-          const skillsData = await skillsRes.json()
-          const packs = skillsData?.data?.skills || skillsData?.skills || []
-          const skillsMap: Record<string, any> = {}
-          for (const pack of packs) {
-            skillsMap[pack.name] = {
-              name: pack.name,
-              description: pack.description || '',
-              methodology: pack.methodology || '',
-              category: pack.category || '',
-              required_tools: pack.tools || [],
-            }
-          }
-          setSkills(skillsMap)
-        }
-      } catch (e) { console.error('加载技能包失败:', e) }
-    } catch (e) { console.error('加载配置失败:', e) }
-    finally { setLoadingRoles(false) }
-  }
-
-  /* ───── 角色操作 ───── */
-
-  const handleSaveRole = async (roleId: string) => {
-    try {
-      await fetch(`/api/roles/${roleId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editForm) })
-      await loadRolesConfig(); setEditingRole(null)
-    } catch (e) { console.error('保存失败:', e) }
-  }
-
-  const handleCreateRole = async () => {
-    const roleId = newRoleForm.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
-    if (!roleId) return
-    try {
-      await fetch(`/api/roles/${roleId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newRoleForm) })
-      await loadRolesConfig(); setShowNewRole(false); setNewRoleForm({ name: '', description: '', base_role: 'executor', extra_tools: [], extra_skills: [], custom_prompt: '' })
-    } catch (e) { console.error('创建失败:', e) }
-  }
-
-  const handleDeleteRole = async (roleId: string) => {
-    try { await fetch(`/api/roles/${roleId}`, { method: 'DELETE' }); await loadRolesConfig(); if (selectedRole === roleId) setSelectedRole(null) }
-    catch (e) { console.error('删除失败:', e) }
-  }
-
-  /* ───── 技能操作 ───── */
-
-  const handleGenerateSkill = async () => {
-    if (!aiPrompt.trim()) { setImportError('请描述你需要的技能'); return }
-    setAiGenerating(true)
-    setImportError('')
-    try {
-      const res = await fetch('/api/roles/skills/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: aiPrompt,
-          api_key: localStorage.getItem(STORAGE_KEYS.API_KEY) || undefined,
-          base_url: localStorage.getItem(STORAGE_KEYS.BASE_URL) || undefined,
-        })
-      })
-      const data = await res.json()
-      if (data.success && data.data) {
-        const d = data.data
-        setImportSkillForm({
-          id: d.id || '',
-          name: d.name || '',
-          description: d.description || '',
-          category: d.category || '',
-          methodology: d.methodology || '',
-          practices: d.practices || [],
-          workflow: d.workflow || {},
-          required_tools: d.required_tools || [],
-        })
-      } else {
-        setImportError(data.error || 'AI生成失败')
-      }
-    } catch (e) { setImportError('AI生成请求失败') }
-    finally { setAiGenerating(false) }
-  }
-
-  const handleImportSkill = async () => {
-    setImportError('')
-    const id = importSkillForm.id.trim()
-    if (!id) { setImportError('请输入技能ID'); return }
-    try {
-      const res = await fetch(`/api/roles/skills/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(importSkillForm) })
-      const data = await res.json()
-      if (data.success) { await loadRolesConfig(); setShowImportSkill(false); setImportSkillForm({ id: '', name: '', description: '', category: '', methodology: '', practices: [], workflow: {}, required_tools: [] }); setAiPrompt('') }
-      else setImportError(data.error || '导入失败')
-    } catch (e) { setImportError('导入失败') }
-  }
-
-  const handleDeleteSkill = async (skillId: string) => {
-    try { await fetch(`/api/roles/skills/${skillId}`, { method: 'DELETE' }); await loadRolesConfig() }
-    catch (e) { console.error('删除失败:', e) }
-  }
-
-  /* ───── 工具操作 ───── */
-
-  const handleImportTool = async () => {
-    setImportError('')
-    const id = importToolForm.id.trim()
-    if (!id) { setImportError('请输入工具ID'); return }
-    try {
-      const res = await fetch(`/api/roles/tools/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(importToolForm) })
-      const data = await res.json()
-      if (data.success) { await loadRolesConfig(); setShowImportTool(false); setImportToolForm({ id: '', name: '', description: '', category: 'general', dangerous: false }) }
-      else setImportError(data.error || '导入失败')
-    } catch (e) { setImportError('导入失败') }
-  }
-
-  const handleDeleteTool = async (toolId: string) => {
-    try { await fetch(`/api/roles/tools/${toolId}`, { method: 'DELETE' }); await loadRolesConfig() }
-    catch (e) { console.error('删除失败:', e) }
-  }
+  }, [panel, loadRolesConfig])
 
   /* ───── 通用样式 ───── */
 
@@ -552,7 +421,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => handleSaveRole(editingRole)} style={{ flex: 1, padding: '8px 0', background: '#30d158', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>保存</button>
+              <button onClick={async () => { await handleSaveRole(editingRole, editForm); setEditingRole(null) }} style={{ flex: 1, padding: '8px 0', background: '#30d158', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>保存</button>
               <button onClick={() => setEditingRole(null)} style={{ flex: 1, padding: '8px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
             </div>
           </div>
@@ -603,7 +472,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleCreateRole} disabled={!newRoleForm.name.trim()} style={{ flex: 1, padding: '8px 0', background: newRoleForm.name.trim() ? '#30d158' : '#333', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: newRoleForm.name.trim() ? 'pointer' : 'not-allowed' }}>创建</button>
+              <button onClick={async () => { await handleCreateRole(newRoleForm); setShowNewRole(false); setNewRoleForm({ name: '', description: '', base_role: 'executor', extra_tools: [], extra_skills: [], custom_prompt: '' }) }} disabled={!newRoleForm.name.trim()} style={{ flex: 1, padding: '8px 0', background: newRoleForm.name.trim() ? '#30d158' : '#333', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: newRoleForm.name.trim() ? 'pointer' : 'not-allowed' }}>创建</button>
               <button onClick={() => setShowNewRole(false)} style={{ flex: 1, padding: '8px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
             </div>
           </div>

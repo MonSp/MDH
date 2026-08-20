@@ -174,3 +174,29 @@ export const VIEW_PRESETS: { label: string; pos: [number, number, number]; targe
   { label: 'CEO', pos: [8, 36, 10], target: [0, 30, 0] },
   { label: '全景', pos: [55, 45, 55], target: [0, 10, 0] },
 ]
+
+/* ───────── 分类图标/颜色映射 ───────── */
+
+export const CATEGORY_ICONS: Record<string, string> = {
+  '软件开发': '💻',
+  'AI影视': '🎬',
+  '数据分析': '📊',
+  '内容创作': '✍️',
+  'PPT设计': '📑',
+  '物流系统': '🚚',
+  '客服系统': '💬',
+  '其他': '📋',
+  '未分类': '📁',
+}
+
+export const CATEGORY_COLORS: Record<string, string> = {
+  '软件开发': '#3b82f6',
+  'AI影视': '#ef4444',
+  '数据分析': '#8b5cf6',
+  '内容创作': '#f59e0b',
+  'PPT设计': '#10b981',
+  '物流系统': '#06b6d4',
+  '客服系统': '#ec4899',
+  '其他': '#6b7280',
+  '未分类': '#4b5563',
+}
