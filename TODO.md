@@ -35,10 +35,14 @@
 - [x] **OfficeScene** — 939→264 行，提取 styles(499行) + 4 个 Tab 组件
 - [x] **TechTowerView** — 884→417 行，提取 FloorProjectPanel/StorageSetupPrompt/SceneControlsPanel/ResourceButtons/constants
 - [x] **MeetingChatPanel** — 764→删除，迁移到目录版本，修复相对路径
-- [x] **CyberpunkGround** — 650→519 行，提取材质+纹理到 materials.ts
+- [x] **CyberpunkGround** — 650→133 行，提取材质(materials.ts) + 8个子组件(components.tsx)
 - [x] **dependencyAnalyzer** — 627→475 行，提取默认规则和模式到 defaults.ts
 - [x] **taskDecomposer** — 590→437 行，提取内置模板到 templates.ts
-- [x] **SidePanel** — 1155→1033 行，提取 useRolesConfig hook (137行)
+- [x] **SidePanel** — 1155→621 行，提取 useRolesConfig hook + RolePanel/SkillPanel/ToolPanel 子组件
+- [x] **plannerAgent** — 608→516 行，提取 plannerAgent.types.ts
+- [x] **agentReferenceSystem** — 603→557 行，提取 agentReferenceSystem.types.ts
+- [x] **taskScheduler** — 551→524 行，提取 taskScheduler.types.ts
+- [x] **agentCoordinator** — 537→519 行，提取 agentCoordinator.types.ts
 
 ---
 
