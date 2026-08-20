@@ -357,12 +357,7 @@ class TaskOrchestrator:
 
                 self._meeting.update_task_status(task.id, "completed")
                 self._meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
-                
-                # 更新路由统计
-                dept_id = self._task_routing.get(task.id)
-                if dept_id:
-                    self._router.update_stats(dept_id, success=True)
-                
+
                 results.append({
                     "task_id": task.id,
                     "agent_id": task.agent_id,
@@ -377,11 +372,7 @@ class TaskOrchestrator:
                 logger.error("任务执行失败: task_id=%s error=%s", task.id, e)
                 self._meeting.update_task_status(task.id, "failed")
                 self._meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
-                
-                dept_id = self._task_routing.get(task.id)
-                if dept_id:
-                    self._router.update_stats(dept_id, success=False)
-                
+
                 results.append({
                     "task_id": task.id,
                     "agent_id": task.agent_id,

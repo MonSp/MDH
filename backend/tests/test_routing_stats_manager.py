@@ -58,3 +58,38 @@ class TestRoutingStatsManager:
         manager.track_task("task-1", "dept-frontend")
         manager.clear()
         assert manager._task_routing == {}
+
+    def test_auto_assign_then_update_stats_closed_loop(self, manager):
+        """auto_assign 写入 → update_stats 消费 → 路由统计闭环"""
+        # 模拟 auto_assign_task 写入路由
+        manager.track_task("task-100", "dept-frontend")
+        manager.track_task("task-200", "dept-backend")
+
+        # 模拟任务执行完成
+        t1 = MagicMock(); t1.id = "task-100"; t1.status = "completed"
+        t2 = MagicMock(); t2.id = "task-200"; t2.status = "failed"
+
+        manager.update_stats([t1, t2])
+
+        # 验证两次 update_stats 调用
+        calls = manager._router.update_stats.call_args_list
+        assert len(calls) == 2
+        assert calls[0] == (("dept-frontend",), {"success": True})
+        assert calls[1] == (("dept-backend",), {"success": False})
+        # 验证消费即删
+        assert manager._task_routing == {}
+
+    def test_execute_sequential_no_direct_stats_call(self):
+        """_execute_sequential 不再直接调用 router.update_stats（由 _update_routing_stats_safe 统一处理）"""
+        from task_orchestrator import TaskOrchestrator
+        router = MagicMock()
+        meeting = MagicMock()
+        orch = TaskOrchestrator(
+            get_model_fn=MagicMock(),
+            meeting=meeting,
+            router=router,
+        )
+        # 确认 _task_routing 为空（assign() 未被调用）
+        assert orch._task_routing == {}
+        # router.update_stats 不应被调用
+        router.update_stats.assert_not_called()

@@ -296,12 +296,10 @@ class TestRouterStatsUpdate:
         assert coordinator.router._table["dept-software"].total_tasks == original_total + 1
         assert coordinator.router._table["dept-software"].successful_tasks == original_success
 
-    def test_execute_tasks_updates_stats_on_success(self, coordinator):
-        """execute_assigned_tasks 成功时应调用 router.update_stats"""
+    def test_execute_tasks_no_direct_stats_update(self, coordinator):
+        """execute_assigned_tasks 不再直接调用 router.update_stats（由 _update_routing_stats_safe 统一处理）"""
         task = coordinator.meeting.add_task("agent-executor", "测试任务")
         coordinator.meeting.update_task_status(task.id, "assigned")
-        # 设置 orchestrator 的 _task_routing（不是 coordinator 的）
-        coordinator._task_orchestrator._task_routing[task.id] = "dept-software"
 
         mock_model = MagicMock()
         mock_model.reply = AsyncMock(return_value=MagicMock(
@@ -311,25 +309,26 @@ class TestRouterStatsUpdate:
         coordinator._get_model = mock_get
         coordinator._task_orchestrator._get_model = mock_get
 
-        with patch.object(coordinator._task_orchestrator._router, "update_stats") as mock_stats:
-            results = asyncio.run(coordinator.execute_assigned_tasks())
-            mock_stats.assert_called_with("dept-software", success=True)
+        with patch.object(coordinator.router, "update_stats") as mock_stats:
+            asyncio.run(coordinator.execute_assigned_tasks())
+            mock_stats.assert_not_called()
 
-    def test_execute_tasks_updates_stats_on_failure(self, coordinator):
-        """execute_assigned_tasks 失败时应调用 router.update_stats(success=False)"""
+    def test_routing_stats_updated_via_safe_path(self, coordinator):
+        """路由统计通过 _update_routing_stats_safe 正确更新"""
         task = coordinator.meeting.add_task("agent-executor", "测试任务")
-        coordinator.meeting.update_task_status(task.id, "assigned")
-        coordinator._task_orchestrator._task_routing[task.id] = "dept-software"
+        coordinator.meeting.update_task_status(task.id, "completed")
+        # 通过 coordinator 的 _task_routing（Dict A）写入路由
+        coordinator._routing_stats.track_task(task.id, "dept-software")
 
-        mock_model = MagicMock()
-        mock_model.reply = AsyncMock(side_effect=RuntimeError("API 调用失败"))
-        mock_get = MagicMock(return_value=mock_model)
-        coordinator._get_model = mock_get
-        coordinator._task_orchestrator._get_model = mock_get
+        original_total = coordinator.router._table["dept-software"].total_tasks
+        original_success = coordinator.router._table["dept-software"].successful_tasks
 
-        with patch.object(coordinator._task_orchestrator._router, "update_stats") as mock_stats:
-            results = asyncio.run(coordinator.execute_assigned_tasks())
-            mock_stats.assert_called_with("dept-software", success=False)
+        coordinator._update_routing_stats_safe()
+
+        assert coordinator.router._table["dept-software"].total_tasks == original_total + 1
+        assert coordinator.router._table["dept-software"].successful_tasks == original_success + 1
+        # 验证消费即删
+        assert coordinator._routing_stats._task_routing == {}
 
     def test_auto_assign_task_records_routing_dept(self, coordinator):
         """auto_assign_task 应记录路由部门到 _task_routing"""
