@@ -361,6 +361,85 @@ class TestRuleEffectiveness:
         assert rule.usage_count == 0
         assert rule.success_count == 0
 
+    def test_auto_demote_after_3_failures(self, extractor):
+        """连续 3 次失败（score=0.0 < 0.4）自动降级为 pending_review"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        extractor.update_rule_effectiveness(rule.rule_id, False)
+        extractor.update_rule_effectiveness(rule.rule_id, False)
+        # 2 次失败，还未降级
+        assert extractor._load_rule(rule.rule_id).status == "approved"
+
+        extractor.update_rule_effectiveness(rule.rule_id, False)
+        # 3 次失败，自动降级
+        assert extractor._load_rule(rule.rule_id).status == "pending_review"
+        assert extractor._load_rule(rule.rule_id).usage_count == 3
+        assert extractor._load_rule(rule.rule_id).effectiveness_score == 0.0
+
+    def test_no_demote_when_mixed_results(self, extractor):
+        """1 成功 2 失败（score=0.33 < 0.4）也会降级"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        extractor.update_rule_effectiveness(rule.rule_id, True)
+        extractor.update_rule_effectiveness(rule.rule_id, False)
+        extractor.update_rule_effectiveness(rule.rule_id, False)
+        assert extractor._load_rule(rule.rule_id).status == "pending_review"
+        assert abs(extractor._load_rule(rule.rule_id).effectiveness_score - 1/3) < 0.01
+
+    def test_no_demote_when_score_adequate(self, extractor):
+        """2 成功 1 失败（score=0.67 ≥ 0.4）不降级"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        extractor.update_rule_effectiveness(rule.rule_id, True)
+        extractor.update_rule_effectiveness(rule.rule_id, True)
+        extractor.update_rule_effectiveness(rule.rule_id, False)
+        assert extractor._load_rule(rule.rule_id).status == "approved"
+
+    def test_scan_and_demote_batch(self, extractor):
+        """批量扫描降级所有低有效性规则"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        # 模拟 3 次失败
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule.rule_id, False)
+
+        # 已被 update_rule_effectiveness 自动降级，再手动改回 approved 测试批量扫描
+        r = extractor._load_rule(rule.rule_id)
+        r.status = "approved"
+        extractor._save_rule(r)
+
+        demoted = extractor.scan_and_demote_ineffective_rules()
+        assert rule.rule_id in demoted
+        assert extractor._load_rule(rule.rule_id).status == "pending_review"
+
+    def test_demote_not_triggered_below_min_usage(self, extractor):
+        """使用次数不足 3 次不触发降级"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        extractor.update_rule_effectiveness(rule.rule_id, False)
+        extractor.update_rule_effectiveness(rule.rule_id, False)
+        assert extractor._load_rule(rule.rule_id).status == "approved"
+
 
 # ──────────────────── 检索相关规则 ────────────────────
 

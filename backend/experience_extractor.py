@@ -489,8 +489,12 @@ class ExperienceExtractor:
         logger.info("Rule %s modified", rule_id)
         return True
 
+    # 有效性阈值：连续使用 ≥ 此次数且成功率 < 此分数时自动降级
+    DEMOTION_MIN_USAGE = 3
+    DEMOTION_THRESHOLD = 0.4
+
     def update_rule_effectiveness(self, rule_id: str, success: bool) -> bool:
-        """更新规则有效性评分
+        """更新规则有效性评分，低于阈值自动降级为 pending_review
 
         Args:
             rule_id: 规则 ID
@@ -505,10 +509,38 @@ class ExperienceExtractor:
         if success:
             rule.success_count += 1
         rule.effectiveness_score = rule.success_count / rule.usage_count if rule.usage_count else 0.0
+        # 自动降级：使用次数足够但有效性过低
+        if (rule.status == "approved"
+                and rule.usage_count >= self.DEMOTION_MIN_USAGE
+                and rule.effectiveness_score < self.DEMOTION_THRESHOLD):
+            rule.status = "pending_review"
+            logger.warning("Rule %s auto-demoted: score=%.2f (%d/%d) below %.0f%% threshold after %d uses",
+                           rule_id, rule.effectiveness_score, rule.success_count, rule.usage_count,
+                           self.DEMOTION_THRESHOLD * 100, rule.usage_count)
         self._save_rule(rule)
         logger.info("Rule %s effectiveness updated: score=%.2f (%d/%d)",
                      rule_id, rule.effectiveness_score, rule.success_count, rule.usage_count)
         return True
+
+    def scan_and_demote_ineffective_rules(self) -> List[str]:
+        """扫描所有已批准规则，降级有效性过低的规则
+
+        Returns:
+            被降级的规则 ID 列表
+        """
+        demoted = []
+        for rule_id in self._list_rule_ids():
+            rule = self._load_rule(rule_id)
+            if (rule is not None
+                    and rule.status == "approved"
+                    and rule.usage_count >= self.DEMOTION_MIN_USAGE
+                    and rule.effectiveness_score < self.DEMOTION_THRESHOLD):
+                rule.status = "pending_review"
+                self._save_rule(rule)
+                demoted.append(rule_id)
+                logger.warning("Rule %s batch-demoted: score=%.2f (%d/%d)",
+                               rule_id, rule.effectiveness_score, rule.success_count, rule.usage_count)
+        return demoted
 
     # ──────────────────── 写入增量区 ────────────────────
 
