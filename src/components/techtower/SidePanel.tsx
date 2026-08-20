@@ -718,7 +718,16 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
                 style={{ ...inputStyle, minHeight: 70, resize: 'vertical', width: '100%', boxSizing: 'border-box' }}
               />
               <button
-                onClick={handleGenerateSkill}
+                onClick={async () => {
+                  if (!aiPrompt.trim()) { setImportError('请描述你需要的技能'); return }
+                  setAiGenerating(true); setImportError('')
+                  try {
+                    const d = await handleGenerateSkill(aiPrompt)
+                    if (d) setImportSkillForm({ id: d.id || '', name: d.name || '', description: d.description || '', category: d.category || '', methodology: d.methodology || '', practices: d.practices || [], workflow: d.workflow || {}, required_tools: d.required_tools || [] })
+                    else setImportError('AI生成失败')
+                  } catch { setImportError('AI生成请求失败') }
+                  finally { setAiGenerating(false) }
+                }}
                 disabled={aiGenerating || !aiPrompt.trim()}
                 style={{
                   marginTop: 8, padding: '8px 16px', background: aiGenerating ? 'rgba(100,210,255,0.3)' : '#0a84ff',
@@ -792,7 +801,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleImportSkill} style={{ flex: 1, padding: '8px 0', background: '#0a84ff', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>添加</button>
+              <button onClick={async () => { const err = await handleImportSkill(importSkillForm); if (err) setImportError(err); else { setShowImportSkill(false); setImportSkillForm({ id: '', name: '', description: '', category: '', methodology: '', practices: [], workflow: {}, required_tools: [] }); setAiPrompt('') } }} style={{ flex: 1, padding: '8px 0', background: '#0a84ff', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>添加</button>
               <button onClick={() => { setShowImportSkill(false); setAiPrompt('') }} style={{ flex: 1, padding: '8px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
             </div>
           </div>
@@ -924,7 +933,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
               </label>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={handleImportTool} style={{ flex: 1, padding: '8px 0', background: '#bf5af2', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>添加</button>
+              <button onClick={async () => { const err = await handleImportTool(importToolForm); if (err) setImportError(err); else { setShowImportTool(false); setImportToolForm({ id: '', name: '', description: '', category: 'general', dangerous: false }) } }} style={{ flex: 1, padding: '8px 0', background: '#bf5af2', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>添加</button>
               <button onClick={() => setShowImportTool(false)} style={{ flex: 1, padding: '8px 0', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, color: '#8899aa', fontSize: 12, cursor: 'pointer' }}>取消</button>
             </div>
           </div>
