@@ -2,6 +2,13 @@
 
 > 基于 2026-08-19 v1.3.1 规划，按优先级排列。
 
+## v1.3.4 — 资产-技能协作闭环增强（2026-08-20）
+
+- [x] **P0: 经验提炼人工审核** — evolve_from_feedback 不再自动审批，规则保持 pending_review
+- [x] **P1: 资产编辑能力** — AssetStore.update_asset + PUT /api/assets/{id} + 前端编辑 UI
+- [x] **P2: 复用率仪表盘** — AssetBrowserPanel 展示注入统计（总注入/模板/产出物/规则命中）
+- [x] **P3: 技能包版本修复** — package_zip 使用实际版本号而非硬编码 v2.0
+
 ## v1.3.3 — 循环导入修复 + 类型安全（2026-08-20）
 
 - [x] **循环导入修复** — 提取 SidePanel.styles.ts，子组件从共享文件导入
