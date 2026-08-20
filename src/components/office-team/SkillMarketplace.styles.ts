@@ -1,0 +1,87 @@
+import type { CSSProperties } from 'react'
+
+export const s: Record<string, CSSProperties> = {
+  container: {
+    display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px',
+    background: 'rgba(15,23,42,0.6)', borderRadius: '8px',
+    border: '1px solid rgba(139,92,246,0.2)', maxHeight: '500px',
+  },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  title: { fontSize: '14px', fontWeight: 600, color: '#e2e8f0' },
+  stats: { fontSize: '10px', color: '#94a3b8' },
+  tabs: { display: 'flex', gap: '4px', flexWrap: 'wrap' as const },
+  tab: {
+    padding: '4px 10px', background: 'transparent',
+    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px',
+    color: '#94a3b8', fontSize: '11px', cursor: 'pointer',
+  },
+  tabActive: {
+    padding: '4px 10px', background: 'rgba(139,92,246,0.2)',
+    border: '1px solid rgba(139,92,246,0.4)', borderRadius: '4px',
+    color: '#a78bfa', fontSize: '11px', cursor: 'pointer',
+  },
+  searchRow: { display: 'flex', gap: '6px' },
+  search: {
+    flex: 1, padding: '6px 10px', background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px',
+    color: '#e2e8f0', fontSize: '12px', outline: 'none',
+  },
+  categorySelect: {
+    padding: '6px 8px', background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px',
+    color: '#e2e8f0', fontSize: '11px', minWidth: '80px',
+  },
+  list: { display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'auto', maxHeight: '350px' },
+  item: {
+    padding: '10px', borderRadius: '6px',
+    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+  },
+  itemHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' },
+  itemBadges: { display: 'flex', gap: '4px', alignItems: 'center' },
+  skillName: { fontSize: '13px', fontWeight: 600, color: '#e2e8f0', cursor: 'pointer' },
+  version: { fontSize: '10px', color: '#a78bfa', background: 'rgba(139,92,246,0.15)', padding: '1px 6px', borderRadius: '3px' },
+  categoryBadge: { fontSize: '10px', color: '#60a5fa', background: 'rgba(96,165,250,0.15)', padding: '1px 6px', borderRadius: '3px' },
+  badge: { fontSize: '10px', color: '#fbbf24', background: 'rgba(251,191,36,0.15)', padding: '1px 6px', borderRadius: '3px' },
+  desc: { fontSize: '11px', color: '#94a3b8', lineHeight: 1.4, marginBottom: '6px' },
+  meta: { fontSize: '10px', color: '#6b7280' },
+  detail: {
+    padding: '8px', marginBottom: '6px', borderRadius: '4px',
+    background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
+  },
+  detailRow: { display: 'flex', gap: '8px', marginBottom: '4px' },
+  detailLabel: { fontSize: '11px', color: '#94a3b8', fontWeight: 600, minWidth: '40px' },
+  detailValue: { fontSize: '11px', color: '#e2e8f0' },
+  itemFooter: { display: 'flex', gap: '8px', alignItems: 'center' },
+  btn: {
+    padding: '4px 10px', background: 'rgba(139,92,246,0.2)',
+    border: '1px solid rgba(139,92,246,0.4)', borderRadius: '4px',
+    color: '#a78bfa', fontSize: '11px', cursor: 'pointer',
+  },
+  btnSecondary: {
+    padding: '4px 10px', background: 'transparent',
+    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px',
+    color: '#94a3b8', fontSize: '11px', cursor: 'pointer',
+  },
+  empty: { fontSize: '12px', color: '#6b7280', textAlign: 'center' as const, padding: '20px' },
+  msg: { fontSize: '11px', color: '#34d399', padding: '4px 8px', background: 'rgba(52,211,153,0.1)', borderRadius: '4px' },
+  highlight: { background: 'rgba(251,191,36,0.3)', color: '#fbbf24', padding: '0 2px', borderRadius: '2px' },
+  pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', padding: '8px 0' },
+  pageBtn: {
+    padding: '4px 10px', background: 'rgba(139,92,246,0.2)',
+    border: '1px solid rgba(139,92,246,0.4)', borderRadius: '4px',
+    color: '#a78bfa', fontSize: '11px', cursor: 'pointer',
+  },
+  pageInfo: { fontSize: '11px', color: '#94a3b8' },
+  exportPanel: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  exportRow: { display: 'flex', gap: '6px', alignItems: 'center' },
+  select: {
+    padding: '6px 10px', background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px',
+    color: '#e2e8f0', fontSize: '12px', flex: 1,
+  },
+  communityPanel: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  communitySearchRow: { display: 'flex', gap: '6px' },
+  link: {
+    fontSize: '11px', color: '#60a5fa', textDecoration: 'none',
+  },
+}
