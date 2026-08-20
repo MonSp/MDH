@@ -4,13 +4,28 @@
 
 import type { ChatMessage } from '../../components/office-team/types'
 
-export interface CheckpointSetters {
-  setChatMessages: (fn: (prev: ChatMessage[]) => ChatMessage[]) => void
-  setCheckpoints: (fn: (prev: any[]) => any[]) => void
-  setRestoredState: (s: any) => void
+export interface CheckpointMessage {
+  checkpoint?: { id: string; taskId: string; stepIndex: number; createdAt: string }
+  checkpointId?: string
+  taskId?: string
+  stepIndex?: number
+  state?: unknown
+  checkpoints?: Array<{ id: string; taskId: string; stepIndex: number; createdAt: string }>
+  success?: boolean
+  meetingId?: string
+  tasksRestored?: number
+  messagesRestored?: number
+  entry?: { id: string; agentId: string; operation: string; target: string; riskLevel: string; allowed: boolean; reason: string; timestamp: string }
+  entries?: Array<{ id: string; agentId: string; operation: string; target: string; riskLevel: string; allowed: boolean; reason: string; timestamp: string }>
 }
 
-export function handleCheckpointSaved(msg: any, setters: CheckpointSetters) {
+export interface CheckpointSetters {
+  setChatMessages: (fn: (prev: ChatMessage[]) => ChatMessage[]) => void
+  setCheckpoints: (fn: (prev: unknown[]) => unknown[]) => void
+  setRestoredState: (s: unknown) => void
+}
+
+export function handleCheckpointSaved(msg: CheckpointMessage, setters: CheckpointSetters) {
   const cp = msg.checkpoint
   if (cp) {
     setters.setCheckpoints(prev => [...prev, {
@@ -28,7 +43,7 @@ export function handleCheckpointSaved(msg: any, setters: CheckpointSetters) {
   }
 }
 
-export function handleCheckpointRestored(msg: any, setters: CheckpointSetters) {
+export function handleCheckpointRestored(msg: CheckpointMessage, setters: CheckpointSetters) {
   setters.setRestoredState({
     checkpointId: msg.checkpointId,
     taskId: msg.taskId,
@@ -43,9 +58,9 @@ export function handleCheckpointRestored(msg: any, setters: CheckpointSetters) {
   }])
 }
 
-export function handleCheckpointsList(msg: any, setters: CheckpointSetters) {
+export function handleCheckpointsList(msg: CheckpointMessage, setters: CheckpointSetters) {
   const cps = msg.checkpoints || []
-  setters.setCheckpoints(cps.map((cp: any) => ({
+  setters.setCheckpoints(cps.map((cp: Record<string, unknown>) => ({
     id: cp.id,
     taskId: cp.taskId,
     stepIndex: cp.stepIndex,
@@ -53,13 +68,13 @@ export function handleCheckpointsList(msg: any, setters: CheckpointSetters) {
   })))
 }
 
-export function handleCheckpointDeleted(msg: any, setters: CheckpointSetters) {
+export function handleCheckpointDeleted(msg: CheckpointMessage, setters: CheckpointSetters) {
   if (msg.success) {
     setters.setCheckpoints(prev => prev.filter(cp => cp.id !== msg.checkpointId))
   }
 }
 
-export function handleMeetingSnapshotSaved(msg: any, setters: CheckpointSetters) {
+export function handleMeetingSnapshotSaved(msg: CheckpointMessage, setters: CheckpointSetters) {
   setters.setChatMessages(prev => [...prev, {
     role: 'boss' as const,
     content: `[快照] 会议快照已保存 (${msg.meetingId})`,
@@ -68,7 +83,7 @@ export function handleMeetingSnapshotSaved(msg: any, setters: CheckpointSetters)
   }])
 }
 
-export function handleMeetingSnapshotRestored(msg: any, setters: CheckpointSetters) {
+export function handleMeetingSnapshotRestored(msg: CheckpointMessage, setters: CheckpointSetters) {
   setters.setChatMessages(prev => [...prev, {
     role: 'boss' as const,
     content: `[快照] 已恢复 ${msg.tasksRestored} 个任务, ${msg.messagesRestored} 条消息`,
@@ -77,7 +92,7 @@ export function handleMeetingSnapshotRestored(msg: any, setters: CheckpointSette
   }])
 }
 
-export function handleAuditLog(msg: any, setters: CheckpointSetters) {
+export function handleAuditLog(msg: CheckpointMessage, setters: CheckpointSetters) {
   const entry = msg.entry
   if (entry) {
     setters.setCheckpoints(prev => [...prev, {
@@ -93,9 +108,9 @@ export function handleAuditLog(msg: any, setters: CheckpointSetters) {
   }
 }
 
-export function handleAuditLogList(msg: any, setters: CheckpointSetters) {
+export function handleAuditLogList(msg: CheckpointMessage, setters: CheckpointSetters) {
   const entries = msg.entries || []
-  setters.setCheckpoints(entries.map((e: any) => ({
+  setters.setCheckpoints(entries.map((e: Record<string, unknown>) => ({
     id: e.id,
     agentId: e.agentId,
     operation: e.operation,

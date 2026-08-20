@@ -4,12 +4,20 @@
 
 import type { ChatMessage } from '../../components/office-team/types'
 
-export interface ApprovalSetters {
-  setChatMessages: (fn: (prev: ChatMessage[]) => ChatMessage[]) => void
-  setPendingApprovals: (fn: (prev: Map<string, any>) => Map<string, any>) => void
+export interface ApprovalMessage {
+  request?: { id: string; requesterId: string; operation: string; description: string; riskLevel: string; confidence: number; status: string; createdAt: string; taskId?: string; gateId?: string; approver?: string; approverName?: string }
+  requestId?: string
+  approved?: boolean
+  reason?: string
+  requests?: Array<{ id: string; requesterId: string; operation: string; description: string; riskLevel: string; confidence: number; status: string; createdAt: string; taskId?: string; gateId?: string; approver?: string; approverName?: string }>
 }
 
-export function handleHumanApprovalRequest(msg: any, setters: ApprovalSetters) {
+export interface ApprovalSetters {
+  setChatMessages: (fn: (prev: ChatMessage[]) => ChatMessage[]) => void
+  setPendingApprovals: (fn: (prev: Map<string, ApprovalMessage['request']>) => Map<string, ApprovalMessage['request']>) => void
+}
+
+export function handleHumanApprovalRequest(msg: ApprovalMessage, setters: ApprovalSetters) {
   const request = msg.request
   if (request) {
     setters.setPendingApprovals(prev => {
@@ -39,7 +47,7 @@ export function handleHumanApprovalRequest(msg: any, setters: ApprovalSetters) {
   }
 }
 
-export function handleHumanApprovalResponse(msg: any, setters: ApprovalSetters) {
+export function handleHumanApprovalResponse(msg: ApprovalMessage, setters: ApprovalSetters) {
   const { requestId, approved, reason } = msg
   setters.setPendingApprovals(prev => {
     const next = new Map(prev)
@@ -54,7 +62,7 @@ export function handleHumanApprovalResponse(msg: any, setters: ApprovalSetters) 
   }])
 }
 
-export function handlePendingApprovals(msg: any, setters: ApprovalSetters) {
+export function handlePendingApprovals(msg: ApprovalMessage, setters: ApprovalSetters) {
   const requests = msg.requests || []
   setters.setPendingApprovals(prev => {
     const next = new Map(prev)

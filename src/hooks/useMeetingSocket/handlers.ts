@@ -112,7 +112,7 @@ export type { BridgeSetters, BridgeRefs } from './handlers/bridge'
 
 // ── 消息分发器 ──
 
-type Handler = (msg: any, setters: any, refs?: any) => void
+type Handler = (msg: Record<string, unknown>, setters: Record<string, unknown>, refs?: Record<string, unknown>) => void
 
 const HANDLER_REGISTRY: Record<string, Handler> = {
   meeting_started: handleMeetingStarted,
@@ -158,9 +158,9 @@ const HANDLER_REGISTRY: Record<string, Handler> = {
 
 export function dispatchMessage(
   msgType: string,
-  msg: any,
-  setters: any,
-  refs?: any,
+  msg: Record<string, unknown>,
+  setters: Record<string, unknown>,
+  refs?: Record<string, unknown>,
 ): boolean {
   const handler = HANDLER_REGISTRY[msgType]
   if (handler) {

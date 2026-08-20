@@ -7,6 +7,7 @@ import type { WorkflowExecution, WorkflowDefinition } from '../modules/agentType
 import { dispatchMessage } from './useMeetingSocket/handlers'
 import { STORAGE_KEYS } from '../constants'
 import { useMeetingStore } from './useMeetingSocket/meetingStore'
+import type { BridgeMessage } from './useMeetingSocket/meetingStore'
 
 export type MeetingPhase =
   | 'idle'
@@ -109,7 +110,7 @@ export default function useMeetingSocket({
   const reconnectAttempts = useRef(0)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSequenceNo = useRef(-1)
-  const bridgeCallbacks = useRef<Map<string, (msg: any) => void>>(new Map())
+  const bridgeCallbacks = useRef<Map<string, (msg: BridgeMessage) => void>>(new Map())
 
   // Bridge state
   // Bridge 消息（从 store 获取）
@@ -297,8 +298,8 @@ export default function useMeetingSocket({
 
   const registerBridgeAgent = useCallback((agentId: string, name: string, role: string, capabilities: string[]): Promise<{ pyAgentId: string; success: boolean }> => {
     return new Promise((resolve) => {
-      bridgeCallbacks.current.set(`reg:${agentId}`, (msg: any) => {
-        resolve({ pyAgentId: msg.pyAgentId, success: msg.success })
+      bridgeCallbacks.current.set(`reg:${agentId}`, (msg: BridgeMessage) => {
+        resolve({ pyAgentId: (msg as Record<string, unknown>).pyAgentId as string, success: (msg as Record<string, unknown>).success as boolean })
       })
       send({
         type: 'bridge_register_agent',
@@ -319,7 +320,7 @@ export default function useMeetingSocket({
     bridgeCallbacks.current.delete(`msg:${agentId}`)
   }, [send])
 
-  const sendBridgeMessage = useCallback((fromId: string, toId: string, payload: any) => {
+  const sendBridgeMessage = useCallback((fromId: string, toId: string, payload: unknown) => {
     send({
       type: 'bridge_message',
       fromAgentId: fromId,
@@ -328,7 +329,7 @@ export default function useMeetingSocket({
     })
   }, [send])
 
-  const onBridgeMessage = useCallback((agentId: string, callback: (msg: any) => void) => {
+  const onBridgeMessage = useCallback((agentId: string, callback: (msg: BridgeMessage) => void) => {
     bridgeCallbacks.current.set(`msg:${agentId}`, callback)
     return () => {
       bridgeCallbacks.current.delete(`msg:${agentId}`)

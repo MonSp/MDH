@@ -4,14 +4,20 @@
 
 import type { ChatMessage } from '../../components/office-team/types'
 
-export interface VotingSetters {
-  setChatMessages: (fn: (prev: ChatMessage[]) => ChatMessage[]) => void
-  setActiveProposal: (p: any) => void
-  setVotes: (fn: (prev: Map<string, any>) => Map<string, any>) => void
-  setVoteResults: (r: any) => void
+export interface VoteMessage {
+  proposal?: { id: string; proposerId: string; content: string; createdAt: string }
+  vote?: { voterId: string; approve: boolean; reason?: string }
+  result?: { proposalId: string; totalVotes: number; approveCount: number; opposeCount: number; accepted: boolean }
 }
 
-export function handleProposal(msg: any, setters: VotingSetters) {
+export interface VotingSetters {
+  setChatMessages: (fn: (prev: ChatMessage[]) => ChatMessage[]) => void
+  setActiveProposal: (p: { id: string; proposerId: string; content: string; createdAt: string } | null) => void
+  setVotes: (fn: (prev: Map<string, { voterId: string; approve: boolean; reason?: string }>) => Map<string, { voterId: string; approve: boolean; reason?: string }>) => void
+  setVoteResults: (r: { proposalId: string; totalVotes: number; approveCount: number; opposeCount: number; accepted: boolean } | null) => void
+}
+
+export function handleProposal(msg: VoteMessage, setters: VotingSetters) {
   const proposal = msg.proposal
   if (proposal) {
     setters.setActiveProposal({
@@ -32,7 +38,7 @@ export function handleProposal(msg: any, setters: VotingSetters) {
   }
 }
 
-export function handleVote(msg: any, setters: VotingSetters) {
+export function handleVote(msg: VoteMessage, setters: VotingSetters) {
   const vote = msg.vote
   if (vote) {
     setters.setVotes(prev => {
@@ -54,7 +60,7 @@ export function handleVote(msg: any, setters: VotingSetters) {
   }
 }
 
-export function handleVoteResult(msg: any, setters: VotingSetters) {
+export function handleVoteResult(msg: VoteMessage, setters: VotingSetters) {
   const result = msg.result
   if (result) {
     setters.setVoteResults({

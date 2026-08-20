@@ -4,6 +4,115 @@
 
 import type { TeamAgent, Task, ChatMessage } from '../../components/office-team/types'
 
+/** 会议生命周期 WebSocket 消息类型 */
+export interface MeetingMessage {
+  // 会议生命周期
+  meetingId?: string
+  meeting_id?: string
+  agents?: RawAgent[]
+
+  // 智能体消息
+  delta?: string
+  agentId?: string
+  content?: string
+  stance?: 'support' | 'oppose' | 'modify' | 'neutral'
+  confidence?: number
+
+  // 任务
+  taskId?: string
+  status?: string
+  currentTask?: string | null
+
+  // 议程
+  phase?: string
+  topic?: string
+  current_speaker?: string | null
+  proposal_id?: string | null
+  token_queue?: Array<{ agent_id?: string; agentId?: string; relevance_score?: number; relevanceScore?: number }>
+  event_history?: Array<{ type: string; timestamp: number; from?: string; to?: string; agent_id?: string; agentId?: string; reason?: string }>
+
+  // 错误
+  message?: string
+
+  // 语义分析
+  analysisResult?: string
+
+  // 任务自动分配
+  description?: string
+  routing_decision?: { selected_dept: string; confidence: number }
+  analysis?: unknown
+
+  // 结构化反馈
+  feedback?: {
+    status?: string
+    issues?: Array<{ id: number | string }>
+    current_iteration?: number
+    max_iterations?: number
+    overall_comment?: string
+  }
+
+  // 迭代状态
+  iteration_status?: {
+    current_iteration: number
+    max_iterations: number
+    status: string
+  }
+
+  // 经验注入
+  rules_count?: number
+  keywords?: string[]
+
+  // 技能挂载
+  skill_id?: string
+  skill_name?: string
+
+  // 审查结果
+  critic_result?: { severity?: string; findings?: Array<{ id: number | string }> }
+  grounding_result?: { grounded?: boolean; sources?: string[] }
+
+  // 工作流
+  workflow_result?: {
+    execution_id?: string
+    workflow_id?: string
+    status?: string
+    started_at?: string
+    completed_at?: string | null
+    node_states?: Record<string, unknown>
+    results?: Record<string, { result?: string }>
+  }
+  workflow_id?: string
+  node_id?: string
+
+  // 工作区
+  workspace_id?: string
+  workspace_type?: string
+  workspace_path?: string
+  branch_name?: string
+  task_id?: string
+
+  // 工具执行结果
+  tool_name?: string
+  arguments?: Record<string, unknown>
+  success?: boolean
+  output?: string
+  error?: string
+
+  // 阻塞器
+  blockerType?: string
+}
+
+/** 原始智能体数据（来自 meeting_started 消息） */
+export interface RawAgent {
+  id: string
+  name: string
+  role: string
+  status: string
+  capabilities?: string[]
+  currentTask?: string
+  skill_id?: string
+  skill_name?: string
+}
+
 export interface MeetingSetters {
   setMeetingId: (id: string) => void
   setAgents: (fn: (prev: TeamAgent[]) => TeamAgent[]) => void
@@ -12,17 +121,17 @@ export interface MeetingSetters {
   setIsMeetingActive: (v: boolean) => void
   setMeetingPhase: (phase: string) => void
   setMeetingStartTime: (v: number | null) => void
-  setAgendaState: (state: any) => void
-  setWorkspace: (ws: any) => void
-  setToolCallLogs: (fn: (prev: any[]) => any[]) => void
-  setLastWorkflow: (wf: any) => void
+  setAgendaState: (state: { phase: string; topic: string; currentSpeaker: string | null; proposalId: string | null; tokenQueue: Array<{ agentId: string; relevanceScore: number }>; eventHistory: Array<{ type: string; timestamp: string; from?: string; to?: string; agentId?: string; reason?: string }> }) => void
+  setWorkspace: (ws: { workspace_id: string; task_id: string; workspace_type: string; root_path: string; branch_name: string }) => void
+  setToolCallLogs: (fn: (prev: Array<{ tool_name: string; arguments: Record<string, unknown>; success: boolean; output?: string; error?: string; timestamp: string }>) => Array<{ tool_name: string; arguments: Record<string, unknown>; success: boolean; output?: string; error?: string; timestamp: string }>) => void
+  setLastWorkflow: (wf: { execution_id: string; workflow_id: string; status: string; started_at: string; completed_at: string | null; node_states: Record<string, unknown>; results: Record<string, unknown> }) => void
 }
 
 export interface MeetingRefs {
   pendingMessages: React.MutableRefObject<Map<string, string>>
 }
 
-export function handleMeetingStarted(msg: any, setters: MeetingSetters, refs: MeetingRefs) {
+export function handleMeetingStarted(msg: Partial<MeetingMessage>, setters: MeetingSetters, refs: MeetingRefs) {
   setters.setMeetingId(msg.meetingId || msg.meeting_id)
   setters.setAgents(() => msg.agents.map(mapAgentToTeamAgent))
   setters.setTasks(() => [])
@@ -38,14 +147,14 @@ export function handleMeetingStarted(msg: any, setters: MeetingSetters, refs: Me
   }])
 }
 
-export function handleAgentMessage(msg: any, setters: MeetingSetters, refs: MeetingRefs) {
+export function handleAgentMessage(msg: Partial<MeetingMessage>, setters: MeetingSetters, refs: MeetingRefs) {
   if (msg.delta) {
     const existing = refs.pendingMessages.current.get(msg.agentId) ?? ''
     const accumulated = existing + msg.delta
     refs.pendingMessages.current.set(msg.agentId, accumulated)
     setters.setChatMessages(prev => {
       const idx = [...prev].reverse().findIndex(
-        m => m.role === 'agent' && m.agentId === msg.agentId && (m as any)._streaming
+        m => m.role === 'agent' && m.agentId === msg.agentId && m._streaming
       )
       if (idx !== -1) {
         const actualIdx = prev.length - 1 - idx
@@ -68,7 +177,7 @@ export function handleAgentMessage(msg: any, setters: MeetingSetters, refs: Meet
     if (phase) setters.setMeetingPhase(phase)
     setters.setChatMessages(prev => {
       const filtered = prev.filter(
-        m => !(m.role === 'agent' && m.agentId === msg.agentId && (m as any)._streaming)
+        m => !(m.role === 'agent' && m.agentId === msg.agentId && m._streaming)
       )
       return [...filtered, {
         role: 'agent' as const,
@@ -84,7 +193,7 @@ export function handleAgentMessage(msg: any, setters: MeetingSetters, refs: Meet
 
 // ── 思维链 handlers ──
 
-export function handleThinkingStart(msg: any, setters: MeetingSetters, refs: MeetingRefs) {
+export function handleThinkingStart(msg: MeetingMessage, setters: MeetingSetters, refs: MeetingRefs) {
   refs.pendingMessages.current.set(`thinking:${msg.agentId}`, '')
   setters.setChatMessages(prev => [...prev, {
     role: 'agent' as const,
@@ -96,7 +205,7 @@ export function handleThinkingStart(msg: any, setters: MeetingSetters, refs: Mee
   } as ChatMessage & { _thinking?: boolean; _streaming?: boolean }])
 }
 
-export function handleThinkingDelta(msg: any, setters: MeetingSetters, refs: MeetingRefs) {
+export function handleThinkingDelta(msg: MeetingMessage, setters: MeetingSetters, refs: MeetingRefs) {
   const key = `thinking:${msg.agentId}`
   const existing = refs.pendingMessages.current.get(key) ?? ''
   const accumulated = existing + msg.delta
@@ -104,7 +213,7 @@ export function handleThinkingDelta(msg: any, setters: MeetingSetters, refs: Mee
 
   setters.setChatMessages(prev => {
     const idx = [...prev].reverse().findIndex(
-      m => m.role === 'agent' && m.agentId === msg.agentId && (m as any)._thinking && (m as any)._streaming
+      m => m.role === 'agent' && m.agentId === msg.agentId && m._thinking && m._streaming
     )
     if (idx !== -1) {
       const actualIdx = prev.length - 1 - idx
@@ -116,13 +225,13 @@ export function handleThinkingDelta(msg: any, setters: MeetingSetters, refs: Mee
   })
 }
 
-export function handleThinkingEnd(msg: any, setters: MeetingSetters, refs: MeetingRefs) {
+export function handleThinkingEnd(msg: MeetingMessage, setters: MeetingSetters, refs: MeetingRefs) {
   const key = `thinking:${msg.agentId}`
   refs.pendingMessages.current.delete(key)
 
   setters.setChatMessages(prev => {
     const idx = [...prev].reverse().findIndex(
-      m => m.role === 'agent' && m.agentId === msg.agentId && (m as any)._thinking && (m as any)._streaming
+      m => m.role === 'agent' && m.agentId === msg.agentId && m._thinking && m._streaming
     )
     if (idx !== -1) {
       const actualIdx = prev.length - 1 - idx
@@ -134,7 +243,7 @@ export function handleThinkingEnd(msg: any, setters: MeetingSetters, refs: Meeti
   })
 }
 
-export function handleTaskAssigned(msg: any, setters: MeetingSetters) {
+export function handleTaskAssigned(msg: MeetingMessage, setters: MeetingSetters) {
   const newTask: Task = {
     id: msg.taskId,
     agentId: msg.agentId,
@@ -148,11 +257,11 @@ export function handleTaskAssigned(msg: any, setters: MeetingSetters) {
   ))
 }
 
-export function handleTaskDeleted(msg: any, setters: MeetingSetters) {
+export function handleTaskDeleted(msg: MeetingMessage, setters: MeetingSetters) {
   setters.setTasks(prev => prev.filter(t => t.id !== msg.taskId))
 }
 
-export function handleAgentStatusUpdate(msg: any, setters: MeetingSetters) {
+export function handleAgentStatusUpdate(msg: MeetingMessage, setters: MeetingSetters) {
   setters.setAgents(prev => prev.map(a =>
     a.id === msg.agentId
       ? { ...a, status: msg.status, currentTask: msg.currentTask ?? a.currentTask }
@@ -160,7 +269,7 @@ export function handleAgentStatusUpdate(msg: any, setters: MeetingSetters) {
   ))
 }
 
-export function handleMeetingEnded(_msg: any, setters: MeetingSetters) {
+export function handleMeetingEnded(_msg: MeetingMessage, setters: MeetingSetters) {
   setters.setIsMeetingActive(false)
   setters.setMeetingPhase('idle')
   setters.setMeetingStartTime(null)
@@ -171,17 +280,17 @@ export function handleMeetingEnded(_msg: any, setters: MeetingSetters) {
   }])
 }
 
-export function handleAgendaUpdate(msg: any, setters: MeetingSetters) {
+export function handleAgendaUpdate(msg: MeetingMessage, setters: MeetingSetters) {
   setters.setAgendaState({
     phase: msg.phase || 'idle',
     topic: msg.topic || '',
     currentSpeaker: msg.current_speaker || null,
     proposalId: msg.proposal_id || null,
-    tokenQueue: (msg.token_queue || []).map((t: any) => ({
+    tokenQueue: (msg.token_queue || []).map((t: Record<string, unknown>) => ({
       agentId: t.agent_id || t.agentId,
       relevanceScore: t.relevance_score ?? t.relevanceScore ?? 0,
     })),
-    eventHistory: (msg.event_history || []).map((e: any) => ({
+    eventHistory: (msg.event_history || []).map((e: Record<string, unknown>) => ({
       type: e.type,
       timestamp: e.timestamp,
       from: e.from,
@@ -192,7 +301,7 @@ export function handleAgendaUpdate(msg: any, setters: MeetingSetters) {
   })
 }
 
-export function handleMeetingError(msg: any, setters: MeetingSetters) {
+export function handleMeetingError(msg: MeetingMessage, setters: MeetingSetters) {
   setters.setChatMessages(prev => [...prev, {
     role: 'boss' as const,
     content: `会议错误：${msg.message}`,
@@ -200,7 +309,7 @@ export function handleMeetingError(msg: any, setters: MeetingSetters) {
   }])
 }
 
-export function handleSemanticAnalysisResult(msg: any, setters: MeetingSetters) {
+export function handleSemanticAnalysisResult(msg: MeetingMessage, setters: MeetingSetters) {
   setters.setChatMessages(prev => [...prev, {
     role: 'ceo' as const,
     agentId: 'agent-ceo',
@@ -209,7 +318,7 @@ export function handleSemanticAnalysisResult(msg: any, setters: MeetingSetters) 
   }])
 }
 
-export function handleTaskAutoAssigned(msg: any, setters: MeetingSetters) {
+export function handleTaskAutoAssigned(msg: MeetingMessage, setters: MeetingSetters) {
   setters.setChatMessages(prev => [...prev, {
     role: 'ceo' as const,
     agentId: 'agent-ceo',
@@ -239,7 +348,7 @@ export function handleTaskAutoAssigned(msg: any, setters: MeetingSetters) {
   }
 }
 
-export function handleStructuredFeedback(msg: any, setters: MeetingSetters) {
+export function handleStructuredFeedback(msg: MeetingMessage, setters: MeetingSetters) {
   const feedback = msg.feedback
   const feedbackStatus = feedback?.status === 'approved' ? '验收通过' : '需要修改'
   const issueCount = feedback?.issues?.length ?? 0
@@ -263,7 +372,7 @@ export function handleStructuredFeedback(msg: any, setters: MeetingSetters) {
   }
 }
 
-export function handleIterationUpdate(msg: any, setters: MeetingSetters) {
+export function handleIterationUpdate(msg: MeetingMessage, setters: MeetingSetters) {
   const iterStatus = msg.iteration_status
   if (iterStatus) {
     setters.setChatMessages(prev => [...prev, {
@@ -285,7 +394,7 @@ export function handleIterationUpdate(msg: any, setters: MeetingSetters) {
   }
 }
 
-export function handleExperienceInjected(msg: any, setters: MeetingSetters) {
+export function handleExperienceInjected(msg: MeetingMessage, setters: MeetingSetters) {
   setters.setChatMessages(prev => [...prev, {
     role: 'agent' as const,
     agentId: msg.agentId || 'agent-executor',
@@ -295,7 +404,7 @@ export function handleExperienceInjected(msg: any, setters: MeetingSetters) {
   }])
 }
 
-export function handleSkillMounted(msg: any, setters: MeetingSetters) {
+export function handleSkillMounted(msg: MeetingMessage, setters: MeetingSetters) {
   setters.setAgents(prev => prev.map(a =>
     a.id === msg.agentId
       ? { ...a, skillId: msg.skill_id, skillName: msg.skill_name }
@@ -303,7 +412,7 @@ export function handleSkillMounted(msg: any, setters: MeetingSetters) {
   ))
 }
 
-export function handleReviewCompleted(msg: any, setters: MeetingSetters) {
+export function handleReviewCompleted(msg: MeetingMessage, setters: MeetingSetters) {
   const criticResult = msg.critic_result || {}
   const groundingResult = msg.grounding_result || {}
   const severity = criticResult.severity || 'unknown'
@@ -319,7 +428,7 @@ export function handleReviewCompleted(msg: any, setters: MeetingSetters) {
   }])
 }
 
-export function handleWorkflowExecuted(msg: any, setters: MeetingSetters) {
+export function handleWorkflowExecuted(msg: MeetingMessage, setters: MeetingSetters) {
   const workflowResult = msg.workflow_result || {}
   const workflowStatus = workflowResult.status || 'unknown'
   const workflowId = workflowResult.execution_id || msg.workflow_id || ''
@@ -345,7 +454,7 @@ export function handleWorkflowExecuted(msg: any, setters: MeetingSetters) {
 
   if (workflowResult.results && Object.keys(workflowResult.results).length > 0) {
     const resultSummary = Object.entries(workflowResult.results)
-      .map(([nodeId, result]: [string, any]) => `- ${nodeId}: ${result?.result?.substring(0, 100) || '无结果'}...`)
+      .map(([nodeId, result]: [string, { result?: string }]) => `- ${nodeId}: ${result?.result?.substring(0, 100) || '无结果'}...`)
       .join('\n')
     setters.setChatMessages(prev => [...prev, {
       role: 'ceo' as const,
@@ -357,7 +466,7 @@ export function handleWorkflowExecuted(msg: any, setters: MeetingSetters) {
   }
 }
 
-export function handleWorkflowNodeStatusUpdate(msg: any, setters: MeetingSetters) {
+export function handleWorkflowNodeStatusUpdate(msg: MeetingMessage, setters: MeetingSetters) {
   const nodeId = msg.node_id || ''
   const nodeStatus = msg.status || 'unknown'
   setters.setChatMessages(prev => [...prev, {
@@ -374,7 +483,7 @@ export function handleWorkflowNodeStatusUpdate(msg: any, setters: MeetingSetters
   }
 }
 
-export function handleWorkspaceCreated(msg: any, setters: MeetingSetters) {
+export function handleWorkspaceCreated(msg: MeetingMessage, setters: MeetingSetters) {
   setters.setWorkspace({
     workspace_id: msg.workspace_id,
     task_id: msg.task_id || '',
@@ -384,7 +493,7 @@ export function handleWorkspaceCreated(msg: any, setters: MeetingSetters) {
   })
 }
 
-export function handleToolResult(msg: any, setters: MeetingSetters) {
+export function handleToolResult(msg: MeetingMessage, setters: MeetingSetters) {
   setters.setToolCallLogs(prev => [...prev, {
     tool_name: msg.tool_name,
     arguments: msg.arguments || {},
@@ -395,7 +504,7 @@ export function handleToolResult(msg: any, setters: MeetingSetters) {
   }])
 }
 
-export function handleCriticalBlocker(msg: any, setters: MeetingSetters) {
+export function handleCriticalBlocker(msg: MeetingMessage, setters: MeetingSetters) {
   setters.setChatMessages(prev => [...prev, {
     role: 'boss' as const,
     content: `[紧急阻塞] ${msg.agentId}: ${msg.content} (类型: ${msg.blockerType})`,
@@ -406,7 +515,7 @@ export function handleCriticalBlocker(msg: any, setters: MeetingSetters) {
 
 // Helper functions
 
-function mapAgentToTeamAgent(raw: any): TeamAgent {
+function mapAgentToTeamAgent(raw: Record<string, unknown>): TeamAgent {
   return {
     id: raw.id,
     name: raw.name,

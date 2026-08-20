@@ -5,52 +5,10 @@ import { useRolesConfig } from './useRolesConfig'
 import RolePanel from './RolePanel'
 import SkillPanel from './SkillPanel'
 import ToolPanel from './ToolPanel'
-
-/* ───────── 样式常量 ───────── */
-
-export const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '6px 10px', borderRadius: 6,
-  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(100,210,255,0.2)',
-  color: '#e0e8f0', fontSize: 12, outline: 'none', boxSizing: 'border-box',
-}
-
-export const selectStyle: React.CSSProperties = {
-  ...inputStyle, appearance: 'none' as const,
-}
-
-export const tagStyle = (active: boolean, color: string): React.CSSProperties => ({
-  display: 'inline-flex', alignItems: 'center', gap: 4,
-  padding: '3px 10px', borderRadius: 12, fontSize: 11, cursor: 'pointer',
-  background: active ? `${color}25` : 'rgba(255,255,255,0.04)',
-  border: `1px solid ${active ? color + '50' : 'rgba(255,255,255,0.08)'}`,
-  color: active ? color : '#667', transition: 'all 0.15s',
-})
-
-const cardStyle: React.CSSProperties = {
-  padding: '10px 12px', marginBottom: 6, borderRadius: 8,
-  background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(100,210,255,0.1)',
-}
-
-export const headerStyle: React.CSSProperties = {
-  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid rgba(100,210,255,0.1)',
-}
-
-export const closeBtn: React.CSSProperties = {
-  background: 'none', border: 'none', color: '#667', fontSize: 20, cursor: 'pointer', padding: '4px 8px', borderRadius: 6,
-}
-
-export const btn = (color: string): React.CSSProperties => ({
-  width: '100%', padding: '10px 0', borderRadius: 8,
-  background: `linear-gradient(135deg, ${color}cc, ${color}88)`,
-  border: `1px solid ${color}60`, color: '#fff', fontWeight: 700,
-  fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', marginTop: 12,
-})
-
-export const badge = (text: string, color: string): React.CSSProperties => ({
-  display: 'inline-block', padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, color, background: `${color}20`,
-  border: `1px solid ${color}40`,
-})
+import {
+  headerStyle, closeBtn, btn, badge, inputStyle, selectStyle, tagStyle,
+  memberRow, avatarCircle, scrollRow,
+} from './SidePanel.styles'
 
 /* ───────── 主组件 ───────── */
 
@@ -86,7 +44,7 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
     if (panel?.type === 'roles' || panel?.type === 'skills' || panel?.type === 'tools') loadRolesConfig()
   }, [panel, loadRolesConfig])
 
-  /* ───── 通用样式 ───── */
+  /* ───── 通用样式（panelStyle 依赖 isMobile，保留在组件内） ───── */
 
   const panelStyle: React.CSSProperties = {
     position: 'absolute',
@@ -101,25 +59,6 @@ function SidePanel({ panel, onClose, onCreateTeam, onCreateProject, onEnterProje
     padding: isMobile ? '8px 20px 20px' : '24px 20px',
     color: '#c8d6e5', fontFamily: 'inherit',
     boxShadow: isMobile ? '0 -8px 32px rgba(0,0,0,0.5)' : '-8px 0 32px rgba(0,0,0,0.5)',
-  }
-
-  // headerStyle, closeBtn, btn, badge 已移到模块级（供子组件使用）
-
-  const memberRow: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, marginBottom: 4, background: 'rgba(255,255,255,0.03)', fontSize: 13,
-  }
-
-  const avatarCircle: React.CSSProperties = {
-    width: 44, height: 44, borderRadius: '50%',
-    background: 'linear-gradient(135deg, rgba(100,210,255,0.2), rgba(191,90,242,0.2))',
-    border: '1px solid rgba(100,210,255,0.3)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 16, color: '#e0e8f0', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0,
-  }
-
-  const scrollRow: React.CSSProperties = {
-    display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8,
-    scrollbarWidth: 'thin', scrollbarColor: 'rgba(100,210,255,0.2) transparent',
   }
 
   const toggleMember = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])

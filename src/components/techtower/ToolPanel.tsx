@@ -1,11 +1,11 @@
 import React from 'react'
-import type { ToolInfo } from './types'
-import { headerStyle, closeBtn, btn, inputStyle, selectStyle } from './SidePanel'
+import type { ToolInfo, ImportToolForm } from './types'
+import { headerStyle, closeBtn, btn, inputStyle, selectStyle } from './SidePanel.styles'
 
 export interface ToolPanelProps {
   tools: Record<string, ToolInfo>
   onClose: () => void
-  handleImportTool: (data: any) => Promise<string | null>
+  handleImportTool: (data: ImportToolForm) => Promise<string | null>
   handleDeleteTool: (id: string) => void
 }
 

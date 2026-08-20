@@ -1,13 +1,13 @@
 import React from 'react'
-import type { ToolInfo, SkillInfo } from './types'
-import { headerStyle, closeBtn, btn, inputStyle, tagStyle } from './SidePanel'
+import type { ToolInfo, SkillInfo, ImportSkillForm, GenerateSkillResult } from './types'
+import { headerStyle, closeBtn, btn, inputStyle, tagStyle } from './SidePanel.styles'
 
 export interface SkillPanelProps {
   skills: Record<string, SkillInfo>
   tools: Record<string, ToolInfo>
   onClose: () => void
-  handleGenerateSkill: (prompt: string) => Promise<any>
-  handleImportSkill: (data: any) => Promise<string | null>
+  handleGenerateSkill: (prompt: string) => Promise<GenerateSkillResult>
+  handleImportSkill: (data: ImportSkillForm) => Promise<string | null>
   handleDeleteSkill: (id: string) => void
 }
 

@@ -4,15 +4,23 @@
 
 import type { ChatMessage } from '../../components/office-team/types'
 
+export interface BridgeMessage {
+  tsAgentId?: string
+  pyAgentId?: string
+  fromAgentId?: string
+  toAgentId?: string
+  payload?: Record<string, unknown>
+}
+
 export interface BridgeSetters {
-  setBridgeMessages: (fn: (prev: any[]) => any[]) => void
+  setBridgeMessages: (fn: (prev: Array<{ fromAgentId: string; toAgentId: string; payload: unknown; timestamp: number }>) => Array<{ fromAgentId: string; toAgentId: string; payload: unknown; timestamp: number }>) => void
 }
 
 export interface BridgeRefs {
-  bridgeCallbacks: React.MutableRefObject<Map<string, (msg: any) => void>>
+  bridgeCallbacks: React.MutableRefObject<Map<string, (msg: BridgeMessage) => void>>
 }
 
-export function handleBridgeAgentRegistered(msg: any, _setters: BridgeSetters, refs: BridgeRefs) {
+export function handleBridgeAgentRegistered(msg: BridgeMessage, _setters: BridgeSetters, refs: BridgeRefs) {
   const regCallback = refs.bridgeCallbacks.current.get(`reg:${msg.tsAgentId}`)
   if (regCallback) {
     regCallback(msg)
@@ -20,7 +28,7 @@ export function handleBridgeAgentRegistered(msg: any, _setters: BridgeSetters, r
   }
 }
 
-export function handleBridgeMessage(msg: any, setters: BridgeSetters, refs: BridgeRefs) {
+export function handleBridgeMessage(msg: BridgeMessage, setters: BridgeSetters, refs: BridgeRefs) {
   const msgCallback = refs.bridgeCallbacks.current.get(`msg:${msg.toAgentId}`)
   if (msgCallback) {
     msgCallback(msg)

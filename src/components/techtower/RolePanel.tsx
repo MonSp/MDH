@@ -1,16 +1,17 @@
 import React from 'react'
-import type { ProjectDept, RoleConfig, ToolInfo, SkillInfo } from './types'
-import { headerStyle, closeBtn, btn, inputStyle, selectStyle, tagStyle } from './SidePanel'
+import type { ProjectDept, RoleConfig, ToolInfo, SkillInfo, EditRoleForm } from './types'
+import type { CustomRoleConfig } from './useRolesConfig'
+import { headerStyle, closeBtn, btn, inputStyle, selectStyle, tagStyle } from './SidePanel.styles'
 
 export interface RolePanelProps {
   roles: Record<string, RoleConfig>
-  customRoles: Record<string, RoleConfig>
+  customRoles: Record<string, CustomRoleConfig>
   tools: Record<string, ToolInfo>
   skills: Record<string, SkillInfo>
   deptList: ProjectDept[]
   onClose: () => void
-  handleSaveRole: (id: string, data: any) => Promise<void>
-  handleCreateRole: (data: any) => Promise<void>
+  handleSaveRole: (id: string, data: EditRoleForm) => Promise<void>
+  handleCreateRole: (data: CustomRoleConfig) => Promise<void>
   handleDeleteRole: (id: string) => void
 }
 
@@ -20,7 +21,7 @@ function RolePanel({
 }: RolePanelProps) {
   const [selectedRole, setSelectedRole] = React.useState<string | null>(null)
   const [editingRole, setEditingRole] = React.useState<string | null>(null)
-  const [editForm, setEditForm] = React.useState<any>({})
+  const [editForm, setEditForm] = React.useState<EditRoleForm>({} as EditRoleForm)
   const [showNewRole, setShowNewRole] = React.useState(false)
   const [newRoleForm, setNewRoleForm] = React.useState({ name: '', description: '', base_role: 'executor', extra_tools: [] as string[], extra_skills: [] as string[], custom_prompt: '' })
   const [roleGroupBy, setRoleGroupBy] = React.useState<'department' | 'category' | 'none'>('department')
@@ -31,7 +32,7 @@ function RolePanel({
 
   // 按部门分组
   const groupByDepartment = () => {
-    const groups: Record<string, Array<[string, any]>> = {}
+    const groups: Record<string, Array<[string, RoleConfig]>> = {}
     Object.entries(allRoles).forEach(([id, role]) => {
       const deptId = role.department || 'no-dept'
       if (!groups[deptId]) groups[deptId] = []

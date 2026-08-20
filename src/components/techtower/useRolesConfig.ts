@@ -6,9 +6,9 @@
 
 import { useState, useCallback } from 'react'
 import { STORAGE_KEYS } from '../../constants'
-import type { RoleConfig, ToolInfo, SkillInfo } from './types'
+import type { RoleConfig, ToolInfo, SkillInfo, EditRoleForm, ImportSkillForm, ImportToolForm, GenerateSkillResult } from './types'
 
-type CustomRoleConfig = RoleConfig & { base_role?: string; extra_tools?: string[]; extra_skills?: string[]; custom_prompt?: string }
+export type CustomRoleConfig = RoleConfig & { base_role?: string; extra_tools?: string[]; extra_skills?: string[]; custom_prompt?: string }
 
 export interface RolesConfigState {
   roles: Record<string, RoleConfig>
@@ -20,13 +20,13 @@ export interface RolesConfigState {
 
 export interface RolesConfigActions {
   loadRolesConfig: () => Promise<void>
-  handleSaveRole: (roleId: string, editForm?: any) => Promise<void>
+  handleSaveRole: (roleId: string, editForm?: EditRoleForm) => Promise<void>
   handleCreateRole: (form?: CustomRoleConfig) => Promise<void>
   handleDeleteRole: (roleId: string) => Promise<void>
-  handleImportSkill: (form?: any) => Promise<string | null>
+  handleImportSkill: (form?: ImportSkillForm) => Promise<string | null>
   handleDeleteSkill: (skillId: string) => Promise<void>
-  handleGenerateSkill: (prompt?: string) => Promise<any>
-  handleImportTool: (form?: any) => Promise<string | null>
+  handleGenerateSkill: (prompt?: string) => Promise<GenerateSkillResult>
+  handleImportTool: (form?: ImportToolForm) => Promise<string | null>
   handleDeleteTool: (toolId: string) => Promise<void>
 }
 
@@ -53,7 +53,7 @@ export function useRolesConfig(): RolesConfigState & RolesConfigActions {
         if (skillsRes.ok) {
           const skillsData = await skillsRes.json()
           const packs = skillsData?.data?.skills || skillsData?.skills || []
-          const skillsMap: Record<string, any> = {}
+          const skillsMap: Record<string, SkillInfo> = {}
           for (const pack of packs) {
             skillsMap[pack.name] = { name: pack.name, description: pack.description || '', methodology: pack.methodology || '', category: pack.category || '', required_tools: pack.tools || [] }
           }
@@ -64,7 +64,7 @@ export function useRolesConfig(): RolesConfigState & RolesConfigActions {
     finally { setLoading(false) }
   }, [])
 
-  const handleSaveRole = useCallback(async (roleId: string, editForm: any) => {
+  const handleSaveRole = useCallback(async (roleId: string, editForm: EditRoleForm) => {
     try {
       await fetch(`/api/roles/${roleId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editForm) })
       await loadRolesConfig()
@@ -85,7 +85,7 @@ export function useRolesConfig(): RolesConfigState & RolesConfigActions {
     catch (e) { console.error('删除失败:', e) }
   }, [loadRolesConfig])
 
-  const handleGenerateSkill = useCallback(async (prompt: string) => {
+  const handleGenerateSkill = useCallback(async (prompt: string): Promise<GenerateSkillResult> => {
     const res = await fetch('/api/roles/skills/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -96,7 +96,7 @@ export function useRolesConfig(): RolesConfigState & RolesConfigActions {
     throw new Error(data.error || 'AI生成失败')
   }, [])
 
-  const handleImportSkill = useCallback(async (form: any): Promise<string | null> => {
+  const handleImportSkill = useCallback(async (form: ImportSkillForm): Promise<string | null> => {
     const id = form.id.trim()
     if (!id) return '请输入技能ID'
     try {
@@ -112,7 +112,7 @@ export function useRolesConfig(): RolesConfigState & RolesConfigActions {
     catch (e) { console.error('删除失败:', e) }
   }, [loadRolesConfig])
 
-  const handleImportTool = useCallback(async (form: any): Promise<string | null> => {
+  const handleImportTool = useCallback(async (form: ImportToolForm): Promise<string | null> => {
     const id = form.id.trim()
     if (!id) return '请输入工具ID'
     try {

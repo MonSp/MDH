@@ -67,6 +67,49 @@ export interface SkillInfo {
   required_tools: string[]
 }
 
+/* ───────── 表单与结果类型 ───────── */
+
+export interface EditRoleForm {
+  name: string
+  description: string
+  permissions?: {
+    tools?: string[]
+    dangerous_tools?: string[]
+  }
+  skills?: string[]
+  prompt_template?: string
+}
+
+export interface ImportSkillForm {
+  id: string
+  name: string
+  description: string
+  category: string
+  methodology: string
+  practices: string[]
+  workflow: Record<string, string>
+  required_tools: string[]
+}
+
+export interface ImportToolForm {
+  id: string
+  name: string
+  description: string
+  category: string
+  dangerous: boolean
+}
+
+export interface GenerateSkillResult {
+  id?: string
+  name?: string
+  description?: string
+  category?: string
+  methodology?: string
+  practices?: string[]
+  workflow?: Record<string, string>
+  required_tools?: string[]
+}
+
 /* ───────── 面板状态 ───────── */
 
 export interface PanelProject { type: 'project'; data: Project }
