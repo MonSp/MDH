@@ -33,6 +33,7 @@ export default function AssetBrowserPanel() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [saving, setSaving] = useState(false)
+  const [reuseStats, setReuseStats] = useState<{ total: number; by_team: Record<string, number>; by_type: { templates: number; artifacts: number; rules: number }; last_at: string } | null>(null)
 
   useEffect(() => {
     // 团队切换：先清空旧列表（fetch 失败也不残留），再重置 per-team 检索结果与上次错误
@@ -42,6 +43,10 @@ export default function AssetBrowserPanel() {
     apiFetch<AssetItem[]>(`/api/assets?team_id=${encodeURIComponent(teamId)}`)
       .then((data) => setAssets(data))
       .catch((e) => setError(String(e)))
+    // 加载复用率统计（全局，不按团队过滤）
+    apiFetch<{ total: number; by_team: Record<string, number>; by_type: { templates: number; artifacts: number; rules: number }; last_at: string }>('/api/assets/reuse-metrics')
+      .then((data) => setReuseStats(data))
+      .catch(() => {})
   }, [teamId])
 
   const doSearch = async () => {
@@ -150,6 +155,28 @@ export default function AssetBrowserPanel() {
       {error && <div style={styles.error}>{error}</div>}
 
       {assets.length === 0 && !search && <div style={styles.empty}>暂无资产</div>}
+
+      {/* 复用率统计 */}
+      {reuseStats && reuseStats.total > 0 && (
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12, padding: '8px 10px', background: 'rgba(100,210,255,0.06)', borderRadius: 6, border: '1px solid rgba(100,210,255,0.12)' }}>
+          <div style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#64d2ff' }}>{reuseStats.total}</div>
+            <div style={{ fontSize: 10, color: '#94a3b8' }}>总注入次数</div>
+          </div>
+          <div style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>{reuseStats.by_type.templates}</div>
+            <div style={{ fontSize: 10, color: '#94a3b8' }}>模板复用</div>
+          </div>
+          <div style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#f59e0b' }}>{reuseStats.by_type.artifacts}</div>
+            <div style={{ fontSize: 10, color: '#94a3b8' }}>产出物复用</div>
+          </div>
+          <div style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#8b5cf6' }}>{reuseStats.by_type.rules}</div>
+            <div style={{ fontSize: 10, color: '#94a3b8' }}>规则命中</div>
+          </div>
+        </div>
+      )}
 
       <h4 style={styles.sectionTitle}>产出物</h4>
       <ul style={styles.list}>
