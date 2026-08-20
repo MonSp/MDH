@@ -1478,6 +1478,22 @@ async def api_asset_list(team_id: str, status: str = ""):
         return _fail(str(exc))
 
 
+@app.put("/api/assets/{asset_id}")
+async def api_asset_update(asset_id: str, body: dict = Body(...)):
+    """更新资产内容（保留审计日志）。"""
+    try:
+        content = body.get("content", "")
+        editor = body.get("editor", "")
+        if not content:
+            return _fail("content 不能为空")
+        result = _get_asset_store().update_asset(asset_id, content, editor=editor)
+        if result is None:
+            return _fail("资产不存在")
+        return _ok(result)
+    except Exception as exc:
+        return _fail(str(exc))
+
+
 @app.get("/api/assets/reuse-metrics")
 async def api_asset_reuse_metrics():
     """演示：资产复用率统计（注入次数/按团队/按类型——设计 [S5] 复用率可感知）。"""

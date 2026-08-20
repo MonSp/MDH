@@ -30,6 +30,9 @@ export default function AssetBrowserPanel() {
   const [assets, setAssets] = useState<AssetItem[]>([])
   const [search, setSearch] = useState<SearchResult | null>(null)
   const [error, setError] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     // 团队切换：先清空旧列表（fetch 失败也不残留），再重置 per-team 检索结果与上次错误
@@ -53,6 +56,38 @@ export default function AssetBrowserPanel() {
       // 失败时清空旧检索结果，避免上次的规则/资产残留
       setSearch(null)
       setError(String(e))
+    }
+  }
+
+  const startEdit = (id: string, content: string) => {
+    setEditingId(id)
+    setEditContent(content || '')
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditContent('')
+  }
+
+  const saveEdit = async () => {
+    if (!editingId || !editContent.trim()) return
+    setSaving(true)
+    try {
+      await apiFetch(`/api/assets/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editContent, editor: 'user' }),
+      })
+      // 更新本地状态
+      setAssets(prev => prev.map(a =>
+        (a.asset_id || a.assetId) === editingId ? { ...a, content: editContent } : a
+      ))
+      setEditingId(null)
+      setEditContent('')
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -118,46 +153,86 @@ export default function AssetBrowserPanel() {
 
       <h4 style={styles.sectionTitle}>产出物</h4>
       <ul style={styles.list}>
-        {artifacts.map((a) => (
-          <li key={a.asset_id || a.assetId} style={styles.item}>
-            <span data-testid="asset-type-badge" style={styles.typeBadge}>
-              {a.type === 'template' ? '模板' : '产出物'}
-            </span>
-            <span style={styles.itemTitle}>{a.title}</span>
-            {a.approved_by ? <span style={styles.itemMeta}>审批人 {a.approved_by}</span> : null}
-            {a.created_at ? <span style={styles.itemMeta}>{a.created_at}</span> : null}
-            {a.content ? <span style={styles.itemContent}>{a.content}</span> : null}
-            {a.judge_score != null && <span style={styles.score}>（评测 {a.judge_score}）</span>}
-          </li>
-        ))}
+        {artifacts.map((a) => {
+          const id = a.asset_id || a.assetId || ''
+          const isEditing = editingId === id
+          return (
+            <li key={id} style={styles.item}>
+              <span data-testid="asset-type-badge" style={styles.typeBadge}>
+                {a.type === 'template' ? '模板' : '产出物'}
+              </span>
+              <span style={styles.itemTitle}>{a.title}</span>
+              {a.approved_by ? <span style={styles.itemMeta}>审批人 {a.approved_by}</span> : null}
+              {a.created_at ? <span style={styles.itemMeta}>{a.created_at}</span> : null}
+              {isEditing ? (
+                <div style={{ marginTop: 6, width: '100%' }}>
+                  <textarea
+                    value={editContent}
+                    onChange={e => setEditContent(e.target.value)}
+                    style={{ width: '100%', minHeight: 60, padding: 6, fontSize: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(100,210,255,0.3)', borderRadius: 4, color: '#e2e8f0', resize: 'vertical' }}
+                  />
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    <button onClick={saveEdit} disabled={saving} style={{ padding: '3px 10px', fontSize: 11, background: '#10b981', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>{saving ? '保存中...' : '保存'}</button>
+                    <button onClick={cancelEdit} style={{ padding: '3px 10px', fontSize: 11, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, color: '#94a3b8', cursor: 'pointer' }}>取消</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {a.content ? <span style={styles.itemContent}>{a.content}</span> : null}
+                  <button onClick={() => startEdit(id, a.content || '')} style={{ marginLeft: 8, padding: '2px 8px', fontSize: 10, background: 'rgba(100,210,255,0.1)', border: '1px solid rgba(100,210,255,0.25)', borderRadius: 4, color: '#64d2ff', cursor: 'pointer' }}>编辑</button>
+                </>
+              )}
+              {a.judge_score != null && <span style={styles.score}>（评测 {a.judge_score}）</span>}
+            </li>
+          )
+        })}
         {artifacts.length === 0 && <li style={styles.itemMuted}>暂无产出物</li>}
       </ul>
 
       <h4 style={styles.sectionTitle}>模板</h4>
       <ul style={styles.list}>
-        {templates.map((a) => (
-          <li key={a.asset_id || a.assetId} style={styles.item}>
-            <span data-testid="asset-type-badge" style={styles.typeBadge}>
-              {a.type === 'template' ? '模板' : '产出物'}
-            </span>
-            <span style={styles.itemTitle}>{a.title}</span>
-            <span
-              style={{
-                ...styles.statusBadge,
-                color: a.status === 'approved' ? '#22c55e' : '#fbbf24',
-                background:
-                  a.status === 'approved'
-                    ? 'rgba(34, 197, 94, 0.12)'
-                    : 'rgba(251, 191, 36, 0.12)',
-              }}
-            >
-              {a.status === 'approved' ? '✓ 已固化' : '待确认'}
-            </span>
-            {a.approved_by ? <span style={styles.itemMeta}>审批人 {a.approved_by}</span> : null}
-            {a.created_at ? <span style={styles.itemMeta}>{a.created_at}</span> : null}
-            {a.judge_score != null && <span style={styles.score}>（评测 {a.judge_score}）</span>}
-          </li>
-        ))}
+        {templates.map((a) => {
+          const id = a.asset_id || a.assetId || ''
+          const isEditing = editingId === id
+          return (
+            <li key={id} style={styles.item}>
+              <span data-testid="asset-type-badge" style={styles.typeBadge}>
+                {a.type === 'template' ? '模板' : '产出物'}
+              </span>
+              <span style={styles.itemTitle}>{a.title}</span>
+              <span
+                style={{
+                  ...styles.statusBadge,
+                  color: a.status === 'approved' ? '#22c55e' : '#fbbf24',
+                  background:
+                    a.status === 'approved'
+                      ? 'rgba(34, 197, 94, 0.12)'
+                      : 'rgba(251, 191, 36, 0.12)',
+                }}
+              >
+                {a.status === 'approved' ? '✓ 已固化' : '待确认'}
+              </span>
+              {a.approved_by ? <span style={styles.itemMeta}>审批人 {a.approved_by}</span> : null}
+              {a.created_at ? <span style={styles.itemMeta}>{a.created_at}</span> : null}
+              {isEditing ? (
+                <div style={{ marginTop: 6, width: '100%' }}>
+                  <textarea
+                    value={editContent}
+                    onChange={e => setEditContent(e.target.value)}
+                    style={{ width: '100%', minHeight: 60, padding: 6, fontSize: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(100,210,255,0.3)', borderRadius: 4, color: '#e2e8f0', resize: 'vertical' }}
+                  />
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    <button onClick={saveEdit} disabled={saving} style={{ padding: '3px 10px', fontSize: 11, background: '#10b981', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>{saving ? '保存中...' : '保存'}</button>
+                    <button onClick={cancelEdit} style={{ padding: '3px 10px', fontSize: 11, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, color: '#94a3b8', cursor: 'pointer' }}>取消</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => startEdit(id, a.content || '')} style={{ marginLeft: 8, padding: '2px 8px', fontSize: 10, background: 'rgba(100,210,255,0.1)', border: '1px solid rgba(100,210,255,0.25)', borderRadius: 4, color: '#64d2ff', cursor: 'pointer' }}>编辑</button>
+              )}
+              {a.judge_score != null && <span style={styles.score}>（评测 {a.judge_score}）</span>}
+            </li>
+          )
+        })}
         {templates.length === 0 && <li style={styles.itemMuted}>暂无模板</li>}
       </ul>
 

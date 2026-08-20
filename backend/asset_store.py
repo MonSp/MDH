@@ -137,6 +137,24 @@ class AssetStore:
         self._save_index(asset["team_id"], entries)
         return True
 
+    def update_asset(self, asset_id: str, content: str, editor: str = "") -> dict | None:
+        """更新资产内容（保留审计日志）
+
+        Args:
+            asset_id: 资产 ID
+            content: 新内容
+            editor: 编辑者标识
+        Returns:
+            更新后的资产 dict，或 None（资产不存在）
+        """
+        asset = self.get(asset_id)
+        if asset is None:
+            return None
+        asset["content"] = content
+        asset["updated_at"] = _now_iso()
+        asset["updated_by"] = editor
+        return self._write_asset(asset["team_id"], asset)
+
     def get(self, asset_id: str) -> dict | None:
         # 先查索引定位团队，再读文件
         for team_id in os.listdir(self._base_dir):
