@@ -6,7 +6,7 @@
 
 import { useCallback, useRef, useEffect } from 'react'
 import { isElectron, getMdH, STORAGE_KEYS } from '../../constants'
-import type { CeoMessage, WorkspaceConfirmRequest } from './ceo-types'
+import type { CeoMessage, WorkspaceConfirmRequest, MeetingPhase } from './ceo-types'
 
 const isElectronMode = isElectron()
 
@@ -14,7 +14,7 @@ export interface CeoCommunicationOptions {
   wsRef: React.MutableRefObject<WebSocket | null>
   addMsg: (role: CeoMessage['role'], content: string, agentId?: string, agentName?: string) => void
   setIsProcessing: (v: boolean) => void
-  setMeetingPhase: (phase: string) => void
+  setMeetingPhase: (phase: MeetingPhase) => void
   setProjectReady: (v: { projectId: string; meetingId: string } | null) => void
   setWorkspaceConfirm: (req: WorkspaceConfirmRequest | null) => void
   setWsType: (v: string) => void
