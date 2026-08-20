@@ -9,10 +9,13 @@ def test_search_merges_three_asset_types(tmp_path):
     store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线 市场部负责宣传物料")
     store.propose_template("team-x", "发布计划模板", "标题\n要点\n待办\n决定\n行动项\n责任人与日期安排")
     extractor = ExperienceExtractor(str(tmp_path))
-    SkillEvolution(extractor).evolve_from_feedback(
+    evo_result = SkillEvolution(extractor).evolve_from_feedback(
         "p1", "minutes", "会议讨论发布计划。", "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", ["责任人", "行动项"],
         team_id="team-x",
     )
+    # v1.3.4: 手动批准规则
+    if evo_result["rule_id"]:
+        extractor.approve_rule(evo_result["rule_id"], reviewer_comment="test-approve")
     result = AssetSearch(store, extractor).search("team-x", query="发布计划", task_type="minutes", keywords=["责任人", "行动项"])
     assert result["artifacts"] and result["templates"]
     # 检索隔离（T5 评审 Important）："责任人"/"行动项" 只存在于调用方 keywords，
@@ -51,6 +54,11 @@ def test_search_rules_respects_team_isolation(tmp_path):
         "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", ["责任人", "行动项"],
         team_id="team-b",
     )
+    # v1.3.4: 手动批准规则
+    if result_a["rule_id"]:
+        extractor.approve_rule(result_a["rule_id"], reviewer_comment="test-approve")
+    if result_b["rule_id"]:
+        extractor.approve_rule(result_b["rule_id"], reviewer_comment="test-approve")
     assert result_a["count"] >= 1 and result_b["count"] >= 1
     search = AssetSearch(store, extractor)
     only_a = search.search("team-a", task_type="minutes", keywords=["责任人", "行动项"])

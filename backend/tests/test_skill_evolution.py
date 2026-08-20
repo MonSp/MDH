@@ -14,7 +14,8 @@ def test_evolve_from_feedback_writes_rule(tmp_path):
     )
     assert result["ok"]
     assert result["count"] >= 1
-    assert extractor.get_all_rules(status="approved")  # 规则已批准并写入增量区
+    # v1.3.4: 规则不再自动审批，保持 pending_review 等待人工审核
+    assert extractor.get_pending_rules()  # 规则已提交待审核
 
 
 def test_evolve_returns_zero_when_no_feedback(tmp_path):

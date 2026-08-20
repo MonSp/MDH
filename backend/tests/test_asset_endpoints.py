@@ -76,10 +76,13 @@ def test_search_endpoint_merges(tmp_path, monkeypatch):
     store = AssetStore(str(tmp_path))
     store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线 市场部负责宣传物料")
     extractor = ExperienceExtractor(str(tmp_path))
-    SkillEvolution(extractor).evolve_from_feedback(
+    result = SkillEvolution(extractor).evolve_from_feedback(
         "p1", "minutes", "会议讨论发布计划。", "审核修改：遗漏行动项责任人。", ["纪要", "待办"],
         team_id="team-x",
     )
+    # v1.3.4: 规则保持 pending_review，需要手动批准才能被检索
+    if result["rule_id"]:
+        extractor.approve_rule(result["rule_id"], reviewer_comment="test-approve")
     monkeypatch.setattr(server, "_get_asset_search", lambda: AssetSearch(store, extractor))
     resp = client.get("/api/assets/search", params={
         "team_id": "team-x", "q": "发布计划", "task_type": "minutes", "keywords": "纪要,待办",
@@ -115,6 +118,10 @@ def test_experience_endpoint_threads_team_id(tmp_path, monkeypatch):
         "feedback": "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", "keywords": ["纪要", "待办"],
     })
     assert resp.status_code == 200 and resp.json()["data"]["count"] >= 1
+    # v1.3.4: 手动批准规则（不再自动审批）
+    rule_id = resp.json()["data"]["rule_id"]
+    if rule_id:
+        extractor.approve_rule(rule_id, reviewer_comment="test-approve")
     # 端点提炼的规则须带 team_id=team-x → 团队检索命中
     team_hits = extractor.retrieve_relevant_rules("minutes", ["纪要"], team_id="team-x")
     assert any(r.team_id == "team-x" for r in team_hits), "team_id 未透传到规则"

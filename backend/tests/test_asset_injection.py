@@ -11,11 +11,14 @@ def test_build_asset_context_merges_three_types(tmp_path, monkeypatch):
     store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料，研发部负责版本冻结")
     store.propose_template("team-x", "发布计划模板", "标题\n要点\n待办\n决定\n行动项\n责任人与日期安排")
     extractor = ExperienceExtractor(str(tmp_path))
-    SkillEvolution(extractor).evolve_from_feedback(
+    result = SkillEvolution(extractor).evolve_from_feedback(
         "p1", "minutes", "会议讨论发布计划。",
         "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", ["责任人", "行动项"],
         team_id="team-x",
     )
+    # v1.3.4: 手动批准规则（不再自动审批）
+    if result["rule_id"]:
+        extractor.approve_rule(result["rule_id"], reviewer_comment="test-approve")
     ctx = build_asset_context(store, extractor, "team-x", task_type="minutes", keywords=["责任人", "行动项"])
     assert "资产参考" in ctx
     assert "发布计划模板" in ctx        # 模板注入

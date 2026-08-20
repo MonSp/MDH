@@ -66,48 +66,27 @@ class SkillEvolution:
             execution_results=[],
         )
 
-        written = 0
+        submitted = []
         for rule in rules:
             review_id = self._extractor.submit_for_review(rule)
-            if self._extractor.approve_rule(
-                review_id, reviewer_comment="auto-approve (skill evolution)"
-            ):
-                # approve_rule 只改写磁盘副本；重新加载以获得 approved 状态与审核意见，
-                # 否则 write_to_incremental_area 会因内存中 status 仍为 pending_review 而拒绝
-                approved_rule = self._extractor._load_rule(review_id)
-                if not approved_rule:
-                    continue
-                # 元数据传播（T4 评审 Important）：extract_from_meeting 用 _infer_task_type
-                # 从 task_description 推断类型，本任务类型（如 minutes）不在白名单 →
-                # source_task_type 退化为 'general'，使 retrieve_relevant_rules 的
-                # type-match bonus(+2) 丢失；此处把调用方传入的 task_type 回填到规则，
-                # 并合并传入的关键词标签。
-                updates = {}
-                if task_type:
-                    updates["source_task_type"] = task_type
-                    # 重写假设进入此路径的规则 trigger_condition 均以
-                    # "task_type is <推断类型>" 开头（extract_from_meeting 的 4 个
-                    # 生产分支均满足）；仅替换前导类型段，保留其余条件。
-                    updates["trigger_condition"] = (
-                        f"task_type is {task_type} and "
-                        + approved_rule.trigger_condition.split(" and ", 1)[-1]
-                        if " and " in approved_rule.trigger_condition
-                        else f"task_type is {task_type}"
-                    )
-                if keywords:
-                    updates["keywords"] = sorted(set(approved_rule.keywords) | set(keywords))
-                if team_id:
-                    updates["team_id"] = team_id
-                if updates:
-                    # 公开 API 回写 rules/（替代 _save_rule 直调）；modify_rule 白名单含
-                    # source_task_type/trigger_condition/keywords/team_id
-                    self._extractor.modify_rule(review_id, updates)
-                    # modify_rule 在 extractor 内部 load→setattr→save，不更新调用方
-                    # approved_rule 内存对象——重新加载拿回填后 approved 副本再写增量区；
-                    # approved/ 副本供打包（schema 不含 team_id/status——检索只读
-                    # rules/，不受影响），故无需与 rules/ 双存储一致
-                    approved_rule = self._extractor._load_rule(review_id)
-                if self._extractor.write_to_incremental_area(approved_rule):
-                    written += 1
+            # 元数据传播：回填 task_type 和 keywords 到待审核规则
+            updates = {}
+            if task_type:
+                updates["source_task_type"] = task_type
+                updates["trigger_condition"] = (
+                    f"task_type is {task_type} and "
+                    + rule.trigger_condition.split(" and ", 1)[-1]
+                    if " and " in rule.trigger_condition
+                    else f"task_type is {task_type}"
+                )
+            if keywords:
+                updates["keywords"] = sorted(set(rule.keywords) | set(keywords))
+            if team_id:
+                updates["team_id"] = team_id
+            if updates:
+                self._extractor.modify_rule(review_id, updates)
+            submitted.append(review_id)
 
-        return {"ok": True, "rule_id": rules[0].rule_id if rules else "", "count": written}
+        # 不再自动审批 — 规则保持 pending_review 状态，等待人工审核
+        # 前端 ExperienceRulePanel 提供 approve/reject 操作
+        return {"ok": True, "rule_id": submitted[0] if submitted else "", "count": len(submitted)}
