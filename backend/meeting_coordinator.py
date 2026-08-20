@@ -625,6 +625,22 @@ class MeetingCoordinator:
         """委托给 RoutingStatsManager"""
         self._routing_stats.update_stats_safe(self.meeting.tasks)
 
+    def _update_injected_rule_effectiveness(
+        self, injected_rule_ids: List[str], review_result: Dict[str, Any]
+    ) -> None:
+        """根据审查结果更新已注入规则的有效性评分"""
+        try:
+            from experience_extractor import ExperienceExtractor
+            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
+            structured = review_result.get("structured_feedback", {})
+            task_success = structured.get("status", "approved") == "approved"
+            for rule_id in injected_rule_ids:
+                extractor.update_rule_effectiveness(rule_id, task_success)
+            self.logger.info("已更新 %d 条注入规则有效性 (success=%s)", len(injected_rule_ids), task_success)
+        except Exception as e:
+            self.logger.debug("规则有效性更新跳过: %s", e)
+
     def _finalize_skill_evolution(
         self,
         extractor,
@@ -862,7 +878,7 @@ class MeetingCoordinator:
 
         original_description = analysis.task_description or user_message
         enhanced_description = self._enhance_task_description(original_description, discussion_results)
-        enhanced_description = await self._inject_experience(coordinator_id, original_description, enhanced_description, discussion_results)
+        enhanced_description, injected_rule_ids = await self._inject_experience(coordinator_id, original_description, enhanced_description, discussion_results)
         await self._msg(coordinator_id, "项目经理：已整合团队讨论结果，任务描述已更新。")
 
         target_agent_id = analysis.target_agent_id or self._infer_target_agent(discussion_results) or "agent-executor"
@@ -895,6 +911,10 @@ class MeetingCoordinator:
         await self._msg(coordinator_id, project_summary)
         await self._run_skill_evolution(coordinator_id, user_message, discussion_results, review_result, execution_results)
 
+        # 更新已注入规则的有效性评分
+        if injected_rule_ids:
+            self._update_injected_rule_effectiveness(injected_rule_ids, review_result)
+
         # 汇报
         await self._msg(coordinator_id, "项目经理：任务执行完成，向CEO汇报结果。")
         await self._msg(ceo_id, "CEO：收到项目经理汇报，任务已完成。")
@@ -910,6 +930,7 @@ class MeetingCoordinator:
             "execution_results": execution_results,
             "project_summary": project_summary,
             "review_report": review_report.to_dict(),
+            "injected_rule_ids": injected_rule_ids,
         }
 
     # ── process_user_message 子流程 ──
@@ -950,6 +971,8 @@ class MeetingCoordinator:
         return {"type": "workflow_executed", "analysis": semantic_analysis_to_dict(analysis), "workflow_result": workflow_result}
 
     async def _inject_experience(self, coordinator_id, original_description, enhanced_description, discussion_results):
+        """注入历史经验到任务描述，返回 (增强描述, 注入的规则 ID 列表)"""
+        injected_rule_ids = []
         try:
             from experience_extractor import ExperienceExtractor
             data_dir = os.path.join(os.path.dirname(__file__), "data")
@@ -960,18 +983,20 @@ class MeetingCoordinator:
                 content_kw |= extractor._extract_content_keywords(dr.get("content", ""))
             past_rules = extractor.retrieve_relevant_rules(task_type, sorted(content_kw))
             if past_rules:
-                exp_context = extractor.build_experience_summary(past_rules[:5])
+                injected = past_rules[:5]
+                injected_rule_ids = [r.rule_id for r in injected]
+                exp_context = extractor.build_experience_summary(injected)
                 enhanced_description = f"{enhanced_description}\n\n{exp_context}"
-                await self._msg(coordinator_id, f"项目经理：已注入 {len(past_rules)} 条历史经验到任务描述。")
-                self.meeting.add_message("agent", f"项目经理：已注入 {len(past_rules)} 条历史经验到任务描述。", coordinator_id)
+                await self._msg(coordinator_id, f"项目经理：已注入 {len(injected)} 条历史经验到任务描述。")
+                self.meeting.add_message("agent", f"项目经理：已注入 {len(injected)} 条历史经验到任务描述。", coordinator_id)
                 self.meeting.append_event(
                     SessionEventType.EXPERIENCE_INJECTION,
-                    content=f"注入 {len(past_rules)} 条经验规则 (task_type={task_type}, keywords={sorted(content_kw)[:5]})",
+                    content=f"注入 {len(injected)} 条经验规则 (task_type={task_type}, keywords={sorted(content_kw)[:5]}, rule_ids={injected_rule_ids})",
                     agent_id=coordinator_id, phase="pre_execution",
                 )
         except Exception as e:
             self.logger.debug("历史经验注入跳过: %s", e)
-        return enhanced_description
+        return enhanced_description, injected_rule_ids
 
     async def _run_voting_phase(self, coordinator_id, enhanced_description, discussion_results, on_message):
         await self._msg(coordinator_id, "项目经理：就讨论结果发起方案投票。")

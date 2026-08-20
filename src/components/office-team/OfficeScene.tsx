@@ -23,7 +23,7 @@ export default function OfficeScene({ agents, viewState, onStartMeeting, project
   const isMeeting = isMeetingView(viewState)
   const [activeTab, setActiveTab] = useState<'team' | 'tasks' | 'files' | 'skills'>('team')
   const [selectedAgent, setSelectedAgent] = useState<TeamAgent | null>(null)
-  const [experienceRules, setExperienceRules] = useState<Array<{ rule_id: string; trigger_condition: string; action: string; status: string; keywords: string[] }>>([])
+  const [experienceRules, setExperienceRules] = useState<Array<{ rule_id: string; trigger_condition: string; action: string; status: string; keywords: string[]; effectiveness_score?: number; usage_count?: number }>>([])
 
   // 获取经验规则
   useEffect(() => {

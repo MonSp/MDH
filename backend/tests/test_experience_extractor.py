@@ -297,6 +297,71 @@ class TestWriteToIncrementalArea:
         assert result is False
 
 
+# ──────────────────── 规则有效性追踪 ────────────────────
+
+
+class TestRuleEffectiveness:
+    def test_update_effectiveness_success(self, extractor, tmp_incremental_dir):
+        """任务成功时 effectiveness_score 上升"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        assert extractor.update_rule_effectiveness(rule.rule_id, True) is True
+        loaded = extractor._load_rule(rule.rule_id)
+        assert loaded.usage_count == 1
+        assert loaded.success_count == 1
+        assert loaded.effectiveness_score == 1.0
+
+    def test_update_effectiveness_failure(self, extractor, tmp_incremental_dir):
+        """任务失败时 effectiveness_score 下降"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        # 先成功一次
+        extractor.update_rule_effectiveness(rule.rule_id, True)
+        # 再失败一次
+        assert extractor.update_rule_effectiveness(rule.rule_id, False) is True
+        loaded = extractor._load_rule(rule.rule_id)
+        assert loaded.usage_count == 2
+        assert loaded.success_count == 1
+        assert loaded.effectiveness_score == 0.5
+
+    def test_update_effectiveness_persists(self, extractor, tmp_incremental_dir):
+        """有效性数据持久化到 YAML"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+        extractor.update_rule_effectiveness(rule.rule_id, True)
+
+        # 重新加载验证持久化
+        reloaded = ExperienceExtractor(incremental_dir=tmp_incremental_dir)
+        loaded = reloaded._load_rule(rule.rule_id)
+        assert loaded.usage_count == 1
+        assert loaded.success_count == 1
+        assert loaded.effectiveness_score == 1.0
+
+    def test_update_effectiveness_unknown_rule(self, extractor):
+        """更新不存在的规则返回 False"""
+        assert extractor.update_rule_effectiveness("nonexistent-id", True) is False
+
+    def test_new_rule_defaults(self, extractor):
+        """新建规则的 effectiveness 字段默认值为 0"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        assert rule.effectiveness_score == 0.0
+        assert rule.usage_count == 0
+        assert rule.success_count == 0
+
+
 # ──────────────────── 检索相关规则 ────────────────────
 
 

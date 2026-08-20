@@ -8,6 +8,8 @@ interface ExperienceRule {
   action: string
   status: string
   keywords: string[]
+  effectiveness_score?: number
+  usage_count?: number
 }
 
 interface SkillsTabProps {
@@ -52,7 +54,17 @@ export default function SkillsTab({ projectDetail, experienceRules }: SkillsTabP
                 {rule.status === 'approved' ? '已采纳' : rule.status === 'pending_review' ? '待审核' : rule.status}
               </span>
             </div>
-            <div style={styles.ruleAction}>{rule.action}</div>
+            <div style={styles.ruleAction}>
+              {rule.action}
+              {(rule.usage_count ?? 0) > 0 && (
+                <span style={{
+                  marginLeft: 8, fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
+                  color: (rule.effectiveness_score ?? 0) >= 0.7 ? '#10b981' : (rule.effectiveness_score ?? 0) >= 0.4 ? '#f59e0b' : '#ef4444',
+                }}>
+                  ★{((rule.effectiveness_score ?? 0) * 100).toFixed(0)}%
+                </span>
+              )}
+            </div>
             {rule.keywords && rule.keywords.length > 0 && (
               <div style={styles.ruleKeywords}>
                 {rule.keywords.slice(0, 3).map((kw, j) => (

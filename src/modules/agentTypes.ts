@@ -267,6 +267,9 @@ export interface ExperienceRule {
   status: 'pending_review' | 'approved' | 'rejected'
   keywords: string[]
   created_at: string
+  effectiveness_score?: number
+  usage_count?: number
+  success_count?: number
 }
 
 export interface RouteEntry {

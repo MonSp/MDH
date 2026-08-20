@@ -546,6 +546,43 @@ async def modify_rule(rule_id: str, body: dict = Body(...)):
         return _fail(str(e))
 
 
+@app.get("/api/experience/rules/effectiveness")
+async def get_rules_effectiveness():
+    """获取规则有效性评分排行"""
+    try:
+        rules = experience_extractor.get_all_rules()
+        scored = [
+            {
+                "rule_id": r.rule_id,
+                "trigger_condition": r.trigger_condition,
+                "action": r.action,
+                "rule_type": r.rule_type,
+                "status": r.status,
+                "effectiveness_score": r.effectiveness_score,
+                "usage_count": r.usage_count,
+                "success_count": r.success_count,
+                "keywords": r.keywords,
+            }
+            for r in rules
+            if r.usage_count > 0
+        ]
+        scored.sort(key=lambda x: x["effectiveness_score"], reverse=True)
+        return _ok({
+            "rules": scored,
+            "summary": {
+                "total_rules": len(rules),
+                "rules_with_usage": len(scored),
+                "avg_effectiveness": (
+                    sum(r["effectiveness_score"] for r in scored) / len(scored)
+                    if scored else 0.0
+                ),
+            },
+        })
+    except Exception as e:
+        logger.exception("get_rules_effectiveness 失败")
+        return _fail(str(e))
+
+
 # ──────────────────── SkillPackager REST API ────────────────────
 
 

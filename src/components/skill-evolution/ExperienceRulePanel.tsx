@@ -91,7 +91,14 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
                    <span style={s.date}>{fmt(rule.created_at)}</span>
                  </div>
                  <div style={s.action}>{rule.action}</div>
-                 <div style={s.source}>{rule.source_task_type} · {rule.source_task_id.slice(0, 8)}...</div>
+                 <div style={s.sourceRow}>
+                   <span style={s.source}>{rule.source_task_type} · {rule.source_task_id.slice(0, 8)}...</span>
+                   {(rule.usage_count ?? 0) > 0 && (
+                     <span style={{ ...s.effBadge, color: (rule.effectiveness_score ?? 0) >= 0.7 ? '#10b981' : (rule.effectiveness_score ?? 0) >= 0.4 ? '#f59e0b' : '#ef4444' }}>
+                       ★ {((rule.effectiveness_score ?? 0) * 100).toFixed(0)}% ({rule.usage_count}次)
+                     </span>
+                   )}
+                 </div>
                </div>
 
                {isExp && (
@@ -145,7 +152,9 @@ const s: Record<string, React.CSSProperties> = {
   statusTag: { padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 500 },
   date: { fontSize: 10, color: '#4b5563' },
   action: { fontSize: 12, color: '#d1d5db', lineHeight: 1.5, marginBottom: 4 },
+  sourceRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   source: { fontSize: 11, color: '#4b5563' },
+  effBadge: { fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' as const },
   expanded: { padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.1)' },
   detailSection: { marginBottom: 8 },
   detailLabel: { fontSize: 10, fontWeight: 600, color: '#8b5cf6', textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 3 },
