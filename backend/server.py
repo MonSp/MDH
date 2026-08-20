@@ -177,7 +177,11 @@ simple_executor = SimpleExecutor(project_manager=project_manager)
 
 # Agent 池（全局单例，支持复用和负载均衡）
 key_manager = KeyManager()
-agent_pool = AgentPool(key_manager=key_manager, max_instances_per_role=2)
+agent_pool = AgentPool(
+    key_manager=key_manager,
+    max_instances_per_role=2,
+    incremental_dir=os.path.join(_DATA_DIR, "experience"),
+)
 
 # 安全中间件（全局单例，审计日志）
 from security import SecurityMiddleware

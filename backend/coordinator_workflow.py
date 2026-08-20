@@ -171,11 +171,13 @@ async def execute_workflow_node(coordinator, node: WorkflowNode, input_data: dic
 
     tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}" if agent_toolset else ""
     asset_context = ""
-    if coordinator._asset_context_builder is not None and node.dept_id == "dept-docs":
+    if coordinator._asset_context_builder is not None:
         try:
             team_id = (input_data or {}).get("team_id", "")
             if team_id:
-                asset_context = coordinator._asset_context_builder(team_id, "minutes", ["纪要", "待办"])
+                # 从任务描述提取关键词用于资产检索
+                keywords = node.task_description[:50].split()[:5] if node.task_description else []
+                asset_context = coordinator._asset_context_builder(team_id, "", keywords)
         except Exception as exc:
             logger.warning("资产参考注入失败: %s", exc)
 

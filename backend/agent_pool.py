@@ -91,19 +91,22 @@ class AgentPool:
         self,
         key_manager: KeyManager,
         role_prompts: Optional[Dict[str, str]] = None,
-        max_instances_per_role: int = 3
+        max_instances_per_role: int = 3,
+        incremental_dir: str = "",
     ):
         """
         初始化Agent池
-        
+
         Args:
             key_manager: 密钥管理器
             role_prompts: 角色提示词映射，None使用默认提示词
             max_instances_per_role: 每个角色的最大实例数
+            incremental_dir: 增量区目录（进化后的 CoW 技能），传入后自动注入到 agent system prompt
         """
         self._key_manager = key_manager
         self._role_prompts = role_prompts or DEFAULT_ROLE_PROMPTS.copy()
         self._max_instances = max_instances_per_role
+        self._incremental_dir = incremental_dir
         
         # 按角色分组存储Agent实例
         self._agents: Dict[str, List[AgentInstance]] = {}
@@ -158,6 +161,10 @@ class AgentPool:
         system_prompt = config.system_prompt or self._role_prompts.get(
             config.role, f"你是{config.name}，请根据你的角色和能力完成任务。"
         )
+
+        # 注入增量区内容（进化后的技能知识 + 经验规则）
+        if self._incremental_dir:
+            system_prompt = self._inject_incremental_context(system_prompt)
         
         # 创建Agent
         agent = Agent(
@@ -496,10 +503,88 @@ class AgentPool:
     def update_role_prompt(self, role: str, prompt: str) -> None:
         """
         更新角色提示词
-        
+
         Args:
             role: 角色名称
             prompt: 系统提示词
         """
         self._role_prompts[role] = prompt
         logger.info("更新角色提示词: %s", role)
+
+    def _inject_incremental_context(self, system_prompt: str) -> str:
+        """将增量区的进化知识和经验规则注入到 system prompt。
+
+        增量区结构（CoW）：
+        - system_prompt_addon.md: 追加到 system prompt 的补充内容
+        - rules/: 经验规则 YAML 文件
+        - knowledge_add/: 领域知识文件
+
+        Args:
+            system_prompt: 原始 system prompt
+        Returns:
+            注入增量区内容后的 system prompt
+        """
+        import os
+
+        parts = [system_prompt]
+
+        addon_path = os.path.join(self._incremental_dir, "system_prompt_addon.md")
+        if os.path.isfile(addon_path):
+            try:
+                with open(addon_path, encoding="utf-8") as f:
+                    addon = f.read().strip()
+                if addon:
+                    parts.append(f"\n## 进化技能补充\n\n{addon}")
+            except Exception:
+                pass
+
+        rules_dir = os.path.join(self._incremental_dir, "rules")
+        if os.path.isdir(rules_dir):
+            rule_lines = []
+            try:
+                import yaml
+                for fname in sorted(os.listdir(rules_dir)):
+                    if not fname.endswith((".yaml", ".yml")):
+                        continue
+                    fpath = os.path.join(rules_dir, fname)
+                    if not os.path.isfile(fpath):
+                        continue
+                    try:
+                        with open(fpath, encoding="utf-8") as f:
+                            data = yaml.safe_load(f)
+                        if isinstance(data, dict) and data.get("trigger_condition"):
+                            rule_lines.append(f"- {data['trigger_condition']} → {data.get('action', '')}")
+                        elif isinstance(data, dict) and "rules" in data:
+                            for r in data["rules"]:
+                                if isinstance(r, dict):
+                                    rule_lines.append(f"- {r.get('trigger_condition', '')} → {r.get('action', '')}")
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            if rule_lines:
+                parts.append(f"\n## 进化经验规则\n\n" + "\n".join(rule_lines))
+
+        knowledge_dir = os.path.join(self._incremental_dir, "knowledge_add")
+        if os.path.isdir(knowledge_dir):
+            knowledge_parts = []
+            try:
+                for fname in sorted(os.listdir(knowledge_dir)):
+                    if not fname.endswith((".md", ".txt")):
+                        continue
+                    fpath = os.path.join(knowledge_dir, fname)
+                    if not os.path.isfile(fpath):
+                        continue
+                    try:
+                        with open(fpath, encoding="utf-8") as f:
+                            content = f.read().strip()
+                        if content:
+                            knowledge_parts.append(content)
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            if knowledge_parts:
+                parts.append(f"\n## 进化领域知识\n\n" + "\n\n".join(knowledge_parts))
+
+        return "\n".join(parts)
