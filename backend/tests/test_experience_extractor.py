@@ -440,6 +440,111 @@ class TestRuleEffectiveness:
         extractor.update_rule_effectiveness(rule.rule_id, False)
         assert extractor._load_rule(rule.rule_id).status == "approved"
 
+    def test_boundary_score_exactly_04_not_demoted(self, extractor):
+        """恰好 0.4 分（2/5）不降级 — 阈值是 < 0.4，不含等号"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        # 5 次使用：2 成功 3 失败 → 2/5 = 0.4 exactly
+        extractor.update_rule_effectiveness(rule.rule_id, True)
+        extractor.update_rule_effectiveness(rule.rule_id, True)
+        extractor.update_rule_effectiveness(rule.rule_id, False)
+        extractor.update_rule_effectiveness(rule.rule_id, False)
+        extractor.update_rule_effectiveness(rule.rule_id, False)
+        loaded = extractor._load_rule(rule.rule_id)
+        assert loaded.effectiveness_score == 0.4
+        assert loaded.status == "approved"  # 不降级
+
+    def test_demoted_rule_not_retrieved(self, extractor):
+        """降级后的规则不再被 retrieve_relevant_rules 返回"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+        task_type = rule.source_task_type
+
+        # 降级
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule.rule_id, False)
+        assert extractor._load_rule(rule.rule_id).status == "pending_review"
+
+        # 不再被检索
+        retrieved = extractor.retrieve_relevant_rules(task_type, rule.keywords)
+        retrieved_ids = [r.rule_id for r in retrieved]
+        assert rule.rule_id not in retrieved_ids
+
+    def test_demotion_persists_across_instances(self, extractor, tmp_incremental_dir):
+        """降级状态跨 extractor 实例持久化"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule.rule_id, False)
+        assert extractor._load_rule(rule.rule_id).status == "pending_review"
+
+        # 新实例仍读到 pending_review
+        reloaded = ExperienceExtractor(incremental_dir=tmp_incremental_dir)
+        assert reloaded._load_rule(rule.rule_id).status == "pending_review"
+        assert reloaded._load_rule(rule.rule_id).usage_count == 3
+
+    def test_reapprove_after_demotion(self, extractor):
+        """降级后重新审批，规则恢复生效且有效性计数保留"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule.rule_id, False)
+        assert extractor._load_rule(rule.rule_id).status == "pending_review"
+
+        # 重新审批
+        extractor.approve_rule(rule.rule_id)
+        reloaded = extractor._load_rule(rule.rule_id)
+        assert reloaded.status == "approved"
+        assert reloaded.usage_count == 3  # 历史计数保留
+        assert reloaded.effectiveness_score == 0.0  # 评分保留
+
+    def test_scan_demote_mixed_rules(self, extractor):
+        """批量扫描：高分规则保留，低分规则降级"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule_good = rules[0]
+        extractor.submit_for_review(rule_good)
+        extractor.approve_rule(rule_good.rule_id)
+        # 3 次成功
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule_good.rule_id, True)
+
+        # 第二条规则：3 次失败
+        log2 = _make_success_log()
+        rules2 = extractor.extract_from_success(log2)
+        rule_bad = rules2[0]
+        rule_bad.rule_id = "bad-rule-id"
+        extractor._save_rule(rule_bad)
+        extractor.submit_for_review(rule_bad)
+        extractor.approve_rule(rule_bad.rule_id)
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule_bad.rule_id, False)
+
+        # 手动把降级的改回 approved（模拟绕过自动降级的旧规则）
+        r = extractor._load_rule(rule_bad.rule_id)
+        r.status = "approved"
+        extractor._save_rule(r)
+
+        demoted = extractor.scan_and_demote_ineffective_rules()
+        assert rule_bad.rule_id in demoted
+        assert rule_good.rule_id not in demoted
+        assert extractor._load_rule(rule_good.rule_id).status == "approved"
+
 
 # ──────────────────── 检索相关规则 ────────────────────
 
