@@ -624,6 +624,85 @@ class TestRuleEffectiveness:
         assert entry["rule_type"] == rule.rule_type
         assert entry["team_id"] == rule.team_id
 
+    def test_demotion_stats_empty(self, extractor):
+        """无降级时统计报表返回零值"""
+        stats = extractor.get_demotion_stats()
+        assert stats["total"] == 0
+        assert stats["by_rule_type"] == {}
+        assert stats["avg_score"] == 0
+
+    def test_demotion_stats_populated(self, extractor, tmp_incremental_dir):
+        """降级后统计报表正确聚合"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule.rule_id, False)
+
+        stats = extractor.get_demotion_stats()
+        assert stats["total"] == 1
+        assert stats["by_rule_type"][rule.rule_type] == 1
+        assert stats["avg_score"] == 0.0
+        assert len(stats["timeline"]) == 1
+        assert stats["top_rules"][0]["rule_id"] == rule.rule_id
+        assert stats["top_rules"][0]["demotion_count"] == 1
+        # 降级后 status=pending_review，复审率=0
+        assert stats["re_approval_rate"] == 0.0
+
+    def test_demotion_stats_re_approval_rate(self, extractor, tmp_incremental_dir):
+        """复审通过后复审率上升"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule.rule_id, False)
+        # 重新审批
+        extractor.approve_rule(rule.rule_id)
+
+        stats = extractor.get_demotion_stats()
+        assert stats["re_approval_rate"] == 1.0
+
+    def test_demotion_stats_by_team(self, extractor, tmp_incremental_dir):
+        """按团队聚合正确"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        rule.team_id = "team-alpha"
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule.rule_id, False)
+
+        stats = extractor.get_demotion_stats()
+        assert stats["by_team"]["team-alpha"] == 1
+
+    def test_demotion_stats_top_rules(self, extractor, tmp_incremental_dir):
+        """高频降级规则排行"""
+        # 降级第一条规则 2 次（手动恢复后再降级）
+        log1 = _make_success_log()
+        rules1 = extractor.extract_from_success(log1)
+        r1 = rules1[0]
+        extractor.submit_for_review(r1)
+        extractor.approve_rule(r1.rule_id)
+        for _ in range(3):
+            extractor.update_rule_effectiveness(r1.rule_id, False)
+        # 手动恢复再降级
+        extractor.approve_rule(r1.rule_id)
+        for _ in range(3):
+            extractor.update_rule_effectiveness(r1.rule_id, False)
+
+        stats = extractor.get_demotion_stats()
+        assert stats["total"] == 2
+        assert stats["top_rules"][0]["rule_id"] == r1.rule_id
+        assert stats["top_rules"][0]["demotion_count"] == 2
+
 
 # ──────────────────── 检索相关规则 ────────────────────
 

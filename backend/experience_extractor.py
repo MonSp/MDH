@@ -532,6 +532,65 @@ class ExperienceExtractor:
             logger.exception("Failed to read demotion log")
         return []
 
+    def get_demotion_stats(self) -> Dict:
+        """降级统计报表：按类型/团队/时间聚合，含复审率"""
+        import json
+        from collections import Counter
+        log = self.get_demotion_log()  # 倒序（最近在前）
+        if not log:
+            return {"total": 0, "by_rule_type": {}, "by_team": {}, "avg_score": 0,
+                    "re_approval_rate": 0, "timeline": [], "top_rules": []}
+
+        # 按类型
+        by_type = Counter(e.get("rule_type", "unknown") for e in log)
+        # 按团队
+        by_team = Counter(e.get("team_id", "") or "(global)" for e in log)
+        # 平均降级评分
+        scores = [e["effectiveness_score"] for e in log if "effectiveness_score" in e]
+        avg_score = sum(scores) / len(scores) if scores else 0.0
+
+        # 复审率：被降级的规则当前是否已重新审批
+        demoted_rule_ids = list({e["rule_id"] for e in log})
+        re_approved = 0
+        for rid in demoted_rule_ids:
+            rule = self._load_rule(rid)
+            if rule and rule.status == "approved":
+                re_approved += 1
+        re_approval_rate = re_approved / len(demoted_rule_ids) if demoted_rule_ids else 0.0
+
+        # 按天聚合时间线（最近 14 天）
+        day_counts: Dict[str, int] = {}
+        for e in log:
+            day = e.get("demoted_at", "")[:10]
+            if day:
+                day_counts[day] = day_counts.get(day, 0) + 1
+        timeline = sorted(day_counts.items(), reverse=True)[:14]
+
+        # 降级次数最多的规则
+        rule_counts = Counter(e["rule_id"] for e in log)
+        top_rules = []
+        for rid, count in rule_counts.most_common(5):
+            entry = next(e for e in log if e["rule_id"] == rid)
+            rule = self._load_rule(rid)
+            top_rules.append({
+                "rule_id": rid,
+                "trigger_condition": entry.get("trigger_condition", ""),
+                "action": entry.get("action", ""),
+                "demotion_count": count,
+                "current_status": rule.status if rule else "unknown",
+                "last_score": entry.get("effectiveness_score", 0),
+            })
+
+        return {
+            "total": len(log),
+            "by_rule_type": dict(by_type),
+            "by_team": dict(by_team),
+            "avg_score": round(avg_score, 4),
+            "re_approval_rate": round(re_approval_rate, 4),
+            "timeline": [{"date": d, "count": c} for d, c in timeline],
+            "top_rules": top_rules,
+        }
+
     # 有效性阈值：连续使用 ≥ 此次数且成功率 < 此分数时自动降级
     DEMOTION_MIN_USAGE = 3
     DEMOTION_THRESHOLD = 0.4

@@ -23,6 +23,13 @@ interface DemotionEntry {
   reason: string; demoted_at: string
 }
 
+interface DemotionStats {
+  total: number; avg_score: number; re_approval_rate: number
+  by_rule_type: Record<string, number>; by_team: Record<string, number>
+  timeline: { date: string; count: number }[]
+  top_rules: { rule_id: string; trigger_condition: string; action: string; demotion_count: number; current_status: string; last_score: number }[]
+}
+
 export function ExperienceRulePanel({ mode = 'all' }: Props) {
   const [rules, setRules] = useState<ExperienceRule[]>([])
   const [filter, setFilter] = useState<'all' | 'pending_review' | 'approved' | 'rejected'>(mode === 'pending' ? 'pending_review' : 'all')
@@ -32,6 +39,8 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
   const [actingId, setActingId] = useState<string | null>(null)
   const [demotionAlerts, setDemotionAlerts] = useState<DemotionEntry[]>([])
   const [alertsDismissed, setAlertsDismissed] = useState(false)
+  const [stats, setStats] = useState<DemotionStats | null>(null)
+  const [statsOpen, setStatsOpen] = useState(false)
 
   const loadRules = async () => {
     setLoading(true); setError(null)
@@ -51,7 +60,15 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
     } catch { /* silent */ }
   }
 
-  useEffect(() => { loadRules(); loadDemotionAlerts() }, [mode])
+  const loadStats = async () => {
+    try {
+      const resp = await fetch('/api/experience/rules/demotion-stats')
+      const data = await resp.json()
+      if (data.success) setStats(data.data)
+    } catch { /* silent */ }
+  }
+
+  useEffect(() => { loadRules(); loadDemotionAlerts(); loadStats() }, [mode])
 
   const handleApprove = async (id: string) => {
     setActingId(id)
@@ -104,6 +121,78 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
               <span style={s.alertUsage}>({e.success_count}/{e.usage_count})</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {stats && stats.total > 0 && (
+        <div style={s.statsSection}>
+          <button style={s.statsToggle} onClick={() => setStatsOpen(!statsOpen)}>
+            <span>📊 降级统计报表</span>
+            <span style={{ ...s.statsArrow, transform: statsOpen ? 'rotate(90deg)' : 'none' }}>▸</span>
+          </button>
+          {statsOpen && (
+            <div style={s.statsBody}>
+              <div style={s.statsRow}>
+                <div style={s.statCard}>
+                  <div style={s.statValue}>{stats.total}</div>
+                  <div style={s.statLabel}>总降级</div>
+                </div>
+                <div style={s.statCard}>
+                  <div style={s.statValue}>{(stats.avg_score * 100).toFixed(0)}%</div>
+                  <div style={s.statLabel}>平均评分</div>
+                </div>
+                <div style={s.statCard}>
+                  <div style={{ ...s.statValue, color: stats.re_approval_rate >= 0.5 ? '#10b981' : '#f59e0b' }}>
+                    {(stats.re_approval_rate * 100).toFixed(0)}%
+                  </div>
+                  <div style={s.statLabel}>复审通过率</div>
+                </div>
+              </div>
+
+              {stats.timeline.length > 0 && (
+                <div style={s.statsBlock}>
+                  <div style={s.statsBlockTitle}>时间线（最近 14 天）</div>
+                  <div style={s.timelineRow}>
+                    {stats.timeline.map((t, i) => (
+                      <div key={i} style={s.timelineDay}>
+                        <div style={{ ...s.timelineBar, height: Math.min(t.count * 12, 60) }} />
+                        <div style={s.timelineLabel}>{t.date.slice(5)}</div>
+                        <div style={s.timelineCount}>{t.count}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {Object.keys(stats.by_rule_type).length > 0 && (
+                <div style={s.statsBlock}>
+                  <div style={s.statsBlockTitle}>按类型</div>
+                  <div style={s.tagRow2}>
+                    {Object.entries(stats.by_rule_type).map(([k, v]) => (
+                      <span key={k} style={s.statsTag}>{k}: {v}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {stats.top_rules.length > 0 && (
+                <div style={s.statsBlock}>
+                  <div style={s.statsBlockTitle}>高频降级规则</div>
+                  {stats.top_rules.map((r, i) => (
+                    <div key={i} style={s.topRuleRow}>
+                      <span style={s.topRuleId}>{r.rule_id.slice(0, 8)}</span>
+                      <span style={s.topRuleCond}>{r.trigger_condition}</span>
+                      <span style={s.topRuleCount}>{r.demotion_count}次</span>
+                      <span style={{
+                        ...s.topRuleStatus,
+                        color: r.current_status === 'approved' ? '#10b981' : r.current_status === 'pending_review' ? '#f59e0b' : '#6b7280',
+                      }}>{r.current_status === 'approved' ? '已恢复' : r.current_status === 'pending_review' ? '待审核' : r.current_status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -212,4 +301,26 @@ const s: Record<string, React.CSSProperties> = {
   actionBtn: { padding: '4px 14px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   approveBtn: { background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff' },
   rejectBtn: { background: 'rgba(255,255,255,0.06)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.1)' },
+  statsSection: { margin: '0 12px', borderRadius: 8, border: '1px solid rgba(139,92,246,0.2)', background: 'rgba(139,92,246,0.04)', overflow: 'hidden' },
+  statsToggle: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', background: 'none', border: 'none', color: '#c4b5fd', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  statsArrow: { fontSize: 10, transition: 'transform 0.15s' },
+  statsBody: { padding: '0 14px 12px' },
+  statsRow: { display: 'flex', gap: 8, marginBottom: 10 },
+  statCard: { flex: 1, padding: '8px 10px', borderRadius: 6, background: 'rgba(0,0,0,0.2)', textAlign: 'center' as const },
+  statValue: { fontSize: 18, fontWeight: 700, color: '#e2e8f0' },
+  statLabel: { fontSize: 10, color: '#6b7280', marginTop: 2 },
+  statsBlock: { marginBottom: 10 },
+  statsBlockTitle: { fontSize: 10, fontWeight: 600, color: '#8b5cf6', textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 6 },
+  tagRow2: { display: 'flex', flexWrap: 'wrap' as const, gap: 6 },
+  statsTag: { padding: '2px 10px', borderRadius: 10, fontSize: 11, background: 'rgba(139,92,246,0.1)', color: '#a78bfa' },
+  timelineRow: { display: 'flex', alignItems: 'flex-end', gap: 4, height: 80 },
+  timelineDay: { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 2, minWidth: 28 },
+  timelineBar: { width: 18, background: 'rgba(239,68,68,0.4)', borderRadius: 3, minHeight: 2, transition: 'height 0.2s' },
+  timelineLabel: { fontSize: 9, color: '#6b7280' },
+  timelineCount: { fontSize: 10, fontWeight: 600, color: '#ef4444' },
+  topRuleRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 11, color: '#d1d5db', borderBottom: '1px solid rgba(255,255,255,0.03)' },
+  topRuleId: { fontFamily: 'monospace', color: '#6b7280', fontSize: 10, flexShrink: 0 },
+  topRuleCond: { flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  topRuleCount: { fontWeight: 700, color: '#ef4444', fontSize: 11, flexShrink: 0 },
+  topRuleStatus: { fontSize: 10, flexShrink: 0 },
 }

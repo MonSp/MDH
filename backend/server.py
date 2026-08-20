@@ -604,6 +604,16 @@ async def get_demotion_log():
         return _fail(str(e))
 
 
+@app.get("/api/experience/rules/demotion-stats")
+async def get_demotion_stats():
+    """降级统计报表"""
+    try:
+        return _ok(experience_extractor.get_demotion_stats())
+    except Exception as e:
+        logger.exception("get_demotion_stats 失败")
+        return _fail(str(e))
+
+
 def _now_iso_24h_ago() -> str:
     from datetime import datetime, timezone, timedelta
     return (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
