@@ -360,14 +360,16 @@ export async function loadIncrementalArea(
         const raw = await readFile(join(rulesDir, f.name), 'utf-8');
         const parsed = parseYaml(raw);
         if (parsed.trigger_condition || parsed.action) {
-          const line = formatRule(parsed);
-          if (line) rules.push(line);
+          if ((parsed.status ?? 'approved') === 'approved') {
+            const line = formatRule(parsed);
+            if (line) rules.push(line);
+          }
           continue;
         }
         const rulesArr = parsed.rules;
         if (Array.isArray(rulesArr)) {
           for (const item of rulesArr) {
-            if (typeof item === 'object' && item !== null) {
+            if (typeof item === 'object' && item !== null && (item.status ?? 'approved') === 'approved') {
               const line = formatRule(item as Record<string, unknown>);
               if (line) rules.push(line);
             }

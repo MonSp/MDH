@@ -553,10 +553,11 @@ class AgentPool:
                         with open(fpath, encoding="utf-8") as f:
                             data = yaml.safe_load(f)
                         if isinstance(data, dict) and data.get("trigger_condition"):
-                            rule_lines.append(f"- {data['trigger_condition']} → {data.get('action', '')}")
+                            if data.get("status", "approved") == "approved":
+                                rule_lines.append(f"- {data['trigger_condition']} → {data.get('action', '')}")
                         elif isinstance(data, dict) and "rules" in data:
                             for r in data["rules"]:
-                                if isinstance(r, dict):
+                                if isinstance(r, dict) and r.get("status", "approved") == "approved":
                                     rule_lines.append(f"- {r.get('trigger_condition', '')} → {r.get('action', '')}")
                     except Exception:
                         continue

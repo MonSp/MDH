@@ -43,7 +43,7 @@ def test_finalize_skill_evolution_approves_writes_and_packages(tmp_path):
 
     assert result["approved"] == 1
     assert result["written"] == 1
-    assert os.path.exists(tmp_path / "experience" / "approved" / "r-test-1.yaml")
+    assert os.path.exists(tmp_path / "experience" / "rules" / "r-test-1.yaml")
     assert "backend_dev" in result["packaged"]
     assert packager.calls and packager.calls[0]["project_id"] == "proj-1"
 

@@ -45,8 +45,6 @@ def asset_data(tmp_path, monkeypatch):
     rules_base = data_dir / "rules"
     rules_sub = rules_base / "rules"
     rules_sub.mkdir(parents=True)
-    approved_sub = rules_base / "approved"
-    approved_sub.mkdir(parents=True)
     (rules_sub / "int-rule.yaml").write_text(
         'trigger_condition: "task_type is minutes"\n'
         'action: "必须为每项待办补充负责人与截止日期"\n'

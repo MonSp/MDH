@@ -115,6 +115,46 @@ class TestPythonIncrementalInjection:
         assert "task_type is minutes" in result
         assert "必须为每项待办补充负责人与截止日期" in result
 
+    def test_inject_skips_rejected_rules(self, tmp_path):
+        """被拒绝的规则不应注入到 system prompt。"""
+        from agent_pool import AgentPool
+        from key_manager import KeyManager
+
+        inc = tmp_path / "exp"
+        inc.mkdir()
+        rules_dir = inc / "rules"
+        rules_dir.mkdir()
+        # approved rule (default)
+        (rules_dir / "good.yaml").write_text(
+            'trigger_condition: "task_type is deploy"\n'
+            'action: "部署前必须运行完整测试"\n'
+            'rule_type: correction_tip\n',
+            encoding="utf-8",
+        )
+        # rejected rule
+        (rules_dir / "bad.yaml").write_text(
+            'trigger_condition: "task_type is hotfix"\n'
+            'action: "跳过测试直接部署"\n'
+            'rule_type: correction_tip\n'
+            'status: rejected\n',
+            encoding="utf-8",
+        )
+        # pending_review rule
+        (rules_dir / "pending.yaml").write_text(
+            'trigger_condition: "task_type is refactor"\n'
+            'action: "重构前先写测试"\n'
+            'rule_type: success_pattern\n'
+            'status: pending_review\n',
+            encoding="utf-8",
+        )
+
+        pool = AgentPool(key_manager=KeyManager(), incremental_dir=str(inc))
+        result = pool._inject_incremental_context("你是开发工程师。")
+
+        assert "部署前必须运行完整测试" in result
+        assert "跳过测试直接部署" not in result
+        assert "重构前先写测试" not in result
+
     def test_inject_incremental_context_knowledge(self, incremental_dir):
         """增量区 knowledge_add 注入到 system prompt。"""
         from agent_pool import AgentPool

@@ -279,12 +279,13 @@ class TestWriteToIncrementalArea:
         result = extractor.write_to_incremental_area(rule)
         assert result is True
 
-        approved_path = os.path.join(tmp_incremental_dir, "approved", f"{rule.rule_id}.yaml")
-        assert os.path.isfile(approved_path)
+        rules_path = os.path.join(tmp_incremental_dir, "rules", f"{rule.rule_id}.yaml")
+        assert os.path.isfile(rules_path)
 
-        with open(approved_path, encoding="utf-8") as f:
+        with open(rules_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         assert data["rules"][0]["rule_id"] == rule.rule_id
+        assert data["rules"][0]["status"] == "approved"
 
     def test_reject_unapproved_rule(self, extractor):
         log = _make_success_log()

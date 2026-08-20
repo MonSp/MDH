@@ -494,9 +494,6 @@ class ExperienceExtractor:
             logger.warning("Rule %s is not approved (status=%s), cannot write", rule.rule_id, rule.status)
             return False
 
-        approved_dir = os.path.join(self._incremental_dir, "approved")
-        os.makedirs(approved_dir, exist_ok=True)
-
         data = {
             "rules": [
                 {
@@ -507,13 +504,14 @@ class ExperienceExtractor:
                     "source_task_id": rule.source_task_id,
                     "source_task_type": rule.source_task_type,
                     "rule_type": rule.rule_type,
+                    "status": rule.status,
                     "keywords": rule.keywords,
                     "created_at": rule.created_at,
                 }
             ]
         }
 
-        path = os.path.join(approved_dir, f"{rule.rule_id}.yaml")
+        path = os.path.join(self._rules_dir, f"{rule.rule_id}.yaml")
         try:
             with open(path, "w", encoding="utf-8") as f:
                 yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)

@@ -136,6 +136,27 @@ describe('loadIncrementalArea', () => {
     expect(result.rules).toEqual([]);
     expect(result.knowledge).toEqual([]);
   });
+
+  it('skips rejected and pending_review rules', async () => {
+    const { mkdtemp, writeFile, mkdir } = await import('node:fs/promises');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const dir = await mkdtemp(join(tmpdir(), 'inc-test-'));
+    const rulesDir = join(dir, 'rules');
+    await mkdir(rulesDir, { recursive: true });
+
+    await writeFile(join(rulesDir, 'good.yaml'),
+      'trigger_condition: "deploy check"\naction: "run tests"\n', 'utf-8');
+    await writeFile(join(rulesDir, 'bad.yaml'),
+      'trigger_condition: "hotfix"\naction: "skip tests"\nstatus: rejected\n', 'utf-8');
+    await writeFile(join(rulesDir, 'pending.yaml'),
+      'trigger_condition: "refactor"\naction: "write tests first"\nstatus: pending_review\n', 'utf-8');
+
+    const result = await loadIncrementalArea(dir);
+    expect(result.rules).toHaveLength(1);
+    expect(result.rules[0]).toContain('deploy check');
+    expect(result.rules[0]).toContain('run tests');
+  });
 });
 
 describe('parseYaml', () => {
