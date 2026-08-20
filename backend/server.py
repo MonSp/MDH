@@ -497,6 +497,10 @@ async def approve_rule(rule_id: str, body: dict = Body(...)):
         success = experience_extractor.approve_rule(rule_id, comment)
         if not success:
             return _fail(f"规则不存在: {rule_id}")
+        # 审批通过后写入增量区，触发技能进化
+        approved_rule = experience_extractor._load_rule(rule_id)
+        if approved_rule:
+            experience_extractor.write_to_incremental_area(approved_rule)
         return _ok({"rule_id": rule_id, "status": "approved"})
     except (KeyError, ValueError) as e:
         logger.warning("approve_rule 失败 预期错误: %s", e)

@@ -19,6 +19,13 @@ interface SearchResult {
   rules: Array<{ rule_id: string; trigger_condition: string; action: string }>
 }
 
+interface ReuseStats {
+  total: number
+  by_team: Record<string, number>
+  by_type: { templates: number; artifacts: number; rules: number }
+  last_at: string
+}
+
 // 演示团队（team-x 为后端 seed 的演示数据团队；team-y/team-a/team-b 为既有测试团队）
 const DEMO_TEAMS = ['team-x', 'team-y', 'team-a', 'team-b']
 
@@ -33,7 +40,7 @@ export default function AssetBrowserPanel() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [saving, setSaving] = useState(false)
-  const [reuseStats, setReuseStats] = useState<{ total: number; by_team: Record<string, number>; by_type: { templates: number; artifacts: number; rules: number }; last_at: string } | null>(null)
+  const [reuseStats, setReuseStats] = useState<ReuseStats | null>(null)
 
   useEffect(() => {
     // 团队切换：先清空旧列表（fetch 失败也不残留），再重置 per-team 检索结果与上次错误
@@ -44,7 +51,7 @@ export default function AssetBrowserPanel() {
       .then((data) => setAssets(data))
       .catch((e) => setError(String(e)))
     // 加载复用率统计（全局，不按团队过滤）
-    apiFetch<{ total: number; by_team: Record<string, number>; by_type: { templates: number; artifacts: number; rules: number }; last_at: string }>('/api/assets/reuse-metrics')
+    apiFetch<ReuseStats>('/api/assets/reuse-metrics')
       .then((data) => setReuseStats(data))
       .catch(() => {})
   }, [teamId])
