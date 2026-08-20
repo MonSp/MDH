@@ -243,3 +243,35 @@ class TestPythonEndToEnd:
         full_prompt = f"{prompt_with_inc}\n{asset_ctx}"
         assert "进化技能补充" in full_prompt
         assert "资产参考" in full_prompt or asset_ctx == ""
+
+    def test_create_agent_injects_incremental(self, incremental_dir):
+        """验证 AgentPool._create_agent 实际将增量区注入到 agent system_prompt。"""
+        from unittest.mock import patch, call
+        from agent_pool import AgentPool, AgentConfig
+        from key_manager import KeyManager
+
+        km = KeyManager()
+        pool = AgentPool(key_manager=km, incremental_dir=incremental_dir)
+
+        config = AgentConfig(
+            id="test-agent",
+            name="测试工程师",
+            role="executor",
+            capabilities=["code_generation"],
+            system_prompt="你是全栈开发工程师。",
+        )
+
+        # 捕获 Agent() 构造函数收到的 system_prompt 参数
+        captured_kwargs = {}
+        with patch('agent_pool.Agent') as MockAgent:
+            MockAgent.return_value.sys_prompt = ''
+            pool._create_agent(config)
+            captured_kwargs = MockAgent.call_args
+
+        # 验证 Agent() 收到的 system_prompt 包含增量区内容
+        prompt = captured_kwargs.kwargs.get('system_prompt', '') or captured_kwargs[1].get('system_prompt', '')
+        assert "进化技能补充" in prompt
+        assert "进化经验规则" in prompt
+        assert "进化领域知识" in prompt
+        # 原始 prompt 也被保留
+        assert "你是全栈开发工程师" in prompt
