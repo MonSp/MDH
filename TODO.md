@@ -2,6 +2,13 @@
 
 > 基于 2026-08-19 v1.3.1 规划，按优先级排列。
 
+## v1.3.3 — 循环导入修复 + 类型安全（2026-08-20）
+
+- [x] **循环导入修复** — 提取 SidePanel.styles.ts，子组件从共享文件导入
+- [x] **前端类型安全** — useRolesConfig/RolePanel/SkillPanel/ToolPanel any 清零
+- [x] **Handler 类型安全** — 5个handler模块+dispatcher+meetingStore any 清零
+- [x] **useMeetingSocket 类型安全** — BridgeMessage 类型化
+
 ## v1.3.2 — 前端架构治理收尾 + 大文件拆分（2026-08-20）
 
 ### Code Review 修复
