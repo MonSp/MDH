@@ -451,21 +451,22 @@ class SkillPackager:
 
     # ──────────────────── ZIP 打包 ────────────────────
 
-    def package_zip(self, merged_dir: str, project_id: str, skill_name: str) -> str:
+    def package_zip(self, merged_dir: str, project_id: str, skill_name: str, version: str = "1.0.0") -> str:
         """压缩为 ZIP。
 
         Args:
             merged_dir: 合并后的技能包目录
             project_id: 项目 ID
             skill_name: 技能名称
+            version: 版本号（从 manifest.yaml 读取并 bump 后）
 
         Returns:
             ZIP 文件路径
 
-        文件名格式: {project_id}_{skill_name}_v2.0.zip
+        文件名格式: {project_id}_{skill_name}_v{version}.zip
         """
         safe_name = re.sub(r"[^\w\-]", "_", skill_name)
-        zip_name = f"{project_id}_{safe_name}_v2.0.zip"
+        zip_name = f"{project_id}_{safe_name}_v{version}.zip"
         zip_path = self._output_dir / zip_name
 
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -667,7 +668,7 @@ class SkillPackager:
             readme_path.write_text(readme_content, encoding="utf-8")
 
             # 5. ZIP 打包
-            package_path = self.package_zip(merged_dir, project_id, skill_name)
+            package_path = self.package_zip(merged_dir, project_id, skill_name, version=output_version)
 
             return PackageResult(
                 package_path=package_path,
