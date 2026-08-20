@@ -43,6 +43,11 @@
 - [x] **agentReferenceSystem** — 603→557 行，提取 agentReferenceSystem.types.ts
 - [x] **taskScheduler** — 551→524 行，提取 taskScheduler.types.ts
 - [x] **agentCoordinator** — 537→519 行，提取 agentCoordinator.types.ts
+- [x] **CyberpunkBuildings** — 523→212 行，提取纹理生成器到 BuildingTextures.ts(271行)
+- [x] **MeetingTable** — 521→267 行，提取 styles 到 MeetingTable.styles.ts(257行)
+- [x] **SkillMarketplace** — 531→406 行，提取 types + styles
+- [x] **taskPlanner** — 509→341 行，提取 types + NLP工具函数
+- [x] **RoleConfigPanel** — 506→412 行，提取 types + NewRoleModal 子组件
 
 ---
 
