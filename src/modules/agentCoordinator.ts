@@ -30,30 +30,20 @@ import {
 import { AgentRegistry } from './agentRegistry'
 import { CommunicationBus } from './communicationBus'
 import { TaskAssigner } from './taskAssigner'
+import {
+  type CoordinatorConfig,
+  type CoordinatorDeps,
+  type CoordinatorState,
+  type AgentCandidate,
+} from './agentCoordinator.types'
 
-export interface CoordinatorConfig {
-  heartbeatInterval: number
-  statusSyncInterval: number
-  taskTimeout: number
-  maxRetries: number
-  enableAutoRecovery: boolean
-  enableLoadBalancing: boolean
-}
-
-export interface CoordinatorDeps {
-  registry?: AgentRegistry
-  communicationBus?: CommunicationBus
-  taskAssigner?: TaskAssigner
-}
-
-export interface CoordinatorState {
-  isRunning: boolean
-  activeAgents: number
-  pendingTasks: number
-  completedTasks: number
-  failedTasks: number
-  uptime: number
-}
+// Re-export types for external consumers
+export {
+  type CoordinatorConfig,
+  type CoordinatorDeps,
+  type CoordinatorState,
+  type AgentCandidate,
+} from './agentCoordinator.types'
 
 export class AgentCoordinator {
   private registry: AgentRegistry
@@ -526,13 +516,4 @@ export class AgentCoordinator {
       this.taskAssigner.getAssignment(a.taskId)
     })
   }
-}
-
-interface AgentCandidate {
-  instance: AgentInstance
-  config: AgentConfig
-  score: number
-  matchingCapabilities: AgentCapability[]
-  currentLoad: number
-  successRate: number
 }

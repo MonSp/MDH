@@ -1,48 +1,20 @@
 import type { SubTask, TaskDependency, TaskPriority, TaskStatus } from './taskTypes'
+import {
+  type SchedulingConfig,
+  type ResourceLimits,
+  type ScheduledTask,
+  type SchedulingResult,
+  type TaskQueue,
+} from './taskScheduler.types'
 
-export interface SchedulingConfig {
-  maxConcurrentTasks?: number
-  priorityWeights?: Record<TaskPriority, number>
-  enablePreemption?: boolean
-  schedulingAlgorithm?: 'priority' | 'fifo' | 'sjf' | 'critical-path' | 'hybrid'
-  resourceLimits?: ResourceLimits
-}
-
-export interface ResourceLimits {
-  maxCpu?: number
-  maxMemory?: number
-  maxNetworkBandwidth?: number
-}
-
-export interface ScheduledTask extends SubTask {
-  scheduledStartTime: number
-  scheduledEndTime: number
-  assignedSlot: number
-  priorityScore: number
-  isReady: boolean
-  waitingReason?: string
-}
-
-export interface SchedulingResult {
-  scheduledTasks: ScheduledTask[]
-  totalDuration: number
-  makespan: number
-  utilization: number
-  metadata: {
-    algorithm: string
-    taskCount: number
-    concurrencyLevel: number
-    schedulingTime: number
-  }
-}
-
-export interface TaskQueue {
-  pending: ScheduledTask[]
-  ready: ScheduledTask[]
-  running: ScheduledTask[]
-  completed: ScheduledTask[]
-  failed: ScheduledTask[]
-}
+// Re-export types for external consumers
+export {
+  type SchedulingConfig,
+  type ResourceLimits,
+  type ScheduledTask,
+  type SchedulingResult,
+  type TaskQueue,
+} from './taskScheduler.types'
 
 export class TaskScheduler {
   private config: SchedulingConfig
