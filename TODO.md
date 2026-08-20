@@ -2,7 +2,14 @@
 
 > 基于 2026-08-19 v1.3.1 规划，按优先级排列。
 
-## v1.3.2 — 前端架构治理收尾 + 大文件拆分（2026-08-18）
+## v1.3.2 — 前端架构治理收尾 + 大文件拆分（2026-08-20）
+
+### Code Review 修复
+
+- [x] **C1** — SidePanel 删除重复导入
+- [x] **C2** — SidePanel 导出 inputStyle/selectStyle/tagStyle 供子组件使用
+- [x] **C3** — useCeoCommunication setMeetingPhase 类型 string→MeetingPhase
+- [x] **I1** — SidePanel 清理残留 render 函数体 (618→292行)
 
 ### A 线：useMeetingSocket 重构
 
