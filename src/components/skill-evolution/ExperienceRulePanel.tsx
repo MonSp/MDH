@@ -126,10 +126,16 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
 
       {stats && stats.total > 0 && (
         <div style={s.statsSection}>
-          <button style={s.statsToggle} onClick={() => setStatsOpen(!statsOpen)}>
-            <span>📊 降级统计报表</span>
-            <span style={{ ...s.statsArrow, transform: statsOpen ? 'rotate(90deg)' : 'none' }}>▸</span>
-          </button>
+          <div style={s.statsHeaderRow}>
+            <button style={s.statsToggle} onClick={() => setStatsOpen(!statsOpen)}>
+              <span>📊 降级统计报表</span>
+              <span style={{ ...s.statsArrow, transform: statsOpen ? 'rotate(90deg)' : 'none' }}>▸</span>
+            </button>
+            <div style={s.exportBtns}>
+              <a href="/api/experience/rules/demotion-export?format=json" download="demotion_report.json" style={s.exportLink}>JSON</a>
+              <a href="/api/experience/rules/demotion-export?format=csv" download="demotion_report.csv" style={s.exportLink}>CSV</a>
+            </div>
+          </div>
           {statsOpen && (
             <div style={s.statsBody}>
               <div style={s.statsRow}>
@@ -302,7 +308,10 @@ const s: Record<string, React.CSSProperties> = {
   approveBtn: { background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff' },
   rejectBtn: { background: 'rgba(255,255,255,0.06)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.1)' },
   statsSection: { margin: '0 12px', borderRadius: 8, border: '1px solid rgba(139,92,246,0.2)', background: 'rgba(139,92,246,0.04)', overflow: 'hidden' },
-  statsToggle: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', background: 'none', border: 'none', color: '#c4b5fd', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  statsHeaderRow: { display: 'flex', alignItems: 'center' },
+  statsToggle: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', background: 'none', border: 'none', color: '#c4b5fd', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  exportBtns: { display: 'flex', gap: 4, paddingRight: 10 },
+  exportLink: { padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, color: '#8b5cf6', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', textDecoration: 'none', cursor: 'pointer' },
   statsArrow: { fontSize: 10, transition: 'transform 0.15s' },
   statsBody: { padding: '0 14px 12px' },
   statsRow: { display: 'flex', gap: 8, marginBottom: 10 },

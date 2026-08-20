@@ -614,6 +614,47 @@ async def get_demotion_stats():
         return _fail(str(e))
 
 
+@app.get("/api/experience/rules/demotion-export")
+async def export_demotion_report(format: str = "json"):
+    """导出降级报表（json 或 csv）"""
+    try:
+        import csv, io
+        from fastapi.responses import StreamingResponse, JSONResponse
+        stats = experience_extractor.get_demotion_stats()
+        log = experience_extractor.get_demotion_log()
+        report = {
+            "generated_at": _now_iso(),
+            "stats": stats,
+            "entries": log,
+        }
+        if format == "csv":
+            output = io.StringIO()
+            fields = ["rule_id", "trigger_condition", "action", "rule_type",
+                       "effectiveness_score", "usage_count", "success_count",
+                       "reason", "team_id", "demoted_at"]
+            writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+            writer.writeheader()
+            for e in log:
+                writer.writerow(e)
+            output.seek(0)
+            return StreamingResponse(
+                iter([output.getvalue()]),
+                media_type="text/csv",
+                headers={"Content-Disposition": "attachment; filename=demotion_report.csv"},
+            )
+        return JSONResponse(content=report, headers={
+            "Content-Disposition": "attachment; filename=demotion_report.json",
+        })
+    except Exception as e:
+        logger.exception("export_demotion_report 失败")
+        return _fail(str(e))
+
+
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _now_iso_24h_ago() -> str:
     from datetime import datetime, timezone, timedelta
     return (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
