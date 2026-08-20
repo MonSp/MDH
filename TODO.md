@@ -2,7 +2,7 @@
 
 > 基于 2026-08-19 v1.3.1 规划，按优先级排列。
 
-## v1.3.2 — 前端架构治理收尾（2026-08-18）
+## v1.3.2 — 前端架构治理收尾 + 大文件拆分（2026-08-18）
 
 ### A 线：useMeetingSocket 重构
 
@@ -29,6 +29,16 @@
 - [x] **Progressive loader 集成** — progressive.ts 已实现，system-prompt 使用既有 loadSkillPacks（路径一致性）
 - [x] **剩余 as any 清理** — ChatMessage 添加 _thinking/_workflowResult 类型定义
 - [x] **组件测试补充** — CeoChatPanel、OfficeTeamMode 测试已通过（1714 passed）
+
+### E 线：大文件拆分
+
+- [x] **OfficeScene** — 939→264 行，提取 styles(499行) + 4 个 Tab 组件
+- [x] **TechTowerView** — 884→417 行，提取 FloorProjectPanel/StorageSetupPrompt/SceneControlsPanel/ResourceButtons/constants
+- [x] **MeetingChatPanel** — 764→删除，迁移到目录版本，修复相对路径
+- [x] **CyberpunkGround** — 650→519 行，提取材质+纹理到 materials.ts
+- [x] **dependencyAnalyzer** — 627→475 行，提取默认规则和模式到 defaults.ts
+- [x] **taskDecomposer** — 590→437 行，提取内置模板到 templates.ts
+- [x] **SidePanel** — 1155→1033 行，提取 useRolesConfig hook (137行)
 
 ---
 
