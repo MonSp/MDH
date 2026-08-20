@@ -6,6 +6,7 @@ import type { ExecutionProfile } from '../toolkit/hybrid.js';
 import { getTemplate, getPromptTemplate } from './templates.js';
 import { Team, TeamMember } from './types.js';
 import { RoleAgent, buildSystemPrompt, getToolsForRole } from '../agent/index.js';
+import type { AssetContextConfig, IncrementalConfig } from '../agent/index.js';
 import type { ExecutionSummary } from '../agent/role-agent.js';
 
 export interface CoordinatorConfig {
@@ -19,6 +20,12 @@ export interface CoordinatorConfig {
   /** per-agent hybrid 执行配置（role → ExecutionProfile）。createTeam 时为匹配的角色写入 runtime.hybrid。 */
   hybridProfiles?: Record<string, ExecutionProfile>;
   onWorkspaceConfirm?: (request: WorkspaceConfirmRequest) => Promise<WorkspaceConfirmResponse>;
+  /** 增量区目录（进化后的 CoW 技能），传入后自动注入到 agent system prompt */
+  incrementalDir?: string;
+  /** 后端 REST API 地址（用于资产注入），传入后自动注入团队资产 */
+  backendUrl?: string;
+  /** 团队 ID（资产注入用） */
+  teamId?: string;
 }
 
 export interface WorkspaceConfirmRequest {
@@ -460,6 +467,15 @@ export class TeamCoordinator {
 
   // ====== 为每个角色创建独立 RoleAgent 实例 ======
   private async createAgents(roleIds: string[], workspace: string): Promise<RoleAgent[]> {
+    // 构建 system prompt 注入配置
+    const incremental: IncrementalConfig | undefined = this.config.incrementalDir
+      ? { incrementalDir: this.config.incrementalDir }
+      : undefined;
+    const asset: AssetContextConfig | undefined = (this.config.backendUrl && this.config.teamId)
+      ? { backendUrl: this.config.backendUrl, teamId: this.config.teamId }
+      : undefined;
+    const promptOptions = (incremental || asset) ? { incremental, asset } : undefined;
+
     return Promise.all(roleIds.map(async roleId => {
       const template = getTemplate(roleId);
       // 从 team 中查找该角色的 member（含 location/runtime 信息），找不到则默认 local
@@ -479,7 +495,7 @@ export class TeamCoordinator {
         id: `agent-${roleId}`,
         roleId,
         roleName: template?.name || roleId,
-        systemPrompt: await buildSystemPrompt(roleId),
+        systemPrompt: await buildSystemPrompt(roleId, promptOptions),
         tools: getToolsForRole(roleId),
         router,
         workspace,

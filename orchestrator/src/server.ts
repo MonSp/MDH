@@ -13,6 +13,7 @@ import { getAvailableRoles } from './team/templates.js';
 interface ClientSession {
   config: Partial<LLMConfig>;
   workspace: string;
+  teamId?: string;
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -139,6 +140,8 @@ async function handleMessage(
         if (msg.base_url) session.config.baseUrl = msg.base_url as string;
         if (msg.model_name) session.config.model = msg.model_name as string;
       }
+      // 提取 teamId 用于资产注入
+      if (msg.team_id) session.teamId = msg.team_id as string;
 
       const llmConfig = resolveConfig(session.config);
       if (!llmConfig.apiKey) {
@@ -163,6 +166,12 @@ async function handleMessage(
         executorUrl,
         executorToken,
         hybridProfiles,
+        // 增量区路径（进化后的 CoW 技能）— 对齐 Python 端 backend/data/experience
+        incrementalDir: process.env.MDH_INCREMENTAL_DIR || join(process.cwd(), '..', 'backend', 'data', 'experience'),
+        // 后端 REST API 地址（资产注入用）
+        backendUrl: process.env.MDH_BACKEND_URL || 'http://localhost:8765',
+        // 团队 ID — 从 session 或 unified_message 获取
+        teamId: session.teamId || 'default',
         onWorkspaceConfirm: (request) => {
           return new Promise((resolve) => {
             // 发送工作区确认请求给前端
