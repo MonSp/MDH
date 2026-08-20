@@ -583,6 +583,32 @@ async def get_rules_effectiveness():
         return _fail(str(e))
 
 
+@app.get("/api/experience/rules/demotion-log")
+async def get_demotion_log():
+    """获取规则降级监控日志（最近的在前）"""
+    try:
+        log = experience_extractor.get_demotion_log()
+        return _ok({
+            "entries": log,
+            "summary": {
+                "total_demotions": len(log),
+                "unique_rules": len({e["rule_id"] for e in log}),
+                "recent_24h": sum(
+                    1 for e in log
+                    if e.get("demoted_at", "") >= _now_iso_24h_ago()
+                ),
+            },
+        })
+    except Exception as e:
+        logger.exception("get_demotion_log 失败")
+        return _fail(str(e))
+
+
+def _now_iso_24h_ago() -> str:
+    from datetime import datetime, timezone, timedelta
+    return (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+
+
 # ──────────────────── SkillPackager REST API ────────────────────
 
 

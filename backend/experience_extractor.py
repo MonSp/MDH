@@ -129,6 +129,7 @@ class ExperienceExtractor:
         """
         self._incremental_dir = incremental_dir
         self._rules_dir = os.path.join(incremental_dir, "rules")
+        self._demotion_log_path = os.path.join(incremental_dir, "demotion_log.json")
         os.makedirs(self._rules_dir, exist_ok=True)
 
     # ──────────────────── 规则存储 ────────────────────
@@ -489,6 +490,48 @@ class ExperienceExtractor:
         logger.info("Rule %s modified", rule_id)
         return True
 
+    # ──────────────────── 降级日志 ────────────────────
+
+    def _append_demotion_log(self, rule: ExperienceRule, reason: str) -> None:
+        """追加一条降级记录到持久化日志"""
+        import json
+        entry = {
+            "rule_id": rule.rule_id,
+            "trigger_condition": rule.trigger_condition,
+            "action": rule.action,
+            "rule_type": rule.rule_type,
+            "effectiveness_score": round(rule.effectiveness_score, 4),
+            "usage_count": rule.usage_count,
+            "success_count": rule.success_count,
+            "reason": reason,
+            "team_id": rule.team_id,
+            "demoted_at": _now_iso(),
+        }
+        try:
+            log = []
+            if os.path.isfile(self._demotion_log_path):
+                with open(self._demotion_log_path, encoding="utf-8") as f:
+                    log = json.load(f)
+            log.append(entry)
+            tmp = self._demotion_log_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(log, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, self._demotion_log_path)
+        except Exception:
+            logger.exception("Failed to append demotion log")
+
+    def get_demotion_log(self) -> List[Dict]:
+        """获取降级日志（最近的在前）"""
+        import json
+        try:
+            if os.path.isfile(self._demotion_log_path):
+                with open(self._demotion_log_path, encoding="utf-8") as f:
+                    log = json.load(f)
+                return list(reversed(log))
+        except Exception:
+            logger.exception("Failed to read demotion log")
+        return []
+
     # 有效性阈值：连续使用 ≥ 此次数且成功率 < 此分数时自动降级
     DEMOTION_MIN_USAGE = 3
     DEMOTION_THRESHOLD = 0.4
@@ -514,9 +557,9 @@ class ExperienceExtractor:
                 and rule.usage_count >= self.DEMOTION_MIN_USAGE
                 and rule.effectiveness_score < self.DEMOTION_THRESHOLD):
             rule.status = "pending_review"
-            logger.warning("Rule %s auto-demoted: score=%.2f (%d/%d) below %.0f%% threshold after %d uses",
-                           rule_id, rule.effectiveness_score, rule.success_count, rule.usage_count,
-                           self.DEMOTION_THRESHOLD * 100, rule.usage_count)
+            reason = f"score={rule.effectiveness_score:.2f} ({rule.success_count}/{rule.usage_count}) < {self.DEMOTION_THRESHOLD:.0%} threshold"
+            logger.warning("Rule %s auto-demoted: %s", rule_id, reason)
+            self._append_demotion_log(rule, reason)
         self._save_rule(rule)
         logger.info("Rule %s effectiveness updated: score=%.2f (%d/%d)",
                      rule_id, rule.effectiveness_score, rule.success_count, rule.usage_count)
@@ -538,8 +581,9 @@ class ExperienceExtractor:
                 rule.status = "pending_review"
                 self._save_rule(rule)
                 demoted.append(rule_id)
-                logger.warning("Rule %s batch-demoted: score=%.2f (%d/%d)",
-                               rule_id, rule.effectiveness_score, rule.success_count, rule.usage_count)
+                reason = f"batch scan: score={rule.effectiveness_score:.2f} ({rule.success_count}/{rule.usage_count})"
+                logger.warning("Rule %s batch-demoted: %s", rule_id, reason)
+                self._append_demotion_log(rule, reason)
         return demoted
 
     # ──────────────────── 写入增量区 ────────────────────

@@ -545,6 +545,85 @@ class TestRuleEffectiveness:
         assert rule_good.rule_id not in demoted
         assert extractor._load_rule(rule_good.rule_id).status == "approved"
 
+    def test_demotion_log_recorded_on_auto_demote(self, extractor, tmp_incremental_dir):
+        """自动降级写入降级日志"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule.rule_id, False)
+
+        demotion_log = extractor.get_demotion_log()
+        assert len(demotion_log) == 1
+        entry = demotion_log[0]
+        assert entry["rule_id"] == rule.rule_id
+        assert entry["effectiveness_score"] == 0.0
+        assert entry["usage_count"] == 3
+        assert entry["success_count"] == 0
+        assert "score=0.00" in entry["reason"]
+        assert entry["demoted_at"]  # non-empty timestamp
+
+    def test_demotion_log_recorded_on_batch_scan(self, extractor, tmp_incremental_dir):
+        """批量扫描降级也写入日志"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule.rule_id, False)
+        # 已自动降级，手动改回 approved 测试批量扫描
+        r = extractor._load_rule(rule.rule_id)
+        r.status = "approved"
+        extractor._save_rule(r)
+
+        extractor.scan_and_demote_ineffective_rules()
+
+        demotion_log = extractor.get_demotion_log()
+        # 两条：一条来自 update_rule_effectiveness，一条来自 scan
+        assert len(demotion_log) == 2
+        assert all(e["rule_id"] == rule.rule_id for e in demotion_log)
+        assert "batch scan" in demotion_log[0]["reason"]  # 最近的在前
+
+    def test_demotion_log_persists_across_instances(self, extractor, tmp_incremental_dir):
+        """降级日志跨实例持久化"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule.rule_id, False)
+
+        reloaded = ExperienceExtractor(incremental_dir=tmp_incremental_dir)
+        assert len(reloaded.get_demotion_log()) == 1
+
+    def test_demotion_log_empty_when_no_demotions(self, extractor):
+        """无降级时日志为空"""
+        assert extractor.get_demotion_log() == []
+
+    def test_demotion_log_contains_rule_details(self, extractor, tmp_incremental_dir):
+        """降级日志包含规则的完整信息"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for _ in range(3):
+            extractor.update_rule_effectiveness(rule.rule_id, False)
+
+        entry = extractor.get_demotion_log()[0]
+        assert entry["trigger_condition"] == rule.trigger_condition
+        assert entry["action"] == rule.action
+        assert entry["rule_type"] == rule.rule_type
+        assert entry["team_id"] == rule.team_id
+
 
 # ──────────────────── 检索相关规则 ────────────────────
 
