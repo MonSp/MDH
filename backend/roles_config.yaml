@@ -448,6 +448,244 @@ base_roles:
     - video_editing
     - sound_design
     team_role: Executor
+career_paths:
+  dept-ai-movie:
+    name: AI影视部
+    stages:
+    - stage: junior
+      title: 初级生成师
+    - requirements:
+        min_mid_skills: 2
+        required_skills:
+          image_generation: 1
+          video_generation: 1
+      stage: mid
+      title: 生成师
+    - requirements:
+        min_mid_skills: 3
+        required_skills:
+          video_generation: 2
+      stage: senior
+      title: 高级生成师
+    - requirements:
+        min_senior_skills: 2
+        required_skills:
+          video_generation: 3
+      stage: lead
+      title: AI影视总监
+  dept-content:
+    name: 内容部
+    stages:
+    - stage: junior
+      title: 初级编辑
+    - requirements:
+        min_mid_skills: 2
+        required_skills:
+          content_writing: 1
+      stage: mid
+      title: 资深编辑
+    - requirements:
+        min_mid_skills: 3
+        required_skills:
+          content_editing: 2
+          copywriting: 1
+      stage: senior
+      title: 内容主管
+    - requirements:
+        min_senior_skills: 1
+        required_skills:
+          brand_voice: 2
+      stage: lead
+      title: 内容总监
+  dept-data:
+    name: 数据部
+    stages:
+    - stage: junior
+      title: 初级数据分析师
+    - requirements:
+        min_mid_skills: 2
+        required_skills:
+          data_analysis: 1
+          database: 1
+      stage: mid
+      title: 数据分析师
+    - requirements:
+        min_mid_skills: 3
+        required_skills:
+          data_engineering: 2
+      stage: senior
+      title: 高级数据工程师
+    - requirements:
+        min_senior_skills: 2
+        required_skills:
+          ml_engineering: 2
+      stage: lead
+      title: 数据负责人
+  dept-design:
+    name: 设计部
+    stages:
+    - stage: junior
+      title: 初级设计师
+    - requirements:
+        min_mid_skills: 2
+        required_skills:
+          graphic_design: 1
+          user_research: 1
+      stage: mid
+      title: 资深设计师
+    - requirements:
+        min_mid_skills: 3
+        required_skills:
+          brand_identity: 2
+      stage: senior
+      title: 设计主管
+    - requirements:
+        min_senior_skills: 2
+        required_skills:
+          brand_strategy: 2
+      stage: lead
+      title: 设计总监
+  dept-marketing:
+    name: 市场部
+    stages:
+    - stage: junior
+      title: 初级营销专员
+    - requirements:
+        min_mid_skills: 2
+        required_skills:
+          competitive_analysis: 1
+      stage: mid
+      title: 营销专员
+    - requirements:
+        min_mid_skills: 3
+        required_skills:
+          brand_strategy: 2
+      stage: senior
+      title: 营销主管
+    - requirements:
+        min_senior_skills: 1
+        required_skills:
+          sales_enablement: 2
+      stage: lead
+      title: 营销总监
+  dept-ppt:
+    name: 演示部
+    stages:
+    - stage: junior
+      title: 初级设计师
+    - requirements:
+        min_mid_skills: 2
+        required_skills:
+          ppt_design: 1
+      stage: mid
+      title: 资深设计师
+    - requirements:
+        min_mid_skills: 3
+        required_skills:
+          graphic_design: 2
+      stage: senior
+      title: 设计主管
+    - requirements:
+        min_senior_skills: 1
+        required_skills:
+          brand_identity: 2
+      stage: lead
+      title: 创意总监
+  dept-product:
+    name: 产品部
+    stages:
+    - stage: junior
+      title: 初级产品经理
+    - requirements:
+        min_mid_skills: 2
+        required_skills:
+          progress_tracking: 1
+          risk_management: 1
+      stage: mid
+      title: 产品经理
+    - requirements:
+        min_mid_skills: 3
+        required_skills:
+          task_decomposition: 2
+      stage: senior
+      title: 高级产品经理
+    - requirements:
+        min_senior_skills: 1
+        required_skills:
+          architecture: 2
+      stage: lead
+      title: 产品总监
+  dept-sales:
+    name: 销售部
+    stages:
+    - stage: junior
+      title: 初级销售
+    - requirements:
+        min_mid_skills: 1
+        required_skills:
+          sales_qualification: 1
+      stage: mid
+      title: 销售专员
+    - requirements:
+        min_mid_skills: 2
+        required_skills:
+          sales_enablement: 2
+      stage: senior
+      title: 销售主管
+    - requirements:
+        min_senior_skills: 1
+        required_skills:
+          sales_enablement: 3
+      stage: lead
+      title: 销售总监
+  dept-software:
+    name: 研发部
+    stages:
+    - stage: junior
+      title: 初级工程师
+    - requirements:
+        min_mid_skills: 2
+        required_skills:
+          backend_dev: 1
+          testing: 1
+      stage: mid
+      title: 中级工程师
+    - requirements:
+        min_mid_skills: 3
+        min_senior_skills: 1
+        required_skills:
+          code_review: 2
+      stage: senior
+      title: 高级工程师
+    - requirements:
+        min_senior_skills: 2
+        required_skills:
+          architecture: 2
+      stage: lead
+      title: 技术负责人
+  dept-video:
+    name: 视频部
+    stages:
+    - stage: junior
+      title: 初级剪辑师
+    - requirements:
+        min_mid_skills: 2
+        required_skills:
+          video_editing: 1
+      stage: mid
+      title: 剪辑师
+    - requirements:
+        min_mid_skills: 3
+        required_skills:
+          script_writing: 2
+      stage: senior
+      title: 导演
+    - requirements:
+        min_senior_skills: 1
+        required_skills:
+          video_generation: 2
+      stage: lead
+      title: 制片人
 custom_roles:
   ai_content_creator:
     base_role: content_writer
@@ -1750,261 +1988,387 @@ prompt_templates:
     '
 skills:
   api_design:
+    category: engineering
     description: API设计技能包
-    category: engineering
     prerequisites:
-      - skill: backend_dev
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: backend_dev
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   architecture:
+    category: engineering
     description: 架构设计技能包
-    category: engineering
     prerequisites:
-      - skill: api_design
-        min_level: 2
-      - skill: backend_dev
-        min_level: 2
-    xp_thresholds: [100, 300, 600]
+    - min_level: 2
+      skill: api_design
+    - min_level: 2
+      skill: backend_dev
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   backend_dev:
+    category: engineering
     description: 后端开发技能包
-    category: engineering
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   brand_identity:
+    category: design
     description: 品牌视觉技能包
-    category: design
     prerequisites:
-      - skill: graphic_design
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: graphic_design
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   brand_strategy:
+    category: design
     description: 品牌策略技能包
-    category: design
     prerequisites:
-      - skill: brand_identity
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: brand_identity
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   brand_voice:
+    category: design
     description: 品牌声音技能包
-    category: design
     prerequisites:
-      - skill: brand_identity
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: brand_identity
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   code_review:
+    category: engineering
     description: 代码审查技能包
-    category: engineering
     prerequisites:
-      - skill: testing
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: testing
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   competitive_analysis:
+    category: management
     description: 竞争分析技能包
-    category: management
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   content_editing:
+    category: content
     description: 内容编辑技能包
-    category: content
     prerequisites:
-      - skill: content_writing
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: content_writing
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   content_writing:
+    category: content
     description: 内容写作技能包
-    category: content
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   copywriting:
+    category: content
     description: 文案撰写技能包
-    category: content
     prerequisites:
-      - skill: content_writing
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: content_writing
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   data_analysis:
+    category: data
     description: 数据分析技能包
-    category: data
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   data_engineering:
+    category: data
     description: 数据工程技能包
-    category: data
     prerequisites:
-      - skill: database
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: database
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   data_presentation:
+    category: data
     description: 数据呈现技能包
-    category: data
     prerequisites:
-      - skill: data_analysis
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: data_analysis
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   data_visualization:
+    category: data
     description: 数据可视化技能包
-    category: data
     prerequisites:
-      - skill: data_analysis
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: data_analysis
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   database:
+    category: data
     description: 数据库技能包
-    category: data
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   deployment:
+    category: engineering
     description: 部署技能包
-    category: engineering
     prerequisites:
-      - skill: devops
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: devops
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   devops:
+    category: engineering
     description: DevOps技能包
-    category: engineering
     prerequisites:
-      - skill: fullstack_dev
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: fullstack_dev
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   frontend_dev:
+    category: engineering
     description: 前端开发技能包
-    category: engineering
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   fullstack_dev:
+    category: engineering
     description: 全栈开发技能包
-    category: engineering
     prerequisites:
-      - skill: backend_dev
-        min_level: 1
-      - skill: frontend_dev
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: backend_dev
+    - min_level: 1
+      skill: frontend_dev
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   graphic_design:
+    category: design
     description: 平面设计技能包
-    category: design
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   image_generation:
+    category: design
     description: 图像生成技能包
-    category: design
     prerequisites:
-      - skill: graphic_design
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: graphic_design
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   incident_response:
+    category: engineering
     description: 故障响应技能包
-    category: engineering
     prerequisites:
-      - skill: monitoring
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: monitoring
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   ml_engineering:
-    description: 机器学习技能包
     category: data
+    description: 机器学习技能包
     prerequisites:
-      - skill: data_engineering
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: data_engineering
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   monitoring:
+    category: engineering
     description: 监控技能包
-    category: engineering
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   performance:
+    category: engineering
     description: 性能优化技能包
-    category: engineering
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   persona_development:
+    category: design
     description: 用户画像技能包
-    category: design
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   ppt_design:
+    category: design
     description: PPT设计技能包
-    category: design
     prerequisites:
-      - skill: graphic_design
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: graphic_design
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   presentation_coaching:
+    category: content
     description: 演讲辅导技能包
-    category: content
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   progress_tracking:
+    category: management
     description: 进度跟踪技能包
-    category: management
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   risk_management:
+    category: management
     description: 风险管理技能包
-    category: management
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   sales_enablement:
+    category: management
     description: 销售赋能技能包
-    category: management
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   sales_qualification:
-    description: 销售资质技能包
     category: management
+    description: 销售资质技能包
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   script_writing:
+    category: content
     description: 剧本创作技能包
-    category: content
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   security_audit:
+    category: engineering
     description: 安全审计技能包
-    category: engineering
     prerequisites:
-      - skill: code_review
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: code_review
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   sound_design:
+    category: design
     description: 音效设计技能包
-    category: design
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   task_decomposition:
+    category: engineering
     description: 任务分解技能包
-    category: engineering
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   testing:
-    description: 测试技能包
     category: engineering
+    description: 测试技能包
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   usability_testing:
+    category: design
     description: 可用性测试技能包
-    category: design
     prerequisites:
-      - skill: user_research
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: user_research
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   user_research:
-    description: 用户研究技能包
     category: design
+    description: 用户研究技能包
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   video_editing:
+    category: content
     description: 视频剪辑技能包
-    category: content
     prerequisites:
-      - skill: script_writing
-        min_level: 1
-    xp_thresholds: [100, 300, 600]
+    - min_level: 1
+      skill: script_writing
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
   video_generation:
-    description: 视频生成技能包
     category: content
+    description: 视频生成技能包
     prerequisites: []
-    xp_thresholds: [100, 300, 600]
+    xp_thresholds:
+    - 100
+    - 300
+    - 600
 tools:
   bash:
     category: shell

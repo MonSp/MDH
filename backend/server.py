@@ -709,7 +709,8 @@ async def grant_agent_xp(agent_id: str, request: Request):
     try:
         body = await request.json()
         mgr = _get_agent_profile_manager()
-        profile = mgr.get_or_create(agent_id, agent_id)
+        department = body.get("department", "")
+        profile = mgr.get_or_create(agent_id, agent_id, department=department)
         skill_id = body["skill_id"]
         config = _load_roles_config()
         skill_config = config.get("skills", {}).get(skill_id, {"xp_thresholds": [100, 300, 600]})
@@ -747,6 +748,38 @@ async def check_agent_promotion(agent_id: str):
         return _ok({"can_promote_to": target, "current_stage": profile.career_stage})
     except Exception as e:
         logger.exception("check_agent_promotion 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/agents/{agent_id}/career-path")
+async def get_agent_career_path(agent_id: str):
+    """获取 agent 部门职业路径"""
+    try:
+        mgr = _get_agent_profile_manager()
+        profile = mgr.get_profile(agent_id)
+        if not profile:
+            return _fail("agent 不存在")
+        engine = _get_promotion_engine()
+        config = _load_roles_config()
+        path = engine.get_career_path(profile, config)
+        if not path:
+            return _ok({"department": profile.department, "path": None})
+        return _ok({"department": profile.department, "path": path, "current_stage": profile.career_stage})
+    except Exception as e:
+        logger.exception("get_agent_career_path 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/careers/departments")
+async def list_career_departments():
+    """列出所有部门职业路径"""
+    try:
+        engine = _get_promotion_engine()
+        config = _load_roles_config()
+        depts = engine.list_departments(config)
+        return _ok(depts)
+    except Exception as e:
+        logger.exception("list_career_departments 失败")
         return _fail(str(e))
 
 

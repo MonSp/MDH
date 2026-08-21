@@ -665,7 +665,7 @@ class MeetingCoordinator:
         except Exception as e:
             self.logger.debug("规则有效性更新跳过: %s", e)
 
-    def _grant_task_xp(self, agent_id, skill_id, task_success, review_score, task_complexity):
+    def _grant_task_xp(self, agent_id, skill_id, task_success, review_score, task_complexity, department: str = ""):
         """任务完成后授予 XP"""
         try:
             from agent_profile_manager import AgentProfileManager
@@ -673,13 +673,23 @@ class MeetingCoordinator:
             if mgr is None:
                 data_dir = os.path.join(os.path.dirname(__file__), "data")
                 mgr = AgentProfileManager(os.path.join(data_dir, "agent_profiles"))
-            profile = mgr.get_or_create(agent_id, agent_id)
+            profile = mgr.get_or_create(agent_id, agent_id, department=department)
             from agent_toolset import load_roles_config
             roles_config = load_roles_config()
             skill_config = roles_config.get("skills", {}).get(skill_id, {"xp_thresholds": [100, 300, 600]})
             result = mgr.grant_xp(agent_id, skill_id, task_success, review_score, task_complexity, skill_config)
             if result.get("leveled_up"):
                 self.logger.info("Agent %s 技能 %s 升级到 Lv.%d", agent_id, skill_id, result["new_level"])
+            # 检查晋升（使用部门职业路径）
+            from promotion_engine import PromotionEngine
+            engine = PromotionEngine()
+            profile = mgr.get_profile(agent_id)
+            promotion = engine.check_promotion(profile, roles_config)
+            if promotion:
+                engine.apply_promotion(profile, promotion)
+                mgr.save_profile(profile)
+                result["promoted_to"] = promotion
+                self.logger.info("Agent %s 晋升为 %s (%s)", agent_id, promotion["title"], promotion["stage"])
             return result
         except Exception as e:
             self.logger.debug("grant-xp 跳过: %s", e)

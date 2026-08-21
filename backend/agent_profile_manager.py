@@ -28,6 +28,7 @@ class AgentProfile:
     name: str
     created_at: float = 0.0
     career_stage: str = "junior"   # junior / mid / senior / lead
+    department: str = ""           # 所属部门 (dept-software, dept-video, etc.)
     total_xp: int = 0
     skill_progress: Dict[str, dict] = field(default_factory=dict)  # skill_id -> SkillProgress dict
 
@@ -40,14 +41,19 @@ class AgentProfileManager:
     def _path(self, agent_id: str) -> str:
         return os.path.join(self._dir, f"{agent_id}.json")
 
-    def get_or_create(self, agent_id: str, name: str) -> AgentProfile:
+    def get_or_create(self, agent_id: str, name: str, department: str = "") -> AgentProfile:
         existing = self.get_profile(agent_id)
         if existing:
+            # 更新部门（如果提供了新的）
+            if department and not existing.department:
+                existing.department = department
+                self.save_profile(existing)
             return existing
         profile = AgentProfile(
             agent_id=agent_id,
             name=name,
             created_at=time.time(),
+            department=department,
         )
         self.save_profile(profile)
         return profile
