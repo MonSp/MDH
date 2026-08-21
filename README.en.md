@@ -32,47 +32,35 @@ A full-domain multi-agent collaboration system built with React + Python FastAPI
 | 📊 Reuse Visibility | Injection metrics (`/api/assets/reuse-metrics`) + frontend asset browser panel (`🧠 Assets` tab) |
 | 📝 Meeting Minutes Pipeline | Intent-recognition doc mode → minutes DAG workflow (extract/draft/proofread) → artifact output + email delivery |
 
-## From Tools to Colleagues
+## What is MDH
 
-In May 2026, we started asking one question: **What should an AI agent really be?**
+MDH is an **operating system for digital employees**. It is not another AI chat tool — it is a collaboration platform where AI agents work, learn, and grow like real employees.
 
-Today's AI assistants are "tools" — you give them a command, they give you an answer, then they forget. Next conversation, they know nothing. They don't accumulate experience, don't grow, don't collaborate with other AIs.
+In MDH, digital employees form a team: a CEO analyzes requirements, an architect designs solutions, developers write code, QA reviews quality, and a project manager coordinates progress. They meet in a 3D virtual office, discuss, vote, and execute tasks — just like a real company.
 
-But real work doesn't work that way. In a team, some handle frontend, some backend, some review code, some manage progress. Everyone learns. Everyone gets stronger. The pitfall from the last project won't happen again in the next one.
+### They Accumulate Experience
 
-What we wanted to do was simple: **Turn digital employees from tools into colleagues.**
+Every task produces artifacts that are automatically stored as assets. Insights from team discussions are distilled into skill rules. When a similar task comes up next time, the system retrieves the most relevant experience and injects it into the agent's context — mistakes made once are not made twice.
 
-### The Skeleton
+### They Self-Purify
 
-The first three months were spent building the skeleton. A 3D cyberpunk virtual office where agents meet, discuss, vote, and execute tasks. CEO breaks down requirements, architects design, developers code, QA reviews. 43 skill packs, 25+ roles, 18 tools.
+Not all experience is good experience. Every rule carries an effectiveness score: +1 when the task succeeds after injection, -1 when it fails. Rules used 3+ times with a success rate below 40% are automatically demoted for re-review. Bad experience is eliminated; good experience stays and gets shared across teams through quality gates.
 
-But these digital employees, while capable, were still "one-shot". Every meeting started from scratch. No memory, no growth.
+Digital employees develop an immune system.
 
-### Memory
+### They Have Careers
 
-Digital employees gained "memory". Every task execution auto-deposits artifacts as "assets". Experience is distilled into skill rules. Next time a similar task comes up, these rules are automatically injected into the agent's context.
+42 skills form a dependency tree spanning engineering, design, content, data, and management. Each digital employee has a persistent career profile that survives across projects. Completing tasks earns XP; skills level up from beginner to intermediate to advanced.
 
-But memory was fragile. Rules were written and injected, but nobody knew if they actually helped.
+Each of 10 departments has independent promotion criteria — engineering requires `backend_dev` and `testing`, video requires `video_editing`, data requires `data_analysis`. Promotion is automatic when conditions are met. Senior employees doing simple tasks receive diminished XP — real growth requires real challenges.
 
-### Evolution
-
-We fixed a fatal bug in the evolution loop, then added effectiveness scoring to every rule. Rules used 3+ times with less than 40% success rate are auto-demoted for re-review. Digital employees developed an "immune system" — bad experience gets eliminated, good experience stays.
-
-High-scoring experience from one team can be shared across teams through quality gates.
-
-### Career
-
-42 skills organized into a dependency tree, each with three proficiency levels. 10 departments with independent promotion criteria. Completing tasks earns XP; enough XP means level-up. Senior employees doing simple tasks get diminished XP — you must tackle real challenges to grow.
-
-Digital employees have persistent career profiles that survive across projects. They grow, get stronger, and progress from junior engineer to tech lead.
-
-### The Loop
+### The Core Loop
 
 ```
 Task → Execute → Produce Assets → Distill Experience → Evolve Skills → Next Task More Efficient
 ```
 
-This loop is live. Digital employees are no longer tools — they are colleagues. With their own memory, experience, skills, and continuous evolution.
+This loop transforms digital employees from one-shot tools into continuously evolving colleagues. They carry their own memory, experience, skill trees, and career paths — and they get stronger with every task.
 
 ## Quick Start
 
