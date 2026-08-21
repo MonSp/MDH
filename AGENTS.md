@@ -53,7 +53,7 @@
 | 前端 | React 18 + TypeScript + Vite 6 + Three.js | 3D 虚拟办公室、实时通信 |
 | 后端 | Python 3.11 + FastAPI + WebSocket | 智能体协调、工具执行 |
 | AI 引擎 | AgentScope + DeepSeek API | 多模型支持 (DeepSeek/OpenAI/Anthropic) |
-| 测试 | Vitest (TS) + pytest (Python) | 1809 TS 测试用例（前端 1647 + orchestrator 162）+ 89 Python 测试文件 |
+| 测试 | Vitest (TS) + pytest (Python) | 1726 TS 测试用例（前端 1726 + orchestrator 216）+ 1400 Python 测试 |
 
 ### 项目结构
 
@@ -83,6 +83,9 @@ MDH/
 │   │   │   ├── SkillRegistryPanel.tsx # 技能注册面板
 │   │   │   ├── SkillPackagePreview.tsx # 技能包预览
 │   │   │   ├── ExperienceRulePanel.tsx # 经验规则面板
+│   │   │   ├── AgentProfilePanel.tsx # Agent 职业档案面板 (v1.4.1)
+│   │   │   ├── CareerPathPanel.tsx # 部门职业路径面板 (v1.4.1)
+│   │   │   ├── SkillTreeView.tsx   # 技能树可视化 (v1.4.1)
 │   │   │   ├── RouteTablePanel.tsx # 路由表面板
 │   │   │   └── ...
 │   │   ├── cyberpunk/            # 赛博朋克视觉效果
@@ -119,6 +122,8 @@ MDH/
 │   │   ├── skillStore.ts         # 技能存储
 │   │   ├── skillParser.ts        # 技能解析器
 │   │   ├── experienceExtractor.ts # 经验提炼器
+│   │   ├── careerDevelopment.ts  # 职业发展 API (v1.4.1)
+│   │   ├── careerDevelopment.types.ts # 职业发展类型 (v1.4.1)
 │   │   ├── experienceExtractorLocal.ts # 本地经验提炼器
 │   │   ├── compensationEngine.ts # 补偿引擎
 │   │   ├── checkpointManager.ts  # 检查点管理
@@ -261,6 +266,8 @@ MDH/
 │   ├── asset_benchmark_gate.py   # LLM judge 质量 CI 门禁 (v1.2.0)
 │   ├── asset_injection.py        # 会议节点注入团队资产 (v1.2.0)
 │   ├── asset_search.py           # 三类资产合并检索 (v1.2.0)
+│   ├── agent_profile_manager.py  # Agent 持久档案管理 (v1.4.0)
+│   ├── promotion_engine.py       # 角色晋升引擎 (v1.4.0)
 │   ├── routers/                  # API 路由模块
 │   │   ├── workflow.py           # 工作流 API
 │   │   ├── marketplace.py        # 技能市场 API (v1.2.0)
@@ -1093,6 +1100,36 @@ def _select_roles_for_dag(dag):
 | `skill_evolution.py` | 技能进化接线：审查反馈→经验规则→CoW 增量区 |
 | `skill_generator.py` | AI 技能生成服务：根据用户需求描述生成技能配置 |
 
+### 经验规则有效性追踪 (v1.3.5)
+
+经验规则注入后自动追踪有效性：
+
+- **有效性评分**: 每条规则记录 effectiveness_score (成功/总使用), usage_count, success_count
+- **自动降级**: 使用 ≥3 次且成功率 <40% 的规则自动退回 pending_review
+- **降级日志**: 每次降级记录到 demotion_log.json，含规则详情、评分、原因
+- **降级告警**: 降级时向项目经理发送会话消息，记录 RULE_DEMOTION 事件
+- **统计报表**: GET /api/experience/rules/demotion-stats — 按类型/团队/时间聚合
+- **报表导出**: GET /api/experience/rules/demotion-export?format=json|csv
+- **XP 衰减**: 高级 agent 做简单任务 XP 收益递减（100%→50%→10%）
+
+### 跨团队技能共享 (v1.3.6)
+
+SharedExperiencePool 发布质量门禁：
+
+- **质量门禁**: effectiveness_score ≥ 0.6 且 usage_count ≥ 2 才能自动批准
+- **审批流**: 不满足门禁的规则进入 pending，需人工 approve/reject
+- **API**: GET /api/marketplace/experience/pending, POST approve/reject
+
+### 数字员工职业发展体系 (v1.4.0)
+
+AgentProfile 持久化 + XP 系统 + 技能树 + 角色晋升：
+
+- **AgentProfile**: 跨项目持久档案，存 data/agent_profiles/，含 department/skill_progress/total_xp/career_stage
+- **XP 系统**: 任务成功 +XP（基础+成功奖励+审查加成+首次使用），XP 衰减防刷
+- **技能树**: 42 个技能，5 类别（engineering/design/content/data/management），prerequisites 依赖链
+- **角色晋升**: 10 个部门独立职业路径，满足条件自动晋升（Executor→Reviewer→Coordinator→Planner）
+- **API**: GET /api/agents/{id}/profile, POST /api/agents/{id}/grant-xp, GET /api/skills/tree, GET /api/agents/{id}/promotion, GET /api/agents/{id}/career-path, GET /api/careers/departments
+
 ---
 
 ## REST API
@@ -1126,6 +1163,34 @@ def _select_roles_for_dag(dag):
 | `GET /api/marketplace/export/{id}` | 导出技能包 |
 | `POST /api/marketplace/import` | 导入技能包 |
 | `GET /api/community/search` | 社区技能搜索（Git 注册表） |
+
+### 经验规则有效性 (v1.3.5)
+
+| 端点 | 说明 |
+|------|------|
+| GET /api/experience/rules/effectiveness | 规则有效性排行 |
+| GET /api/experience/rules/demotion-log | 降级日志 |
+| GET /api/experience/rules/demotion-stats | 降级统计报表 |
+| GET /api/experience/rules/demotion-export?format=json|csv | 导出降级报表 |
+
+### 共享池审批 (v1.3.6)
+
+| 端点 | 说明 |
+|------|------|
+| GET /api/marketplace/experience/pending | 待审核规则 |
+| POST /api/marketplace/experience/approve | 批准规则 |
+| POST /api/marketplace/experience/reject | 拒绝规则 |
+
+### 职业发展 (v1.4.0)
+
+| 端点 | 说明 |
+|------|------|
+| GET /api/agents/{id}/profile | Agent 档案 |
+| POST /api/agents/{id}/grant-xp | 授予 XP |
+| GET /api/agents/{id}/promotion | 晋升检查 |
+| GET /api/agents/{id}/career-path | 部门职业路径 |
+| GET /api/skills/tree | 技能树结构 |
+| GET /api/careers/departments | 所有部门职业路径 |
 
 ### MCP 配置 (v1.2.0)
 
