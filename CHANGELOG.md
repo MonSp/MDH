@@ -2,6 +2,65 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.4.1] - 2026-08-20
+
+### Added
+
+**数字员工职业发展前端面板**
+- `AgentProfilePanel`：Agent 职业档案面板（职业阶段徽章、总 XP、技能网格含进度条和成功率）
+- `CareerPathPanel`：部门职业路径面板（部门卡片网格 → 点击进入晋升时间线，含条件达成状态）
+- `SkillTreeView`：技能树可视化（按类别分组、依赖箭头、点击展开详情、部门/类别双筛选）
+- `SkillEvolutionDashboard` 新增「🚀 职业发展」tab
+- `careerDevelopment` API 模块 + 类型定义
+
+## [1.4.0] - 2026-08-20
+
+### Added
+
+**数字员工职业发展体系核心数据层**
+- `AgentProfile`：跨项目持久档案（data/agent_profiles/），含 department/skill_progress/total_xp/career_stage
+- XP 系统：任务成功 +XP（基础 + 成功奖励 + 审查加成 + 首次使用），XP 衰减防刷（高级 agent 做简单任务 100%→50%→10%）
+- 42 个技能定义扩展：每个技能新增 category/prerequisites/xp_thresholds
+- 5 类别技能树（engineering/design/content/data/management），prerequisites 依赖链
+- `PromotionEngine`：10 个部门独立职业路径，满足条件自动晋升（Executor→Reviewer→Coordinator→Planner）
+- API 端点：GET/POST agent profile, grant-xp, promotion, career-path, skills-tree, departments
+- 集成到 `process_user_message`：任务完成后自动 grant-xp + 晋升检查
+
+## [1.3.6] - 2026-08-20
+
+### Added
+
+**跨团队技能共享质量门禁**
+- `SharedExperiencePool` 发布质量门禁：effectiveness_score ≥ 0.6 且 usage_count ≥ 2 才自动批准
+- 审批流：不满足门禁的规则进入 pending，需人工 approve/reject
+- 新增 API：GET /api/marketplace/experience/pending, POST approve, POST reject
+- 前端：共享经验卡片显示状态徽章（已批准/待审核）和有效性评分
+
+### Fixed
+
+**自适应路由闭环修复**
+- 移除 `TaskOrchestrator._execute_sequential` 中两处无效的 `router.update_stats` 调用（Dict B 在串行流中永远为空）
+- 路由统计统一由 `_update_routing_stats_safe` 消费 Dict A，消除双字典断链
+
+## [1.3.5] - 2026-08-20
+
+### Added
+
+**规则有效性追踪与自动降级**
+- `ExperienceRule` 新增 effectiveness_score/usage_count/success_count 字段
+- `update_rule_effectiveness`：任务完成后回写注入规则的有效性评分
+- 自动降级：使用 ≥3 次且成功率 <40% 的规则自动退回 pending_review
+- 降级日志：`demotion_log.json` 持久化记录，含规则详情/评分/原因/时间戳
+- 降级告警：后端 `RULE_DEMOTION` 会话事件 + 前端红色告警横幅
+- 统计报表：`/api/experience/rules/demotion-stats`（按类型/团队/时间聚合、复审率、高频降级排行）
+- 报表导出：`/api/experience/rules/demotion-export?format=json|csv`
+- 前端：ExperienceRulePanel 有效性评分徽章 + 可折叠统计面板 + JSON/CSV 下载
+
+### Fixed
+
+- 经验规则注入目录断链：`write_to_incremental_area` 写入 `approved/` 但双端注入读取 `rules/`
+- `agent_pool.py` 和 `loader.ts` 注入时过滤 `status=approved`（旧规则默认 approved 兼容）
+
 ## [1.2.1] - 2026-08-18
 
 ### Fixed
