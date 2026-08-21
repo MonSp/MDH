@@ -31,6 +31,7 @@
 | **1.3.6** | 2026-08-20 | 跨团队技能共享质量门禁 + 自适应路由闭环修复 |
 | **1.4.0** | 2026-08-20 | 数字员工职业发展核心数据层（AgentProfile + XP + 技能树 + 角色晋升） |
 | **1.4.1** | 2026-08-20 | 职业发展前端面板（CareerPathPanel + SkillTreeView + 部门筛选） |
+| **1.5.0** | 2026-08-21 | 路由感知技能等级 + 晋升驱动任务分配 + 真实 AI 闭环验证 |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -60,7 +61,7 @@
 | 前端 | React 18 + TypeScript + Vite 6 + Three.js | 3D 虚拟办公室、实时通信 |
 | 后端 | Python 3.11 + FastAPI + WebSocket | 智能体协调、工具执行 |
 | AI 引擎 | AgentScope + DeepSeek API | 多模型支持 (DeepSeek/OpenAI/Anthropic) |
-| 测试 | Vitest (TS) + pytest (Python) | 1726 TS 测试用例（前端 1726 + orchestrator 216）+ 1400 Python 测试 |
+| 测试 | Vitest (TS) + pytest (Python) | 1726 TS 测试用例（前端 1726 + orchestrator 216）+ 1412 Python 测试 |
 
 ### 项目结构
 
@@ -1012,6 +1013,8 @@ def _select_roles_for_dag(dag):
 - 路由表持久化: JSON 存储，线程安全读写（threading.Lock）
 - 自适应学习: `update_stats(dept_id, success)` 更新部门成功率
 - 置信度计算: top-2 分数差 + 基础分数
+- **技能等级感知（v1.5.0）**：路由公式新增第五维度 `skill_level`（权重 0.10），按部门职业路径查询 AgentProfile 技能最高等级归一化为 0-1 得分
+- **技能升级自适应**：agent 技能升级时部门 `skill_level_boost` +0.05（上限 0.3），持久化到路由表 JSON，形成正反馈循环
 
 ### 语义分析器 (semantic_analyzer.py)
 
@@ -1136,6 +1139,8 @@ AgentProfile 持久化 + XP 系统 + 技能树 + 角色晋升：
 - **技能树**: 42 个技能，5 类别（engineering/design/content/data/management），prerequisites 依赖链
 - **角色晋升**: 10 个部门独立职业路径，满足条件自动晋升（Executor→Reviewer→Coordinator→Planner）
 - **API**: GET /api/agents/{id}/profile, POST /api/agents/{id}/grant-xp, GET /api/skills/tree, GET /api/agents/{id}/promotion, GET /api/agents/{id}/career-path, GET /api/careers/departments
+- **XP 授予（v1.5.0）**：执行即得基础 XP（10 + complexity×5，+100% 成功奖励），审查通过额外奖励（score≥8→+50%），XP 衰减防刷
+- **晋升驱动任务分配**：简单任务优先初级 agent（需 XP），复杂任务优先高级 agent，`_estimate_task_complexity` 基于关键词估算 1-5 级
 
 ---
 
