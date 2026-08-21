@@ -665,6 +665,26 @@ class MeetingCoordinator:
         except Exception as e:
             self.logger.debug("规则有效性更新跳过: %s", e)
 
+    def _grant_task_xp(self, agent_id, skill_id, task_success, review_score, task_complexity):
+        """任务完成后授予 XP"""
+        try:
+            from agent_profile_manager import AgentProfileManager
+            mgr = getattr(self, '_agent_profile_manager', None)
+            if mgr is None:
+                data_dir = os.path.join(os.path.dirname(__file__), "data")
+                mgr = AgentProfileManager(os.path.join(data_dir, "agent_profiles"))
+            profile = mgr.get_or_create(agent_id, agent_id)
+            from agent_toolset import load_roles_config
+            roles_config = load_roles_config()
+            skill_config = roles_config.get("skills", {}).get(skill_id, {"xp_thresholds": [100, 300, 600]})
+            result = mgr.grant_xp(agent_id, skill_id, task_success, review_score, task_complexity, skill_config)
+            if result.get("leveled_up"):
+                self.logger.info("Agent %s 技能 %s 升级到 Lv.%d", agent_id, skill_id, result["new_level"])
+            return result
+        except Exception as e:
+            self.logger.debug("grant-xp 跳过: %s", e)
+            return {"xp_gained": 0}
+
     def _finalize_skill_evolution(
         self,
         extractor,

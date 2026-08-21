@@ -1387,5 +1387,26 @@ class TestExecuteToolCall:
         asyncio.run(_test())
 
 
+# ---------------------------------------------------------------------------
+# 6. 集成 grant-xp：任务完成后自动授予 XP
+# ---------------------------------------------------------------------------
+
+
+class TestGrantTaskXP:
+    def test_grant_xp_after_task(self, coordinator, tmp_path, monkeypatch):
+        """任务完成后自动授予 XP"""
+        from agent_profile_manager import AgentProfileManager
+        monkeypatch.setattr(coordinator, "_agent_profile_manager",
+                            AgentProfileManager(str(tmp_path / "profiles")),
+                            raising=False)
+        # 模拟任务完成
+        task = coordinator.meeting.add_task("agent-executor", "测试任务")
+        coordinator.meeting.update_task_status(task.id, "completed")
+        # grant-xp 应该被调用
+        result = coordinator._grant_task_xp("agent-executor", "backend_dev",
+                                             task_success=True, review_score=8.0, task_complexity=3)
+        assert result["xp_gained"] > 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
