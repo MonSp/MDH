@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { getSkillTree } from '../../modules/careerDevelopment'
-import type { SkillDefinition } from '../../modules/careerDevelopment.types'
+import { getSkillTree, listDepartments } from '../../modules/careerDevelopment'
+import type { SkillDefinition, DepartmentCareerPath } from '../../modules/careerDevelopment.types'
 
 const CATEGORY_COLORS: Record<string, string> = {
   engineering: '#3b82f6',
@@ -22,6 +22,9 @@ const CATEGORIES = ['engineering', 'design', 'content', 'data', 'management'] as
 
 export function SkillTreeView() {
   const [tree, setTree] = useState<Record<string, SkillDefinition> | null>(null)
+  const [departments, setDepartments] = useState<DepartmentCareerPath[]>([])
+  const [deptFilter, setDeptFilter] = useState<string>('')
+  const [categoryFilter, setCategoryFilter] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null)
@@ -32,8 +35,8 @@ export function SkillTreeView() {
       setLoading(true)
       setError(null)
       try {
-        const data = await getSkillTree()
-        if (!cancelled) setTree(data)
+        const [data, depts] = await Promise.all([getSkillTree(), listDepartments()])
+        if (!cancelled) { setTree(data); setDepartments(depts) }
       } catch (e: any) {
         if (!cancelled) setError(e.message || '加载技能树失败')
       } finally {
@@ -43,6 +46,22 @@ export function SkillTreeView() {
     load()
     return () => { cancelled = true }
   }, [])
+
+  // 部门关联技能：从 career_path stages 的 required_skills 中收集
+  const deptSkillSet = React.useMemo(() => {
+    if (!deptFilter) return null
+    const dept = departments.find(d => d.department === deptFilter)
+    if (!dept) return null
+    const skills = new Set<string>()
+    for (const stage of dept.stages) {
+      if (stage.requirements?.required_skills) {
+        for (const skillId of Object.keys(stage.requirements.required_skills)) {
+          skills.add(skillId)
+        }
+      }
+    }
+    return skills
+  }, [deptFilter, departments])
 
   if (loading) {
     return (
@@ -69,10 +88,15 @@ export function SkillTreeView() {
     )
   }
 
-  // Group skills by category
+  // Group skills by category (with optional department filter)
+  const filteredEntries = Object.entries(tree).filter(([id, def]) => {
+    if (deptSkillSet && !deptSkillSet.has(id)) return false
+    if (categoryFilter && def.category !== categoryFilter) return false
+    return true
+  })
   const grouped: Record<string, Array<{ id: string; def: SkillDefinition }>> = {}
   for (const cat of CATEGORIES) grouped[cat] = []
-  for (const [id, def] of Object.entries(tree)) {
+  for (const [id, def] of filteredEntries) {
     const cat = CATEGORIES.includes(def.category as any) ? def.category : 'engineering'
     grouped[cat].push({ id, def })
   }
@@ -93,7 +117,23 @@ export function SkillTreeView() {
     <div style={styles.container}>
       <div style={styles.header}>
         <span style={styles.title}>🌳 技能依赖树</span>
-        <span style={styles.subtitle}>共 {Object.keys(tree).length} 项技能</span>
+        <div style={styles.filterRow}>
+          <select style={styles.filterSelect} value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
+            <option value="">全部部门</option>
+            {departments.map(d => (
+              <option key={d.department} value={d.department}>{d.name}</option>
+            ))}
+          </select>
+          <select style={styles.filterSelect} value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+            <option value="">全部类别</option>
+            {CATEGORIES.map(cat => (
+              <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat}</option>
+            ))}
+          </select>
+          <span style={styles.subtitle}>
+            {filteredEntries.length}/{Object.keys(tree).length} 项技能
+          </span>
+        </div>
       </div>
 
       <div style={styles.main}>
@@ -265,15 +305,32 @@ const styles: Record<string, React.CSSProperties> = {
   header: {
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
     padding: '12px 16px',
     borderBottom: '1px solid rgba(255,255,255,0.06)',
     background: 'rgba(0,0,0,0.15)',
+    flexWrap: 'wrap' as const,
   },
   title: {
     fontSize: 15,
     fontWeight: 700,
     color: '#a78bfa',
+  },
+  filterRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  filterSelect: {
+    padding: '4px 10px',
+    borderRadius: 6,
+    border: '1px solid rgba(255,255,255,0.15)',
+    background: 'rgba(0,0,0,0.3)',
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontFamily: 'inherit',
+    minWidth: 100,
   },
   subtitle: {
     fontSize: 11,
