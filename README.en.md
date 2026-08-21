@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1142%20passed-brightgreen)]()
-[![Frontend Tests](https://img.shields.io/badge/frontend-1657%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-1400%20passed-brightgreen)]()
+[![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
 [![Test Coverage](https://img.shields.io/badge/test%20coverage-84%25-brightgreen)]()
 
 [中文版](README.md) | **English**
@@ -31,6 +31,48 @@ A full-domain multi-agent collaboration system built with React + Python FastAPI
 | 🧪 LLM Judge Gating | Templates/artifacts pass deterministic checks + LLM judge evaluation (fail-closed) + benchmark with CI gate |
 | 📊 Reuse Visibility | Injection metrics (`/api/assets/reuse-metrics`) + frontend asset browser panel (`🧠 Assets` tab) |
 | 📝 Meeting Minutes Pipeline | Intent-recognition doc mode → minutes DAG workflow (extract/draft/proofread) → artifact output + email delivery |
+
+## From Tools to Colleagues
+
+In May 2026, we started asking one question: **What should an AI agent really be?**
+
+Today's AI assistants are "tools" — you give them a command, they give you an answer, then they forget. Next conversation, they know nothing. They don't accumulate experience, don't grow, don't collaborate with other AIs.
+
+But real work doesn't work that way. In a team, some handle frontend, some backend, some review code, some manage progress. Everyone learns. Everyone gets stronger. The pitfall from the last project won't happen again in the next one.
+
+What we wanted to do was simple: **Turn digital employees from tools into colleagues.**
+
+### The Skeleton (v1.0, 2026-05 ~ 08)
+
+The first three months were spent building the skeleton. A 3D cyberpunk virtual office where agents meet, discuss, vote, and execute tasks. CEO breaks down requirements, architects design, developers code, QA reviews. 43 skill packs, 25+ roles, 18 tools.
+
+But these digital employees, while capable, were still "one-shot". Every meeting started from scratch. No memory, no growth.
+
+### Memory (v1.1, 2026-08-16)
+
+Digital employees gained "memory". Every task execution auto-deposits artifacts as "assets". Experience is distilled into skill rules. Next time a similar task comes up, these rules are automatically injected into the agent's context.
+
+But memory was fragile. Rules were written and injected, but nobody knew if they actually helped.
+
+### Evolution (v1.3, 2026-08-20)
+
+We fixed a fatal bug in the evolution loop, then added effectiveness scoring to every rule. Rules used 3+ times with less than 40% success rate are auto-demoted for re-review. Digital employees developed an "immune system" — bad experience gets eliminated, good experience stays.
+
+High-scoring experience from one team can be shared across teams through quality gates.
+
+### Career (v1.4, 2026-08-20)
+
+42 skills organized into a dependency tree, each with three proficiency levels. 10 departments with independent promotion criteria. Completing tasks earns XP; enough XP means level-up. Senior employees doing simple tasks get diminished XP — you must tackle real challenges to grow.
+
+Digital employees have persistent career profiles that survive across projects. They grow, get stronger, and progress from junior engineer to tech lead.
+
+### The Loop
+
+```
+Task → Execute → Produce Assets → Distill Experience → Evolve Skills → Next Task More Efficient
+```
+
+This loop is live. Digital employees are no longer tools — they are colleagues. With their own memory, experience, skills, and continuous evolution.
 
 ## Quick Start
 
@@ -322,12 +364,6 @@ python backend/asset_benchmark_gate.py
 - [Benchmark CI Gate Guide](docs/compose/plans/2026-08-15-hybrid-team-platform-benchmark-ci-guide.md)
 
 ## Version History
-
-| Version | Date | Highlights |
-|---|---|---|
-| **[v1.1.0](https://github.com/MonSp/MDH/releases/tag/v1.1.0)** | 2026-08-16 | Asset sedimentation (M3/M4), LLM judge gating + CI gate, team-scoped rule isolation, M5 asset visualization + reuse metrics, meeting minutes pipeline (real pilot 7/7) |
-| v1.0.0 | 2026-08-14 | Product definition (human+agent hybrid team platform) + M1-M2 meeting minutes pipeline, gate enforcement, frontend approval UI — initial release baseline |
-| Pre-1.0 | 2026-05-22 ~ 08-13 | Early architecture (TS orchestration / Electron offline / multi-agent collaboration) → P0/P1/P2 implementation → P3 phase one (session log / snapshot eval) → dsh deep research |
 
 Full change history in [CHANGELOG.md](CHANGELOG.md).
 
