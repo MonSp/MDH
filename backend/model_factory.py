@@ -109,6 +109,14 @@ def create_agent(
     if reg is None:
         raise ValueError(f"不支持的模型提供商: {provider}")
 
+    # agentscope v2.0.6 的 DeepSeek 模型内部使用 openai.AsyncClient，
+    # 需要 OPENAI_API_KEY 环境变量。如果未设置，从 api_key 同步。
+    import os
+    if provider == "deepseek" and not os.environ.get("OPENAI_API_KEY"):
+        os.environ["OPENAI_API_KEY"] = api_key
+        if base_url and not os.environ.get("OPENAI_BASE_URL"):
+            os.environ["OPENAI_BASE_URL"] = base_url
+
     # 创建临时 session 对象（兼容 provider credential 接口）
     class _Session:
         pass
