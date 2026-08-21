@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1285%20passed-brightgreen)]()
-[![Frontend Tests](https://img.shields.io/badge/frontend-1662%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-1400%20passed-brightgreen)]()
+[![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
 [![Test Coverage](https://img.shields.io/badge/test%20coverage-84%25-brightgreen)]()
 
 **中文** | [English](README.en.md)
@@ -31,6 +31,9 @@
 | 🧪 LLM 评测把关 | 模板/产出物经确定性检查 + LLM judge 评测（fail-closed）+ 评测基准与 CI 门禁 |
 | 📊 复用率可感知 | 注入计数指标（`/api/assets/reuse-metrics`）+ 前端资产浏览面板（`🧠 资产` 标签） |
 | 📝 会议纪要全链路 | 意图识别文档模式 → 纪要 DAG 工作流（提取/起草/校对）→ 产出物落盘 + 邮件分发 |
+| 📈 规则有效性追踪 | 注入规则自动追踪任务成功率，低分规则自动降级退回审核 |
+| 🚀 数字员工职业发展 | AgentProfile 持久档案 + XP 系统 + 42 个技能树 + 10 部门职业路径 + 自动晋升 |
+| 🤝 跨团队技能共享 | 质量门禁（score ≥ 0.6 + usage ≥ 2）+ 审批流 + 共享经验池 |
 
 ## 快速开始
 
@@ -77,6 +80,7 @@ docker compose up -d
 │   │   │   ├── CeoChatPanel.tsx  # CEO 对话 + Per-Agent Location 选择
 │   │   │   └── ...
 │   │   ├── skill-evolution/      # 技能进化
+│   │   │       AgentProfilePanel/CareerPathPanel/SkillTreeView # 职业发展面板
 │   │   └── cyberpunk/            # 赛博朋克视觉效果
 │   ├── hooks/
 │   │   ├── useMeetingSocket.ts   # WebSocket 会议通信
@@ -91,8 +95,8 @@ docker compose up -d
 │   ├── meeting_coordinator.py    # 会议协调器（核心）
 │   ├── ceo_agent.py              # CEO 智能体
 │   ├── agent_bridge.py           # TS-Python 桥接
-│   ├── roles_config.yaml         # 角色配置（25+ 角色）
-│   └── tests/                    # Python 测试（1285 tests）
+│   ├── roles_config.yaml         # 角色配置（25+ 角色 + 10 部门职业路径 + 42 技能树）
+│   └── tests/                    # Python 测试（1400 tests）
 ├── orchestrator/                 # TS 编排器（用户本地 Node.js）
 │   └── src/
 │       ├── cli.ts                # CLI 入口
@@ -192,6 +196,18 @@ custom_roles:
 ```
 
 可通过前端 `🗳️ 投票` 标签页的角色编辑器管理。
+
+## 数字员工职业发展 (v1.4)
+
+每个数字员工有持久化的职业档案，跨项目积累经验：
+
+| 能力 | 说明 |
+|------|------|
+| 🧬 技能树 | 42 个技能，5 类别（engineering/design/content/data/management），前置依赖链 |
+| ⚡ XP 系统 | 任务成功 +XP，审查加成，XP 衰减防刷 |
+| 🏢 部门职业路径 | 10 个部门独立晋升标准（研发/内容/演示/设计/数据/视频/AI影视/市场/销售/产品） |
+| 🎖️ 自动晋升 | 满足技能条件后自动晋升（初级→中级→高级→Lead） |
+| 📊 前端面板 | 部门卡片网格 + 晋升时间线 + 技能进度条 + 技能树可视化 |
 
 ## WebSocket 消息协议
 
