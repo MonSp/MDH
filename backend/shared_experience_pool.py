@@ -262,7 +262,7 @@ class SharedExperiencePool:
             fork 后的规则数据，失败返回 None
         """
         rule = self._load_rule(rule_id)
-        if not rule:
+        if not rule or rule.status != "approved":
             return None
 
         # 增加使用计数

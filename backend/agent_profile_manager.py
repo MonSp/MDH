@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import threading
 import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
@@ -36,7 +37,16 @@ class AgentProfile:
 class AgentProfileManager:
     def __init__(self, profiles_dir: str):
         self._dir = profiles_dir
+        self._locks: Dict[str, threading.Lock] = {}
+        self._locks_lock = threading.Lock()
         os.makedirs(self._dir, exist_ok=True)
+
+    def _get_lock(self, agent_id: str) -> threading.Lock:
+        """获取 agent 级别的锁（惰性创建）"""
+        with self._locks_lock:
+            if agent_id not in self._locks:
+                self._locks[agent_id] = threading.Lock()
+            return self._locks[agent_id]
 
     def _path(self, agent_id: str) -> str:
         return os.path.join(self._dir, f"{agent_id}.json")
@@ -95,7 +105,13 @@ class AgentProfileManager:
         task_complexity: int,
         skill_config: dict,
     ) -> Dict:
-        """授予 XP 并检查升级"""
+        """授予 XP 并检查升级（线程安全）"""
+        with self._get_lock(agent_id):
+            return self._grant_xp_unsafe(agent_id, skill_id, task_success, review_score, task_complexity, skill_config)
+
+    def _grant_xp_unsafe(
+        self, agent_id, skill_id, task_success, review_score, task_complexity, skill_config,
+    ) -> Dict:
         profile = self.get_profile(agent_id)
         if not profile:
             return {"xp_gained": 0, "new_level": 0, "leveled_up": False, "skill_id": skill_id}

@@ -32,7 +32,7 @@ export interface GrantXPResult {
   new_level: number
   leveled_up: boolean
   skill_id: string
-  promoted_to?: string
+  promoted_to?: { stage: string; title: string; department: string }
 }
 
 export interface PromotionStatus {
