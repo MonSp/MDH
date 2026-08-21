@@ -151,3 +151,30 @@ class TestSkillLevelRouting:
         assert router._profile_manager is None
         router.set_profile_manager("mock_mgr")
         assert router._profile_manager == "mock_mgr"
+
+
+class TestTaskComplexityEstimation:
+    """任务复杂度估算测试"""
+
+    def test_simple_task(self):
+        from meeting_coordinator import MeetingCoordinator
+        mc = object.__new__(MeetingCoordinator)
+        assert mc._estimate_task_complexity("帮我写一个 hello world") <= 2
+
+    def test_complex_task(self):
+        from meeting_coordinator import MeetingCoordinator
+        mc = object.__new__(MeetingCoordinator)
+        assert mc._estimate_task_complexity("首先设计前端架构，然后实现后端API，最后部署数据库") >= 4
+
+    def test_medium_task(self):
+        from meeting_coordinator import MeetingCoordinator
+        mc = object.__new__(MeetingCoordinator)
+        score = mc._estimate_task_complexity("重构登录模块并优化数据库查询")
+        assert 2 <= score <= 4
+
+    def test_complexity_clamped(self):
+        from meeting_coordinator import MeetingCoordinator
+        mc = object.__new__(MeetingCoordinator)
+        # 即使关键词很多也不会超过 5
+        huge = "首先然后最后前端后端数据库部署架构设计重构优化" * 10
+        assert mc._estimate_task_complexity(huge) == 5

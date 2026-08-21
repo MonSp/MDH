@@ -371,9 +371,32 @@ class MeetingCoordinator:
                 return a
         return None
 
+    @staticmethod
+    def _estimate_task_complexity(task_description: str) -> int:
+        """估算任务复杂度（1-5），用于匹配 agent 技能等级"""
+        lower = task_description.lower()
+        score = 1
+        # 多步骤/跨领域关键词 → 提升复杂度
+        complex_signals = ['首先', '然后', '最后', '前端', '后端', '数据库', '部署',
+                           '架构', '设计', '重构', '优化', 'first', 'then', 'finally',
+                           'frontend', 'backend', 'database', 'deploy', 'architecture']
+        score += sum(1 for kw in complex_signals if kw in lower)
+        # 多文件/多模块信号
+        if any(kw in lower for kw in ['多个', '多个文件', '多个模块', 'all files', 'entire']):
+            score += 1
+        return min(5, max(1, score))
+
     def _find_best_agent_for_task(self, task_description: str):
-        """根据任务内容选择最有能力执行的Agent（技能等级加权）"""
+        """根据任务内容和复杂度选择最有能力执行的Agent
+
+        晋升驱动分配策略：
+        - 简单任务（complexity ≤ 2）：倾向分配给初级 agent（需要积累 XP）
+        - 复杂任务（complexity ≥ 4）：倾向分配给高级 agent（能力匹配）
+        - 中等任务：按技能等级加权自然选择
+        """
         task_lower = task_description.lower()
+        task_complexity = self._estimate_task_complexity(task_description)
+
         needs_write = any(kw in task_lower for kw in [
             '写', '创作', '生成', '编写', '撰写', 'write', 'create', 'generate',
             '文件', '代码', '文章', '小说', '剧本', 'file', 'code',
@@ -386,7 +409,6 @@ class MeetingCoordinator:
         config = load_roles_config()
         all_roles = {**config.get("base_roles", {}), **config.get("custom_roles", {})}
 
-        # 获取 AgentProfileManager（用于技能等级查询）
         profile_mgr = None
         try:
             from agent_profile_manager import AgentProfileManager
@@ -404,6 +426,8 @@ class MeetingCoordinator:
             role_cfg = all_roles.get(role_config_id, {})
             skills = set(role_cfg.get("skills", []))
             score = 0
+
+            # 基础能力匹配
             if needs_write:
                 if "write_file" in tools:
                     score += 10
@@ -420,7 +444,7 @@ class MeetingCoordinator:
                 if agent.role == AgentRole.EXECUTOR:
                     score += 5
 
-            # 技能等级加权：agent 在相关技能上的等级越高，加分越多
+            # 技能等级加权 + 晋升驱动分配
             if profile_mgr:
                 try:
                     profile = profile_mgr.get_profile(agent.id)
@@ -431,7 +455,19 @@ class MeetingCoordinator:
                             level = sp.get("level", 0) if isinstance(sp, dict) else 0
                             if level > max_skill_level:
                                 max_skill_level = level
-                        score += max_skill_level * 3  # 每级 +3 分
+
+                        if task_complexity <= 2:
+                            # 简单任务：初级 agent 优先（需要 XP），高级 agent 减分
+                            if max_skill_level <= 1:
+                                score += 5  # 初级 agent 加分
+                            elif max_skill_level >= 3:
+                                score -= 3  # 高级 agent 减分（XP 衰减，不浪费）
+                        elif task_complexity >= 4:
+                            # 复杂任务：高级 agent 优先
+                            score += max_skill_level * 4  # 每级 +4 分（比默认更激进）
+                        else:
+                            # 中等任务：正常技能等级加权
+                            score += max_skill_level * 3
                 except Exception:
                     pass
 
@@ -441,7 +477,7 @@ class MeetingCoordinator:
             return None
         candidates.sort(key=lambda x: x[1], reverse=True)
         best_agent, best_score = candidates[0]
-        self.logger.info("能力匹配: 选择 %s (score=%d)", best_agent.id, best_score)
+        self.logger.info("能力匹配: 选择 %s (score=%d, complexity=%d)", best_agent.id, best_score, task_complexity)
         return best_agent
 
     def _get_agent_tools(self, agent) -> set:
