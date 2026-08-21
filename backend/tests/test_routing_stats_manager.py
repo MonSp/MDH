@@ -93,3 +93,61 @@ class TestRoutingStatsManager:
         assert orch._task_routing == {}
         # router.update_stats 不应被调用
         router.update_stats.assert_not_called()
+
+
+class TestSkillLevelRouting:
+    """DynamicRouter 技能等级加权测试"""
+
+    def test_compute_skill_level_no_manager(self, tmp_path):
+        """无 profile_manager 时技能等级得分为 0"""
+        from dynamic_router import DynamicRouter
+        router = DynamicRouter(str(tmp_path / "routing.json"))
+        assert router._compute_skill_level_score("dept-software", "写代码") == 0.0
+
+    def test_compute_skill_level_with_profiles(self, tmp_path):
+        """有 profile_manager 时按最高等级返回得分"""
+        from dynamic_router import DynamicRouter
+        from agent_profile_manager import AgentProfileManager
+        import json
+
+        # 创建路由表
+        routing_path = str(tmp_path / "routing.json")
+        with open(routing_path, "w") as f:
+            json.dump({"entries": {}}, f)
+
+        # 创建 profile manager 和 agent 档案
+        mgr = AgentProfileManager(str(tmp_path / "profiles"))
+        profile = mgr.get_or_create("agent-001", "Alpha", department="dept-software")
+        profile.skill_progress = {"backend_dev": {"level": 2, "xp": 300}}
+        mgr.save_profile(profile)
+
+        router = DynamicRouter(routing_path, profile_manager=mgr)
+        score = router._compute_skill_level_score("dept-software", "写代码")
+        # level 2 / 3 = 0.667
+        assert 0.66 <= score <= 0.67
+
+    def test_compute_skill_level_max_level(self, tmp_path):
+        """最高技能等级返回 1.0"""
+        from dynamic_router import DynamicRouter
+        from agent_profile_manager import AgentProfileManager
+        import json
+
+        routing_path = str(tmp_path / "routing.json")
+        with open(routing_path, "w") as f:
+            json.dump({"entries": {}}, f)
+
+        mgr = AgentProfileManager(str(tmp_path / "profiles"))
+        profile = mgr.get_or_create("agent-001", "Alpha", department="dept-software")
+        profile.skill_progress = {"backend_dev": {"level": 3, "xp": 600}}
+        mgr.save_profile(profile)
+
+        router = DynamicRouter(routing_path, profile_manager=mgr)
+        assert router._compute_skill_level_score("dept-software", "写代码") == 1.0
+
+    def test_set_profile_manager(self, tmp_path):
+        """set_profile_manager 运行时注入"""
+        from dynamic_router import DynamicRouter
+        router = DynamicRouter(str(tmp_path / "routing.json"))
+        assert router._profile_manager is None
+        router.set_profile_manager("mock_mgr")
+        assert router._profile_manager == "mock_mgr"

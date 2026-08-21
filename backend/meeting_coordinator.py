@@ -144,6 +144,12 @@ class MeetingCoordinator:
         routing_table_path = os.path.join(data_dir, "routing_table.json")
         self._ensure_default_routing_table(routing_table_path)
         self.router = DynamicRouter(routing_table_path)
+        # 注入 AgentProfileManager 到路由器（技能等级加权）
+        try:
+            from agent_profile_manager import AgentProfileManager
+            self.router.set_profile_manager(AgentProfileManager(os.path.join(data_dir, "agent_profiles")))
+        except Exception:
+            pass
 
         # RoutingStatsManager：路由统计管理
         from routing_stats_manager import RoutingStatsManager
@@ -366,9 +372,8 @@ class MeetingCoordinator:
         return None
 
     def _find_best_agent_for_task(self, task_description: str):
-        """根据任务内容选择最有能力执行的Agent（优先选择有write_file权限的）"""
+        """根据任务内容选择最有能力执行的Agent（技能等级加权）"""
         task_lower = task_description.lower()
-        # 判断任务类型
         needs_write = any(kw in task_lower for kw in [
             '写', '创作', '生成', '编写', '撰写', 'write', 'create', 'generate',
             '文件', '代码', '文章', '小说', '剧本', 'file', 'code',
@@ -377,10 +382,18 @@ class MeetingCoordinator:
             '审查', '审核', '校对', 'review', 'edit', '检查', '质量',
         ])
 
-        # 一次性加载配置（有 mtime 缓存）
         from agent_toolset import load_roles_config
         config = load_roles_config()
         all_roles = {**config.get("base_roles", {}), **config.get("custom_roles", {})}
+
+        # 获取 AgentProfileManager（用于技能等级查询）
+        profile_mgr = None
+        try:
+            from agent_profile_manager import AgentProfileManager
+            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            profile_mgr = AgentProfileManager(os.path.join(data_dir, "agent_profiles"))
+        except Exception:
+            pass
 
         candidates = []
         for agent in self.meeting.agents:
@@ -406,11 +419,26 @@ class MeetingCoordinator:
             else:
                 if agent.role == AgentRole.EXECUTOR:
                     score += 5
+
+            # 技能等级加权：agent 在相关技能上的等级越高，加分越多
+            if profile_mgr:
+                try:
+                    profile = profile_mgr.get_profile(agent.id)
+                    if profile:
+                        max_skill_level = 0
+                        for skill_id in skills:
+                            sp = profile.skill_progress.get(skill_id, {})
+                            level = sp.get("level", 0) if isinstance(sp, dict) else 0
+                            if level > max_skill_level:
+                                max_skill_level = level
+                        score += max_skill_level * 3  # 每级 +3 分
+                except Exception:
+                    pass
+
             candidates.append((agent, score))
 
         if not candidates:
             return None
-        # 按分数降序排列，返回最高分
         candidates.sort(key=lambda x: x[1], reverse=True)
         best_agent, best_score = candidates[0]
         self.logger.info("能力匹配: 选择 %s (score=%d)", best_agent.id, best_score)

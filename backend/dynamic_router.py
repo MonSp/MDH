@@ -103,21 +103,24 @@ class DynamicRouter:
     路由表以 JSON 文件形式持久化，所有读写操作通过线程锁保证安全。
     """
 
-    # 综合评分权重
-    WEIGHT_KEYWORD = 0.4
-    WEIGHT_SEMANTIC = 0.3
-    WEIGHT_SUCCESS_RATE = 0.2
-    WEIGHT_PRIORITY = 0.1
+    # 综合评分权重（总和 = 1.0）
+    WEIGHT_KEYWORD = 0.35
+    WEIGHT_SEMANTIC = 0.25
+    WEIGHT_SUCCESS_RATE = 0.20
+    WEIGHT_PRIORITY = 0.10
+    WEIGHT_SKILL_LEVEL = 0.10
 
-    def __init__(self, routing_table_path: str):
+    def __init__(self, routing_table_path: str, profile_manager=None):
         """初始化动态路由器
 
         Args:
             routing_table_path: 路由表 JSON 文件路径
+            profile_manager: AgentProfileManager 实例（可选，用于技能等级加权）
         """
         self._path = routing_table_path
         self._lock = threading.Lock()
         self._table: dict[str, RouteEntry] = {}
+        self._profile_manager = profile_manager
         self.load_routing_table()
 
     # ------------------------------------------------------------------
@@ -327,14 +330,53 @@ class DynamicRouter:
     # 综合路由决策
     # ------------------------------------------------------------------
 
+    def set_profile_manager(self, profile_manager) -> None:
+        """设置 AgentProfileManager（运行时注入）"""
+        self._profile_manager = profile_manager
+
+    def _compute_skill_level_score(self, dept_id: str, user_input: str) -> float:
+        """计算部门技能等级得分（0.0-1.0）
+
+        从 roles_config 读取部门关联技能，查询 AgentProfile 中的技能等级，
+        取最高等级归一化为得分。
+        """
+        if not self._profile_manager:
+            return 0.0
+        try:
+            from agent_toolset import load_roles_config
+            config = load_roles_config()
+            career_paths = config.get("career_paths", {})
+            dept_path = career_paths.get(dept_id, {})
+            # 收集该部门职业路径中的 required_skills
+            dept_skills: set[str] = set()
+            for stage in dept_path.get("stages", []):
+                for skill_id in (stage.get("requirements") or {}).get("required_skills", {}):
+                    dept_skills.add(skill_id)
+            if not dept_skills:
+                return 0.0
+            # 查询所有 agent 在这些技能上的最高等级
+            max_level = 0
+            for profile in self._profile_manager.list_profiles():
+                for skill_id in dept_skills:
+                    sp = profile.skill_progress.get(skill_id, {})
+                    level = sp.get("level", 0) if isinstance(sp, dict) else 0
+                    if level > max_level:
+                        max_level = level
+                        if max_level >= 3:
+                            return 1.0  # 已达最高，提前返回
+            return max_level / 3.0  # 归一化到 0-1
+        except Exception:
+            return 0.0
+
     def route(self, user_input: str, task_type: str = None) -> RoutingDecision:
         """综合路由决策
 
         评分公式：
-            final_score = keyword_match_score * 0.4
-                        + semantic_score * 0.3
-                        + success_rate * 0.2
-                        + priority_weight * 0.1
+            final_score = keyword_match_score * 0.35
+                        + semantic_score * 0.25
+                        + success_rate * 0.20
+                        + priority_weight * 0.10
+                        + skill_level * 0.10
 
         Args:
             user_input: 用户输入文本
@@ -389,12 +431,14 @@ class DynamicRouter:
             sem_score = semantic_map.get(entry.dept_id, 0.0)
             sr = entry.success_rate
             pri = entry.priority / max_priority
+            skill_score = self._compute_skill_level_score(entry.dept_id, user_input)
 
             final_score = (
                 kw_score * self.WEIGHT_KEYWORD
                 + sem_score * self.WEIGHT_SEMANTIC
                 + sr * self.WEIGHT_SUCCESS_RATE
                 + pri * self.WEIGHT_PRIORITY
+                + skill_score * self.WEIGHT_SKILL_LEVEL
             )
             candidate_scores.append((entry, final_score, matched_kw_map.get(entry.dept_id, [])))
 
