@@ -42,25 +42,25 @@ But real work doesn't work that way. In a team, some handle frontend, some backe
 
 What we wanted to do was simple: **Turn digital employees from tools into colleagues.**
 
-### The Skeleton (v1.0, 2026-05 ~ 08)
+### The Skeleton
 
 The first three months were spent building the skeleton. A 3D cyberpunk virtual office where agents meet, discuss, vote, and execute tasks. CEO breaks down requirements, architects design, developers code, QA reviews. 43 skill packs, 25+ roles, 18 tools.
 
 But these digital employees, while capable, were still "one-shot". Every meeting started from scratch. No memory, no growth.
 
-### Memory (v1.1, 2026-08-16)
+### Memory
 
 Digital employees gained "memory". Every task execution auto-deposits artifacts as "assets". Experience is distilled into skill rules. Next time a similar task comes up, these rules are automatically injected into the agent's context.
 
 But memory was fragile. Rules were written and injected, but nobody knew if they actually helped.
 
-### Evolution (v1.3, 2026-08-20)
+### Evolution
 
 We fixed a fatal bug in the evolution loop, then added effectiveness scoring to every rule. Rules used 3+ times with less than 40% success rate are auto-demoted for re-review. Digital employees developed an "immune system" — bad experience gets eliminated, good experience stays.
 
 High-scoring experience from one team can be shared across teams through quality gates.
 
-### Career (v1.4, 2026-08-20)
+### Career
 
 42 skills organized into a dependency tree, each with three proficiency levels. 10 departments with independent promotion criteria. Completing tasks earns XP; enough XP means level-up. Senior employees doing simple tasks get diminished XP — you must tackle real challenges to grow.
 
