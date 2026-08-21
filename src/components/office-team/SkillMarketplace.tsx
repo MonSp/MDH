@@ -221,7 +221,7 @@ export default function SkillMarketplace() {
     <div style={s.container}>
       <div style={s.header}>
         <span style={s.title}>技能市场</span>
-        {stats && <span style={s.stats}>{stats.total_rules} 条共享经验 · {stats.total_usage} 次复用</span>}
+        {stats && <span style={s.stats}>{stats.total_rules} 条共享经验 · {stats.total_usage} 次复用{(stats as any).pending_count > 0 && <span style={{ color: '#f59e0b' }}> · {(stats as any).pending_count} 待审核</span>}</span>}
       </div>
 
       {/* Tab 栏 */}
@@ -308,19 +308,30 @@ export default function SkillMarketplace() {
 
         {tab === 'experience' && (filteredRules.length === 0 ?
           <div style={s.empty}>{filter ? '无匹配结果' : '暂无共享经验'}</div> :
-          filteredRules.map(r => (
-            <div key={r.rule_id} style={s.item}>
-              <div style={s.itemHeader}>
-                <span style={s.skillName}>{highlight(r.trigger_condition.slice(0, 60), filter)}</span>
-                <span style={s.badge}>{r.rule_type}</span>
+          filteredRules.map(r => {
+            const statusCfg: Record<string, { label: string; color: string; bg: string }> = {
+              approved: { label: '已批准', color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
+              pending: { label: '待审核', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+            }
+            const sc = statusCfg[r.status || 'approved'] || { label: r.status || '', color: '#6b7280', bg: 'rgba(107,114,128,0.15)' }
+            return (
+              <div key={r.rule_id} style={s.item}>
+                <div style={s.itemHeader}>
+                  <span style={s.skillName}>{highlight(r.trigger_condition.slice(0, 60), filter)}</span>
+                  <span style={s.badge}>{r.rule_type}</span>
+                  {sc.label && <span style={{ ...s.badge, background: sc.bg, color: sc.color }}>{sc.label}</span>}
+                </div>
+                <div style={s.desc}>{highlight(r.action.slice(0, 120), filter)}</div>
+                <div style={s.itemFooter}>
+                  <span style={s.meta}>
+                    来源: {r.source_project || '未知'} · 复用: {r.usage_count}
+                    {(r.effectiveness_score ?? 0) > 0 && <span style={{ marginLeft: 6, color: (r.effectiveness_score ?? 0) >= 0.7 ? '#10b981' : '#f59e0b' }}>★{((r.effectiveness_score ?? 0) * 100).toFixed(0)}%</span>}
+                  </span>
+                  <button style={s.btn} onClick={() => forkRule(r.rule_id)}>Fork</button>
+                </div>
               </div>
-              <div style={s.desc}>{highlight(r.action.slice(0, 120), filter)}</div>
-              <div style={s.itemFooter}>
-                <span style={s.meta}>来源: {r.source_project || '未知'} · 复用: {r.usage_count}</span>
-                <button style={s.btn} onClick={() => forkRule(r.rule_id)}>Fork</button>
-              </div>
-            </div>
-          ))
+            )
+          })
         )}
 
         {tab === 'forks' && (forks.length === 0 ?

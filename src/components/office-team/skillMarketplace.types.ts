@@ -6,6 +6,8 @@ export interface SharedRule {
   keywords: string[]
   rule_type: string
   usage_count: number
+  status?: string
+  effectiveness_score?: number
 }
 
 export interface SkillFork {

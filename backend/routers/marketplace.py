@@ -58,6 +58,34 @@ async def get_stats():
     return {"success": True, "stats": _shared_pool.get_stats()}
 
 
+@router.get("/experience/pending")
+async def list_pending_experience():
+    rules = _shared_pool.get_pending_rules()
+    return {"success": True, "rules": [r.to_dict() for r in rules], "total": len(rules)}
+
+
+@router.post("/experience/approve")
+async def approve_experience(request: Request):
+    body = await request.json()
+    rule_id = body.get("rule_id", "")
+    approved_by = body.get("approved_by", "admin")
+    success = _shared_pool.approve_rule(rule_id, approved_by)
+    if success:
+        return {"success": True, "rule_id": rule_id, "status": "approved"}
+    return {"success": False, "error": "批准失败：规则不存在或非待审核状态"}
+
+
+@router.post("/experience/reject")
+async def reject_experience(request: Request):
+    body = await request.json()
+    rule_id = body.get("rule_id", "")
+    reason = body.get("reason", "")
+    success = _shared_pool.reject_rule(rule_id, reason)
+    if success:
+        return {"success": True, "rule_id": rule_id, "status": "rejected"}
+    return {"success": False, "error": "拒绝失败：规则不存在或非待审核状态"}
+
+
 # ── 技能 Fork ──
 
 @router.post("/skills/fork")
