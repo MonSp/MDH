@@ -100,7 +100,7 @@ app.add_middleware(
 )
 
 # 注册路由模块（渐进迁移：内联端点保留，新代码使用路由器）
-app.include_router(skills_router.router)
+# NOTE: skills_router 移至 Agent Profile 端点之后，避免 /api/skills/{skill_id} 吞掉 /api/skills/tree
 app.include_router(mcp_router.router)
 app.include_router(marketplace_router.router)
 app.include_router(community_router.router)
@@ -189,6 +189,10 @@ security_guard = SecurityMiddleware()
 
 # WebSocket handler 上下文（延迟初始化，见 _init_ws_ctx）
 _ws_ctx = None
+
+# ── Agent Profile API 惰性单例 ──
+_agent_profile_manager = None
+_promotion_engine = None
 
 
 def _init_ws_ctx():
@@ -659,6 +663,95 @@ def _now_iso_24h_ago() -> str:
     from datetime import datetime, timezone, timedelta
     return (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
 
+
+# ── Agent Profile API ──
+
+
+def _get_agent_profile_manager():
+    global _agent_profile_manager
+    if _agent_profile_manager is None:
+        from agent_profile_manager import AgentProfileManager
+        _agent_profile_manager = AgentProfileManager(os.path.join(_DATA_DIR, "agent_profiles"))
+    return _agent_profile_manager
+
+
+def _get_promotion_engine():
+    global _promotion_engine
+    if _promotion_engine is None:
+        from promotion_engine import PromotionEngine
+        _promotion_engine = PromotionEngine()
+    return _promotion_engine
+
+
+@app.get("/api/agents/{agent_id}/profile")
+async def get_agent_profile(agent_id: str):
+    try:
+        mgr = _get_agent_profile_manager()
+        profile = mgr.get_or_create(agent_id, agent_id)
+        return _ok(asdict(profile))
+    except Exception as e:
+        logger.exception("get_agent_profile 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/skills/tree")
+async def get_skill_tree():
+    try:
+        skills = _load_roles_config().get("skills", {})
+        return _ok({"skills": skills})
+    except Exception as e:
+        logger.exception("get_skill_tree 失败")
+        return _fail(str(e))
+
+
+@app.post("/api/agents/{agent_id}/grant-xp")
+async def grant_agent_xp(agent_id: str, request: Request):
+    try:
+        body = await request.json()
+        mgr = _get_agent_profile_manager()
+        profile = mgr.get_or_create(agent_id, agent_id)
+        skill_id = body["skill_id"]
+        config = _load_roles_config()
+        skill_config = config.get("skills", {}).get(skill_id, {"xp_thresholds": [100, 300, 600]})
+        result = mgr.grant_xp(
+            agent_id, skill_id,
+            task_success=body.get("task_success", True),
+            review_score=body.get("review_score", 5.0),
+            task_complexity=body.get("task_complexity", 3),
+            skill_config=skill_config,
+        )
+        # 检查晋升
+        engine = _get_promotion_engine()
+        profile = mgr.get_profile(agent_id)
+        promotion = engine.check_promotion(profile, config)
+        if promotion:
+            engine.apply_promotion(profile, promotion)
+            mgr.save_profile(profile)
+            result["promoted_to"] = promotion
+        return _ok(result)
+    except Exception as e:
+        logger.exception("grant_agent_xp 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/agents/{agent_id}/promotion")
+async def check_agent_promotion(agent_id: str):
+    try:
+        mgr = _get_agent_profile_manager()
+        profile = mgr.get_profile(agent_id)
+        if not profile:
+            return _fail("agent 不存在")
+        engine = _get_promotion_engine()
+        config = _load_roles_config()
+        target = engine.check_promotion(profile, config)
+        return _ok({"can_promote_to": target, "current_stage": profile.career_stage})
+    except Exception as e:
+        logger.exception("check_agent_promotion 失败")
+        return _fail(str(e))
+
+
+# 注册 skills_router（在 Agent Profile 端点之后，确保 /api/skills/tree 优先匹配）
+app.include_router(skills_router.router)
 
 # ──────────────────── SkillPackager REST API ────────────────────
 
