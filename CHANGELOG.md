@@ -61,6 +61,118 @@
 - 经验规则注入目录断链：`write_to_incremental_area` 写入 `approved/` 但双端注入读取 `rules/`
 - `agent_pool.py` 和 `loader.ts` 注入时过滤 `status=approved`（旧规则默认 approved 兼容）
 
+## [1.3.4] - 2026-08-20
+
+### Added
+
+**资产-技能协作闭环增强**
+- P0: 经验提炼人工审核 — `evolve_from_feedback` 不再自动审批，规则保持 `pending_review`
+- P1: 资产编辑能力 — `AssetStore.update_asset` + PUT `/api/assets/{id}` + 前端编辑 UI
+- P2: 复用率仪表盘 — AssetBrowserPanel 展示注入统计（总注入/模板/产出物/规则命中）
+- P3: 技能包版本修复 — `package_zip` 使用实际版本号
+
+### Fixed
+
+- TS 端增量区 + 资产注入到智能体 system prompt（`buildSystemPrompt` 调用 `loadIncrementalArea` + `buildAssetContext`）
+- Python 端增量区 + 资产注入到智能体 system prompt（`AgentPool._inject_incremental_context` + `coordinator_workflow`）
+- 审批后写入增量区 + 类型提取修复
+
+## [1.3.3] - 2026-08-20
+
+### Fixed
+
+**循环导入修复 + 类型安全**
+- SidePanel 循环导入修复：提取 `SidePanel.styles.ts` 共享样式文件
+- Handler 模块类型安全：5 个 handler 模块（meeting/voting/approval/checkpoint/bridge）any 清零
+- `meetingStore` 类型安全：所有 `any` → 正确类型
+- `useMeetingSocket` 类型安全：`BridgeMessage` 类型化
+- `useRolesConfig` / `RolePanel` / `SkillPanel` / `ToolPanel` any 清零
+
+## [1.3.2] - 2026-08-20
+
+### Added
+
+**前端架构治理收尾 + 大文件拆分**
+- CeoChatPanel 1044→547 行：提取 `useCeoCommunication` + `RoleSelector` + `WorkspaceConfig` + `ceo-types.ts` + `ceo-constants.ts`
+- Handler 测试 52 个：6 个测试文件覆盖 meeting/voting/approval/checkpoint/bridge/dispatcher
+- useMeetingSocket handler 按领域拆分 5 子模块 + Zustand store
+
+### Changed
+
+**大文件拆分（16 个文件，总计 -3500 行）**
+- OfficeScene 939→264 行（styles + 4 个 Tab 组件）
+- TechTowerView 884→417 行（FloorProjectPanel/StorageSetupPrompt/SceneControlsPanel/ResourceButtons）
+- CyberpunkGround 650→133 行（materials + 8 个子组件）
+- CyberpunkBuildings 523→212 行（BuildingTextures）
+- MeetingTable 521→267 行（styles）
+- SidePanel 1155→621 行（useRolesConfig + RolePanel/SkillPanel/ToolPanel）
+- SkillMarketplace 531→406 行（types + styles）
+- RoleConfigPanel 506→412 行（types + NewRoleModal）
+- taskPlanner 509→341 行（types + utils）
+- plannerAgent 608→516 行（types）
+- agentReferenceSystem 603→557 行（types）
+- taskScheduler 551→524 行（types）
+- agentCoordinator 537→519 行（types）
+- dependencyAnalyzer 627→475 行（defaults）
+- taskDecomposer 590→437 行（templates）
+
+### Fixed
+
+- Code review 修复：SidePanel 重复导入、导出缺失、类型不匹配
+- `setMeetingPhase` 类型 `string` → `MeetingPhase`
+
+## [1.3.1] - 2026-08-19
+
+### Added
+
+**前端架构治理**
+- useMeetingSocket handler 按领域拆分：meeting/voting/approval/checkpoint/bridge 5 个子模块
+- Zustand store 替代 40+ useState，按领域拆分 5 个 slice
+- CeoChatPanel 重构：提取 `useCeoCommunication` + `RoleSelector` + `WorkspaceConfig`
+- OfficeTeamMode 重构：提取 `MeetingPanel` + `TaskList`
+- Handler 单元测试 52 个
+
+## [1.3.0] - 2026-08-19
+
+### Added
+
+**Playwright 浏览器自动化（25 个工具，TS + Python 双端）**
+- TS 端：25 个 Playwright 浏览器自动化工具（导航/点击/输入/截图/录制等）
+- Python 端：25 个 Playwright 工具集成到后端
+- Playwright 能力深化：有头模式、任务队列、HITL 确认、实例池、录制回放、批量 API
+- `BrowserPool`：多实例管理
+- `BrowserRecordingPanel`：录制/回放 UI
+- 批量浏览器任务 API 端点
+
+## [1.2.2] - 2026-08-19
+
+### Added
+
+**TS 端能力补齐 + server.py 迁移**
+- TS HITL 确认流程：危险操作人工审批
+- TS LLM 超时守卫：重试 + 退避
+- TS 渐进式技能加载器（L0-L3）
+- TS Shell 安全 + 工具参数校验
+- 新增 4 个 LLM 提供商（DashScope/Gemini/Moonshot/xAI）
+- thinking/reasoning 块流式支持
+
+### Changed
+
+**server.py 端点迁移（消除重复内联端点）**
+- Skills 内联端点迁移到 `routers/skills.py`
+- Workflow 内联端点迁移到 `routers/workflow.py`
+- Marketplace 内联端点迁移到 `routers/marketplace.py`
+- MCP/Community 内联端点迁移到对应路由模块
+
+### Refactored
+
+- 提取 `coordinator_discussion.py`（讨论流程）
+- 提取 `coordinator_summary.py`（项目总结）
+
+### Fixed
+
+- 移除对专有浏览器的依赖（禁用 browser automation tools）
+
 ## [1.2.1] - 2026-08-18
 
 ### Fixed
