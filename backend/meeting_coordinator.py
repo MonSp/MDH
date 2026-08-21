@@ -1027,19 +1027,20 @@ class MeetingCoordinator:
         # 总结 + 技能进化
         self._update_routing_stats_safe()
 
-        # 授予 XP（根据任务结果更新 agent 技能等级）
+        # 授予 XP（执行即得基础 XP，审查通过额外奖励）
         structured = review_result.get("structured_feedback", {})
-        task_success = structured.get("status", "approved") == "approved"
-        review_score = structured.get("score", 7.0) if isinstance(structured.get("score"), (int, float)) else 7.0
+        review_approved = structured.get("status", "approved") == "approved"
+        review_score = structured.get("score", 8.0) if isinstance(structured.get("score"), (int, float)) else 8.0
         task_complexity = self._estimate_task_complexity(user_message)
         for exec_result in execution_results:
             agent_id = exec_result.get("agent_id", target_agent_id)
-            # 推断技能：从路由部门获取关联技能
             dept = assign_result.get("dept_id", "")
             if not dept:
                 routing = self.last_routing_decision
                 dept = routing.selected_dept if routing else ""
-            self._grant_task_xp(agent_id, "backend_dev", task_success, review_score, task_complexity, department=dept)
+            # 执行即得基础 XP（task_success=True），审查通过给高 review_score 加成
+            bonus_score = review_score if review_approved else max(5.0, review_score - 3.0)
+            self._grant_task_xp(agent_id, "backend_dev", True, bonus_score, task_complexity, department=dept)
 
         project_summary = self._generate_project_summary(
             user_message, analysis, discussion_results, assign_result, review_result, execution_results,
