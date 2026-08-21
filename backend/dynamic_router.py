@@ -35,6 +35,7 @@ class RouteEntry:
     successful_tasks: int
     last_active: str
     priority: int
+    skill_level_boost: float = 0.0  # 技能升级自适应加成（持久化，随升级累积）
 
 
 @dataclass
@@ -162,6 +163,7 @@ class DynamicRouter:
                     successful_tasks=dept.get("successful_tasks", 0),
                     last_active=dept.get("last_active", ""),
                     priority=dept.get("priority", 0),
+                    skill_level_boost=dept.get("skill_level_boost", 0.0),
                 )
                 table[entry.dept_id] = entry
 
@@ -439,6 +441,7 @@ class DynamicRouter:
                 + sr * self.WEIGHT_SUCCESS_RATE
                 + pri * self.WEIGHT_PRIORITY
                 + skill_score * self.WEIGHT_SKILL_LEVEL
+                + entry.skill_level_boost  # 技能升级自适应加成（直接加到总分）
             )
             candidate_scores.append((entry, final_score, matched_kw_map.get(entry.dept_id, [])))
 
@@ -512,6 +515,28 @@ class DynamicRouter:
             entry.last_active = _now_iso()
 
         # 持久化
+        return self.save_routing_table()
+
+    def update_skill_boost(self, dept_id: str, level_gained: int = 1) -> bool:
+        """技能升级自适应：agent 升级时提升部门路由加成
+
+        每次 agent 技能升级，部门的 skill_level_boost 增加 0.05（上限 0.3）。
+        这使得有高级 agent 的部门在路由决策中获得持久优势。
+
+        Args:
+            dept_id: 部门 ID
+            level_gained: 升了几级（默认 1）
+        Returns:
+            更新是否成功
+        """
+        with self._lock:
+            entry = self._table.get(dept_id)
+            if entry is None:
+                return False
+            entry.skill_level_boost = min(0.3, entry.skill_level_boost + 0.05 * level_gained)
+            entry.last_active = _now_iso()
+        logger.info("部门 %s 技能加成提升至 %.2f", dept_id,
+                     self._table[dept_id].skill_level_boost)
         return self.save_routing_table()
 
     # ------------------------------------------------------------------

@@ -178,3 +178,62 @@ class TestTaskComplexityEstimation:
         # 即使关键词很多也不会超过 5
         huge = "首先然后最后前端后端数据库部署架构设计重构优化" * 10
         assert mc._estimate_task_complexity(huge) == 5
+
+
+class TestSkillLevelBoost:
+    """技能升级路由加成测试"""
+
+    def test_update_skill_boost(self, tmp_path):
+        """升级后部门加成增加"""
+        from dynamic_router import DynamicRouter, RouteEntry
+        import json
+        routing_path = str(tmp_path / "routing.json")
+        with open(routing_path, "w") as f:
+            json.dump({"departments": [{"dept_id": "dept-software", "dept_name": "研发部",
+                                         "capability_desc": "", "capability_keywords": [],
+                                         "tools": [], "success_rate": 0.5, "total_tasks": 10,
+                                         "successful_tasks": 5, "last_active": "", "priority": 1}]}, f)
+        router = DynamicRouter(routing_path)
+        assert router.update_skill_boost("dept-software") is True
+        assert router._table["dept-software"].skill_level_boost == 0.05
+        # 再升一次
+        router.update_skill_boost("dept-software")
+        assert router._table["dept-software"].skill_level_boost == 0.10
+
+    def test_skill_boost_capped_at_03(self, tmp_path):
+        """加成上限 0.3"""
+        from dynamic_router import DynamicRouter
+        import json
+        routing_path = str(tmp_path / "routing.json")
+        with open(routing_path, "w") as f:
+            json.dump({"departments": [{"dept_id": "dept-software", "dept_name": "研发部",
+                                         "capability_desc": "", "capability_keywords": [],
+                                         "tools": [], "success_rate": 0.5, "total_tasks": 10,
+                                         "successful_tasks": 5, "last_active": "", "priority": 1}]}, f)
+        router = DynamicRouter(routing_path)
+        for _ in range(10):
+            router.update_skill_boost("dept-software")
+        assert router._table["dept-software"].skill_level_boost == 0.3
+
+    def test_skill_boost_persists(self, tmp_path):
+        """加成持久化到路由表"""
+        from dynamic_router import DynamicRouter
+        import json
+        routing_path = str(tmp_path / "routing.json")
+        with open(routing_path, "w") as f:
+            json.dump({"departments": [{"dept_id": "dept-software", "dept_name": "研发部",
+                                         "capability_desc": "", "capability_keywords": [],
+                                         "tools": [], "success_rate": 0.5, "total_tasks": 10,
+                                         "successful_tasks": 5, "last_active": "", "priority": 1}]}, f)
+        router = DynamicRouter(routing_path)
+        router.update_skill_boost("dept-software")
+
+        # 新实例重新加载
+        router2 = DynamicRouter(routing_path)
+        assert router2._table["dept-software"].skill_level_boost == 0.05
+
+    def test_skill_boost_unknown_dept(self, tmp_path):
+        """未知部门返回 False"""
+        from dynamic_router import DynamicRouter
+        router = DynamicRouter(str(tmp_path / "routing.json"))
+        assert router.update_skill_boost("dept-unknown") is False

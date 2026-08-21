@@ -744,6 +744,10 @@ class MeetingCoordinator:
             result = mgr.grant_xp(agent_id, skill_id, task_success, review_score, task_complexity, skill_config)
             if result.get("leveled_up"):
                 self.logger.info("Agent %s 技能 %s 升级到 Lv.%d", agent_id, skill_id, result["new_level"])
+                # 技能升级 → 提升部门路由加成
+                dept = department or (profile.department if profile else "")
+                if dept:
+                    self.router.update_skill_boost(dept)
             # 检查晋升（使用部门职业路径）
             from promotion_engine import PromotionEngine
             engine = PromotionEngine()
