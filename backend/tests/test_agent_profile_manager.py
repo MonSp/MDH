@@ -126,3 +126,65 @@ class TestXPSystem:
                           review_score=7.0, task_complexity=2, skill_config=skill_config)
         profile = manager.get_profile("a1")
         assert profile.total_xp > 0
+
+
+# ──────────────────── Mentor 匹配 ────────────────────
+
+
+class TestMentorMatching:
+    def test_find_mentor_same_department(self, manager):
+        """同部门高级 agent 成为 mentor"""
+        manager.get_or_create("a1", "Junior", department="dept-software")
+        p2 = manager.get_or_create("a2", "Senior", department="dept-software")
+        p2.career_stage = "senior"
+        p2.total_xp = 500
+        manager.save_profile(p2)
+
+        mentor = manager.find_mentor("a1")
+        assert mentor is not None
+        assert mentor.agent_id == "a2"
+
+    def test_find_mentor_different_department(self, manager):
+        """不同部门不匹配"""
+        manager.get_or_create("a1", "Junior", department="dept-software")
+        p2 = manager.get_or_create("a2", "Senior", department="dept-content")
+        p2.career_stage = "senior"
+        manager.save_profile(p2)
+
+        assert manager.find_mentor("a1") is None
+
+    def test_find_mentor_excludes_self(self, manager):
+        """不匹配自己"""
+        p1 = manager.get_or_create("a1", "Solo", department="dept-software")
+        p1.career_stage = "senior"
+        manager.save_profile(p1)
+
+        assert manager.find_mentor("a1") is None
+
+    def test_find_mentor_only_higher_level(self, manager):
+        """只匹配更高级别的 agent"""
+        p1 = manager.get_or_create("a1", "Mid", department="dept-software")
+        p1.career_stage = "mid"
+        manager.save_profile(p1)
+        p2 = manager.get_or_create("a2", "Junior", department="dept-software")
+        p2.career_stage = "junior"
+        manager.save_profile(p2)
+
+        # a2 不配当 a1 的 mentor（级别更低）
+        assert manager.find_mentor("a1") is None
+
+    def test_find_mentor_no_department(self, manager):
+        """无部门不匹配"""
+        manager.get_or_create("a1", "NoDept")
+        assert manager.find_mentor("a1") is None
+
+    def test_get_department_peers(self, manager):
+        """获取同部门所有 agent"""
+        manager.get_or_create("a1", "A", department="dept-software")
+        manager.get_or_create("a2", "B", department="dept-software")
+        manager.get_or_create("a3", "C", department="dept-content")
+
+        peers = manager.get_department_peers("a1")
+        assert len(peers) == 2
+        ids = {p.agent_id for p in peers}
+        assert "a1" in ids and "a2" in ids

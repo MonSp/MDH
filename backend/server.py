@@ -783,6 +783,22 @@ async def list_career_departments():
         return _fail(str(e))
 
 
+@app.get("/api/agents/knowledge-flow")
+async def get_knowledge_flow():
+    """获取知识流动日志（mentor → mentee）"""
+    try:
+        import json
+        log_path = os.path.join(_DATA_DIR, "knowledge_flow.json")
+        if os.path.isfile(log_path):
+            with open(log_path, encoding="utf-8") as f:
+                log = json.load(f)
+            return _ok({"flows": list(reversed(log)), "total": len(log)})
+        return _ok({"flows": [], "total": 0})
+    except Exception as e:
+        logger.exception("get_knowledge_flow 失败")
+        return _fail(str(e))
+
+
 # 注册 skills_router（在 Agent Profile 端点之后，确保 /api/skills/tree 优先匹配）
 app.include_router(skills_router.router)
 

@@ -730,7 +730,7 @@ class MeetingCoordinator:
             self.logger.debug("规则有效性更新跳过: %s", e)
 
     def _grant_task_xp(self, agent_id, skill_id, task_success, review_score, task_complexity, department: str = ""):
-        """任务完成后授予 XP"""
+        """任务完成后授予 XP，含 mentor 奖励"""
         try:
             from agent_profile_manager import AgentProfileManager
             mgr = getattr(self, '_agent_profile_manager', None)
@@ -744,11 +744,10 @@ class MeetingCoordinator:
             result = mgr.grant_xp(agent_id, skill_id, task_success, review_score, task_complexity, skill_config)
             if result.get("leveled_up"):
                 self.logger.info("Agent %s 技能 %s 升级到 Lv.%d", agent_id, skill_id, result["new_level"])
-                # 技能升级 → 提升部门路由加成
                 dept = department or (profile.department if profile else "")
                 if dept:
                     self.router.update_skill_boost(dept)
-            # 检查晋升（使用部门职业路径）
+            # 检查晋升
             from promotion_engine import PromotionEngine
             engine = PromotionEngine()
             profile = mgr.get_profile(agent_id)
@@ -758,6 +757,14 @@ class MeetingCoordinator:
                 mgr.save_profile(profile)
                 result["promoted_to"] = promotion
                 self.logger.info("Agent %s 晋升为 %s (%s)", agent_id, promotion["title"], promotion["stage"])
+            # Mentor 奖励：任务成功时，mentor 获得 20% 的 XP 加成
+            if task_success and result.get("xp_gained", 0) > 0:
+                mentor = mgr.find_mentor(agent_id)
+                if mentor:
+                    bonus_xp = max(1, int(result["xp_gained"] * 0.2))
+                    mentor_skill_config = roles_config.get("skills", {}).get(skill_id, {"xp_thresholds": [100, 300, 600]})
+                    mgr.grant_xp(mentor.agent_id, skill_id, True, review_score, max(1, task_complexity - 1), mentor_skill_config)
+                    self.logger.info("Mentor %s 获得 %d XP 奖励（mentee %s 完成任务）", mentor.agent_id, bonus_xp, agent_id)
             return result
         except Exception as e:
             self.logger.debug("grant-xp 跳过: %s", e)
@@ -1000,7 +1007,7 @@ class MeetingCoordinator:
 
         original_description = analysis.task_description or user_message
         enhanced_description = self._enhance_task_description(original_description, discussion_results)
-        enhanced_description, injected_rule_ids = await self._inject_experience(coordinator_id, original_description, enhanced_description, discussion_results)
+        enhanced_description, injected_rule_ids = await self._inject_experience(coordinator_id, original_description, enhanced_description, discussion_results, target_agent_id=analysis.target_agent_id or "")
         await self._msg(coordinator_id, "项目经理：已整合团队讨论结果，任务描述已更新。")
 
         target_agent_id = analysis.target_agent_id or self._infer_target_agent(discussion_results) or "agent-executor"
@@ -1108,33 +1115,80 @@ class MeetingCoordinator:
         workflow_result = await self._execute_workflow(analysis.workflow_definition, on_message)
         return {"type": "workflow_executed", "analysis": semantic_analysis_to_dict(analysis), "workflow_result": workflow_result}
 
-    async def _inject_experience(self, coordinator_id, original_description, enhanced_description, discussion_results):
-        """注入历史经验到任务描述，返回 (增强描述, 注入的规则 ID 列表)"""
+    async def _inject_experience(self, coordinator_id, original_description, enhanced_description, discussion_results, target_agent_id: str = ""):
+        """注入历史经验到任务描述，优先注入 mentor 规则
+
+        Returns:
+            (增强描述, 注入的规则 ID 列表)
+        """
         injected_rule_ids = []
+        mentor_rule_ids = []
         try:
             from experience_extractor import ExperienceExtractor
+            from agent_profile_manager import AgentProfileManager
             data_dir = os.path.join(os.path.dirname(__file__), "data")
             extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
+            profile_mgr = AgentProfileManager(os.path.join(data_dir, "agent_profiles"))
+
             task_type = extractor._infer_task_type(original_description)
             content_kw = extractor._extract_content_keywords(original_description)
             for dr in discussion_results:
                 content_kw |= extractor._extract_content_keywords(dr.get("content", ""))
             past_rules = extractor.retrieve_relevant_rules(task_type, sorted(content_kw))
+
             if past_rules:
-                injected = past_rules[:5]
+                # 师徒制：优先注入 mentor 的规则
+                mentor = profile_mgr.find_mentor(target_agent_id) if target_agent_id else None
+                mentor_rules = [r for r in past_rules if r.source_agent_id == mentor.agent_id] if mentor else []
+                other_rules = [r for r in past_rules if r.rule_id not in {mr.rule_id for mr in mentor_rules}]
+
+                # mentor 规则优先，再补充其他高分规则
+                prioritized = mentor_rules + other_rules
+                injected = prioritized[:5]
                 injected_rule_ids = [r.rule_id for r in injected]
+                mentor_rule_ids = [r.rule_id for r in mentor_rules if r in injected]
+
                 exp_context = extractor.build_experience_summary(injected)
                 enhanced_description = f"{enhanced_description}\n\n{exp_context}"
-                await self._msg(coordinator_id, f"项目经理：已注入 {len(injected)} 条历史经验到任务描述。")
-                self.meeting.add_message("agent", f"项目经理：已注入 {len(injected)} 条历史经验到任务描述。", coordinator_id)
+
+                mentor_info = f"（含 {len(mentor_rule_ids)} 条来自 mentor {mentor.agent_id} 的经验）" if mentor_rule_ids else ""
+                await self._msg(coordinator_id, f"项目经理：已注入 {len(injected)} 条历史经验到任务描述{mentor_info}。")
+                self.meeting.add_message("agent", f"项目经理：已注入 {len(injected)} 条历史经验到任务描述{mentor_info}。", coordinator_id)
                 self.meeting.append_event(
                     SessionEventType.EXPERIENCE_INJECTION,
-                    content=f"注入 {len(injected)} 条经验规则 (task_type={task_type}, keywords={sorted(content_kw)[:5]}, rule_ids={injected_rule_ids})",
+                    content=f"注入 {len(injected)} 条经验规则 (task_type={task_type}, mentor_rules={len(mentor_rule_ids)}, rule_ids={injected_rule_ids})",
                     agent_id=coordinator_id, phase="pre_execution",
                 )
+
+                # 记录知识流动
+                if mentor_rule_ids:
+                    self._log_knowledge_flow(mentor.agent_id if mentor else "", target_agent_id, mentor_rule_ids)
         except Exception as e:
             self.logger.debug("历史经验注入跳过: %s", e)
         return enhanced_description, injected_rule_ids
+
+    def _log_knowledge_flow(self, from_agent: str, to_agent: str, rule_ids: List[str]) -> None:
+        """记录知识流动（mentor → mentee）"""
+        try:
+            import json
+            log_path = os.path.join(os.path.dirname(__file__), "data", "knowledge_flow.json")
+            entry = {
+                "from_agent": from_agent,
+                "to_agent": to_agent,
+                "rule_ids": rule_ids,
+                "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+            }
+            log = []
+            if os.path.isfile(log_path):
+                with open(log_path, encoding="utf-8") as f:
+                    log = json.load(f)
+            log.append(entry)
+            tmp = log_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(log, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, log_path)
+        except Exception:
+            self.logger.debug("知识流动日志写入失败")
 
     async def _run_voting_phase(self, coordinator_id, enhanced_description, discussion_results, on_message):
         await self._msg(coordinator_id, "项目经理：就讨论结果发起方案投票。")

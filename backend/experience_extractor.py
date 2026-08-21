@@ -48,6 +48,7 @@ class ExperienceRule:
     keywords: List[str]  # 关键词标签
     created_at: str
     team_id: str = ""  # 归属团队（"" = 全局/未隔离——旧规则兼容）
+    source_agent_id: str = ""  # 来源 agent ID（用于 mentor 匹配）
     effectiveness_score: float = 0.0  # 有效性评分（成功/总使用）
     usage_count: int = 0  # 被注入任务的次数
     success_count: int = 0  # 注入后任务成功的次数
@@ -154,6 +155,7 @@ class ExperienceExtractor:
                     "keywords": rule.keywords,
                     "created_at": rule.created_at,
                     "team_id": rule.team_id,
+                    "source_agent_id": rule.source_agent_id,
                     "effectiveness_score": rule.effectiveness_score,
                     "usage_count": rule.usage_count,
                     "success_count": rule.success_count,
@@ -188,6 +190,7 @@ class ExperienceExtractor:
                 keywords=r.get("keywords", []),
                 created_at=r["created_at"],
                 team_id=r.get("team_id", ""),  # 旧规则文件缺键容错
+                source_agent_id=r.get("source_agent_id", ""),
                 effectiveness_score=float(r.get("effectiveness_score", 0.0)),
                 usage_count=int(r.get("usage_count", 0)),
                 success_count=int(r.get("success_count", 0)),

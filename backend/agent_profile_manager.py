@@ -96,6 +96,47 @@ class AgentProfileManager:
                     profiles.append(profile)
         return profiles
 
+    def find_mentor(self, agent_id: str) -> Optional[AgentProfile]:
+        """查找同部门最高级别的 agent 作为 mentor
+
+        规则：
+        1. 同部门
+        2. 排除自己
+        3. 选择 career_stage 最高的（lead > senior > mid > junior）
+        4. 同级别选 total_xp 最高的
+        """
+        profile = self.get_profile(agent_id)
+        if not profile or not profile.department:
+            return None
+
+        STAGE_ORDER = {"junior": 0, "mid": 1, "senior": 2, "lead": 3}
+        current_stage = STAGE_ORDER.get(profile.career_stage, 0)
+
+        best: Optional[AgentProfile] = None
+        best_stage = -1
+        best_xp = -1
+
+        for p in self.list_profiles():
+            if p.agent_id == agent_id or p.department != profile.department:
+                continue
+            stage = STAGE_ORDER.get(p.career_stage, 0)
+            if stage > best_stage or (stage == best_stage and p.total_xp > best_xp):
+                best = p
+                best_stage = stage
+                best_xp = p.total_xp
+
+        # 只有 mentor 比自己级别高时才返回
+        if best and best_stage > current_stage:
+            return best
+        return None
+
+    def get_department_peers(self, agent_id: str) -> List[AgentProfile]:
+        """获取同部门所有 agent（含自己）"""
+        profile = self.get_profile(agent_id)
+        if not profile or not profile.department:
+            return []
+        return [p for p in self.list_profiles() if p.department == profile.department]
+
     def grant_xp(
         self,
         agent_id: str,
