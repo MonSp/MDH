@@ -4,8 +4,10 @@ import { ProjectListPanel } from './ProjectListPanel'
 import { ExperienceRulePanel } from './ExperienceRulePanel'
 import { RouteTablePanel } from './RouteTablePanel'
 import RoleConfigPanel from './RoleConfigPanel'
+import AgentProfilePanel from './AgentProfilePanel'
+import { SkillTreeView } from './SkillTreeView'
 
-type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles'
+type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles' | 'career'
 
 const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'skills', label: '技能包', icon: '📦' },
@@ -13,6 +15,7 @@ const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'rules', label: '经验规则', icon: '📋' },
   { key: 'routes', label: '路由表', icon: '🧭' },
   { key: 'roles', label: '角色配置', icon: '👥' },
+  { key: 'career', label: '职业发展', icon: '🚀' },
 ]
 
 export default function SkillEvolutionDashboard() {
@@ -41,6 +44,14 @@ export default function SkillEvolutionDashboard() {
         {activeTab === 'rules' && <ExperienceRulePanel />}
         {activeTab === 'routes' && <RouteTablePanel />}
         {activeTab === 'roles' && <RoleConfigPanel />}
+        {activeTab === 'career' && (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <AgentProfilePanel agentId="agent-executor" />
+            <div style={{ flex: 1, borderTop: '1px solid rgba(255,255,255,0.06)', minHeight: 0 }}>
+              <SkillTreeView />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
