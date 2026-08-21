@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import type { SharedRule, SkillFork, MarketplaceStats, SkillDetail, CommunitySkill } from './skillMarketplace.types'
 import { s } from './SkillMarketplace.styles'
 
-type Tab = 'skills' | 'experience' | 'forks' | 'export' | 'community'
+type Tab = 'skills' | 'experience' | 'forks' | 'export' | 'community' | 'leaderboard'
 
 const PAGE_SIZE = 10
 
@@ -20,6 +20,7 @@ export default function SkillMarketplace() {
   const [page, setPage] = useState(0)
   const [communitySkills, setCommunitySkills] = useState<CommunitySkill[]>([])
   const [communitySearch, setCommunitySearch] = useState('')
+  const [leaderboard, setLeaderboard] = useState<any[]>([])
 
   // ── 数据加载 ──
 
@@ -87,14 +88,25 @@ export default function SkillMarketplace() {
     } catch { setMessage('安装失败') }
   }
 
+  const fetchLeaderboard = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/marketplace/experience/leaderboard?limit=20')
+      const data = await res.json()
+      if (data.success) setLeaderboard(data.leaderboard || [])
+    } catch { /* ignore */ }
+    setLoading(false)
+  }, [])
+
   useEffect(() => {
     if (tab === 'skills') fetchSkills()
     else if (tab === 'experience') fetchSharedRules()
     else if (tab === 'forks') fetchForks()
     else if (tab === 'community') searchCommunity()
+    else if (tab === 'leaderboard') fetchLeaderboard()
     fetchStats()
     setPage(0)
-  }, [tab, fetchSkills, fetchSharedRules, fetchForks, fetchStats, searchCommunity])
+  }, [tab, fetchSkills, fetchSharedRules, fetchForks, fetchStats, searchCommunity, fetchLeaderboard])
 
   // ── 操作 ──
 
@@ -212,6 +224,7 @@ export default function SkillMarketplace() {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'skills', label: `技能包 (${filteredSkills.length})` },
     { key: 'experience', label: `共享经验 (${filteredRules.length})` },
+    { key: 'leaderboard', label: '排行榜' },
     { key: 'forks', label: `我的 Fork (${forks.length})` },
     { key: 'export', label: '导入导出' },
     { key: 'community', label: '社区' },
@@ -405,6 +418,40 @@ export default function SkillMarketplace() {
                       <a href={sk.repository} target="_blank" rel="noopener noreferrer"
                         style={s.link}>查看源</a>
                     )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {tab === 'leaderboard' && (
+          <div style={s.tabContent}>
+            <div style={s.desc}>
+              跨团队技能排行榜 — 按 fork 后实际效果 × 使用次数排序
+            </div>
+            {leaderboard.length === 0 ? (
+              <div style={s.empty}>暂无排行榜数据</div>
+            ) : (
+              leaderboard.map((r: any, i: number) => (
+                <div key={r.rule_id} style={s.item}>
+                  <div style={s.itemHeader}>
+                    <span style={s.skillName}>
+                      {i < 3 ? ['🥇', '🥈', '🥉'][i] : `#${i + 1}`} {r.trigger_condition?.slice(0, 50)}
+                    </span>
+                    <span style={{
+                      ...s.version,
+                      color: r.fork_effectiveness >= 0.7 ? '#10b981' : r.fork_effectiveness >= 0.4 ? '#f59e0b' : '#6b7280',
+                    }}>
+                      ★ {(r.fork_effectiveness * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                  <div style={s.desc}>{r.action?.slice(0, 100)}</div>
+                  <div style={s.itemFooter}>
+                    <span style={s.meta}>
+                      来源: {r.source_team || '未知'} · 复用: {r.usage_count} 次 · 效果: {r.fork_total_count} 次验证
+                    </span>
+                    <span style={s.categoryBadge}>{r.rule_type}</span>
                   </div>
                 </div>
               ))

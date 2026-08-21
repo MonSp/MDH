@@ -245,3 +245,104 @@ class TestApprovalWorkflow:
         assert len(pool.search(keywords=["react"])) == 0
         pool.approve_rule(rule.rule_id)
         assert len(pool.search(keywords=["react"])) == 1
+
+
+# ──────────────────── Fork 效果追踪 ────────────────────
+
+
+class TestForkEffectiveness:
+    def test_update_fork_effectiveness(self, pool):
+        """更新 fork 效果"""
+        rule = pool.publish_rule(_high_quality_rule(), source_project="p1")
+        assert pool.update_fork_effectiveness(rule.rule_id, True) is True
+        assert pool.update_fork_effectiveness(rule.rule_id, False) is True
+        loaded = pool._load_rule(rule.rule_id)
+        assert loaded.fork_total_count == 2
+        assert loaded.fork_success_count == 1
+        assert loaded.fork_effectiveness == 0.5
+
+    def test_update_fork_effectiveness_unknown_rule(self, pool):
+        """未知规则返回 False"""
+        assert pool.update_fork_effectiveness("nonexistent", True) is False
+
+    def test_fork_effectiveness_persists(self, pool, tmp_path):
+        """效果数据持久化"""
+        rule = pool.publish_rule(_high_quality_rule(), source_project="p1")
+        pool.update_fork_effectiveness(rule.rule_id, True)
+
+        pool2 = SharedExperiencePool(str(tmp_path / "shared"))
+        loaded = pool2._load_rule(rule.rule_id)
+        assert loaded.fork_effectiveness == 1.0
+
+
+# ──────────────────── 排行榜 ────────────────────
+
+
+class TestLeaderboard:
+    def test_leaderboard_empty(self, pool):
+        """空池返回空排行榜"""
+        assert pool.get_leaderboard() == []
+
+    def test_leaderboard_ordering(self, pool):
+        """按综合得分排序"""
+        r1 = pool.publish_rule(_high_quality_rule(keywords=["a"]), source_project="p1")
+        r2 = pool.publish_rule(_high_quality_rule(keywords=["b"]), source_project="p2")
+        # r1: 1 次 fork，100% 效果
+        pool.fork_rule(r1.rule_id, "p3")
+        pool.update_fork_effectiveness(r1.rule_id, True)
+        # r2: 10 次 fork，50% 效果
+        for i in range(10):
+            pool.fork_rule(r2.rule_id, f"p{i+3}")
+        for _ in range(5):
+            pool.update_fork_effectiveness(r2.rule_id, True)
+        for _ in range(5):
+            pool.update_fork_effectiveness(r2.rule_id, False)
+
+        board = pool.get_leaderboard()
+        assert len(board) == 2
+        # r2 的 composite_score 更高（使用次数多）
+        assert board[0]["rule_id"] == r2.rule_id
+
+    def test_leaderboard_excludes_pending(self, pool):
+        """待审核规则不出现在排行榜"""
+        pool.publish_rule(_high_quality_rule(effectiveness_score=0.3, usage_count=5), source_project="p1")
+        assert len(pool.get_leaderboard()) == 0
+
+
+# ──────────────────── 共享推荐 ────────────────────
+
+
+class TestShareRecommendations:
+    def test_high_score_recommendation(self):
+        """高分规则被推荐"""
+        import tempfile
+        from experience_extractor import ExperienceExtractor
+        d = tempfile.mkdtemp()
+        ext = ExperienceExtractor(d)
+        # 创建高分规则
+        from experience_extractor import ExperienceRule
+        rule = ExperienceRule(
+            rule_id="rec-1", trigger_condition="x", action="y", note="",
+            source_task_id="p1", source_task_type="t", rule_type="success_pattern",
+            status="approved", keywords=["a"], created_at="now",
+            effectiveness_score=0.8, usage_count=10, success_count=8,
+        )
+        ext._save_rule(rule)
+        recs = ext.get_share_recommendations()
+        assert len(recs) == 1
+        assert recs[0]["effectiveness_score"] == 0.8
+
+    def test_low_score_not_recommendation(self):
+        """低分规则不被推荐"""
+        import tempfile
+        from experience_extractor import ExperienceExtractor, ExperienceRule
+        d = tempfile.mkdtemp()
+        ext = ExperienceExtractor(d)
+        rule = ExperienceRule(
+            rule_id="rec-2", trigger_condition="x", action="y", note="",
+            source_task_id="p1", source_task_type="t", rule_type="success_pattern",
+            status="approved", keywords=["a"], created_at="now",
+            effectiveness_score=0.3, usage_count=10, success_count=3,
+        )
+        ext._save_rule(rule)
+        assert len(ext.get_share_recommendations()) == 0

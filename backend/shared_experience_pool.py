@@ -38,9 +38,12 @@ class SharedRule:
     keywords: List[str] = field(default_factory=list)
     rule_type: str = "success_pattern"
     usage_count: int = 0          # 被 fork 次数
+    fork_success_count: int = 0   # fork 后任务成功的次数
+    fork_total_count: int = 0     # fork 后任务执行总次数
     created_at: float = field(default_factory=time.time)
     status: str = "approved"      # pending / approved / rejected
     effectiveness_score: float = 0.0  # 发布时携带的有效性评分
+    fork_effectiveness: float = 0.0  # fork 后的实际效果评分
     published_by: str = ""        # 发布者
 
     def to_dict(self) -> dict:
@@ -299,6 +302,61 @@ class SharedExperiencePool:
             "by_status": status_counts,
             "pending_count": status_counts.get("pending", 0),
         }
+
+    def update_fork_effectiveness(self, rule_id: str, task_success: bool) -> bool:
+        """更新 fork 规则的实际效果
+
+        Args:
+            rule_id: 共享池中的规则 ID
+            task_success: 使用该 fork 规则的任务是否成功
+        Returns:
+            更新是否成功
+        """
+        rule = self._load_rule(rule_id)
+        if not rule:
+            return False
+        rule.fork_total_count += 1
+        if task_success:
+            rule.fork_success_count += 1
+        rule.fork_effectiveness = (
+            rule.fork_success_count / rule.fork_total_count
+            if rule.fork_total_count > 0 else 0.0
+        )
+        self._save_rule(rule)
+        self._index[rule_id]["fork_effectiveness"] = rule.fork_effectiveness
+        self._save_index()
+        return True
+
+    def get_leaderboard(self, limit: int = 20) -> List[Dict]:
+        """跨团队技能排行榜
+
+        按 fork_effectiveness × usage_count 综合排序。
+        """
+        results = []
+        for rule_id, meta in self._index.items():
+            if meta.get("status") != "approved":
+                continue
+            rule = self._load_rule(rule_id)
+            if not rule:
+                continue
+            # 综合得分：fork 效果 × 使用次数（log 平滑）
+            import math
+            composite = rule.fork_effectiveness * math.log2(max(rule.usage_count, 1) + 1)
+            results.append({
+                "rule_id": rule.rule_id,
+                "trigger_condition": rule.trigger_condition,
+                "action": rule.action,
+                "rule_type": rule.rule_type,
+                "source_team": rule.source_team,
+                "effectiveness_score": rule.effectiveness_score,
+                "usage_count": rule.usage_count,
+                "fork_effectiveness": round(rule.fork_effectiveness, 4),
+                "fork_total_count": rule.fork_total_count,
+                "composite_score": round(composite, 4),
+                "keywords": rule.keywords,
+            })
+        results.sort(key=lambda x: x["composite_score"], reverse=True)
+        return results[:limit]
 
     def _save_rule(self, rule: SharedRule) -> None:
         """保存单个规则"""

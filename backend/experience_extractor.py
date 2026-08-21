@@ -532,6 +532,37 @@ class ExperienceExtractor:
             logger.exception("Failed to read demotion log")
         return []
 
+    # ──────────────────── 共享推荐 ────────────────────
+
+    SHARE_MIN_SCORE = 0.7
+    SHARE_MIN_USAGE = 5
+
+    def get_share_recommendations(self) -> List[Dict]:
+        """推荐高分规则发布到共享池
+
+        条件：approved + effectiveness_score ≥ 0.7 + usage_count ≥ 5
+        """
+        recommendations = []
+        for rule_id in self._list_rule_ids():
+            rule = self._load_rule(rule_id)
+            if (rule is not None
+                    and rule.status == "approved"
+                    and rule.effectiveness_score >= self.SHARE_MIN_SCORE
+                    and rule.usage_count >= self.SHARE_MIN_USAGE):
+                recommendations.append({
+                    "rule_id": rule.rule_id,
+                    "trigger_condition": rule.trigger_condition,
+                    "action": rule.action,
+                    "rule_type": rule.rule_type,
+                    "effectiveness_score": rule.effectiveness_score,
+                    "usage_count": rule.usage_count,
+                    "success_count": rule.success_count,
+                    "keywords": rule.keywords,
+                    "team_id": rule.team_id,
+                })
+        recommendations.sort(key=lambda x: x["effectiveness_score"], reverse=True)
+        return recommendations
+
     def get_demotion_stats(self) -> Dict:
         """降级统计报表：按类型/团队/时间聚合，含复审率"""
         import json

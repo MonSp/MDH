@@ -86,6 +86,39 @@ async def reject_experience(request: Request):
     return {"success": False, "error": "拒绝失败：规则不存在或非待审核状态"}
 
 
+@router.get("/experience/recommendations")
+async def get_share_recommendations():
+    """获取可推荐发布到共享池的高分本地规则"""
+    try:
+        from experience_extractor import ExperienceExtractor
+        import os
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+        extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
+        recs = extractor.get_share_recommendations()
+        return {"success": True, "recommendations": recs, "total": len(recs)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/experience/leaderboard")
+async def get_leaderboard(limit: int = 20):
+    """跨团队技能排行榜"""
+    board = _shared_pool.get_leaderboard(limit=limit)
+    return {"success": True, "leaderboard": board, "total": len(board)}
+
+
+@router.post("/experience/update-fork-effectiveness")
+async def update_fork_effectiveness(request: Request):
+    """更新 fork 规则的实际效果（任务完成后调用）"""
+    body = await request.json()
+    rule_id = body.get("rule_id", "")
+    task_success = body.get("task_success", False)
+    success = _shared_pool.update_fork_effectiveness(rule_id, task_success)
+    if success:
+        return {"success": True, "rule_id": rule_id}
+    return {"success": False, "error": "规则不存在"}
+
+
 # ── 技能 Fork ──
 
 @router.post("/skills/fork")
