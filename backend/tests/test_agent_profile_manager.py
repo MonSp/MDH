@@ -50,3 +50,79 @@ class TestAgentProfileCRUD:
         manager.get_or_create("agent-002", "Beta")
         profiles = manager.list_profiles()
         assert len(profiles) == 2
+
+
+class TestXPSystem:
+    @pytest.fixture
+    def skill_config(self):
+        return {"xp_thresholds": [100, 300, 600]}
+
+    def test_grant_xp_success(self, manager, skill_config):
+        """任务成功获得基础 XP + 成功奖励"""
+        manager.get_or_create("a1", "Alpha")
+        result = manager.grant_xp("a1", "backend_dev", task_success=True,
+                                   review_score=7.0, task_complexity=3, skill_config=skill_config)
+        assert result["xp_gained"] > 0
+        assert result["skill_id"] == "backend_dev"
+
+    def test_grant_xp_failure_gives_zero(self, manager, skill_config):
+        """任务失败获得 0 XP"""
+        manager.get_or_create("a1", "Alpha")
+        result = manager.grant_xp("a1", "backend_dev", task_success=False,
+                                   review_score=3.0, task_complexity=3, skill_config=skill_config)
+        assert result["xp_gained"] == 0
+
+    def test_level_up(self, manager, skill_config):
+        """XP 超过阈值自动升级"""
+        manager.get_or_create("a1", "Alpha")
+        # 直接给足够 XP 升级
+        profile = manager.get_profile("a1")
+        profile.skill_progress["backend_dev"] = {"xp": 90, "level": 0, "task_count": 5,
+                                                   "success_count": 4, "avg_review_score": 7.0, "last_used_at": ""}
+        manager.save_profile(profile)
+        result = manager.grant_xp("a1", "backend_dev", task_success=True,
+                                   review_score=8.0, task_complexity=3, skill_config=skill_config)
+        assert result["leveled_up"] is True
+        assert result["new_level"] == 1
+
+    def test_xp_decay_high_level_low_task(self, manager, skill_config):
+        """高级 agent 做低级任务 XP 衰减"""
+        manager.get_or_create("a1", "Alpha")
+        profile = manager.get_profile("a1")
+        # agent 已是中级 (level=2)
+        profile.skill_progress["backend_dev"] = {"xp": 400, "level": 2, "task_count": 20,
+                                                   "success_count": 18, "avg_review_score": 8.0, "last_used_at": ""}
+        manager.save_profile(profile)
+        # 做简单任务 (complexity=1 → 难度约 1)
+        result = manager.grant_xp("a1", "backend_dev", task_success=True,
+                                   review_score=8.0, task_complexity=1, skill_config=skill_config)
+        # 应该有 XP 但被衰减
+        assert 0 < result["xp_gained"] < 30  # 正常应该是 ~25，衰减后更少
+
+    def test_review_bonus(self, manager, skill_config):
+        """高审查评分获得额外 XP"""
+        manager.get_or_create("a1", "Alpha")
+        result_low = manager.grant_xp("a1", "backend_dev", task_success=True,
+                                       review_score=5.0, task_complexity=3, skill_config=skill_config)
+        # 新 agent 做同样任务
+        manager.get_or_create("a2", "Beta")
+        result_high = manager.grant_xp("a2", "backend_dev", task_success=True,
+                                        review_score=9.0, task_complexity=3, skill_config=skill_config)
+        assert result_high["xp_gained"] > result_low["xp_gained"]
+
+    def test_first_use_bonus(self, manager, skill_config):
+        """首次使用技能获得额外 XP"""
+        manager.get_or_create("a1", "Alpha")
+        result = manager.grant_xp("a1", "backend_dev", task_success=True,
+                                   review_score=7.0, task_complexity=3, skill_config=skill_config)
+        assert result["xp_gained"] >= 20  # 首次使用 +20
+
+    def test_total_xp_accumulated(self, manager, skill_config):
+        """total_xp 累加"""
+        manager.get_or_create("a1", "Alpha")
+        manager.grant_xp("a1", "backend_dev", task_success=True,
+                          review_score=7.0, task_complexity=3, skill_config=skill_config)
+        manager.grant_xp("a1", "frontend_dev", task_success=True,
+                          review_score=7.0, task_complexity=2, skill_config=skill_config)
+        profile = manager.get_profile("a1")
+        assert profile.total_xp > 0
