@@ -6,6 +6,7 @@ import { RouteTablePanel } from './RouteTablePanel'
 import RoleConfigPanel from './RoleConfigPanel'
 import AgentProfilePanel from './AgentProfilePanel'
 import { SkillTreeView } from './SkillTreeView'
+import CareerPathPanel from './CareerPathPanel'
 
 type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles' | 'career'
 
@@ -46,8 +47,8 @@ export default function SkillEvolutionDashboard() {
         {activeTab === 'roles' && <RoleConfigPanel />}
         {activeTab === 'career' && (
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <AgentProfilePanel agentId="agent-executor" />
-            <div style={{ flex: 1, borderTop: '1px solid rgba(255,255,255,0.06)', minHeight: 0 }}>
+            <CareerPathPanel />
+            <div style={{ flex: 1, borderTop: '1px solid rgba(255,255,255,0.06)', minHeight: 0, overflow: 'auto' }}>
               <SkillTreeView />
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { apiFetch } from '../utils/apiClient'
-import type { AgentProfile, SkillDefinition, GrantXPResult, PromotionStatus } from './careerDevelopment.types'
+import type { AgentProfile, SkillDefinition, GrantXPResult, PromotionStatus, CareerPathResponse, DepartmentCareerPath } from './careerDevelopment.types'
 
 const API_BASE = '/api/agents'
 
@@ -47,6 +47,24 @@ export async function grantXP(
 export async function checkPromotion(agentId: string): Promise<PromotionStatus> {
   const data = await apiFetch<{ success: boolean; data: PromotionStatus; error?: string }>(
     `${API_BASE}/${agentId}/promotion`,
+  )
+  if (!data.success) throw new Error(data.error)
+  return data.data
+}
+
+/** 获取 agent 部门职业路径 */
+export async function getCareerPath(agentId: string): Promise<CareerPathResponse> {
+  const data = await apiFetch<{ success: boolean; data: CareerPathResponse; error?: string }>(
+    `${API_BASE}/${agentId}/career-path`,
+  )
+  if (!data.success) throw new Error(data.error)
+  return data.data
+}
+
+/** 列出所有部门职业路径 */
+export async function listDepartments(): Promise<DepartmentCareerPath[]> {
+  const data = await apiFetch<{ success: boolean; data: DepartmentCareerPath[]; error?: string }>(
+    '/api/careers/departments',
   )
   if (!data.success) throw new Error(data.error)
   return data.data

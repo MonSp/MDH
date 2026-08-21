@@ -15,6 +15,7 @@ export interface AgentProfile {
   name: string
   created_at: number
   career_stage: string    // "junior" / "mid" / "senior" / "lead" or role name
+  department: string      // e.g. "dept-software"
   total_xp: number
   skill_progress: Record<string, SkillProgress>
 }
@@ -36,5 +37,27 @@ export interface GrantXPResult {
 
 export interface PromotionStatus {
   can_promote_to: string | null
+  current_stage: string
+}
+
+export interface CareerPathStage {
+  stage: string
+  title: string
+  requirements?: {
+    min_mid_skills?: number
+    min_senior_skills?: number
+    required_skills?: Record<string, number>
+  }
+}
+
+export interface DepartmentCareerPath {
+  department: string
+  name: string
+  stages: CareerPathStage[]
+}
+
+export interface CareerPathResponse {
+  department: string
+  path: DepartmentCareerPath | null
   current_stage: string
 }
