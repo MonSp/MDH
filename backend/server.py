@@ -948,6 +948,44 @@ async def get_improvement_proposals():
         return _fail(str(e))
 
 
+@app.post("/api/feedback/submit")
+async def submit_human_feedback(request: Request):
+    """提交人类结构化反馈"""
+    try:
+        body = await request.json()
+        from human_feedback import HumanFeedbackManager
+        mgr = HumanFeedbackManager(_DATA_DIR)
+        result = mgr.submit_feedback(body)
+        return _ok(result)
+    except Exception as e:
+        logger.exception("submit_human_feedback 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/feedback/summary")
+async def get_feedback_summary():
+    """反馈汇总"""
+    try:
+        from human_feedback import HumanFeedbackManager
+        mgr = HumanFeedbackManager(_DATA_DIR)
+        return _ok(mgr.get_feedback_summary())
+    except Exception as e:
+        logger.exception("get_feedback_summary 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/feedback/guidance/{agent_id}")
+async def get_skill_guidance(agent_id: str):
+    """获取 agent 技能发展方向指导"""
+    try:
+        from human_feedback import HumanFeedbackManager
+        mgr = HumanFeedbackManager(_DATA_DIR)
+        return _ok({"agent_id": agent_id, "directions": mgr.get_skill_guidance(agent_id)})
+    except Exception as e:
+        logger.exception("get_skill_guidance 失败")
+        return _fail(str(e))
+
+
 # 注册 skills_router（在 Agent Profile 端点之后，确保 /api/skills/tree 优先匹配）
 app.include_router(skills_router.router)
 
