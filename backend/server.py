@@ -1119,6 +1119,39 @@ async def get_memory_stats():
         return _fail(str(e))
 
 
+@app.post("/api/delivery/deliver")
+async def deliver_task(request: Request):
+    """自主交付"""
+    try:
+        body = await request.json()
+        from delivery_engine import DeliveryEngine
+        engine = DeliveryEngine(_DATA_DIR)
+        result = engine.deliver(
+            agent_id=body.get("agent_id", ""),
+            task_id=body.get("task_id", ""),
+            task_description=body.get("task_description", ""),
+            execution_results=body.get("execution_results", []),
+            review_result=body.get("review_result", {}),
+            delivery_types=body.get("delivery_types", ["git", "notification", "report"]),
+        )
+        return _ok(result)
+    except Exception as e:
+        logger.exception("deliver_task 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/delivery/log")
+async def get_delivery_log(limit: int = 20):
+    """交付日志"""
+    try:
+        from delivery_engine import DeliveryEngine
+        engine = DeliveryEngine(_DATA_DIR)
+        return _ok({"log": engine.get_delivery_log(limit), "stats": engine.get_delivery_stats()})
+    except Exception as e:
+        logger.exception("get_delivery_log 失败")
+        return _fail(str(e))
+
+
 @app.post("/api/feedback/submit")
 async def submit_human_feedback(request: Request):
     """提交人类结构化反馈"""
