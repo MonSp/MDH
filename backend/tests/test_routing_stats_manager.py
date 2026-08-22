@@ -222,6 +222,75 @@ class TestTaskTriageGate:
         assert 0.0 <= result["confidence"] <= 1.0
 
 
+class TestEvidenceDelivery:
+    """证据驱动交付测试"""
+
+    def test_empty_results_fail(self):
+        from meeting_coordinator import MeetingCoordinator
+        result = MeetingCoordinator._verify_delivery([])
+        assert result["passed"] is False
+        assert "无执行结果" in result["reason"]
+
+    def test_all_failed_results_fail(self):
+        from meeting_coordinator import MeetingCoordinator
+        results = [
+            {"agent_id": "a1", "result": "任务执行失败: timeout"},
+            {"agent_id": "a2", "result": "任务执行失败: error"},
+        ]
+        result = MeetingCoordinator._verify_delivery(results)
+        assert result["passed"] is False
+        assert "失败" in result["reason"]
+
+    def test_no_output_fail(self):
+        from meeting_coordinator import MeetingCoordinator
+        results = [{"agent_id": "a1", "result": "ok", "written_files": []}]
+        result = MeetingCoordinator._verify_delivery(results)
+        assert result["passed"] is False
+
+    def test_with_files_pass(self):
+        from meeting_coordinator import MeetingCoordinator
+        results = [{"agent_id": "a1", "result": "完成", "written_files": ["main.py"]}]
+        result = MeetingCoordinator._verify_delivery(results)
+        assert result["passed"] is True
+        assert len(result["evidence"]) == 1
+
+    def test_with_long_result_pass(self):
+        from meeting_coordinator import MeetingCoordinator
+        results = [{"agent_id": "a1", "result": "x" * 100, "written_files": []}]
+        result = MeetingCoordinator._verify_delivery(results)
+        assert result["passed"] is True
+
+
+class TestPeerContext:
+    """Agent 协调协议测试"""
+
+    def test_peer_context_with_results(self):
+        from meeting_coordinator import MeetingCoordinator
+        results = [
+            {"agent_id": "a1", "result": "已创建用户模型", "written_files": ["user.py"]},
+            {"agent_id": "a2", "result": "已创建API路由", "written_files": ["routes.py"]},
+        ]
+        ctx = MeetingCoordinator._build_peer_context("a3", results)
+        assert "a1" in ctx
+        assert "a2" in ctx
+        assert "请勿重复" in ctx
+
+    def test_peer_context_excludes_self(self):
+        from meeting_coordinator import MeetingCoordinator
+        results = [
+            {"agent_id": "a1", "result": "已创建用户模型", "written_files": ["user.py"]},
+            {"agent_id": "a2", "result": "已创建API路由", "written_files": ["routes.py"]},
+        ]
+        ctx = MeetingCoordinator._build_peer_context("a1", results)
+        assert "a2" in ctx
+        assert "a1" not in ctx
+
+    def test_peer_context_empty(self):
+        from meeting_coordinator import MeetingCoordinator
+        assert MeetingCoordinator._build_peer_context("a1", []) == ""
+        assert MeetingCoordinator._build_peer_context("a1", [{"agent_id": "a1", "result": "x"}]) == ""
+
+
 class TestSkillLevelBoost:
     """技能升级路由加成测试"""
 

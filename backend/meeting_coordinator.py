@@ -758,7 +758,73 @@ class MeetingCoordinator:
         except Exception as e:
             self.logger.debug("规则有效性更新跳过: %s", e)
 
-    # ── 任务分流门 ──
+    # ── 证据驱动交付 ──
+
+    @staticmethod
+    def _build_peer_context(current_agent_id: str, execution_results: List[Dict[str, Any]]) -> str:
+        """构建其他 agent 已完成工作的上下文（协调协议）
+
+        当多个 agent 执行同一任务时，每个 agent 的 prompt 应包含
+        其他 agent 已完成的工作，避免重复（类似 Cumora 的 verbatim-dup）。
+        """
+        peer_parts = []
+        for er in execution_results:
+            agent_id = er.get("agent_id", "")
+            if agent_id == current_agent_id:
+                continue
+            result_text = er.get("result", "")
+            written = er.get("written_files", [])
+            if result_text or written:
+                summary = result_text[:200] if result_text else "(无文字结果)"
+                files = f"文件: {', '.join(written)}" if written else ""
+                peer_parts.append(f"[{agent_id}] {summary} {files}".strip())
+
+        if not peer_parts:
+            return ""
+        return "\n\n## 其他 agent 已完成的工作（请勿重复）\n" + "\n".join(peer_parts)
+
+    @staticmethod
+    def _verify_delivery(execution_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """验证执行结果有实际产出（证据驱动交付）
+
+        检查：
+        1. 执行结果非空
+        2. 至少有一个 agent 产出了内容（written_files 或 result 非空）
+        3. 没有全部失败（至少一个成功）
+
+        Returns:
+            {"passed": bool, "reason": str, "evidence": list}
+        """
+        if not execution_results:
+            return {"passed": False, "reason": "无执行结果", "evidence": []}
+
+        evidence = []
+        has_output = False
+        all_failed = True
+
+        for er in execution_results:
+            agent_id = er.get("agent_id", "?")
+            result_text = er.get("result", "")
+            written = er.get("written_files", [])
+            is_failure = "失败" in result_text or "error" in result_text.lower()
+
+            if not is_failure:
+                all_failed = False
+
+            if written or (result_text and len(result_text) > 20):
+                has_output = True
+                evidence.append({
+                    "agent_id": agent_id,
+                    "files": len(written),
+                    "result_len": len(result_text),
+                })
+
+        if all_failed:
+            return {"passed": False, "reason": "所有 agent 执行失败", "evidence": evidence}
+        if not has_output:
+            return {"passed": False, "reason": "无实际产出（无文件、无有效结果）", "evidence": evidence}
+
+        return {"passed": True, "reason": "ok", "evidence": evidence}
 
     @staticmethod
     def _triage_task(user_message: str) -> Dict[str, Any]:
@@ -1209,11 +1275,11 @@ class MeetingCoordinator:
         await self._announce_analysis(coordinator_id, analysis)
         await self._announce_plan(coordinator_id)
 
-        # 1. 工作流模式
+        # 1. 工作流模式（复杂任务）
         if analysis.is_workflow and analysis.workflow_definition:
             return await self._run_workflow_mode(analysis, coordinator_id, on_message)
 
-        # 2. 串行流程：讨论 → 投票 → 分派 → 审批 → 执行 → 审查
+        # 2. 串行流程：讨论 → [投票?] → 分派 → 执行 → 审查
         topic = (analysis.discussion_topic.strip() if analysis.discussion_topic else "") or user_message
         await self._msg(coordinator_id, f"项目经理：组织团队讨论「{topic[:30]}...」")
         team = getattr(self, '_team', None)
@@ -1226,10 +1292,13 @@ class MeetingCoordinator:
 
         target_agent_id = analysis.target_agent_id or self._infer_target_agent(discussion_results) or "agent-executor"
 
-        # 投票
-        vote_passed = await self._run_voting_phase(coordinator_id, enhanced_description, discussion_results, on_message)
-        if not vote_passed:
-            return {"type": "vote_rejected"}
+        # 投票（仅复杂任务需要，标准任务跳过）
+        if triage["level"] == "complex":
+            vote_passed = await self._run_voting_phase(coordinator_id, enhanced_description, discussion_results, on_message)
+            if not vote_passed:
+                return {"type": "vote_rejected"}
+        else:
+            await self._msg(coordinator_id, "项目经理：标准任务，跳过投票环节直接分派。")
 
         # 分派
         await self._msg(coordinator_id, f"项目经理：将任务分派给{target_agent_id}执行。")
@@ -1244,6 +1313,12 @@ class MeetingCoordinator:
         execution_results, review_result, review_report = await self._run_dev_loop(
             coordinator_id, enhanced_description, discussion_context, on_message,
         )
+
+        # 证据驱动交付：验证执行结果有实际产出
+        evidence = self._verify_delivery(execution_results)
+        if not evidence["passed"]:
+            await self._msg(coordinator_id, f"项目经理：⚠️ 交付验证未通过 — {evidence['reason']}。任务标记为需补充。")
+            review_result.setdefault("structured_feedback", {})["status"] = "revision_required"
 
         # 总结 + 技能进化
         self._update_routing_stats_safe()
