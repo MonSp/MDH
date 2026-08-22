@@ -7,6 +7,7 @@
 import logging
 import os
 import re
+import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -135,88 +136,81 @@ class ExperienceExtractor:
         self._rules_dir = os.path.join(incremental_dir, "rules")
         self._demotion_log_path = os.path.join(incremental_dir, "demotion_log.json")
         os.makedirs(self._rules_dir, exist_ok=True)
+        # SQLite 存储（每实例独立连接，线程安全）
+        from db import get_db
+        self._db_path = os.path.join(incremental_dir, "rules.db")
+        self._db = get_db(self._db_path)
+        self._lock = threading.Lock()
 
-    # ──────────────────── 规则存储 ────────────────────
+    # ──────────────────── 规则存储 (SQLite) ────────────────────
 
     def _rule_file_path(self, rule_id: str) -> str:
-        """获取规则文件路径"""
         return os.path.join(self._rules_dir, f"{rule_id}.yaml")
 
     def _save_rule(self, rule: ExperienceRule) -> None:
-        """将规则保存为 YAML 文件"""
-        data = {
-            "rules": [
-                {
-                    "rule_id": rule.rule_id,
-                    "trigger_condition": rule.trigger_condition,
-                    "action": rule.action,
-                    "note": rule.note,
-                    "source_task_id": rule.source_task_id,
-                    "source_task_type": rule.source_task_type,
-                    "rule_type": rule.rule_type,
-                    "status": rule.status,
-                    "keywords": rule.keywords,
-                    "created_at": rule.created_at,
-                    "team_id": rule.team_id,
-                    "source_agent_id": rule.source_agent_id,
-                    "effectiveness_score": rule.effectiveness_score,
-                    "usage_count": rule.usage_count,
-                    "success_count": rule.success_count,
-                    "parent_rule_id": rule.parent_rule_id,
-                    "evolution_count": rule.evolution_count,
-                    "last_used_at": rule.last_used_at,
-                }
-            ]
-        }
-        path = self._rule_file_path(rule.rule_id)
-        with open(path, "w", encoding="utf-8") as f:
-            yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        """保存规则到 SQLite（线程安全）"""
+        import json as _json
+        with self._lock:
+            self._db.execute(
+                """INSERT OR REPLACE INTO experience_rules
+                   (rule_id, trigger_condition, action, note, source_task_id, source_task_type,
+                    rule_type, status, keywords, created_at, team_id, source_agent_id,
+                    effectiveness_score, usage_count, success_count, parent_rule_id,
+                    evolution_count, last_used_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (rule.rule_id, rule.trigger_condition, rule.action, rule.note,
+                 rule.source_task_id, rule.source_task_type, rule.rule_type, rule.status,
+                 _json.dumps(rule.keywords, ensure_ascii=False), rule.created_at,
+                 rule.team_id, rule.source_agent_id, rule.effectiveness_score,
+                 rule.usage_count, rule.success_count, rule.parent_rule_id,
+                 rule.evolution_count, rule.last_used_at),
+            )
+            self._db.commit()
 
     def _load_rule(self, rule_id: str) -> Optional[ExperienceRule]:
-        """从 YAML 文件加载规则"""
-        path = self._rule_file_path(rule_id)
-        if not os.path.isfile(path):
+        """从 SQLite 加载规则（线程安全）"""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT * FROM experience_rules WHERE rule_id = ?", (rule_id,)
+            ).fetchone()
+        if not row:
             return None
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-            rules_list = data.get("rules", [])
-            if not rules_list:
-                return None
-            r = rules_list[0]
-            return ExperienceRule(
-                rule_id=r["rule_id"],
-                trigger_condition=r["trigger_condition"],
-                action=r["action"],
-                note=r.get("note", ""),
-                source_task_id=r["source_task_id"],
-                source_task_type=r["source_task_type"],
-                rule_type=r["rule_type"],
-                status=r["status"],
-                keywords=r.get("keywords", []),
-                created_at=r["created_at"],
-                team_id=r.get("team_id", ""),  # 旧规则文件缺键容错
-                source_agent_id=r.get("source_agent_id", ""),
-                effectiveness_score=float(r.get("effectiveness_score", 0.0)),
-                usage_count=int(r.get("usage_count", 0)),
-                success_count=int(r.get("success_count", 0)),
-                parent_rule_id=r.get("parent_rule_id", ""),
-                evolution_count=int(r.get("evolution_count", 0)),
-                last_used_at=r.get("last_used_at", ""),
-            )
-        except Exception:
-            logger.exception("Failed to load rule %s", rule_id)
-            return None
+        return self._row_to_rule(row)
+
+    def _row_to_rule(self, row) -> ExperienceRule:
+        """将数据库行转为 ExperienceRule"""
+        import json as _json
+        kw = row["keywords"]
+        if isinstance(kw, str):
+            try:
+                kw = _json.loads(kw)
+            except Exception:
+                kw = []
+        return ExperienceRule(
+            rule_id=row["rule_id"],
+            trigger_condition=row["trigger_condition"],
+            action=row["action"],
+            note=row["note"] or "",
+            source_task_id=row["source_task_id"],
+            source_task_type=row["source_task_type"],
+            rule_type=row["rule_type"],
+            status=row["status"],
+            keywords=kw if isinstance(kw, list) else [],
+            created_at=row["created_at"],
+            team_id=row["team_id"] or "",
+            source_agent_id=row["source_agent_id"] or "",
+            effectiveness_score=float(row["effectiveness_score"] or 0.0),
+            usage_count=int(row["usage_count"] or 0),
+            success_count=int(row["success_count"] or 0),
+            parent_rule_id=row["parent_rule_id"] or "",
+            evolution_count=int(row["evolution_count"] or 0),
+            last_used_at=row["last_used_at"] or "",
+        )
 
     def _list_rule_ids(self) -> List[str]:
-        """列出所有规则文件对应的 rule_id"""
-        if not os.path.isdir(self._rules_dir):
-            return []
-        result = []
-        for fname in os.listdir(self._rules_dir):
-            if fname.endswith(".yaml"):
-                result.append(fname[: -len(".yaml")])
-        return result
+        """列出所有规则 ID"""
+        rows = self._db.execute("SELECT rule_id FROM experience_rules").fetchall()
+        return [r["rule_id"] for r in rows]
 
     # ──────────────────── 经验提炼 ────────────────────
 
@@ -505,44 +499,24 @@ class ExperienceExtractor:
     # ──────────────────── 降级日志 ────────────────────
 
     def _append_demotion_log(self, rule: ExperienceRule, reason: str) -> None:
-        """追加一条降级记录到持久化日志"""
-        import json
-        entry = {
-            "rule_id": rule.rule_id,
-            "trigger_condition": rule.trigger_condition,
-            "action": rule.action,
-            "rule_type": rule.rule_type,
-            "effectiveness_score": round(rule.effectiveness_score, 4),
-            "usage_count": rule.usage_count,
-            "success_count": rule.success_count,
-            "reason": reason,
-            "team_id": rule.team_id,
-            "demoted_at": _now_iso(),
-        }
-        try:
-            log = []
-            if os.path.isfile(self._demotion_log_path):
-                with open(self._demotion_log_path, encoding="utf-8") as f:
-                    log = json.load(f)
-            log.append(entry)
-            tmp = self._demotion_log_path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(log, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, self._demotion_log_path)
-        except Exception:
-            logger.exception("Failed to append demotion log")
+        """追加一条降级记录到 SQLite"""
+        self._db.execute(
+            """INSERT INTO demotion_log
+               (rule_id, trigger_condition, action, rule_type, effectiveness_score,
+                usage_count, success_count, reason, team_id, demoted_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (rule.rule_id, rule.trigger_condition, rule.action, rule.rule_type,
+             round(rule.effectiveness_score, 4), rule.usage_count, rule.success_count,
+             reason, rule.team_id, _now_iso()),
+        )
+        self._db.commit()
 
     def get_demotion_log(self) -> List[Dict]:
         """获取降级日志（最近的在前）"""
-        import json
-        try:
-            if os.path.isfile(self._demotion_log_path):
-                with open(self._demotion_log_path, encoding="utf-8") as f:
-                    log = json.load(f)
-                return list(reversed(log))
-        except Exception:
-            logger.exception("Failed to read demotion log")
-        return []
+        rows = self._db.execute(
+            "SELECT * FROM demotion_log ORDER BY id DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     # ──────────────────── 抗过拟合机制 ────────────────────
 
@@ -822,43 +796,24 @@ class ExperienceExtractor:
 
     def get_evolution_log(self) -> List[Dict]:
         """获取进化日志"""
-        import json
-        log_path = os.path.join(self._incremental_dir, "evolution_log.json")
-        try:
-            if os.path.isfile(log_path):
-                with open(log_path, encoding="utf-8") as f:
-                    return list(reversed(json.load(f)))
-        except Exception:
-            pass
-        return []
+        rows = self._db.execute(
+            "SELECT * FROM evolution_log ORDER BY id DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def _append_evolution_log(self, original: ExperienceRule, evolved: ExperienceRule, failure_reason: str) -> None:
-        """记录进化事件"""
-        import json
-        log_path = os.path.join(self._incremental_dir, "evolution_log.json")
-        entry = {
-            "original_rule_id": original.rule_id,
-            "evolved_rule_id": evolved.rule_id,
-            "trigger_condition": original.trigger_condition,
-            "original_action": original.action,
-            "evolved_action": evolved.action,
-            "original_score": original.effectiveness_score,
-            "usage_count": original.usage_count,
-            "failure_reason": failure_reason[:200],
-            "evolved_at": _now_iso(),
-        }
-        try:
-            log = []
-            if os.path.isfile(log_path):
-                with open(log_path, encoding="utf-8") as f:
-                    log = json.load(f)
-            log.append(entry)
-            tmp = log_path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(log, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, log_path)
-        except Exception:
-            logger.exception("Failed to append evolution log")
+        """记录进化事件到 SQLite"""
+        self._db.execute(
+            """INSERT INTO evolution_log
+               (original_rule_id, evolved_rule_id, trigger_condition, original_action,
+                evolved_action, original_score, usage_count, failure_reason, evolved_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (original.rule_id, evolved.rule_id, original.trigger_condition,
+             original.action, evolved.action, original.effectiveness_score,
+             original.usage_count, failure_reason[:200], _now_iso()),
+        )
+        self._db.commit()
+
 
     def get_demotion_stats(self) -> Dict:
         """降级统计报表：按类型/团队/时间聚合，含复审率"""
@@ -1205,15 +1160,13 @@ class ExperienceExtractor:
         Returns:
             规则列表
         """
-        all_rule_ids = self._list_rule_ids()
-        rules = []
-        for rule_id in all_rule_ids:
-            rule = self._load_rule(rule_id)
-            if rule is None:
-                continue
-            if status is None or rule.status == status:
-                rules.append(rule)
-        return rules
+        if status:
+            rows = self._db.execute(
+                "SELECT * FROM experience_rules WHERE status = ?", (status,)
+            ).fetchall()
+        else:
+            rows = self._db.execute("SELECT * FROM experience_rules").fetchall()
+        return [self._row_to_rule(r) for r in rows]
 
     def extract_from_meeting(
         self,
