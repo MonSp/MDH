@@ -1055,6 +1055,70 @@ async def get_document_conflicts(limit: int = 10):
         return _fail(str(e))
 
 
+@app.get("/api/memory/{agent_id}")
+async def get_agent_memory(agent_id: str):
+    """获取 agent 持久记忆"""
+    try:
+        from agent_memory import AgentMemory
+        memory = AgentMemory(_DATA_DIR)
+        return _ok(memory.get_memory(agent_id))
+    except Exception as e:
+        logger.exception("get_agent_memory 失败")
+        return _fail(str(e))
+
+
+@app.post("/api/memory/{agent_id}/add")
+async def add_agent_memory(agent_id: str, request: Request):
+    """添加 agent 记忆"""
+    try:
+        body = await request.json()
+        from agent_memory import AgentMemory
+        memory = AgentMemory(_DATA_DIR)
+        result = memory.add_memory(agent_id, body)
+        return _ok(result)
+    except Exception as e:
+        logger.exception("add_agent_memory 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/memory/{agent_id}/recall")
+async def recall_agent_memory(agent_id: str, q: str = "", limit: int = 5):
+    """检索 agent 相关记忆"""
+    try:
+        from agent_memory import AgentMemory
+        memory = AgentMemory(_DATA_DIR)
+        results = memory.recall(agent_id, q, limit)
+        return _ok({"results": results})
+    except Exception as e:
+        logger.exception("recall_agent_memory 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/memory/{agent_id}/context")
+async def get_memory_context(agent_id: str, max_chars: int = 3000):
+    """获取 agent 记忆上下文（用于注入 system prompt）"""
+    try:
+        from agent_memory import AgentMemory
+        memory = AgentMemory(_DATA_DIR)
+        context = memory.inject_context(agent_id, max_chars)
+        return _ok({"context": context, "has_content": bool(context)})
+    except Exception as e:
+        logger.exception("get_memory_context 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/memory/stats")
+async def get_memory_stats():
+    """记忆统计"""
+    try:
+        from agent_memory import AgentMemory
+        memory = AgentMemory(_DATA_DIR)
+        return _ok(memory.get_stats())
+    except Exception as e:
+        logger.exception("get_memory_stats 失败")
+        return _fail(str(e))
+
+
 @app.post("/api/feedback/submit")
 async def submit_human_feedback(request: Request):
     """提交人类结构化反馈"""
