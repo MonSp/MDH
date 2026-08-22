@@ -32,6 +32,25 @@
 | **1.4.0** | 2026-08-20 | 数字员工职业发展核心数据层（AgentProfile + XP + 技能树 + 角色晋升） |
 | **1.4.1** | 2026-08-20 | 职业发展前端面板（CareerPathPanel + SkillTreeView + 部门筛选） |
 | **1.5.0** | 2026-08-21 | 路由感知技能等级 + 晋升驱动任务分配 + 真实 AI 闭环验证 |
+| **1.5.6** | 2026-08-22 | 规则自进化（低分规则自动生成改进版） |
+| **1.5.7** | 2026-08-22 | 联动进化（规则→资产→技能网络级联更新） |
+| **1.5.8** | 2026-08-22 | 反思优先级队列（自驱动选择反思目标） |
+| **1.5.9** | 2026-08-22 | 抗过拟合（多样性检查+老化+探索/利用平衡） |
+| **1.5.10** | 2026-08-22 | 多团队进化联邦（信任评分+智能订阅+跨团队有效性） |
+| **1.5.11** | 2026-08-22 | CI/CD 进化健康度门禁 + GitHub Actions |
+| **1.5.12** | 2026-08-22 | 能力边界感知（置信度地图+未知领域检测） |
+| **1.5.13** | 2026-08-22 | 系统自省（功能利用率+模块健康度+改进提案） |
+| **1.5.14** | 2026-08-22 | 人机协作反馈回路（结构化反馈→规则转化） |
+| **1.5.15** | 2026-08-22 | 前端协作改进（内联反馈+技能徽章+进化通知） |
+| **1.5.16** | 2026-08-22 | 文档感知协作（文档解析+上下文注入） |
+| **1.5.17** | 2026-08-22 | 活文档协作（代码感知+数据感知+产出物追踪） |
+| **1.5.18** | 2026-08-22 | Agent 持久记忆（持久记忆文件+自动摘要+老化） |
+| **1.5.19** | 2026-08-22 | 跨会话学习闭环（任务前检索+任务后写入） |
+| **1.5.20** | 2026-08-22 | 自主交付（Git交付+通知+报告） |
+| **1.5.21** | 2026-08-22 | Agent 自省优化（表现分析+弱项识别） |
+| **1.5.22** | 2026-08-22 | 主动式监控（健康巡检+风险预警） |
+| **1.5.23** | 2026-08-22 | 团队协同优化（协同分析+瓶颈识别） |
+| **1.5.24** | 2026-08-22 | 端到端集成验证（4 条链路 8 个测试） |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -61,7 +80,7 @@
 | 前端 | React 18 + TypeScript + Vite 6 + Three.js | 3D 虚拟办公室、实时通信 |
 | 后端 | Python 3.11 + FastAPI + WebSocket | 智能体协调、工具执行 |
 | AI 引擎 | AgentScope + DeepSeek API | 多模型支持 (DeepSeek/OpenAI/Anthropic) |
-| 测试 | Vitest (TS) + pytest (Python) | 1726 TS 测试用例（前端 1726 + orchestrator 216）+ 1412 Python 测试 |
+| 测试 | Vitest (TS) + pytest (Python) | 1726 TS 测试用例（前端 1726 + orchestrator 216）+ 1585 Python 测试 |
 
 ### 项目结构
 
@@ -275,6 +294,19 @@ MDH/
 │   ├── asset_injection.py        # 会议节点注入团队资产 (v1.2.0)
 │   ├── asset_search.py           # 三类资产合并检索 (v1.2.0)
 │   ├── agent_profile_manager.py  # Agent 持久档案管理 (v1.4.0)
+│   ├── agent_memory.py           # Agent 持久记忆 (v1.5.18)
+│   ├── agent_optimizer.py        # Agent 自省优化 (v1.5.21)
+│   ├── capability_boundary.py    # 能力边界感知 (v1.5.12)
+│   ├── delivery_engine.py        # 自主交付引擎 (v1.5.20)
+│   ├── document_parser.py        # 文档感知解析 (v1.5.16)
+│   ├── human_feedback.py         # 人机协作反馈 (v1.5.14)
+│   ├── knowledge_network.py      # 知识网络联动 (v1.5.7)
+│   ├── live_document.py          # 活文档协作 (v1.5.17)
+│   ├── proactive_monitor.py      # 主动式监控 (v1.5.22)
+│   ├── reflection_priority.py    # 反思优先级队列 (v1.5.8)
+│   ├── system_introspection.py   # 系统自省 (v1.5.13)
+│   ├── team_federation.py        # 多团队进化联邦 (v1.5.10)
+│   ├── team_synergy.py           # 团队协同优化 (v1.5.23)
 │   ├── promotion_engine.py       # 角色晋升引擎 (v1.4.0)
 │   ├── routers/                  # API 路由模块
 │   │   ├── workflow.py           # 工作流 API
@@ -1203,6 +1235,39 @@ AgentProfile 持久化 + XP 系统 + 技能树 + 角色晋升：
 | GET /api/agents/{id}/career-path | 部门职业路径 |
 | GET /api/skills/tree | 技能树结构 |
 | GET /api/careers/departments | 所有部门职业路径 |
+
+### 文档与记忆 (v1.5.16-v1.5.19)
+
+| 端点 | 说明 |
+|------|------|
+| POST /api/documents/parse | 解析文档 |
+| GET /api/documents/search | 搜索文档 |
+| GET /api/documents/context | 文档上下文 |
+| GET /api/memory/{agent_id} | Agent 记忆 |
+| POST /api/memory/{agent_id}/add | 添加记忆 |
+| GET /api/memory/{agent_id}/recall | 检索记忆 |
+| GET /api/memory/{agent_id}/context | 记忆上下文 |
+| GET /api/workspace/analyze | 代码仓库分析 |
+| POST /api/workspace/analyze-dataset | 数据集解析 |
+| GET /api/workspace/artifacts | 产出物历史 |
+| GET /api/workspace/conflicts | 编辑冲突 |
+
+### 交付与监控 (v1.5.20-v1.5.23)
+
+| 端点 | 说明 |
+|------|------|
+| POST /api/delivery/deliver | 自主交付 |
+| GET /api/delivery/log | 交付日志 |
+| GET /api/agents/{id}/optimize | Agent 自省分析 |
+| GET /api/agents/optimize/all | 所有 Agent 汇总 |
+| GET /api/monitor/health | 健康巡检 |
+| GET /api/monitor/alerts | 监控告警 |
+| GET /api/team/synergy | 团队协同分析 |
+| POST /api/team/synergy/record | 记录团队任务 |
+| GET /api/team/synergy/recommend | 推荐搭配 |
+| POST /api/feedback/submit | 提交反馈 |
+| GET /api/feedback/summary | 反馈汇总 |
+| POST /api/memory/{agent_id}/add | 添加记忆 |
 
 ### MCP 配置 (v1.2.0)
 
