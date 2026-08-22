@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1412%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-1585%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
 [![Test Coverage](https://img.shields.io/badge/test%20coverage-84%25-brightgreen)]()
 
@@ -33,6 +33,10 @@ A full-domain multi-agent collaboration system built with React + Python FastAPI
 | 📝 Meeting Minutes Pipeline | Intent-recognition doc mode → minutes DAG workflow (extract/draft/proofread) → artifact output + email delivery |
 | 🧭 Routing-Aware Skill Levels | DynamicRouter 5-dimension weighted routing, agent skill levels influence department selection and task assignment |
 | 🎯 Promotion-Driven Assignment | Simple tasks prefer junior agents (XP accumulation), complex tasks prefer senior agents (capability matching) |
+| 🧠 Agent Persistent Memory | Cross-project personal memory + auto-summary + memory injection + aging |
+| 📄 Document-Aware Collaboration | 20+ file format parsing + context injection + dataset analysis |
+| 🔍 Proactive Monitoring | Health checks + risk warnings + alert grading + reflection priority |
+| 🤝 Team Synergy Optimization | Synergy analysis + bottleneck detection + optimal team matching |
 
 ## What is MDH
 
