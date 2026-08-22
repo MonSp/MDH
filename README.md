@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1412%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-1585%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
 [![Test Coverage](https://img.shields.io/badge/test%20coverage-84%25-brightgreen)]()
 
@@ -36,6 +36,10 @@
 | 🤝 跨团队技能共享 | 质量门禁（score ≥ 0.6 + usage ≥ 2）+ 审批流 + 共享经验池 |
 | 🧭 路由感知技能等级 | DynamicRouter 五维加权路由，agent 技能等级影响部门选择和任务分配 |
 | 🎯 晋升驱动任务分配 | 简单任务优先初级 agent（积累 XP），复杂任务优先高级 agent（能力匹配） |
+| 🧠 Agent 持久记忆 | 跨项目个人记忆 + 自动摘要 + 记忆注入 + 老化机制 |
+| 📄 文档感知协作 | 20+ 种文件格式解析 + 上下文注入 + 数据集分析 |
+| 🔍 主动式监控 | 健康巡检 + 风险预警 + 告警分级 + 反思优先级 |
+| 🤝 团队协同优化 | 协同分析 + 瓶颈识别 + 最优搭配推荐 |
 
 ## MDH 是什么
 
@@ -74,6 +78,12 @@ MDH 是一个**数字员工操作系统**。它不是又一个 AI 聊天工具�
 高质量经验通过质量门禁跨团队共享，低信任团队的经验被信任评分机制过滤（多团队进化联邦）。系统知道自己的能力边界——哪些领域高置信、哪些领域是盲区（能力边界感知），在不擅长的领域主动寻求外部帮助。
 
 人的反馈不是「看过就忘」——结构化的审查意见自动转化为经验规则，直接影响数字员工的下一次表现。人指定的技能发展方向会影响任务分配和 XP 分配（人机协作反馈回路）。
+
+### 它们有记忆和协作
+
+每个数字员工有跨项目持久化的个人记忆，完成任务后自动提取关键信息写入记忆，下次执行同类任务时自动检索相关经验。10 个部门的数字员工有独立的晋升路径，从初级工程师到技术负责人。团队协同系统自动分析 agent 组合效率，推荐最优搭配。
+
+数字员工能主动监控自身健康——发现弱项技能自动预警，检测领域规则有效性下降自动告警。人可以通过内联反馈直接参与 agent 的成长，反馈自动转化为经验规则。
 
 ## 快速开始
 
@@ -136,7 +146,7 @@ docker compose up -d
 │   ├── ceo_agent.py              # CEO 智能体
 │   ├── agent_bridge.py           # TS-Python 桥接
 │   ├── roles_config.yaml         # 角色配置（25+ 角色 + 10 部门职业路径 + 42 技能树）
-│   └── tests/                    # Python 测试（1412 tests）
+│   └── tests/                    # Python 测试（1585 tests）
 ├── orchestrator/                 # TS 编排器（用户本地 Node.js）
 │   └── src/
 │       ├── cli.ts                # CLI 入口
@@ -345,10 +355,10 @@ custom_roles:
 ## 测试
 
 ```bash
-# 前端测试 (1662 tests)
+# 前端测试 (1726 tests)
 npx vitest run
 
-# 后端测试 (1412 tests)
+# 后端测试 (1585 tests)
 cd backend && python -m pytest tests/ --timeout=60
 
 # Orchestrator 测试 (164 tests)
