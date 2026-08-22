@@ -7,8 +7,9 @@ import RoleConfigPanel from './RoleConfigPanel'
 import AgentProfilePanel from './AgentProfilePanel'
 import { SkillTreeView } from './SkillTreeView'
 import CareerPathPanel from './CareerPathPanel'
+import PerformanceDashboard from './PerformanceDashboard'
 
-type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles' | 'career'
+type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles' | 'career' | 'dashboard'
 
 const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'skills', label: '技能包', icon: '📦' },
@@ -17,6 +18,7 @@ const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'routes', label: '路由表', icon: '🧭' },
   { key: 'roles', label: '角色配置', icon: '👥' },
   { key: 'career', label: '职业发展', icon: '🚀' },
+  { key: 'dashboard', label: '性能仪表盘', icon: '📊' },
 ]
 
 export default function SkillEvolutionDashboard() {
@@ -53,6 +55,7 @@ export default function SkillEvolutionDashboard() {
             </div>
           </div>
         )}
+        {activeTab === 'dashboard' && <PerformanceDashboard />}
       </div>
     </div>
   )

@@ -823,6 +823,18 @@ async def get_llm_cost_records(limit: int = 100):
         return _fail(str(e))
 
 
+@app.get("/api/dashboard/performance")
+async def get_performance_dashboard():
+    """全局性能仪表盘 — 聚合所有子系统数据"""
+    try:
+        from performance_dashboard import PerformanceDashboard
+        dashboard = PerformanceDashboard(_DATA_DIR)
+        return _ok(dashboard.get_overview())
+    except Exception as e:
+        logger.exception("get_performance_dashboard 失败")
+        return _fail(str(e))
+
+
 # 注册 skills_router（在 Agent Profile 端点之后，确保 /api/skills/tree 优先匹配）
 app.include_router(skills_router.router)
 
