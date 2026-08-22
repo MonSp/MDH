@@ -2365,6 +2365,32 @@ async def list_backups():
         return _fail(str(e))
 
 
+@app.get("/api/ops/cache")
+async def get_cache_stats():
+    """缓存统计"""
+    try:
+        from cache import get_cache
+        cache = get_cache()
+        stats = cache.stats()
+        cache.cleanup()
+        return _ok(stats)
+    except Exception as e:
+        logger.exception("get_cache_stats 失败")
+        return _fail(str(e))
+
+
+@app.post("/api/ops/cache/clear")
+async def clear_cache():
+    """清空缓存"""
+    try:
+        from cache import get_cache
+        get_cache().clear()
+        return _ok({"cleared": True}, code="CACHE_CLEARED")
+    except Exception as e:
+        logger.exception("clear_cache 失败")
+        return _fail(str(e))
+
+
 @app.post("/api/ops/restore")
 async def restore_backup(request: Request):
     """恢复备份"""

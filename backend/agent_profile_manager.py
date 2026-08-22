@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from db import get_db, get_write_lock
+from cache import get_cache
 
 logger = logging.getLogger("agent_profile")
 
@@ -72,12 +73,16 @@ class AgentProfileManager:
         return self._get_profile_db(agent_id)
 
     def _get_profile_db(self, agent_id: str) -> Optional[AgentProfile]:
+        cache = get_cache()
+        cached = cache.get(f"profile:{agent_id}")
+        if cached is not None:
+            return cached
         row = self._db.execute(
             "SELECT * FROM agent_profiles WHERE agent_id = ?", (agent_id,)
         ).fetchone()
         if not row:
             return None
-        return AgentProfile(
+        profile = AgentProfile(
             agent_id=row["agent_id"],
             name=row["name"],
             created_at=row["created_at"],
@@ -86,6 +91,8 @@ class AgentProfileManager:
             total_xp=row["total_xp"],
             skill_progress=json.loads(row["skill_progress"]) if isinstance(row["skill_progress"], str) else row["skill_progress"],
         )
+        cache.set(f"profile:{agent_id}", profile, ttl=120)
+        return profile
 
     def save_profile(self, profile: AgentProfile) -> None:
         with self._get_lock(profile.agent_id):
@@ -102,6 +109,7 @@ class AgentProfileManager:
                  json.dumps(profile.skill_progress, ensure_ascii=False)),
             )
             self._db.commit()
+        get_cache().invalidate(f"profile:{profile.agent_id}")
 
     def list_profiles(self) -> List[AgentProfile]:
         rows = self._db.execute("SELECT * FROM agent_profiles").fetchall()
