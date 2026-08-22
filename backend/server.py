@@ -850,6 +850,18 @@ async def get_knowledge_network_stats():
         return _fail(str(e))
 
 
+@app.get("/api/reflection/priority-queue")
+async def get_reflection_priority_queue():
+    """反思优先级队列 — 自驱动选择下一步反思目标"""
+    try:
+        from reflection_priority import ReflectionPriorityQueue
+        queue = ReflectionPriorityQueue(_DATA_DIR)
+        return _ok(queue.compute_priorities())
+    except Exception as e:
+        logger.exception("get_reflection_priority_queue 失败")
+        return _fail(str(e))
+
+
 # 注册 skills_router（在 Agent Profile 端点之后，确保 /api/skills/tree 优先匹配）
 app.include_router(skills_router.router)
 
