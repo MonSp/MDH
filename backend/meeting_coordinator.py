@@ -217,6 +217,35 @@ class MeetingCoordinator:
         """任务路由映射（委托给 RoutingStatsManager，保持向后兼容）"""
         return self._routing_stats._task_routing
 
+    # ── Agent 隔离工作区 ──
+
+    def _setup_agent_isolation(self) -> Dict[str, str]:
+        """为会议中的每个 agent 创建隔离工作区
+
+        Returns:
+            agent_id → 隔离工作区路径的映射
+        """
+        agent_workspaces = {}
+        if not self._workspace or not self._workspace.root_path:
+            return agent_workspaces
+
+        base = self._workspace.root_path
+        isolation_dir = os.path.join(base, ".agent_isolation")
+        os.makedirs(isolation_dir, exist_ok=True)
+
+        for agent in self.meeting.agents:
+            if agent.role == AgentRole.CEO:
+                continue
+            agent_dir = os.path.join(isolation_dir, agent.id)
+            os.makedirs(agent_dir, exist_ok=True)
+            # 创建标准目录结构
+            for subdir in ["workspace", "memory", "notes"]:
+                os.makedirs(os.path.join(agent_dir, subdir), exist_ok=True)
+            agent_workspaces[agent.id] = agent_dir
+
+        self.logger.info("Agent 隔离工作区已创建: %d 个 agent", len(agent_workspaces))
+        return agent_workspaces
+
     @_task_routing.setter
     def _task_routing(self, value):
         self._routing_stats._task_routing = value

@@ -799,6 +799,30 @@ async def get_knowledge_flow():
         return _fail(str(e))
 
 
+@app.get("/api/llm/costs")
+async def get_llm_costs():
+    """LLM 成本追踪汇总"""
+    try:
+        from llm_cost_tracker import get_tracker
+        tracker = get_tracker(os.path.join(_DATA_DIR))
+        return _ok(tracker.get_summary())
+    except Exception as e:
+        logger.exception("get_llm_costs 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/llm/costs/records")
+async def get_llm_cost_records(limit: int = 100):
+    """LLM 成本追踪详细记录"""
+    try:
+        from llm_cost_tracker import get_tracker
+        tracker = get_tracker(os.path.join(_DATA_DIR))
+        return _ok({"records": tracker.get_records(limit)})
+    except Exception as e:
+        logger.exception("get_llm_cost_records 失败")
+        return _fail(str(e))
+
+
 # 注册 skills_router（在 Agent Profile 端点之后，确保 /api/skills/tree 优先匹配）
 app.include_router(skills_router.router)
 
