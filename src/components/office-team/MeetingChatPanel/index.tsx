@@ -32,10 +32,11 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const scrollRaf = useRef<number>(0)
   const [feedbackGiven, setFeedbackGiven] = useState<Set<string>>(new Set())
-  const [agentSkills, setAgentSkills] = useState<Record<string, { level: number; skill: string }>>({})
-  const [feedbackInput, setFeedbackInput] = useState<string | null>(null) // msg index being written
+  const [agentProfiles, setAgentProfiles] = useState<Record<string, { skills: Record<string, { level: number }>; department: string }>>({})
+  const [feedbackInput, setFeedbackInput] = useState<string | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
   const [toast, setToast] = useState<string | null>(null)
+  const [capabilityWarnings, setCapabilityWarnings] = useState<Record<number, { domains: string[]; confidence: number }>>({})
 
   useEffect(() => {
     // 使用 requestAnimationFrame 防抖，避免快速消息流触发频繁布局抖动
@@ -93,27 +94,58 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
     return content.length > 30
   }
 
-  // 加载 agent 技能等级
+  // 加载 agent 档案（缓存，不重复请求）
   useEffect(() => {
-    const loadSkills = async () => {
-      const skills: Record<string, { level: number; skill: string }> = {}
+    const loadProfiles = async () => {
+      const profiles: Record<string, { skills: Record<string, { level: number }>; department: string }> = {}
       for (const agent of agents) {
+        if (agentProfiles[agent.id]) continue // 已缓存
         try {
           const res = await fetch(`/api/agents/${agent.id}/profile`)
           const data = await res.json()
-          if (data.success && data.data?.skill_progress) {
-            const entries = Object.entries(data.data.skill_progress) as [string, { level: number }][]
-            const best = entries.reduce((a, b) => (b[1]?.level || 0) > (a[1]?.level || 0) ? b : a, entries[0])
-            if (best && best[1]?.level > 0) {
-              skills[agent.id] = { level: best[1].level, skill: best[0] }
+          if (data.success && data.data) {
+            profiles[agent.id] = {
+              skills: data.data.skill_progress || {},
+              department: data.data.department || '',
             }
           }
         } catch { /* silent */ }
       }
-      setAgentSkills(skills)
+      if (Object.keys(profiles).length > 0) {
+        setAgentProfiles(prev => ({ ...prev, ...profiles }))
+      }
     }
-    if (agents.length > 0) loadSkills()
+    if (agents.length > 0) loadProfiles()
   }, [agents])
+
+  // 检测任务消息的能力边界
+  useEffect(() => {
+    const checkBoundaries = async () => {
+      for (const msg of messages) {
+        const idx = messages.indexOf(msg)
+        if (capabilityWarnings[idx]) continue
+        if (!msg.agentId || msg.agentId === 'agent-ceo') continue
+        const content = msg.content || ''
+        if (content.length < 20) continue
+        // 只检查任务描述类消息
+        if (!content.includes('任务') && !content.includes('实现') && !content.includes('设计') && !content.includes('开发')) continue
+        try {
+          const words = content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/g) || []
+          const keywords = [...new Set(words.map(w => w.toLowerCase()))].slice(0, 5).join(',')
+          if (!keywords) continue
+          const res = await fetch(`/api/capability/detect?keywords=${encodeURIComponent(keywords)}`)
+          const data = await res.json()
+          if (data.success && data.data?.is_unknown) {
+            setCapabilityWarnings(prev => ({
+              ...prev,
+              [idx]: { domains: data.data.matched_domains, confidence: data.data.best_confidence },
+            }))
+          }
+        } catch { /* silent */ }
+      }
+    }
+    if (messages.length > 0) checkBoundaries()
+  }, [messages])
 
   const renderFileBlocks = (files: string[], charCount?: string, msgContent?: string) => {
     return (
@@ -214,11 +246,16 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
         {!isBoss && !isCeo && msg.agentId && (
           <div style={styles.msgAvatar}>
             <RoleAvatar role={agent?.role || AgentRole.Planner} size={28} />
-            {agentSkills[msg.agentId] && (
-              <span style={styles.skillBadge}>
-                Lv.{agentSkills[msg.agentId].level}
-              </span>
-            )}
+            {agentProfiles[msg.agentId] && (() => {
+              const skills = agentProfiles[msg.agentId].skills
+              const entries = Object.entries(skills) as [string, { level: number }][]
+              const best = entries.reduce((a, b) => (b[1]?.level || 0) > (a[1]?.level || 0) ? b : a, entries[0])
+              return best && best[1]?.level > 0 ? (
+                <span style={styles.skillBadge} title={`${best[0]} Lv.${best[1].level}`}>
+                  Lv.{best[1].level}
+                </span>
+              ) : null
+            })()}
           </div>
         )}
         <div style={{
@@ -264,6 +301,14 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
               {(msg as any)._confidence != null && (
                 <span style={{ color: '#9ca3af' }}>置信度 {Math.round((msg as any)._confidence * 100)}%</span>
               )}
+            </div>
+          )}
+          {capabilityWarnings[index] && (
+            <div style={styles.capWarning}>
+              <span style={styles.capWarningIcon}>⚠️</span>
+              <span style={styles.capWarningText}>
+                能力边界：此任务涉及低置信领域（{capabilityWarnings[index].domains.join(', ')}，置信度 {(capabilityWarnings[index].confidence * 100).toFixed(0)}%）
+              </span>
             </div>
           )}
         </div>
@@ -718,4 +763,17 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 100,
     animation: 'fadeIn 0.3s ease',
   },
+  capWarning: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    padding: '4px 8px',
+    borderRadius: 6,
+    background: 'rgba(245,158,11,0.1)',
+    border: '1px solid rgba(245,158,11,0.25)',
+    fontSize: '10px',
+  },
+  capWarningIcon: { fontSize: 12, flexShrink: 0 },
+  capWarningText: { color: '#fbbf24', lineHeight: 1.4 },
 }
