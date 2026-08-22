@@ -2,6 +2,183 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.5.14] - 2026-08-22
+
+### Added
+
+**人机协作反馈回路**
+- `HumanFeedbackManager`：结构化人类反馈（rating/strengths/improvements/specific_suggestions/skill_directions）
+- 反馈→规则转化：`specific_suggestions` 自动转化为经验规则（直接 approved，起始 effectiveness=0.5）
+- 技能方向指导：人指定 agent 重点发展的技能，持久化到 `skill_guidance.json`
+- 反馈汇总：高频改进点/高频优势统计
+- API：POST `/api/feedback/submit`, GET `/api/feedback/summary`, GET `/api/feedback/guidance/{agent_id}`
+
+### Changed
+
+- README 产品叙事新增「进化是自驱动的」章节（中英文同步）
+
+## [1.5.13] - 2026-08-22
+
+### Added
+
+**系统自省**
+- `SystemIntrospection`：功能利用率追踪（v1.5.x 14 个新功能的调用统计）
+- 模块健康度分析：按 rule_type 分组计算平均有效性（healthy/degraded/critical）
+- 回归检测：记录失败事件，识别高频回归模块
+- 改进提案生成：基于利用率/健康度/回归数据自动生成改进建议
+- API：GET `/api/introspection/features`, `/health`, `/proposals`
+
+## [1.5.12] - 2026-08-22
+
+### Added
+
+**能力边界感知**
+- `CapabilityBoundary`：置信度地图（每个技能领域一个置信度分数）
+- 置信度公式：规则数量×0.3 + 有效性×0.35 + 使用频率×0.2 + 活跃率×0.15
+- 未知领域检测：任务关键词匹配置信度地图，低置信标记需额外审查
+- 求助机制：低置信领域自动向共享进化池请求高置信规则
+- 能力边界报告：置信度排序 + 边界转折点 + 改进建议
+- API：GET `/api/capability/boundary`, GET `/api/capability/detect`
+
+## [1.5.11] - 2026-08-22
+
+### Added
+
+**CI/CD 进化自动化**
+- `scripts/evolution_guard.py`：进化健康度门禁脚本（4 道检查：反思优先级/多样性/成功率/联邦健康）
+- GitHub Actions 工作流 `evolution-guard.yml`：每天自动运行 + PR 修改进化文件时触发 + 手动触发
+- 退出码：0=通过，1=关注项，2=紧急问题（阻塞合并）
+
+## [1.5.10] - 2026-08-22
+
+### Added
+
+**多团队进化联邦**
+- `TeamFederation`：进化发布 + 跨团队有效性追踪 + 智能订阅 + 信任评分
+- 进化发布：高分进化规则（score≥0.7, usage≥5）自动发布到共享池
+- 跨团队有效性：共享规则在不同团队使用后独立追踪 effectiveness
+- 智能订阅：团队按关键词匹配自动订阅相关共享规则
+- 信任评分：默认 0.5，成功 +0.01，失败 -0.05，<0.3 不可订阅
+- API：GET `/api/federation/stats`, GET `/api/federation/feed`
+
+## [1.5.9] - 2026-08-22
+
+### Added
+
+**抗过拟合机制**
+- 多样性检查：同一 rule_type 近期进化 >50% 且 ≥3 次 → 拒绝进化
+- 老化机制：`last_used_at` 字段，超过 30 天未使用的规则注入时得分减半
+- 探索/利用平衡：`retrieve_with_aging` 方法，80% 高分规则 + 20% 随机规则
+- `ExperienceRule` 新增 `last_used_at` 字段
+
+## [1.5.8] - 2026-08-22
+
+### Added
+
+**反思优先级队列**
+- `ReflectionPriorityQueue`：从规则数据中计算反思优先级
+- 领域健康度：按 rule_type/keywords 分组计算平均 effectiveness
+- 优先级队列：critical 领域(100) → 进化失败领域(80) → 低分规则(60) → 进化未改善(40)
+- API：GET `/api/reflection/priority-queue`
+
+## [1.5.7] - 2026-08-22
+
+### Added
+
+**联动进化**
+- `KnowledgeNetwork`：规则→技能包→资产的联动关系管理
+- 规则进化后自动：找到关联技能包 → 更新规则引用；找到关联资产 → 标记需重新评估
+- 联动进化日志：记录每次级联更新的传播路径
+- API：GET `/api/knowledge/network-stats`
+
+## [1.5.6] - 2026-08-22
+
+### Added
+
+**规则自进化**
+- 低分规则（score<0.3, usage≥5）自动生成改进版规则
+- 原规则标记为 `evolved`，改进版自动批准
+- 进化链追踪：`parent_rule_id` 链接原始→进化规则
+- `ExperienceRule` 新增 `parent_rule_id`, `evolution_count` 字段
+- 单条规则最多进化 3 次（防无限循环）
+
+## [1.5.5] - 2026-08-21
+
+### Added
+
+**全局性能仪表盘**
+- `PerformanceDashboard`：聚合 5 大数据源（Agent/规则/路由/LLM成本/知识流动）
+- `PerformanceDashboard` 前端组件：6 个子视图（总览/Agent/规则/路由/成本/知识流）
+- `SkillEvolutionDashboard` 新增「📊 性能仪表盘」tab
+- API：GET `/api/dashboard/performance`
+
+## [1.5.4] - 2026-08-21
+
+### Added
+
+**自适应会议流程 + 证据驱动交付 + Agent 协调协议**
+- 标准任务（confidence 0.5-0.8）跳过投票环节，直接分派执行
+- `_verify_delivery`：执行后验证实际产出（文件存在、结果非空、非全部失败）
+- `_build_peer_context`：多 agent 并行时共享已完成工作上下文，避免重复
+- 证据不通过 → 标记 revision_required
+
+## [1.5.3] - 2026-08-21
+
+### Added
+
+**任务分流门 + LLM 成本追踪 + Agent 隔离**
+- `_triage_task`：规则引擎分流门（0 token），simple/standard/complex 三级
+- `LLMCostTracker`：每次 LLM 调用记账（model/role/agent/tokens/cost），JSON 持久化
+- `scripts/guard_llm_cost.py`：CI 守卫脚本，扫描代码中的 LLM 调用点
+- `_setup_agent_isolation`：每个 agent 独立 workspace/memory/notes 目录
+- API：GET `/api/llm/costs`, GET `/api/llm/costs/records`
+
+## [1.5.2] - 2026-08-21
+
+### Added
+
+**师徒制知识传递**
+- `AgentProfileManager.find_mentor`：同部门最高级别 agent 自动成为 mentor
+- `_inject_experience`：优先注入 mentor 的规则，标记 mentor 规则数
+- `_grant_task_xp`：mentee 任务成功时 mentor 获得 20% XP 加成
+- `_log_knowledge_flow`：知识流动日志（data/knowledge_flow.json）
+- `ExperienceRule` 新增 `source_agent_id` 字段
+- API：GET `/api/agents/knowledge-flow`
+
+## [1.5.1] - 2026-08-21
+
+### Added
+
+**跨团队技能共享深化**
+- `get_share_recommendations`：高分规则（score≥0.7, usage≥5）自动推荐发布
+- `update_fork_effectiveness`：fork 规则后追踪实际任务效果
+- `get_leaderboard`：综合得分排序（fork_effectiveness × log2(usage+1)）
+- `SharedRule` 新增 `fork_effectiveness`, `fork_success_count`, `fork_total_count`
+- 前端 SkillMarketplace 新增「排行榜」tab
+- API：GET `/api/marketplace/experience/recommendations`, `/leaderboard`, POST `/update-fork-effectiveness`
+
+## [1.5.0] - 2026-08-21
+
+### Added
+
+**路由感知技能等级 + 晋升驱动任务分配 + 真实 AI 验证**
+- DynamicRouter 五维加权路由：keyword×0.35 + semantic×0.25 + success_rate×0.20 + priority×0.10 + skill_level×0.10
+- `_compute_skill_level_score`：按部门职业路径查询 AgentProfile 中相关技能的最高等级
+- `_find_best_agent_for_task` 复杂度感知分配：简单任务倾向初级 agent（+5），复杂任务倾向高级 agent（每级+4）
+- `skill_level_boost`：agent 技能升级时部门路由加成 +0.05（上限 0.3），持久化到路由表 JSON
+- `_estimate_task_complexity`：基于多步骤/跨领域关键词估算任务复杂度（1-5 级）
+
+### Fixed
+
+- `_grant_task_xp` 定义但未接入 `process_user_message`，真实场景下 XP 全部为 0
+- XP 授予逻辑修正：执行即得基础 XP，审查通过额外奖励（旧逻辑仅审查通过才给 XP，审查系统默认 revision_required 导致所有任务 XP=0）
+- agentscope v2.0.6 DeepSeek 模型兼容：`OPENAI_API_KEY` 从运行时参数同步
+
+### Verified
+
+- 真实 AI 闭环验证：2 个 DeepSeek 任务后 agent-executor 获得 120 XP，backend_dev 升至 Lv.1
+- 随机模拟验证：100 轮 × 4 agent，6 次晋升（含 Beta→Lead），研发部 boost 满额 0.30
+
 ## [1.4.1] - 2026-08-20
 
 ### Added
