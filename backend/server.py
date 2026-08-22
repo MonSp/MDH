@@ -948,6 +948,63 @@ async def get_improvement_proposals():
         return _fail(str(e))
 
 
+@app.post("/api/documents/parse")
+async def parse_document(request: Request):
+    """解析上传的文档"""
+    try:
+        body = await request.json()
+        file_path = body.get("file_path", "")
+        team_id = body.get("team_id", "")
+        from document_parser import DocumentParser
+        parser = DocumentParser(_DATA_DIR)
+        result = parser.parse_file(file_path, team_id=team_id)
+        if result:
+            return _ok({"doc_id": result["doc_id"], "filename": result["filename"],
+                         "summary": result["summary"], "keywords": result["keywords"]})
+        return _fail("文件不存在或格式不支持")
+    except Exception as e:
+        logger.exception("parse_document 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/documents/search")
+async def search_documents(q: str = "", team_id: str = ""):
+    """搜索文档"""
+    try:
+        from document_parser import DocumentParser
+        parser = DocumentParser(_DATA_DIR)
+        results = parser.search_documents(q, team_id=team_id)
+        return _ok({"documents": results, "total": len(results)})
+    except Exception as e:
+        logger.exception("search_documents 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/documents/context")
+async def get_document_context(task: str = "", team_id: str = ""):
+    """为任务构建文档上下文"""
+    try:
+        from document_parser import DocumentParser
+        parser = DocumentParser(_DATA_DIR)
+        context = parser.build_context_for_task(task, team_id=team_id)
+        return _ok({"context": context, "has_content": bool(context)})
+    except Exception as e:
+        logger.exception("get_document_context 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/documents/stats")
+async def get_document_stats():
+    """文档统计"""
+    try:
+        from document_parser import DocumentParser
+        parser = DocumentParser(_DATA_DIR)
+        return _ok(parser.get_stats())
+    except Exception as e:
+        logger.exception("get_document_stats 失败")
+        return _fail(str(e))
+
+
 @app.post("/api/feedback/submit")
 async def submit_human_feedback(request: Request):
     """提交人类结构化反馈"""
