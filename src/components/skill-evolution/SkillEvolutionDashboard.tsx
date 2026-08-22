@@ -8,7 +8,6 @@ import AgentProfilePanel from './AgentProfilePanel'
 import { SkillTreeView } from './SkillTreeView'
 import CareerPathPanel from './CareerPathPanel'
 import PerformanceDashboard from './PerformanceDashboard'
-import EvolutionToast from './EvolutionToast'
 import FeedbackPanel from './FeedbackPanel'
 
 type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles' | 'career' | 'dashboard' | 'feedback'
@@ -61,7 +60,6 @@ export default function SkillEvolutionDashboard() {
         {activeTab === 'dashboard' && <PerformanceDashboard />}
         {activeTab === 'feedback' && <FeedbackPanel />}
       </div>
-      <EvolutionToast />
     </div>
   )
 }

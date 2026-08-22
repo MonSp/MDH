@@ -9,6 +9,7 @@ import TeamTab from './office-scene/TeamTab'
 import TasksTab from './office-scene/TasksTab'
 import FilesTab from './office-scene/FilesTab'
 import SkillsTab from './office-scene/SkillsTab'
+import EvolutionToast from '../skill-evolution/EvolutionToast'
 
 interface OfficeSceneProps {
   agents: TeamAgent[]
@@ -90,6 +91,7 @@ export default function OfficeScene({ agents, viewState, onStartMeeting, project
 
   return (
     <div style={styles.container}>
+      <EvolutionToast />
       {/* 左侧：工位布局 */}
       <div style={styles.leftPanel}>
         <div style={styles.officeScene}>

@@ -33,6 +33,9 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
   const scrollRaf = useRef<number>(0)
   const [feedbackGiven, setFeedbackGiven] = useState<Set<string>>(new Set())
   const [agentSkills, setAgentSkills] = useState<Record<string, { level: number; skill: string }>>({})
+  const [feedbackInput, setFeedbackInput] = useState<string | null>(null) // msg index being written
+  const [feedbackText, setFeedbackText] = useState('')
+  const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
     // 使用 requestAnimationFrame 防抖，避免快速消息流触发频繁布局抖动
@@ -54,7 +57,7 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
     })
   }
 
-  const handleInlineFeedback = async (msg: ChatMessage, rating: 'good' | 'poor') => {
+  const handleInlineFeedback = async (msg: ChatMessage, rating: 'good' | 'poor', suggestion?: string) => {
     const feedbackKey = `${msg.agentId}-${msg.timestamp}`
     if (feedbackGiven.has(feedbackKey)) return
     try {
@@ -66,12 +69,28 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
           task_id: '',
           task_description: msg.content?.slice(0, 100) || '',
           rating: rating === 'good' ? 'good' : 'needs_improvement',
-          specific_suggestions: rating === 'poor' ? [msg.content?.slice(0, 200)] : [],
+          specific_suggestions: suggestion ? [suggestion] : [],
           reviewer: 'human-inline',
         }),
       })
       setFeedbackGiven(prev => new Set(prev).add(feedbackKey))
+      setFeedbackInput(null)
+      setFeedbackText('')
+      setToast(rating === 'good' ? '✓ 反馈已记录：良好' : '✓ 反馈已记录：需改进')
+      setTimeout(() => setToast(null), 3000)
     } catch { /* silent */ }
+  }
+
+  // 判断消息是否值得反馈（agent 的建议/审查/方案，而非系统消息）
+  const isActionableMessage = (msg: ChatMessage) => {
+    if (!msg.agentId || msg.agentId === 'agent-ceo') return false
+    const content = msg.content || ''
+    // 排除系统通知
+    if (content.includes('项目经理：') && !content.includes('审查')) return false
+    if (content.includes('CEO：') || content.includes('已将任务分配')) return false
+    if (content.includes('已注入') || content.includes('经验规则')) return false
+    // 包含实质性内容的消息
+    return content.length > 30
   }
 
   // 加载 agent 技能等级
@@ -248,13 +267,27 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
             </div>
           )}
         </div>
-        {!isBoss && !isCeo && msg.agentId && !feedbackGiven.has(`${msg.agentId}-${msg.timestamp}`) && (
+        {!isBoss && !isCeo && msg.agentId && isActionableMessage(msg) && !feedbackGiven.has(`${msg.agentId}-${msg.timestamp}`) && feedbackInput !== index.toString() && (
           <div style={styles.inlineFeedback}>
             <button style={styles.feedbackBtn} onClick={() => handleInlineFeedback(msg, 'good')} title="这条建议有用">👍</button>
-            <button style={styles.feedbackBtn} onClick={() => handleInlineFeedback(msg, 'poor')} title="这条建议需改进">👎</button>
+            <button style={styles.feedbackBtn} onClick={() => { setFeedbackInput(index.toString()); setFeedbackText('') }} title="这条建议需改进">👎</button>
           </div>
         )}
-        {!isBoss && !isCeo && msg.agentId && feedbackGiven.has(`${msg.agentId}-${msg.timestamp}`) && (
+        {feedbackInput === index.toString() && (
+          <div style={styles.feedbackForm}>
+            <input
+              style={styles.feedbackInput}
+              value={feedbackText}
+              onChange={e => setFeedbackText(e.target.value)}
+              placeholder="具体哪里需要改进？"
+              onKeyDown={e => { if (e.key === 'Enter') handleInlineFeedback(msg, 'poor', feedbackText) }}
+              autoFocus
+            />
+            <button style={styles.feedbackSubmit} onClick={() => handleInlineFeedback(msg, 'poor', feedbackText)}>提交</button>
+            <button style={styles.feedbackCancel} onClick={() => setFeedbackInput(null)}>取消</button>
+          </div>
+        )}
+        {!isBoss && !isCeo && msg.agentId && isActionableMessage(msg) && feedbackGiven.has(`${msg.agentId}-${msg.timestamp}`) && (
           <span style={styles.feedbackGiven}>✓ 已反馈</span>
         )}
         {(isBoss || isCeo) && (
@@ -266,6 +299,7 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
 
   return (
     <div style={styles.chatPanel}>
+      {toast && <div style={styles.toast}>{toast}</div>}
       <div style={styles.chatHeader}>
         <h3 style={styles.chatTitle}>💬 会议讨论</h3>
         {agendaPhase && (
@@ -631,5 +665,57 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#10b981',
     marginLeft: '4px',
     alignSelf: 'flex-end',
+  },
+  feedbackForm: {
+    display: 'flex',
+    gap: '4px',
+    marginLeft: '4px',
+    alignItems: 'center',
+    marginTop: '4px',
+  },
+  feedbackInput: {
+    flex: 1,
+    padding: '4px 8px',
+    borderRadius: '4px',
+    border: '1px solid rgba(255,255,255,0.15)',
+    background: 'rgba(0,0,0,0.3)',
+    color: '#e2e8f0',
+    fontSize: '11px',
+    fontFamily: 'inherit',
+    outline: 'none',
+  },
+  feedbackSubmit: {
+    padding: '4px 8px',
+    borderRadius: '4px',
+    border: 'none',
+    background: '#8b5cf6',
+    color: '#fff',
+    fontSize: '11px',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  feedbackCancel: {
+    padding: '4px 8px',
+    borderRadius: '4px',
+    border: '1px solid rgba(255,255,255,0.15)',
+    background: 'none',
+    color: '#9ca3af',
+    fontSize: '11px',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  toast: {
+    position: 'absolute' as const,
+    top: 8,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    padding: '6px 16px',
+    borderRadius: 6,
+    background: 'rgba(16,185,129,0.9)',
+    color: '#fff',
+    fontSize: '12px',
+    fontWeight: 600,
+    zIndex: 100,
+    animation: 'fadeIn 0.3s ease',
   },
 }

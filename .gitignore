@@ -16,6 +16,7 @@ logs/
 /backend/companion_log.json
 
 # Agent workspaces (created at runtime)
+data/
 data/workspaces/
 
 # Secrets
