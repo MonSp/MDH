@@ -54,6 +54,7 @@ class ExperienceRule:
     success_count: int = 0  # 注入后任务成功的次数
     parent_rule_id: str = ""  # 进化来源规则 ID（非空 = 本规则是进化产生的）
     evolution_count: int = 0  # 本规则被进化的次数
+    last_used_at: str = ""  # 最后一次被注入的时间（用于老化机制）
 
 
 def _now_iso() -> str:
@@ -163,6 +164,7 @@ class ExperienceExtractor:
                     "success_count": rule.success_count,
                     "parent_rule_id": rule.parent_rule_id,
                     "evolution_count": rule.evolution_count,
+                    "last_used_at": rule.last_used_at,
                 }
             ]
         }
@@ -200,6 +202,7 @@ class ExperienceExtractor:
                 success_count=int(r.get("success_count", 0)),
                 parent_rule_id=r.get("parent_rule_id", ""),
                 evolution_count=int(r.get("evolution_count", 0)),
+                last_used_at=r.get("last_used_at", ""),
             )
         except Exception:
             logger.exception("Failed to load rule %s", rule_id)
@@ -541,7 +544,82 @@ class ExperienceExtractor:
             logger.exception("Failed to read demotion log")
         return []
 
-    # ──────────────────── 共享推荐 ────────────────────
+    # ──────────────────── 抗过拟合机制 ────────────────────
+
+    MAX_SAME_DOMAIN_EVOLUTIONS = 3  # 同一领域短期内最多进化次数
+    EXPLORE_RATIO = 0.2  # 探索比例：20% 的注入使用随机规则
+    AGING_DAYS = 30  # 规则老化天数
+
+    def _check_evolution_diversity(self, rule: ExperienceRule) -> bool:
+        """多样性检查：防止同一领域进化过多
+
+        如果近期进化次数中，该规则的 rule_type 占比超过 50%，则拒绝进化。
+        """
+        evolution_log = self.get_evolution_log()
+        if not evolution_log:
+            return True
+
+        # 统计近期进化（最近 10 次）的 rule_type 分布
+        recent = evolution_log[:10]
+        type_counts: Dict[str, int] = {}
+        for entry in recent:
+            # 从进化日志中推断 rule_type
+            orig_id = entry.get("original_rule_id", "")
+            orig_rule = self._load_rule(orig_id)
+            if orig_rule:
+                rt = orig_rule.rule_type
+                type_counts[rt] = type_counts.get(rt, 0) + 1
+
+        rule_type = rule.rule_type
+        same_type = type_counts.get(rule_type, 0)
+        total = sum(type_counts.values()) or 1
+
+        if same_type / total > 0.5 and same_type >= self.MAX_SAME_DOMAIN_EVOLUTIONS:
+            return False  # 该领域进化过多，拒绝
+        return True
+
+    def retrieve_with_aging(self, task_type: str, keywords: List[str], team_id: str = "") -> List[ExperienceRule]:
+        """带老化机制的规则检索
+
+        - 老规则（超过 AGING_DAYS 未使用）降权
+        - 高分规则优先
+        - 20% 概率注入随机规则（探索）
+        """
+        import random as _random
+        from datetime import datetime, timezone, timedelta
+
+        rules = self.retrieve_relevant_rules(task_type, keywords, team_id)
+        if not rules:
+            return []
+
+        now = datetime.now(timezone.utc)
+        aging_threshold = now - timedelta(days=self.AGING_DAYS)
+
+        # 计算每个规则的综合得分
+        scored = []
+        for rule in rules:
+            score = rule.effectiveness_score
+
+            # 老化降权：超过 AGING_DAYS 未使用，得分减半
+            if rule.last_used_at:
+                try:
+                    last_used = datetime.fromisoformat(rule.last_used_at)
+                    if last_used < aging_threshold:
+                        score *= 0.5
+                except (ValueError, TypeError):
+                    pass
+
+            scored.append((score, rule))
+
+        # 探索/利用平衡
+        if len(scored) >= 3 and _random.random() < self.EXPLORE_RATIO:
+            # 探索：随机选一条规则替换末位
+            random_rule = _random.choice(scored)[1]
+            scored.sort(key=lambda x: x[0], reverse=True)
+            scored[-1] = (scored[-1][0], random_rule)
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [rule for _, rule in scored]
 
     SHARE_MIN_SCORE = 0.7
     SHARE_MIN_USAGE = 5
@@ -593,7 +671,7 @@ class ExperienceExtractor:
         return self._evolve_rule_impl(rule, failure_reason)
 
     def _evolve_rule_impl(self, rule: ExperienceRule, failure_reason: str = "") -> Optional[ExperienceRule]:
-        """规则自进化实现（接受内存中的规则对象）"""
+        """规则自进化实现（接受内存中的规则对象，含抗过拟合检查）"""
         # 检查进化条件
         if rule.status not in ("approved", "pending_review"):
             return None
@@ -603,6 +681,11 @@ class ExperienceExtractor:
             return None
         if rule.evolution_count >= self.EVOLUTION_MAX_COUNT:
             logger.info("Rule %s 已达最大进化次数 (%d)，跳过", rule.rule_id, self.EVOLUTION_MAX_COUNT)
+            return None
+
+        # 抗过拟合：多样性检查
+        if not self._check_evolution_diversity(rule):
+            logger.info("Rule %s 多样性检查未通过，跳过进化（该领域近期进化过多）", rule.rule_id)
             return None
 
         # 生成改进版规则
@@ -837,6 +920,7 @@ class ExperienceExtractor:
         if success:
             rule.success_count += 1
         rule.effectiveness_score = rule.success_count / rule.usage_count if rule.usage_count else 0.0
+        rule.last_used_at = _now_iso()
         # 自动降级：使用次数足够但有效性过低
         if (rule.status == "approved"
                 and rule.usage_count >= self.DEMOTION_MIN_USAGE

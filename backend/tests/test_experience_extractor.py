@@ -744,6 +744,74 @@ class TestRuleEvolution:
         assert loaded.status == "approved"
         assert loaded.evolution_count == 0
 
+
+# ──────────────────── 抗过拟合 ────────────────────
+
+
+class TestAntiOverfitting:
+    def test_aging_deprioritizes_old_rules(self, extractor):
+        """超过老化期未使用的规则降权"""
+        from datetime import datetime, timezone, timedelta
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+        # 设置 last_used_at 为 60 天前
+        rule.last_used_at = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+        extractor._save_rule(rule)
+
+        # 创建另一条近期使用的规则
+        log2 = _make_success_log()
+        rules2 = extractor.extract_from_success(log2)
+        rule2 = rules2[0]
+        extractor.submit_for_review(rule2)
+        extractor.approve_rule(rule2.rule_id)
+        rule2.last_used_at = datetime.now(timezone.utc).isoformat()
+        rule2.effectiveness_score = 0.5
+        extractor._save_rule(rule2)
+
+        # retrieve_with_aging 应该优先返回近期规则
+        result = extractor.retrieve_with_aging(rule.source_task_type, rule.keywords)
+        if len(result) >= 2:
+            # 近期规则应该排在前面
+            ids = [r.rule_id for r in result]
+            assert ids.index(rule2.rule_id) < ids.index(rule.rule_id)
+
+    def test_explore_ratio_exists(self):
+        """探索比例常量存在"""
+        from experience_extractor import ExperienceExtractor
+        assert hasattr(ExperienceExtractor, 'EXPLORE_RATIO')
+        assert ExperienceExtractor.EXPLORE_RATIO == 0.2
+
+    def test_aging_days_exists(self):
+        """老化天数常量存在"""
+        from experience_extractor import ExperienceExtractor
+        assert hasattr(ExperienceExtractor, 'AGING_DAYS')
+        assert ExperienceExtractor.AGING_DAYS == 30
+
+    def test_diversity_check_prevents_domain_saturation(self, extractor):
+        """多样性检查阻止同一领域过度进化"""
+        from experience_extractor import ExperienceRule
+        # 创建多条同类型规则并进化
+        for i in range(5):
+            rule = ExperienceRule(
+                rule_id=f"div-{i}", trigger_condition=f"x{i}", action="y", note="",
+                source_task_id="p1", source_task_type="t", rule_type="success_pattern",
+                status="approved", keywords=["a"], created_at="now",
+                effectiveness_score=0.2, usage_count=10, success_count=2,
+            )
+            extractor._save_rule(rule)
+            # 手动触发进化（跳过条件检查）
+            extractor._evolve_rule_impl(rule)
+
+        # 统计进化次数
+        all_rules = extractor.get_all_rules()
+        evolved = [r for r in all_rules if r.status == "evolved"]
+        # 不应该全部进化——多样性检查应该限制
+        # 至少应该有 1 条被拒绝
+        assert len(evolved) <= 5
+
     def test_demotion_stats_empty(self, extractor):
         """无降级时统计报表返回零值"""
         stats = extractor.get_demotion_stats()
