@@ -89,7 +89,7 @@ def _verify_ws_token(ws: WebSocket) -> bool:
     return hmac.compare_digest(token, BACKEND_TOKEN)
 
 
-app = FastAPI()
+app = FastAPI(title="MDH API", version="1.6.0")
 _cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:8080,http://localhost:9090").split(",")
 app.add_middleware(
     CORSMiddleware,
@@ -98,6 +98,19 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+# API 版本化中间件
+@app.middleware("http")
+async def api_version_middleware(request, call_next):
+    """API 版本化：/api/v1/* 重写到 /api/*，响应头加版本标识"""
+    path = request.url.path
+    if path.startswith("/api/v1/"):
+        # 重写路径：/api/v1/foo → /api/foo
+        request.scope["path"] = path[3:]  # 去掉 /v1
+    response = await call_next(request)
+    response.headers["X-API-Version"] = "v1"
+    response.headers["X-MDH-Version"] = "1.6.0"
+    return response
 
 # 注册路由模块（渐进迁移：内联端点保留，新代码使用路由器）
 # NOTE: skills_router 移至 Agent Profile 端点之后，避免 /api/skills/{skill_id} 吞掉 /api/skills/tree
@@ -217,12 +230,12 @@ def _init_ws_ctx():
     )
 
 
-def _ok(data=None):
-    return {"success": True, "data": data, "error": None}
+def _ok(data=None, code: str = "OK"):
+    return {"success": True, "data": data, "error": None, "code": code}
 
 
-def _fail(error: str):
-    return {"success": False, "data": None, "error": error}
+def _fail(error: str, code: str = "ERROR"):
+    return {"success": False, "data": None, "error": error, "code": code}
 
 
 def _build_agenda_snapshot(agenda, session, proposal_id=None) -> dict:
@@ -1280,6 +1293,52 @@ async def get_skill_guidance(agent_id: str):
         return _ok({"agent_id": agent_id, "directions": mgr.get_skill_guidance(agent_id)})
     except Exception as e:
         logger.exception("get_skill_guidance 失败")
+        return _fail(str(e))
+
+
+@app.post("/api/admin/create-key")
+async def create_api_key(request: Request):
+    """创建 API key（admin 权限）"""
+    try:
+        body = await request.json()
+        from rbac import RBACManager
+        rbac = RBACManager(_DATA_DIR)
+        key = rbac.create_api_key(
+            name=body.get("name", "unnamed"),
+            role=body.get("role", "agent"),
+        )
+        return _ok({"key": key, "role": body.get("role", "agent")}, code="KEY_CREATED")
+    except ValueError as e:
+        return _fail(str(e), code="INVALID_ROLE")
+    except Exception as e:
+        logger.exception("create_api_key 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/admin/keys")
+async def list_api_keys():
+    """列出 API key（不含 key 值）"""
+    try:
+        from rbac import RBACManager
+        rbac = RBACManager(_DATA_DIR)
+        return _ok({"keys": rbac.list_keys()})
+    except Exception as e:
+        logger.exception("list_api_keys 失败")
+        return _fail(str(e))
+
+
+@app.delete("/api/admin/keys/{key_hash}")
+async def delete_api_key(key_hash: str):
+    """删除 API key"""
+    try:
+        from rbac import RBACManager
+        rbac = RBACManager(_DATA_DIR)
+        success = rbac.delete_key(key_hash)
+        if success:
+            return _ok({"deleted": True}, code="KEY_DELETED")
+        return _fail("Key 不存在", code="KEY_NOT_FOUND")
+    except Exception as e:
+        logger.exception("delete_api_key 失败")
         return _fail(str(e))
 
 
