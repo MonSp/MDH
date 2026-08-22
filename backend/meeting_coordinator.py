@@ -911,6 +911,11 @@ class MeetingCoordinator:
             ceo_id, user_message, user_message, [], target_agent_id=executor_id
         )
 
+        # 记忆注入：检索 agent 历史经验
+        memory_context = self._recall_agent_memory(executor_id, enhanced_desc)
+        if memory_context:
+            enhanced_desc = f"{enhanced_desc}\n\n{memory_context}"
+
         # 分派给 executor
         await self._msg(ceo_id, f"CEO：简单任务直接分派给 {executor_id} 执行。")
         assign_result = await self.auto_assign_task(enhanced_desc, executor_id, "simple path")
@@ -944,6 +949,9 @@ class MeetingCoordinator:
             agent_id = exec_result.get("agent_id", executor_id)
             bonus_score = review_score if review_approved else max(5.0, review_score - 3.0)
             self._grant_task_xp(agent_id, "backend_dev", True, bonus_score, task_complexity)
+            # 跨会话记忆：任务完成后写入 agent 记忆
+            self._write_task_memory(agent_id, user_message, review_approved, review_score,
+                                     execution_summary=exec_result.get("result", "")[:200])
 
         # 更新路由统计
         self._update_routing_stats_safe()
@@ -1040,6 +1048,47 @@ class MeetingCoordinator:
         except Exception as e:
             self.logger.debug("grant-xp 跳过: %s", e)
             return {"xp_gained": 0}
+
+    def _recall_agent_memory(self, agent_id: str, task_description: str) -> str:
+        """检索 agent 记忆中与任务相关的经验，返回格式化上下文"""
+        try:
+            from agent_memory import AgentMemory
+            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            memory = AgentMemory(data_dir)
+            return memory.recall_for_task(agent_id, task_description)
+        except Exception as e:
+            self.logger.debug("记忆检索跳过: %s", e)
+            return ""
+
+    def _write_task_memory(self, agent_id: str, task_description: str, task_success: bool, review_score: float, execution_summary: str = ""):
+        """任务完成后自动写入 agent 记忆"""
+        try:
+            from agent_memory import AgentMemory
+            data_dir = os.path.join(os.path.dirname(__file__), "data")
+            memory = AgentMemory(data_dir)
+
+            # 提取关键词
+            import re
+            words = re.findall(r'[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}', task_description)
+            keywords = list(set(w.lower() for w in words if len(w) > 2))[:5]
+
+            # 确定记忆类型和重要性
+            if task_success:
+                content = f"完成任务：{task_description[:100]}"
+                importance = min(1.0, 0.3 + review_score * 0.07)  # review 10 → importance 1.0
+            else:
+                content = f"任务未通过审查：{task_description[:100]}"
+                importance = 0.6  # 失败的经验也重要
+
+            memory.add_memory(agent_id, {
+                "type": "task_summary",
+                "content": content,
+                "keywords": keywords,
+                "importance": importance,
+            })
+            self.logger.info("Agent %s 记忆已写入: %s", agent_id, content[:50])
+        except Exception as e:
+            self.logger.debug("记忆写入跳过: %s", e)
 
     def _finalize_skill_evolution(
         self,
@@ -1308,6 +1357,12 @@ class MeetingCoordinator:
         await self._run_approval_phase(coordinator_id, target_agent_id, enhanced_description, on_message)
 
         # 执行 + 审查循环
+        # 记忆注入：任务开始前检索 agent 相关经验
+        memory_context = self._recall_agent_memory(target_agent_id, enhanced_description)
+        if memory_context:
+            enhanced_description = f"{enhanced_description}\n\n{memory_context}"
+            await self._msg(coordinator_id, "项目经理：已注入 agent 历史记忆。")
+
         await self._msg(coordinator_id, "项目经理：监督任务执行和质量审查。")
         discussion_context = self._extract_discussion_decisions(discussion_results)
         execution_results, review_result, review_report = await self._run_dev_loop(
@@ -1337,6 +1392,12 @@ class MeetingCoordinator:
             # 执行即得基础 XP（task_success=True），审查通过给高 review_score 加成
             bonus_score = review_score if review_approved else max(5.0, review_score - 3.0)
             self._grant_task_xp(agent_id, "backend_dev", True, bonus_score, task_complexity, department=dept)
+
+            # 跨会话记忆：任务完成后自动写入 agent 记忆
+            self._write_task_memory(
+                agent_id, user_message, review_approved, review_score,
+                execution_summary=exec_result.get("result", "")[:200],
+            )
 
         project_summary = self._generate_project_summary(
             user_message, analysis, discussion_results, assign_result, review_result, execution_results,

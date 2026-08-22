@@ -131,6 +131,27 @@ class AgentMemory:
 
         return result
 
+    def recall_for_task(self, agent_id: str, task_description: str, max_chars: int = 2000) -> str:
+        """为任务检索相关记忆并格式化为上下文
+
+        将 recall + inject 合并为一步，专门用于任务前注入。
+        """
+        results = self.recall(agent_id, task_description, limit=3)
+        if not results:
+            return ""
+
+        parts = ["## 此前相关经验"]
+        total = 0
+        for entry in results:
+            content = entry.get("content", "")
+            if total + len(content) > max_chars:
+                break
+            entry_type = entry.get("type", "observation")
+            parts.append(f"- [{entry_type}] {content}")
+            total += len(content)
+
+        return "\n".join(parts) if len(parts) > 1 else ""
+
     def inject_context(self, agent_id: str, max_chars: int = 3000) -> str:
         """将 agent 的记忆注入到上下文中
 

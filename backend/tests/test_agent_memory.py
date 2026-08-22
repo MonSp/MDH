@@ -87,3 +87,14 @@ class TestAgentMemory:
         memory.add_memory("agent-1", {"type": "learning", "content": "test"})
         mem2 = AgentMemory(str(tmp_path))
         assert len(mem2.get_memory("agent-1")["entries"]) == 1
+
+    def test_recall_for_task(self, memory):
+        """任务前记忆检索"""
+        memory.add_memory("agent-1", {"type": "task_summary", "content": "完成用户登录API开发", "keywords": ["用户", "登录", "api"]})
+        memory.add_memory("agent-1", {"type": "learning", "content": "React hooks 很好用", "keywords": ["react"]})
+        context = memory.recall_for_task("agent-1", "实现用户登录功能")
+        assert "用户登录" in context or "此前相关经验" in context
+
+    def test_recall_for_task_empty(self, memory):
+        """无匹配记忆返回空"""
+        assert memory.recall_for_task("agent-1", "quantum computing xyz") == ""
