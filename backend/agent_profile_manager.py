@@ -9,7 +9,7 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from db import get_db
+from db import get_db, get_write_lock
 
 logger = logging.getLogger("agent_profile")
 
@@ -52,7 +52,7 @@ class AgentProfileManager:
             return self._locks[agent_id]
 
     def get_or_create(self, agent_id: str, name: str, department: str = "") -> AgentProfile:
-        with self._get_lock(agent_id):
+        with get_write_lock(self._db_path):
             existing = self._get_profile_db(agent_id)
             if existing:
                 if department and not existing.department:
@@ -92,15 +92,16 @@ class AgentProfileManager:
             self._save_profile_db(profile)
 
     def _save_profile_db(self, profile: AgentProfile) -> None:
-        self._db.execute(
-            """INSERT OR REPLACE INTO agent_profiles
-               (agent_id, name, created_at, career_stage, department, total_xp, skill_progress)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (profile.agent_id, profile.name, profile.created_at,
-             profile.career_stage, profile.department, profile.total_xp,
-             json.dumps(profile.skill_progress, ensure_ascii=False)),
-        )
-        self._db.commit()
+        with get_write_lock(self._db_path):
+            self._db.execute(
+                """INSERT OR REPLACE INTO agent_profiles
+                   (agent_id, name, created_at, career_stage, department, total_xp, skill_progress)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (profile.agent_id, profile.name, profile.created_at,
+                 profile.career_stage, profile.department, profile.total_xp,
+                 json.dumps(profile.skill_progress, ensure_ascii=False)),
+            )
+            self._db.commit()
 
     def list_profiles(self) -> List[AgentProfile]:
         rows = self._db.execute("SELECT * FROM agent_profiles").fetchall()
@@ -167,7 +168,7 @@ class AgentProfileManager:
     # ── XP 系统 ──
 
     def grant_xp(self, agent_id, skill_id, task_success, review_score, task_complexity, skill_config):
-        with self._get_lock(agent_id):
+        with get_write_lock(self._db_path):
             return self._grant_xp_unsafe(agent_id, skill_id, task_success, review_score, task_complexity, skill_config)
 
     def _grant_xp_unsafe(self, agent_id, skill_id, task_success, review_score, task_complexity, skill_config) -> Dict:

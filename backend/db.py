@@ -128,6 +128,7 @@ def init_db(db_path: str) -> sqlite3.Connection:
 # 全局连接池（线程安全）
 _db_lock = threading.Lock()
 _connections: Dict[str, sqlite3.Connection] = {}
+_write_locks: Dict[str, threading.RLock] = {}
 
 
 def get_db(db_path: str) -> sqlite3.Connection:
@@ -135,7 +136,16 @@ def get_db(db_path: str) -> sqlite3.Connection:
     with _db_lock:
         if db_path not in _connections:
             _connections[db_path] = init_db(db_path)
+            _write_locks[db_path] = threading.RLock()
         return _connections[db_path]
+
+
+def get_write_lock(db_path: str) -> threading.RLock:
+    """获取数据库写锁（可重入）"""
+    with _db_lock:
+        if db_path not in _write_locks:
+            _write_locks[db_path] = threading.RLock()
+        return _write_locks[db_path]
 
 
 def close_all():
@@ -147,3 +157,4 @@ def close_all():
             except Exception:
                 pass
         _connections.clear()
+        _write_locks.clear()
