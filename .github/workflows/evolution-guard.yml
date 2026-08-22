@@ -1,0 +1,55 @@
+name: Evolution Health Guard
+
+on:
+  # 每天 UTC 02:00 自动运行
+  schedule:
+    - cron: '0 2 * * *'
+  # PR 合并前检查
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/experience_extractor.py'
+      - 'backend/team_federation.py'
+      - 'backend/reflection_priority.py'
+      - 'backend/knowledge_network.py'
+      - 'backend/agent_profile_manager.py'
+      - 'backend/promotion_engine.py'
+  # 手动触发
+  workflow_dispatch:
+
+jobs:
+  evolution-health:
+    name: Evolution Health Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run evolution health guard
+        run: python backend/scripts/evolution_guard.py
+        continue-on-error: true
+        id: guard
+
+      - name: Comment on PR (if issues found)
+        if: github.event_name == 'pull_request' && steps.guard.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = '## 🔍 Evolution Health Check\n\n';
+            body += '进化系统健康度检查发现问题，请查看详细报告。\n\n';
+            body += '**检查项：**\n';
+            body += '- 反思优先级队列\n';
+            body += '- 进化多样性\n';
+            body += '- 进化成功率\n';
+            body += '- 联邦健康\n\n';
+            body += '详情请查看 Action 日志。';
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body,
+            });
