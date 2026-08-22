@@ -180,6 +180,48 @@ class TestTaskComplexityEstimation:
         assert mc._estimate_task_complexity(huge) == 5
 
 
+class TestTaskTriageGate:
+    """任务分流门测试"""
+
+    def test_simple_task(self):
+        from meeting_coordinator import MeetingCoordinator
+        mc = object.__new__(MeetingCoordinator)
+        result = mc._triage_task("帮我写一个 hello world 函数")
+        assert result["level"] == "simple"
+        assert result["confidence"] >= 0.8
+
+    def test_simple_short_description(self):
+        from meeting_coordinator import MeetingCoordinator
+        mc = object.__new__(MeetingCoordinator)
+        result = mc._triage_task("列出当前目录文件")
+        assert result["level"] == "simple"
+
+    def test_complex_task(self):
+        from meeting_coordinator import MeetingCoordinator
+        mc = object.__new__(MeetingCoordinator)
+        result = mc._triage_task("首先设计前端架构，然后实现后端API，最后部署数据库到分布式环境")
+        assert result["level"] == "complex"
+        assert result["confidence"] < 0.5
+
+    def test_standard_task(self):
+        from meeting_coordinator import MeetingCoordinator
+        mc = object.__new__(MeetingCoordinator)
+        result = mc._triage_task("重构登录模块优化数据库查询")
+        assert result["level"] in ("standard", "complex")
+
+    def test_simple_read_operation(self):
+        from meeting_coordinator import MeetingCoordinator
+        mc = object.__new__(MeetingCoordinator)
+        result = mc._triage_task("读取配置文件内容")
+        assert result["level"] == "simple"
+
+    def test_confidence_clamped(self):
+        from meeting_coordinator import MeetingCoordinator
+        mc = object.__new__(MeetingCoordinator)
+        result = mc._triage_task("x")
+        assert 0.0 <= result["confidence"] <= 1.0
+
+
 class TestSkillLevelBoost:
     """技能升级路由加成测试"""
 

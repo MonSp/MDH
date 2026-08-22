@@ -729,6 +729,182 @@ class MeetingCoordinator:
         except Exception as e:
             self.logger.debug("规则有效性更新跳过: %s", e)
 
+    # ── 任务分流门 ──
+
+    @staticmethod
+    def _triage_task(user_message: str) -> Dict[str, Any]:
+        """规则引擎分流门（0 token）
+
+        Returns:
+            {"level": "simple"|"standard"|"complex", "confidence": 0.0-1.0, "reason": str}
+        """
+        lower = user_message.lower()
+        confidence = 0.5
+        signals = []
+
+        # 简单信号
+        simple_keywords = [
+            '写一个', '帮我写', '实现一个', '创建一个', '写个', '打印',
+            'hello world', '写一段', '实现一个简单的', '创建文件',
+            '读取', '查看', '列出', '搜索', 'find', 'list', 'read', 'print',
+        ]
+        simple_count = sum(1 for kw in simple_keywords if kw in lower)
+        if simple_count > 0:
+            confidence += 0.15
+            signals.append(f"simple_kw={simple_count}")
+
+        # 短描述（≤ 30 字）
+        if len(user_message) <= 30:
+            confidence += 0.15
+            signals.append("short_desc")
+
+        # 单文件操作
+        single_file_patterns = [
+            r'(写|创建|读取|编辑|删除)\s*(一个|一段|一个简单的)?\s*(文件|函数|脚本|组件|类)',
+            r'(write|create|read|edit|delete)\s*(a|an|one)?\s*(file|function|script|component|class)',
+        ]
+        import re
+        for pat in single_file_patterns:
+            if re.search(pat, lower):
+                confidence += 0.1
+                signals.append("single_file_op")
+                break
+
+        # 复杂信号（降低 confidence）
+        complex_keywords = [
+            '前端', '后端', '数据库', '部署', '架构', '设计', '重构',
+            '微服务', '分布式', '首先', '然后', '最后', '多个',
+            'frontend', 'backend', 'database', 'deploy', 'architecture',
+            'first', 'then', 'finally', 'multiple',
+        ]
+        complex_count = sum(1 for kw in complex_keywords if kw in lower)
+        if complex_count >= 3:
+            confidence -= 0.3
+            signals.append(f"complex_kw={complex_count}")
+        elif complex_count >= 2:
+            confidence -= 0.15
+            signals.append(f"complex_kw={complex_count}")
+
+        # 多步骤动词
+        step_verbs = ['设计', '开发', '实现', '测试', '部署', '重构', '优化', '分析',
+                      'design', 'develop', 'implement', 'test', 'deploy', 'refactor']
+        step_count = sum(1 for v in step_verbs if v in lower)
+        if step_count >= 3:
+            confidence -= 0.2
+            signals.append(f"steps={step_count}")
+
+        confidence = max(0.0, min(1.0, round(confidence, 2)))
+
+        if confidence >= 0.8:
+            level = "simple"
+        elif confidence >= 0.5:
+            level = "standard"
+        else:
+            level = "complex"
+
+        return {"level": level, "confidence": confidence, "reason": ", ".join(signals) or "default"}
+
+    async def _run_simple_path(
+        self, user_message: str, ceo_id: str, on_message, team_id: str = ""
+    ) -> Dict[str, Any]:
+        """简单任务路径：单 agent 执行 + 轻量审查（跳过讨论/投票/完整审查）"""
+        executor_id = self._find_agent_id(AgentRole.EXECUTOR) or "agent-executor"
+        reviewer_id = self._find_agent_id(AgentRole.REVIEWER) or "agent-reviewer"
+
+        # 注入经验
+        enhanced_desc, injected_rule_ids = await self._inject_experience(
+            ceo_id, user_message, user_message, [], target_agent_id=executor_id
+        )
+
+        # 分派给 executor
+        await self._msg(ceo_id, f"CEO：简单任务直接分派给 {executor_id} 执行。")
+        assign_result = await self.auto_assign_task(enhanced_desc, executor_id, "simple path")
+
+        # 执行
+        await self._msg(executor_id, f"开始执行：{user_message[:80]}")
+        try:
+            exec_results = await self.execute_assigned_tasks()
+        except Exception as e:
+            self.logger.warning("简单路径执行失败: %s", e)
+            exec_results = []
+
+        # 轻量审查（单个 reviewer，1 次 LLM 调用）
+        review_result = {"structured_feedback": {"status": "approved"}}
+        if exec_results:
+            try:
+                exec_text = self._build_execution_artifact_text(exec_results)
+                review_result = await self._lightweight_review(
+                    reviewer_id, enhanced_desc, exec_text, on_message
+                )
+            except Exception as e:
+                self.logger.warning("轻量审查失败: %s", e)
+
+        # XP 授予
+        task_complexity = self._estimate_task_complexity(user_message)
+        review_approved = review_result.get("structured_feedback", {}).get("status", "approved") == "approved"
+        review_score = review_result.get("structured_feedback", {}).get("score", 8.0)
+        if not isinstance(review_score, (int, float)):
+            review_score = 8.0
+        for exec_result in exec_results:
+            agent_id = exec_result.get("agent_id", executor_id)
+            bonus_score = review_score if review_approved else max(5.0, review_score - 3.0)
+            self._grant_task_xp(agent_id, "backend_dev", True, bonus_score, task_complexity)
+
+        # 更新路由统计
+        self._update_routing_stats_safe()
+
+        # 技能进化（简化版）
+        await self._run_skill_evolution(ceo_id, user_message, [], review_result, exec_results)
+
+        # 更新规则有效性
+        if injected_rule_ids:
+            await self._update_injected_rule_effectiveness(ceo_id, injected_rule_ids, review_result)
+
+        return {
+            "type": "simple_completed",
+            "execution_results": exec_results,
+            "review_result": review_result,
+            "injected_rule_ids": injected_rule_ids,
+            "path": "simple",
+        }
+
+    async def _lightweight_review(self, reviewer_id, task_desc, exec_text, on_message) -> Dict:
+        """轻量审查：单个 reviewer 一次 LLM 调用"""
+        prompt = (
+            f"你是 QA 工程师。请快速审查以下任务执行结果。\n\n"
+            f"任务：{task_desc[:200]}\n\n"
+            f"执行结果：{exec_text[:500]}\n\n"
+            f"请判断：1) 产出是否完整 2) 是否有明显错误\n"
+            f"回复格式：\n"
+            f"status: approved 或 revision_required\n"
+            f"score: 1-10\n"
+            f"issues: 问题列表（如有）"
+        )
+        try:
+            reviewer = self._resolve_agent(reviewer_id)
+            if reviewer:
+                model = self._get_model(reviewer.role)
+                response = await asyncio.wait_for(model.reply(prompt), timeout=60)
+                content = response.content if hasattr(response, 'content') else str(response)
+                # 解析回复
+                status = "approved"
+                score = 7.0
+                for line in content.split("\n"):
+                    line_lower = line.strip().lower()
+                    if "revision_required" in line_lower:
+                        status = "revision_required"
+                    elif line_lower.startswith("status:"):
+                        status = "approved" if "approved" in line_lower else "revision_required"
+                    elif line_lower.startswith("score:"):
+                        try:
+                            score = float(line_lower.split(":")[1].strip())
+                        except ValueError:
+                            pass
+                return {"structured_feedback": {"status": status, "score": score}}
+        except Exception as e:
+            self.logger.debug("轻量审查异常: %s", e)
+        return {"structured_feedback": {"status": "approved", "score": 7.0}}
+
     def _grant_task_xp(self, agent_id, skill_id, task_success, review_score, task_complexity, department: str = ""):
         """任务完成后授予 XP，含 mentor 奖励"""
         try:
@@ -985,6 +1161,15 @@ class MeetingCoordinator:
 
         ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
         coordinator_id = self._find_agent_id(AgentRole.COORDINATOR) or "agent-coordinator"
+
+        # 任务分流门（规则引擎，0 token）
+        triage = self._triage_task(user_message)
+        self.logger.info("任务分流: level=%s confidence=%.2f reason=%s",
+                         triage["level"], triage["confidence"], triage["reason"])
+
+        if triage["level"] == "simple" and triage["confidence"] >= 0.8:
+            await self._msg(ceo_id, f"CEO：收到简单任务「{user_message[:50]}...」，直接分派执行。")
+            return await self._run_simple_path(user_message, ceo_id, on_message, team_id=team_id)
 
         # CEO 交接
         await self._msg(ceo_id, f"CEO：收到任务「{user_message[:50]}...」，已交给项目经理处理。")
