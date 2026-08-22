@@ -49,10 +49,12 @@ class TestAgentMemory:
     def test_aging(self, memory):
         """记忆老化"""
         memory.add_memory("agent-1", {"type": "observation", "content": "旧记忆", "importance": 0.8})
-        # 直接修改 last_referenced_at 模拟老化
-        mem = memory.get_memory("agent-1")
-        mem["entries"][0]["last_referenced_at"] = "2020-01-01T00:00:00Z"
-        memory._save_memory("agent-1", mem)
+        # 直接修改 DB 中的 last_referenced_at 模拟老化
+        memory._db.execute(
+            "UPDATE agent_memories SET last_referenced_at = ? WHERE agent_id = ?",
+            ("2020-01-01T00:00:00Z", "agent-1"),
+        )
+        memory._db.commit()
 
         aged = memory.age_memories("agent-1", aging_days=30)
         assert aged == 1

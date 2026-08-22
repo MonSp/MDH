@@ -1,98 +1,99 @@
-"""Agent 持久记忆 — 让数字员工有跨会话的"个人记忆"
-
-核心机制：
-1. 记忆文件：每个 agent 持久化的 memory.md，跨项目保留
-2. 自动摘要：任务完成后自动提取关键信息写入记忆
-3. 记忆注入：新会话开始时，agent 的记忆自动注入上下文
-4. 记忆老化：长期未被引用的记忆自动降权
-"""
+"""Agent 持久记忆 — SQLite 存储后端"""
 
 import json
 import logging
 import os
-from datetime import datetime, timezone
+import threading
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
+
+from db import get_db
 
 logger = logging.getLogger("agent_memory")
 
 
 class AgentMemory:
-    """Agent 持久记忆管理器"""
+    """Agent 持久记忆管理器（SQLite 存储）"""
 
     def __init__(self, data_dir: str):
         self._data_dir = data_dir
         self._memory_dir = os.path.join(data_dir, "agent_memory")
         os.makedirs(self._memory_dir, exist_ok=True)
-
-    def _memory_path(self, agent_id: str) -> str:
-        return os.path.join(self._memory_dir, f"{agent_id}.json")
+        self._db_path = os.path.join(data_dir, "agent_memory.db")
+        self._db = get_db(self._db_path)
+        self._lock = threading.Lock()
 
     def _md_path(self, agent_id: str) -> str:
         return os.path.join(self._memory_dir, f"{agent_id}.md")
 
+    def _next_id(self, agent_id: str) -> str:
+        row = self._db.execute(
+            "SELECT COUNT(*) as cnt FROM agent_memories WHERE agent_id = ?", (agent_id,)
+        ).fetchone()
+        return f"mem-{(row['cnt'] or 0) + 1:04d}"
+
     def get_memory(self, agent_id: str) -> Dict[str, Any]:
         """获取 agent 的完整记忆"""
-        path = self._memory_path(agent_id)
-        if not os.path.isfile(path):
-            return {"agent_id": agent_id, "entries": [], "summary": ""}
-        try:
-            with open(path, encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {"agent_id": agent_id, "entries": [], "summary": ""}
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT * FROM agent_memories WHERE agent_id = ? ORDER BY created_at", (agent_id,)
+            ).fetchall()
+        entries = [self._row_to_entry(r) for r in rows]
+        summary = self._compute_summary(entries)
+        return {"agent_id": agent_id, "entries": entries, "summary": summary}
 
-    def _save_memory(self, agent_id: str, memory: Dict[str, Any]):
-        """保存记忆"""
-        path = self._memory_path(agent_id)
-        tmp = path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(memory, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, path)
-        # 同步生成 markdown 版本
-        self._generate_markdown(agent_id, memory)
+    def _row_to_entry(self, row) -> Dict:
+        kw = row["keywords"]
+        if isinstance(kw, str):
+            try:
+                kw = json.loads(kw)
+            except Exception:
+                kw = []
+        return {
+            "id": row["memory_id"],
+            "type": row["type"],
+            "content": row["content"],
+            "task_id": row["task_id"] or "",
+            "keywords": kw if isinstance(kw, list) else [],
+            "importance": row["importance"],
+            "referenced_count": row["referenced_count"],
+            "created_at": row["created_at"],
+            "last_referenced_at": row["last_referenced_at"],
+        }
 
     def add_memory(self, agent_id: str, entry: Dict[str, Any]) -> Dict:
-        """添加一条记忆
-
-        Args:
-            agent_id: agent ID
-            entry: {
-                "type": "task_summary" | "learning" | "interaction" | "observation",
-                "content": str,           # 记忆内容
-                "task_id": str,           # 关联任务 ID
-                "keywords": [str],        # 关键词
-                "importance": float,      # 重要性 0.0-1.0
-            }
-        Returns:
-            添加的记忆条目
-        """
-        memory = self.get_memory(agent_id)
-
+        """添加一条记忆"""
+        now = datetime.now(timezone.utc).isoformat()
+        memory_id = self._next_id(agent_id)
         entry_data = {
-            "id": f"mem-{len(memory['entries']) + 1:04d}",
+            "id": memory_id,
             "type": entry.get("type", "observation"),
             "content": entry.get("content", ""),
             "task_id": entry.get("task_id", ""),
             "keywords": entry.get("keywords", []),
             "importance": entry.get("importance", 0.5),
             "referenced_count": 0,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "last_referenced_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now,
+            "last_referenced_at": now,
         }
 
-        memory["entries"].append(entry_data)
-        # 更新摘要
-        memory["summary"] = self._compute_summary(memory["entries"])
-        self._save_memory(agent_id, memory)
-
-        logger.info("Agent %s 新增记忆: %s (%s)", agent_id, entry_data["id"], entry_data["type"][:30])
+        with self._lock:
+            self._db.execute(
+                """INSERT INTO agent_memories
+                   (agent_id, memory_id, type, content, task_id, keywords,
+                    importance, referenced_count, created_at, last_referenced_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (agent_id, memory_id, entry_data["type"], entry_data["content"],
+                 entry_data["task_id"], json.dumps(entry_data["keywords"], ensure_ascii=False),
+                 entry_data["importance"], 0, now, now),
+            )
+            self._db.commit()
+        self._generate_markdown(agent_id)
+        logger.info("Agent %s 新增记忆: %s (%s)", agent_id, memory_id, entry_data["type"])
         return entry_data
 
     def recall(self, agent_id: str, query: str, limit: int = 5) -> List[Dict]:
-        """检索相关记忆
-
-        基于关键词匹配 + 重要性 + 时效性排序。
-        """
+        """检索相关记忆"""
         memory = self.get_memory(agent_id)
         if not memory["entries"]:
             return []
@@ -101,45 +102,35 @@ class AgentMemory:
         scored = []
         for entry in memory["entries"]:
             score = 0.0
-
-            # 关键词匹配
             for kw in entry.get("keywords", []):
                 if kw.lower() in query_lower or query_lower in kw.lower():
                     score += 2.0
-
-            # 内容匹配
             if query_lower in entry.get("content", "").lower():
                 score += 1.5
-
-            # 重要性加权（只在已有匹配时加权）
             if score > 0:
                 score *= (0.5 + entry.get("importance", 0.5))
                 scored.append((score, entry))
 
-        # 按得分排序
         scored.sort(key=lambda x: -x[0])
-
-        # 更新引用计数
         result = []
+        now = datetime.now(timezone.utc).isoformat()
         for score, entry in scored[:limit]:
             entry["referenced_count"] = entry.get("referenced_count", 0) + 1
-            entry["last_referenced_at"] = datetime.now(timezone.utc).isoformat()
+            entry["last_referenced_at"] = now
+            with self._lock:
+                self._db.execute(
+                    "UPDATE agent_memories SET referenced_count = ?, last_referenced_at = ? WHERE agent_id = ? AND memory_id = ?",
+                    (entry["referenced_count"], now, agent_id, entry["id"]),
+                )
+                self._db.commit()
             result.append(entry)
-
-        if result:
-            self._save_memory(agent_id, memory)
-
         return result
 
     def recall_for_task(self, agent_id: str, task_description: str, max_chars: int = 2000) -> str:
-        """为任务检索相关记忆并格式化为上下文
-
-        将 recall + inject 合并为一步，专门用于任务前注入。
-        """
+        """为任务检索相关记忆并格式化为上下文"""
         results = self.recall(agent_id, task_description, limit=3)
         if not results:
             return ""
-
         parts = ["## 此前相关经验"]
         total = 0
         for entry in results:
@@ -149,32 +140,23 @@ class AgentMemory:
             entry_type = entry.get("type", "observation")
             parts.append(f"- [{entry_type}] {content}")
             total += len(content)
-
         return "\n".join(parts) if len(parts) > 1 else ""
 
     def inject_context(self, agent_id: str, max_chars: int = 3000) -> str:
-        """将 agent 的记忆注入到上下文中
-
-        返回格式化的记忆文本，用于注入 system prompt。
-        """
+        """将 agent 的记忆注入到上下文中"""
         memory = self.get_memory(agent_id)
         if not memory["entries"]:
             return ""
-
-        # 按重要性和引用次数排序，取 top N
         entries = sorted(
             memory["entries"],
             key=lambda e: e.get("importance", 0.5) * (1 + e.get("referenced_count", 0) * 0.1),
             reverse=True,
         )
-
         parts = ["## 个人记忆"]
         total_chars = 0
-
         if memory.get("summary"):
             parts.append(f"\n### 摘要\n{memory['summary']}")
             total_chars += len(memory["summary"])
-
         for entry in entries:
             content = entry.get("content", "")
             if total_chars + len(content) > max_chars:
@@ -183,73 +165,54 @@ class AgentMemory:
             type_icon = {"task_summary": "📋", "learning": "💡", "interaction": "🤝", "observation": "👁"}.get(entry_type, "📝")
             parts.append(f"\n{type_icon} [{entry_type}] {content}")
             total_chars += len(content)
-
         return "\n".join(parts) if len(parts) > 1 else ""
 
     def age_memories(self, agent_id: str, aging_days: int = 30) -> int:
-        """老化未被引用的记忆
-
-        超过 aging_days 未被引用的记忆，重要性减半。
-        """
-        from datetime import timedelta
-        memory = self.get_memory(agent_id)
-        if not memory["entries"]:
-            return 0
-
+        """老化未被引用的记忆"""
         threshold = datetime.now(timezone.utc) - timedelta(days=aging_days)
-        aged = 0
-
-        for entry in memory["entries"]:
-            last_ref = entry.get("last_referenced_at", entry.get("created_at", ""))
-            if last_ref:
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT * FROM agent_memories WHERE agent_id = ?", (agent_id,)
+            ).fetchall()
+            aged = 0
+            for row in rows:
+                last_ref = row["last_referenced_at"] or row["created_at"]
                 try:
                     last_dt = datetime.fromisoformat(last_ref)
                     if last_dt < threshold:
-                        entry["importance"] = max(0.1, entry.get("importance", 0.5) * 0.5)
+                        new_imp = max(0.1, (row["importance"] or 0.5) * 0.5)
+                        self._db.execute(
+                            "UPDATE agent_memories SET importance = ? WHERE agent_id = ? AND memory_id = ?",
+                            (new_imp, agent_id, row["memory_id"]),
+                        )
                         aged += 1
                 except (ValueError, TypeError):
                     pass
-
+            self._db.commit()
         if aged:
-            memory["summary"] = self._compute_summary(memory["entries"])
-            self._save_memory(agent_id, memory)
+            self._generate_markdown(agent_id)
             logger.info("Agent %s: %d 条记忆已老化", agent_id, aged)
-
         return aged
 
     def get_stats(self) -> Dict:
         """记忆统计"""
-        total_agents = 0
-        total_entries = 0
+        with self._lock:
+            rows = self._db.execute("SELECT * FROM agent_memories").fetchall()
+        total_agents = len({r["agent_id"] for r in rows})
         by_type = {}
-
-        for fname in os.listdir(self._memory_dir):
-            if not fname.endswith(".json"):
-                continue
-            total_agents += 1
-            try:
-                with open(os.path.join(self._memory_dir, fname), encoding="utf-8") as f:
-                    memory = json.load(f)
-                entries = memory.get("entries", [])
-                total_entries += len(entries)
-                for e in entries:
-                    t = e.get("type", "unknown")
-                    by_type[t] = by_type.get(t, 0) + 1
-            except Exception:
-                pass
-
+        for r in rows:
+            t = r["type"] or "unknown"
+            by_type[t] = by_type.get(t, 0) + 1
         return {
             "total_agents": total_agents,
-            "total_entries": total_entries,
+            "total_entries": len(rows),
             "by_type": by_type,
         }
 
     @staticmethod
     def _compute_summary(entries: List[Dict]) -> str:
-        """计算记忆摘要（最近 5 条高重要性记忆）"""
         if not entries:
             return ""
-        # 取最近的高重要性记忆
         sorted_entries = sorted(
             entries,
             key=lambda e: (e.get("importance", 0.5), e.get("created_at", "")),
@@ -258,13 +221,12 @@ class AgentMemory:
         summaries = [e.get("content", "")[:80] for e in sorted_entries if e.get("content")]
         return "; ".join(summaries)
 
-    def _generate_markdown(self, agent_id: str, memory: Dict[str, Any]):
+    def _generate_markdown(self, agent_id: str):
         """生成 markdown 版本的记忆文件"""
+        memory = self.get_memory(agent_id)
         lines = [f"# {agent_id} Memory", ""]
-
         if memory.get("summary"):
             lines.append(f"## Summary\n{memory['summary']}\n")
-
         for entry in memory.get("entries", []):
             entry_type = entry.get("type", "observation")
             lines.append(f"### [{entry_type}] {entry.get('created_at', '')[:10]}")
@@ -273,7 +235,6 @@ class AgentMemory:
                 lines.append(f"Keywords: {', '.join(entry['keywords'])}")
             lines.append(f"Importance: {entry.get('importance', 0.5):.1f} | Referenced: {entry.get('referenced_count', 0)}")
             lines.append("")
-
         md_path = self._md_path(agent_id)
         with open(md_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
