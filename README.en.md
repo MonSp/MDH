@@ -64,6 +64,14 @@ Task → Execute → Produce Assets → Distill Experience → Evolve Skills →
 
 This loop transforms digital employees from one-shot tools into continuously evolving colleagues. They carry their own memory, experience, skill trees, and career paths — and they get stronger with every task.
 
+### Evolution Is Self-Driving
+
+Rules don't just get passively demoted — low-scoring rules automatically generate improved versions (self-evolution), and improved rules cascade updates to related skill packs and assets (linked evolution). The system automatically identifies which knowledge domains need the most reflection (reflection priority queue), and prevents evolution overfitting: saturation in one domain is capped, stale rules are deprioritized, and 20% of injection time is spent exploring unknown domains.
+
+High-quality experience flows across teams through quality gates, while low-trust teams' rules are filtered by trust scoring (multi-team evolution federation). The system knows its own capability boundaries — which domains are high-confidence, which are blind spots (capability boundary awareness) — and proactively seeks external help when operating in unfamiliar territory.
+
+Human feedback isn't "seen and forgotten" — structured review comments are automatically converted into experience rules that directly influence the digital employee's next performance. Skill direction guidance from humans affects task assignment and XP allocation (human-in-the-loop feedback).
+
 ## Quick Start
 
 ### 1. Frontend
