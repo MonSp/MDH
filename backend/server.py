@@ -1200,6 +1200,51 @@ async def get_proactive_alerts(limit: int = 20):
         return _fail(str(e))
 
 
+@app.get("/api/team/synergy")
+async def get_team_synergy():
+    """团队协同分析"""
+    try:
+        from team_synergy import TeamSynergy
+        synergy = TeamSynergy(_DATA_DIR)
+        return _ok(synergy.analyze_synergy())
+    except Exception as e:
+        logger.exception("get_team_synergy 失败")
+        return _fail(str(e))
+
+
+@app.post("/api/team/synergy/record")
+async def record_team_task(request: Request):
+    """记录团队任务执行"""
+    try:
+        body = await request.json()
+        from team_synergy import TeamSynergy
+        synergy = TeamSynergy(_DATA_DIR)
+        synergy.record_team_task(
+            agent_ids=body.get("agent_ids", []),
+            task_type=body.get("task_type", ""),
+            success=body.get("success", False),
+            review_score=body.get("review_score", 0),
+        )
+        return _ok({"recorded": True})
+    except Exception as e:
+        logger.exception("record_team_task 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/team/synergy/recommend")
+async def recommend_team(task_type: str = "", agents: str = ""):
+    """为任务推荐最优 agent 组合"""
+    try:
+        from team_synergy import TeamSynergy
+        synergy = TeamSynergy(_DATA_DIR)
+        agent_list = [a.strip() for a in agents.split(",") if a.strip()] if agents else []
+        recommended = synergy.recommend_for_task(task_type, agent_list)
+        return _ok({"recommended_agents": recommended, "task_type": task_type})
+    except Exception as e:
+        logger.exception("recommend_team 失败")
+        return _fail(str(e))
+
+
 @app.post("/api/feedback/submit")
 async def submit_human_feedback(request: Request):
     """提交人类结构化反馈"""
