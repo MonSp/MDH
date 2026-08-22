@@ -1005,6 +1005,56 @@ async def get_document_stats():
         return _fail(str(e))
 
 
+@app.get("/api/workspace/analyze")
+async def analyze_workspace(path: str = ""):
+    """分析代码仓库结构"""
+    try:
+        from live_document import LiveDocumentManager
+        mgr = LiveDocumentManager(_DATA_DIR)
+        return _ok(mgr.analyze_codebase(path))
+    except Exception as e:
+        logger.exception("analyze_workspace 失败")
+        return _fail(str(e))
+
+
+@app.post("/api/workspace/analyze-dataset")
+async def analyze_dataset(request: Request):
+    """解析数据集"""
+    try:
+        body = await request.json()
+        file_path = body.get("file_path", "")
+        from live_document import LiveDocumentManager
+        mgr = LiveDocumentManager(_DATA_DIR)
+        return _ok(mgr.analyze_dataset(file_path))
+    except Exception as e:
+        logger.exception("analyze_dataset 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/workspace/artifacts")
+async def get_artifact_history(file_path: str = "", agent_id: str = "", limit: int = 20):
+    """产出物变更历史"""
+    try:
+        from live_document import LiveDocumentManager
+        mgr = LiveDocumentManager(_DATA_DIR)
+        return _ok({"history": mgr.get_artifact_history(file_path, agent_id, limit), "stats": mgr.get_artifact_stats()})
+    except Exception as e:
+        logger.exception("get_artifact_history 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/workspace/conflicts")
+async def get_document_conflicts(limit: int = 10):
+    """文档编辑冲突记录"""
+    try:
+        from live_document import LiveDocumentManager
+        mgr = LiveDocumentManager(_DATA_DIR)
+        return _ok({"conflicts": mgr.get_conflicts(limit)})
+    except Exception as e:
+        logger.exception("get_document_conflicts 失败")
+        return _fail(str(e))
+
+
 @app.post("/api/feedback/submit")
 async def submit_human_feedback(request: Request):
     """提交人类结构化反馈"""
