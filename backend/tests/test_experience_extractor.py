@@ -624,6 +624,126 @@ class TestRuleEffectiveness:
         assert entry["rule_type"] == rule.rule_type
         assert entry["team_id"] == rule.team_id
 
+
+# ──────────────────── 规则自进化 ────────────────────
+
+
+class TestRuleEvolution:
+    def test_evolve_rule_basic(self, extractor):
+        """低分规则触发进化，产生改进版规则"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        # 模拟低分：5 次使用，1 次成功
+        for i in range(5):
+            extractor.update_rule_effectiveness(rule.rule_id, i == 0)
+
+        # 原规则被标记为 evolved
+        loaded = extractor._load_rule(rule.rule_id)
+        assert loaded.status == "evolved"
+
+        # 产生进化后的规则
+        all_rules = extractor.get_all_rules()
+        evolved = [r for r in all_rules if r.parent_rule_id == rule.rule_id]
+        assert len(evolved) == 1
+        assert evolved[0].status == "approved"
+        assert evolved[0].evolution_count == 1
+
+    def test_evolve_creates_child_rule(self, extractor):
+        """进化产生新规则，继承原规则的核心信息"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for i in range(5):
+            extractor.update_rule_effectiveness(rule.rule_id, i == 0)
+
+        # 查找进化后的规则
+        all_rules = extractor.get_all_rules()
+        evolved = [r for r in all_rules if r.parent_rule_id == rule.rule_id]
+        assert len(evolved) == 1
+        assert evolved[0].status == "approved"
+        assert evolved[0].trigger_condition == rule.trigger_condition
+        assert evolved[0].evolution_count == 1
+
+    def test_evolve_max_count(self, extractor):
+        """单条规则最多进化 3 次"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        # 进化 3 次
+        current_id = rule.rule_id
+        for _ in range(3):
+            for i in range(5):
+                extractor.update_rule_effectiveness(current_id, i == 0)
+            # 找到进化后的规则
+            all_rules = extractor.get_all_rules()
+            evolved = [r for r in all_rules if r.parent_rule_id == current_id and r.status == "approved"]
+            if evolved:
+                current_id = evolved[0].rule_id
+
+        # 第 4 次不应该进化
+        for i in range(5):
+            extractor.update_rule_effectiveness(current_id, i == 0)
+        all_rules = extractor.get_all_rules()
+        evolved_4 = [r for r in all_rules if r.parent_rule_id == current_id]
+        assert len(evolved_4) == 0
+
+    def test_evolution_chain(self, extractor):
+        """获取完整的进化链"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for i in range(5):
+            extractor.update_rule_effectiveness(rule.rule_id, i == 0)
+
+        chain = extractor.get_evolution_chain(rule.rule_id)
+        assert len(chain) >= 2
+        assert chain[0]["rule_id"] == rule.rule_id  # 原始规则
+        assert chain[-1]["parent_rule_id"] == rule.rule_id  # 进化后
+
+    def test_evolution_log(self, extractor):
+        """进化事件记录到日志"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for i in range(5):
+            extractor.update_rule_effectiveness(rule.rule_id, i == 0)
+
+        evo_log = extractor.get_evolution_log()
+        assert len(evo_log) >= 1
+        assert evo_log[0]["original_rule_id"] == rule.rule_id
+        assert "evolved_rule_id" in evo_log[0]
+
+    def test_no_evolve_when_score_adequate(self, extractor):
+        """高分规则不触发进化"""
+        log = _make_success_log()
+        rules = extractor.extract_from_success(log)
+        rule = rules[0]
+        extractor.submit_for_review(rule)
+        extractor.approve_rule(rule.rule_id)
+
+        for _ in range(5):
+            extractor.update_rule_effectiveness(rule.rule_id, True)
+
+        loaded = extractor._load_rule(rule.rule_id)
+        assert loaded.status == "approved"
+        assert loaded.evolution_count == 0
+
     def test_demotion_stats_empty(self, extractor):
         """无降级时统计报表返回零值"""
         stats = extractor.get_demotion_stats()

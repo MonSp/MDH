@@ -52,6 +52,8 @@ class ExperienceRule:
     effectiveness_score: float = 0.0  # 有效性评分（成功/总使用）
     usage_count: int = 0  # 被注入任务的次数
     success_count: int = 0  # 注入后任务成功的次数
+    parent_rule_id: str = ""  # 进化来源规则 ID（非空 = 本规则是进化产生的）
+    evolution_count: int = 0  # 本规则被进化的次数
 
 
 def _now_iso() -> str:
@@ -159,6 +161,8 @@ class ExperienceExtractor:
                     "effectiveness_score": rule.effectiveness_score,
                     "usage_count": rule.usage_count,
                     "success_count": rule.success_count,
+                    "parent_rule_id": rule.parent_rule_id,
+                    "evolution_count": rule.evolution_count,
                 }
             ]
         }
@@ -194,6 +198,8 @@ class ExperienceExtractor:
                 effectiveness_score=float(r.get("effectiveness_score", 0.0)),
                 usage_count=int(r.get("usage_count", 0)),
                 success_count=int(r.get("success_count", 0)),
+                parent_rule_id=r.get("parent_rule_id", ""),
+                evolution_count=int(r.get("evolution_count", 0)),
             )
         except Exception:
             logger.exception("Failed to load rule %s", rule_id)
@@ -566,6 +572,181 @@ class ExperienceExtractor:
         recommendations.sort(key=lambda x: x["effectiveness_score"], reverse=True)
         return recommendations
 
+    # ──────────────────── 规则自进化 ────────────────────
+
+    EVOLUTION_MIN_USAGE = 5
+    EVOLUTION_MIN_SCORE = 0.3
+    EVOLUTION_MAX_COUNT = 3  # 单条规则最多进化 3 次
+
+    def evolve_rule(self, rule_id: str, failure_reason: str = "") -> Optional[ExperienceRule]:
+        """规则自进化：分析失败原因，生成改进版规则
+
+        Args:
+            rule_id: 原规则 ID
+            failure_reason: 最近一次失败的审查反馈（可选）
+        Returns:
+            进化后的新规则，或 None（不满足进化条件）
+        """
+        rule = self._load_rule(rule_id)
+        if not rule:
+            return None
+        return self._evolve_rule_impl(rule, failure_reason)
+
+    def _evolve_rule_impl(self, rule: ExperienceRule, failure_reason: str = "") -> Optional[ExperienceRule]:
+        """规则自进化实现（接受内存中的规则对象）"""
+        # 检查进化条件
+        if rule.status not in ("approved", "pending_review"):
+            return None
+        if rule.usage_count < self.EVOLUTION_MIN_USAGE:
+            return None
+        if rule.effectiveness_score >= self.EVOLUTION_MIN_SCORE:
+            return None
+        if rule.evolution_count >= self.EVOLUTION_MAX_COUNT:
+            logger.info("Rule %s 已达最大进化次数 (%d)，跳过", rule.rule_id, self.EVOLUTION_MAX_COUNT)
+            return None
+
+        # 生成改进版规则
+        evolved = self._generate_evolved_rule(rule, failure_reason)
+        if not evolved:
+            return None
+
+        # 保存进化后的规则
+        self._save_rule(evolved)
+        logger.info("Rule %s 进化为 %s (evolution_count=%d)",
+                     rule.rule_id, evolved.rule_id, evolved.evolution_count)
+
+        # 记录进化日志
+        self._append_evolution_log(rule, evolved, failure_reason)
+
+        return evolved
+
+    def _generate_evolved_rule(self, original: ExperienceRule, failure_reason: str) -> Optional[ExperienceRule]:
+        """生成改进版规则（基于原规则 + 失败原因）
+
+        策略：
+        1. 保留原规则的核心意图
+        2. 根据失败原因调整 trigger_condition 或 action
+        3. 重置统计计数，保留 parent_rule_id 链
+        """
+        # 简单进化策略：调整 action，添加更具体的约束
+        evolved_action = original.action
+        if failure_reason:
+            # 从失败原因中提取关键约束
+            constraints = self._extract_constraints_from_failure(failure_reason)
+            if constraints:
+                evolved_action = f"{original.action}（注意：{constraints}）"
+
+        evolved = ExperienceRule(
+            rule_id=_new_rule_id(),
+            trigger_condition=original.trigger_condition,
+            action=evolved_action,
+            note=f"从 {original.rule_id[:8]} 进化而来。原规则有效性: {original.effectiveness_score:.0%}",
+            source_task_id=original.source_task_id,
+            source_task_type=original.source_task_type,
+            rule_type=original.rule_type,
+            status="approved",  # 进化版自动批准
+            keywords=original.keywords,
+            created_at=_now_iso(),
+            team_id=original.team_id,
+            source_agent_id=original.source_agent_id,
+            parent_rule_id=original.rule_id,
+            evolution_count=original.evolution_count + 1,
+        )
+
+        # 退役原规则
+        original.status = "evolved"
+        self._save_rule(original)
+
+        return evolved
+
+    @staticmethod
+    def _extract_constraints_from_failure(failure_reason: str) -> str:
+        """从失败原因中提取关键约束"""
+        constraints = []
+        lower = failure_reason.lower()
+        if "错误" in failure_reason or "error" in lower:
+            constraints.append("确保代码无语法错误")
+        if "遗漏" in failure_reason or "missing" in lower:
+            constraints.append("检查是否有遗漏的边界情况")
+        if "性能" in failure_reason or "performance" in lower:
+            constraints.append("关注性能优化")
+        if "安全" in failure_reason or "security" in lower:
+            constraints.append("注意安全漏洞")
+        return "；".join(constraints) if constraints else ""
+
+    def get_evolution_chain(self, rule_id: str) -> List[Dict]:
+        """获取规则的进化链（从原始到最新）"""
+        chain = []
+        current_id = rule_id
+        visited = set()
+
+        # 向前追溯（找到原始规则）
+        while current_id and current_id not in visited:
+            visited.add(current_id)
+            rule = self._load_rule(current_id)
+            if not rule:
+                break
+            chain.insert(0, {
+                "rule_id": rule.rule_id,
+                "trigger_condition": rule.trigger_condition,
+                "action": rule.action,
+                "effectiveness_score": rule.effectiveness_score,
+                "usage_count": rule.usage_count,
+                "status": rule.status,
+                "evolution_count": rule.evolution_count,
+                "parent_rule_id": rule.parent_rule_id,
+                "created_at": rule.created_at,
+            })
+            current_id = rule.parent_rule_id
+
+        # 向后查找（找到进化后的规则）
+        for rid in self._list_rule_ids():
+            rule = self._load_rule(rid)
+            if rule and rule.parent_rule_id == rule_id and rid not in visited:
+                chain.extend(self.get_evolution_chain(rid))
+
+        return chain
+
+    def get_evolution_log(self) -> List[Dict]:
+        """获取进化日志"""
+        import json
+        log_path = os.path.join(self._incremental_dir, "evolution_log.json")
+        try:
+            if os.path.isfile(log_path):
+                with open(log_path, encoding="utf-8") as f:
+                    return list(reversed(json.load(f)))
+        except Exception:
+            pass
+        return []
+
+    def _append_evolution_log(self, original: ExperienceRule, evolved: ExperienceRule, failure_reason: str) -> None:
+        """记录进化事件"""
+        import json
+        log_path = os.path.join(self._incremental_dir, "evolution_log.json")
+        entry = {
+            "original_rule_id": original.rule_id,
+            "evolved_rule_id": evolved.rule_id,
+            "trigger_condition": original.trigger_condition,
+            "original_action": original.action,
+            "evolved_action": evolved.action,
+            "original_score": original.effectiveness_score,
+            "usage_count": original.usage_count,
+            "failure_reason": failure_reason[:200],
+            "evolved_at": _now_iso(),
+        }
+        try:
+            log = []
+            if os.path.isfile(log_path):
+                with open(log_path, encoding="utf-8") as f:
+                    log = json.load(f)
+            log.append(entry)
+            tmp = log_path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(log, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, log_path)
+        except Exception:
+            logger.exception("Failed to append evolution log")
+
     def get_demotion_stats(self) -> Dict:
         """降级统计报表：按类型/团队/时间聚合，含复审率"""
         import json
@@ -653,6 +834,9 @@ class ExperienceExtractor:
             reason = f"score={rule.effectiveness_score:.2f} ({rule.success_count}/{rule.usage_count}) < {self.DEMOTION_THRESHOLD:.0%} threshold"
             logger.warning("Rule %s auto-demoted: %s", rule_id, reason)
             self._append_demotion_log(rule, reason)
+        # 规则自进化：低分规则自动生成改进版（独立于降级检查）
+        if rule.effectiveness_score < self.EVOLUTION_MIN_SCORE and rule.usage_count >= self.EVOLUTION_MIN_USAGE:
+            self._evolve_rule_impl(rule)
         self._save_rule(rule)
         logger.info("Rule %s effectiveness updated: score=%.2f (%d/%d)",
                      rule_id, rule.effectiveness_score, rule.success_count, rule.usage_count)
