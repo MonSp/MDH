@@ -712,6 +712,25 @@ class ExperienceExtractor:
         except Exception as e:
             logger.debug("联动进化跳过: %s", e)
 
+        # 多团队联邦：高分进化规则自动发布到共享池
+        try:
+            from team_federation import TeamFederation
+            federation = TeamFederation(os.path.dirname(self._incremental_dir))
+            federation.publish_evolution(
+                team_id=rule.team_id or "global",
+                rule_data={
+                    "rule_id": evolved.rule_id,
+                    "trigger_condition": evolved.trigger_condition,
+                    "action": evolved.action,
+                    "keywords": evolved.keywords,
+                    "rule_type": evolved.rule_type,
+                    "effectiveness_score": evolved.effectiveness_score,
+                    "usage_count": evolved.usage_count,
+                },
+            )
+        except Exception as e:
+            logger.debug("联邦发布跳过: %s", e)
+
         return evolved
 
     def _generate_evolved_rule(self, original: ExperienceRule, failure_reason: str) -> Optional[ExperienceRule]:

@@ -862,6 +862,31 @@ async def get_reflection_priority_queue():
         return _fail(str(e))
 
 
+@app.get("/api/federation/stats")
+async def get_federation_stats():
+    """多团队进化联邦统计"""
+    try:
+        from team_federation import TeamFederation
+        federation = TeamFederation(_DATA_DIR)
+        return _ok(federation.get_federation_stats())
+    except Exception as e:
+        logger.exception("get_federation_stats 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/federation/feed")
+async def get_federation_feed(team_id: str = "", keywords: str = ""):
+    """获取团队的个性化进化流"""
+    try:
+        from team_federation import TeamFederation
+        federation = TeamFederation(_DATA_DIR)
+        kw_list = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
+        return _ok(federation.get_team_feed(team_id, kw_list))
+    except Exception as e:
+        logger.exception("get_federation_feed 失败")
+        return _fail(str(e))
+
+
 # 注册 skills_router（在 Agent Profile 端点之后，确保 /api/skills/tree 优先匹配）
 app.include_router(skills_router.router)
 
