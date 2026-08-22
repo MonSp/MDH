@@ -1176,6 +1176,30 @@ async def optimize_all_agents():
         return _fail(str(e))
 
 
+@app.get("/api/monitor/health")
+async def run_health_check():
+    """主动健康巡检"""
+    try:
+        from proactive_monitor import ProactiveMonitor
+        monitor = ProactiveMonitor(_DATA_DIR)
+        return _ok(monitor.run_health_check())
+    except Exception as e:
+        logger.exception("run_health_check 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/monitor/alerts")
+async def get_proactive_alerts(limit: int = 20):
+    """主动监控告警"""
+    try:
+        from proactive_monitor import ProactiveMonitor
+        monitor = ProactiveMonitor(_DATA_DIR)
+        return _ok({"alerts": monitor.get_recent_alerts(limit), "stats": monitor.get_alert_stats()})
+    except Exception as e:
+        logger.exception("get_proactive_alerts 失败")
+        return _fail(str(e))
+
+
 @app.post("/api/feedback/submit")
 async def submit_human_feedback(request: Request):
     """提交人类结构化反馈"""
