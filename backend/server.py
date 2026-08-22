@@ -912,6 +912,42 @@ async def detect_unknown_domain(keywords: str = ""):
         return _fail(str(e))
 
 
+@app.get("/api/introspection/features")
+async def get_feature_utilization():
+    """功能利用率分析"""
+    try:
+        from system_introspection import SystemIntrospection
+        si = SystemIntrospection(_DATA_DIR)
+        return _ok(si.get_feature_utilization())
+    except Exception as e:
+        logger.exception("get_feature_utilization 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/introspection/health")
+async def get_module_health():
+    """模块健康度分析"""
+    try:
+        from system_introspection import SystemIntrospection
+        si = SystemIntrospection(_DATA_DIR)
+        return _ok(si.get_module_health())
+    except Exception as e:
+        logger.exception("get_module_health 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/introspection/proposals")
+async def get_improvement_proposals():
+    """自动生成改进提案"""
+    try:
+        from system_introspection import SystemIntrospection
+        si = SystemIntrospection(_DATA_DIR)
+        return _ok({"proposals": si.generate_improvement_proposals()})
+    except Exception as e:
+        logger.exception("get_improvement_proposals 失败")
+        return _fail(str(e))
+
+
 # 注册 skills_router（在 Agent Profile 端点之后，确保 /api/skills/tree 优先匹配）
 app.include_router(skills_router.router)
 
