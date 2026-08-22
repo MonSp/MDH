@@ -887,6 +887,31 @@ async def get_federation_feed(team_id: str = "", keywords: str = ""):
         return _fail(str(e))
 
 
+@app.get("/api/capability/boundary")
+async def get_capability_boundary():
+    """能力边界报告 — 置信度地图 + 边界检测 + 改进建议"""
+    try:
+        from capability_boundary import CapabilityBoundary
+        boundary = CapabilityBoundary(_DATA_DIR)
+        return _ok(boundary.get_boundary_report())
+    except Exception as e:
+        logger.exception("get_capability_boundary 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/capability/detect")
+async def detect_unknown_domain(keywords: str = ""):
+    """检测任务是否落在未知领域"""
+    try:
+        from capability_boundary import CapabilityBoundary
+        boundary = CapabilityBoundary(_DATA_DIR)
+        kw_list = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
+        return _ok(boundary.detect_unknown_domain(kw_list))
+    except Exception as e:
+        logger.exception("detect_unknown_domain 失败")
+        return _fail(str(e))
+
+
 # 注册 skills_router（在 Agent Profile 端点之后，确保 /api/skills/tree 优先匹配）
 app.include_router(skills_router.router)
 
