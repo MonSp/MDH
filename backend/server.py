@@ -1152,6 +1152,30 @@ async def get_delivery_log(limit: int = 20):
         return _fail(str(e))
 
 
+@app.get("/api/agents/{agent_id}/optimize")
+async def optimize_agent(agent_id: str):
+    """Agent 自省优化分析"""
+    try:
+        from agent_optimizer import AgentOptimizer
+        optimizer = AgentOptimizer(_DATA_DIR)
+        return _ok(optimizer.analyze_agent(agent_id))
+    except Exception as e:
+        logger.exception("optimize_agent 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/agents/optimize/all")
+async def optimize_all_agents():
+    """所有 Agent 优化汇总"""
+    try:
+        from agent_optimizer import AgentOptimizer
+        optimizer = AgentOptimizer(_DATA_DIR)
+        return _ok(optimizer.get_all_agents_summary())
+    except Exception as e:
+        logger.exception("optimize_all_agents 失败")
+        return _fail(str(e))
+
+
 @app.post("/api/feedback/submit")
 async def submit_human_feedback(request: Request):
     """提交人类结构化反馈"""
