@@ -89,7 +89,26 @@ def _verify_ws_token(ws: WebSocket) -> bool:
     return hmac.compare_digest(token, BACKEND_TOKEN)
 
 
-app = FastAPI(title="MDH API", version="1.6.0")
+app = FastAPI(
+    title="MDH API",
+    version="1.6.0",
+    description="Matrix DaHuang — 数字员工操作系统 API",
+    tags=[
+        {"name": "agents", "description": "Agent 档案、XP、晋升、优化"},
+        {"name": "evolution", "description": "经验规则、有效性追踪、自进化"},
+        {"name": "memory", "description": "Agent 持久记忆"},
+        {"name": "delivery", "description": "自主交付"},
+        {"name": "monitoring", "description": "主动监控、健康检查"},
+        {"name": "federation", "description": "跨团队进化联邦"},
+        {"name": "documents", "description": "文档感知协作"},
+        {"name": "workspace", "description": "活文档协作"},
+        {"name": "team", "description": "团队协同优化"},
+        {"name": "feedback", "description": "人机协作反馈"},
+        {"name": "admin", "description": "RBAC 管理"},
+        {"name": "ops", "description": "生产运维"},
+        {"name": "introspection", "description": "系统自省"},
+    ],
+)
 _cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:8080,http://localhost:9090").split(",")
 app.add_middleware(
     CORSMiddleware,

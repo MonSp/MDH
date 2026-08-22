@@ -2,6 +2,165 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.6.2] - 2026-08-22
+
+### Added
+
+**生产加固**
+- SQLite 写锁改为 RLock（可重入，防死锁）
+- 14 个生产加固测试：并发安全 + 错误恢复 + 性能基准 + 安全防护
+- 并发写入安全：10 线程并发写入不同 agent 无死锁无损坏
+- 错误恢复：损坏数据库不崩溃、缺失目录自动创建
+- 性能基准：100 次写入 <5s、100 条查询 <1s、备份 <1s
+- 安全防护：SQL 注入/超大输入不崩溃
+
+## [1.6.1] - 2026-08-22
+
+### Added
+
+**生产运维**
+- `OpsManager`：数据库备份 + 健康检查 + 运维 API
+- SQLite 在线备份 API（不锁库）
+- `/health` 端点增强：数据库连接 + 磁盘空间 + 模块状态 + 备份状态
+- 备份管理：自动备份 + 列出 + 恢复 + 清理旧备份
+- API：POST `/api/ops/backup`, GET `/api/ops/backups`, POST `/api/ops/restore`
+
+## [1.6.0] - 2026-08-22
+
+### Added
+
+**SQLite 存储迁移 + API 版本化 + RBAC**
+
+**P0: AgentProfile 迁移至 SQLite**
+- `db.py`：SQLite 数据库层（WAL 模式，7 张表，11 个索引）
+- `agent_profile_manager.py`：存储层从 JSON 切换到 SQLite，公共 API 不变
+
+**P1: 经验规则迁移至 SQLite**
+- `experience_extractor.py`：存储层从 YAML 切换到 SQLite
+- 降级日志/进化日志迁移到 SQLite 表
+
+**P2: AgentMemory 迁移至 SQLite**
+- `agent_memory.py`：存储层从 JSON 切换到 SQLite
+
+**P3: API 版本化 + RBAC**
+- `/api/v1/*` 路由自动重写到 `/api/*`，响应头 `X-API-Version: v1`
+- `rbac.py`：API key 角色分级（admin/agent/viewer）
+- `_ok`/`_fail` 新增 `code` 字段
+- API：POST `/api/admin/create-key`, GET `/api/admin/keys`, DELETE `/api/admin/keys/{hash}`
+
+## [1.5.24] - 2026-08-22
+
+### Added
+
+**端到端集成验证**
+- 4 条链路 8 个集成测试，证明模块真正连通
+- 进化链路：规则创建→注入→有效性→自进化→链追踪
+- 协作链路：mentor 匹配→XP→技能增长→路由加成
+- 交付链路：记忆写入→检索→Git 交付→通知→报告
+- 监控链路：健康巡检→告警→反思优先级→自省分析
+
+## [1.5.23] - 2026-08-22
+
+### Added
+
+**团队协同优化**
+- `TeamSynergy`：协同分析+瓶颈识别+最优搭配+任务匹配
+- 协同得分：成功率×0.7 + 评分×0.3
+- 瓶颈识别：成功率低于团队平均 60% 标记为瓶颈
+- 任务匹配：基于历史数据推荐最优 agent 组合
+- API：GET `/api/team/synergy`, POST `/api/team/synergy/record`, GET `/api/team/synergy/recommend`
+
+## [1.5.22] - 2026-08-22
+
+### Added
+
+**主动式监控**
+- `ProactiveMonitor`：健康巡检+风险预警+流程建议
+- Agent 表现检查：技能成功率 <30% 告警
+- 技能覆盖检查：部门中级技能不足告警
+- 规则健康检查：领域规则平均有效性 <30% 告警
+- 告警分级：critical/warning/info
+- API：GET `/api/monitor/health`, GET `/api/monitor/alerts`
+
+## [1.5.21] - 2026-08-22
+
+### Added
+
+**Agent 自省优化**
+- `AgentOptimizer`：表现分析+弱项识别+策略调整
+- 弱项识别：成功率 <40% 标记为 weak
+- 强项识别：成功率 ≥70% 且使用 ≥3 次标记为 strong
+- 优化建议：弱项练习/技能拓展/晋升提示/强项挑战
+- API：GET `/api/agents/{id}/optimize`, GET `/api/agents/optimize/all`
+
+## [1.5.20] - 2026-08-22
+
+### Added
+
+**自主交付**
+- `DeliveryEngine`：Git 交付+通知交付+文档交付+部署触发
+- Git 交付：自动收集变更文件→commit
+- 通知交付：结构化通知（agent/task/review_status/files）
+- 文档交付：自动生成任务报告 JSON
+- API：POST `/api/delivery/deliver`, GET `/api/delivery/log`
+
+## [1.5.19] - 2026-08-22
+
+### Added
+
+**跨会话学习闭环**
+- 任务前检索：`_recall_agent_memory` 检索相关记忆注入上下文
+- 任务后写入：`_write_task_memory` 自动提取关键信息写入记忆
+- `recall_for_task`：合并检索+格式化，用于任务前注入
+- 标准路径和简单路径都已接入
+
+## [1.5.18] - 2026-08-22
+
+### Added
+
+**Agent 持久记忆**
+- `AgentMemory`：持久化 JSON + MD 双格式记忆
+- 四种记忆类型：task_summary/learning/interaction/observation
+- `recall`：关键词+内容匹配，重要性加权排序
+- `inject_context`：格式化记忆文本，注入 system prompt
+- `age_memories`：超过 30 天未引用的记忆重要性减半
+- API：GET/POST `/api/memory/{agent_id}`, GET `/api/memory/{agent_id}/recall`, GET `/api/memory/{agent_id}/context`
+
+## [1.5.17] - 2026-08-22
+
+### Added
+
+**活文档协作**
+- `LiveDocumentManager`：代码感知+数据感知+产出物追踪+冲突检测
+- 代码感知：`analyze_codebase` 解析仓库结构
+- 数据感知：`analyze_dataset` 解析 CSV/JSON/YAML，提取摘要统计
+- 产出物追踪：`track_artifact` 记录文件变更历史
+- 冲突检测：`detect_conflict` 检测 5 分钟内并发编辑
+- API：GET `/api/workspace/analyze`, POST `/api/workspace/analyze-dataset`, GET `/api/workspace/artifacts`, GET `/api/workspace/conflicts`
+
+## [1.5.16] - 2026-08-22
+
+### Added
+
+**文档感知协作**
+- `DocumentParser`：支持 txt/md/json/yaml/py/js/ts 等 20+ 种格式
+- 文件解析：提取内容/摘要/关键词
+- 文档搜索：按文件名/摘要/关键词匹配
+- 上下文构建：为任务自动检索相关文档注入 agent 上下文
+- API：POST `/api/documents/parse`, GET `/api/documents/search`, GET `/api/documents/context`, GET `/api/documents/stats`
+
+## [1.5.15] - 2026-08-22
+
+### Added
+
+**前端协作改进**
+- 内联反馈：会议消息上 👍/👎 按钮，一键触发结构化反馈→规则转化
+- 技能徽章：消息旁显示 agent 最高技能等级（缓存+tooltip）
+- `EvolutionToast`：规则降级/晋升事件实时 toast 通知（移至 OfficeScene 顶层）
+- `CapabilityBoundaryWarning`：任务落在低置信领域时 ⚠️ 警告
+- `FeedbackPanel`：人类反馈统计面板（评分分布/高频优势/高频改进点）
+- `SkillEvolutionDashboard` 新增「💬 反馈」tab
+
 ## [1.5.14] - 2026-08-22
 
 ### Added
