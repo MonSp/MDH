@@ -2310,7 +2310,53 @@ async def api_asset_reuse_metrics():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "sessions": len(sessions)}
+    """健康检查增强版：数据库 + 磁盘 + 模块状态"""
+    try:
+        from ops import OpsManager
+        ops = OpsManager(_DATA_DIR)
+        result = ops.health_check()
+        result["status"] = "ok" if result.get("healthy", True) else "degraded"
+        result["sessions"] = len(sessions)
+        return result
+    except Exception:
+        return {"status": "ok", "sessions": len(sessions)}
+
+
+@app.post("/api/ops/backup")
+async def backup_database(label: str = ""):
+    """备份数据库"""
+    try:
+        from ops import OpsManager
+        ops = OpsManager(_DATA_DIR)
+        return _ok(ops.backup_database(label))
+    except Exception as e:
+        logger.exception("backup_database 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/ops/backups")
+async def list_backups():
+    """列出备份"""
+    try:
+        from ops import OpsManager
+        ops = OpsManager(_DATA_DIR)
+        return _ok({"backups": ops.list_backups()})
+    except Exception as e:
+        logger.exception("list_backups 失败")
+        return _fail(str(e))
+
+
+@app.post("/api/ops/restore")
+async def restore_backup(request: Request):
+    """恢复备份"""
+    try:
+        body = await request.json()
+        from ops import OpsManager
+        ops = OpsManager(_DATA_DIR)
+        return _ok(ops.restore_backup(body.get("backup_name", "")))
+    except Exception as e:
+        logger.exception("restore_backup 失败")
+        return _fail(str(e))
 
 
 @app.get("/metrics")
