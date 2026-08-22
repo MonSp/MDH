@@ -31,6 +31,8 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const scrollRaf = useRef<number>(0)
+  const [feedbackGiven, setFeedbackGiven] = useState<Set<string>>(new Set())
+  const [agentSkills, setAgentSkills] = useState<Record<string, { level: number; skill: string }>>({})
 
   useEffect(() => {
     // 使用 requestAnimationFrame 防抖，避免快速消息流触发频繁布局抖动
@@ -51,6 +53,48 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
       return next
     })
   }
+
+  const handleInlineFeedback = async (msg: ChatMessage, rating: 'good' | 'poor') => {
+    const feedbackKey = `${msg.agentId}-${msg.timestamp}`
+    if (feedbackGiven.has(feedbackKey)) return
+    try {
+      await fetch('/api/feedback/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_id: msg.agentId || '',
+          task_id: '',
+          task_description: msg.content?.slice(0, 100) || '',
+          rating: rating === 'good' ? 'good' : 'needs_improvement',
+          specific_suggestions: rating === 'poor' ? [msg.content?.slice(0, 200)] : [],
+          reviewer: 'human-inline',
+        }),
+      })
+      setFeedbackGiven(prev => new Set(prev).add(feedbackKey))
+    } catch { /* silent */ }
+  }
+
+  // 加载 agent 技能等级
+  useEffect(() => {
+    const loadSkills = async () => {
+      const skills: Record<string, { level: number; skill: string }> = {}
+      for (const agent of agents) {
+        try {
+          const res = await fetch(`/api/agents/${agent.id}/profile`)
+          const data = await res.json()
+          if (data.success && data.data?.skill_progress) {
+            const entries = Object.entries(data.data.skill_progress) as [string, { level: number }][]
+            const best = entries.reduce((a, b) => (b[1]?.level || 0) > (a[1]?.level || 0) ? b : a, entries[0])
+            if (best && best[1]?.level > 0) {
+              skills[agent.id] = { level: best[1].level, skill: best[0] }
+            }
+          }
+        } catch { /* silent */ }
+      }
+      setAgentSkills(skills)
+    }
+    if (agents.length > 0) loadSkills()
+  }, [agents])
 
   const renderFileBlocks = (files: string[], charCount?: string, msgContent?: string) => {
     return (
@@ -151,6 +195,11 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
         {!isBoss && !isCeo && msg.agentId && (
           <div style={styles.msgAvatar}>
             <RoleAvatar role={agent?.role || AgentRole.Planner} size={28} />
+            {agentSkills[msg.agentId] && (
+              <span style={styles.skillBadge}>
+                Lv.{agentSkills[msg.agentId].level}
+              </span>
+            )}
           </div>
         )}
         <div style={{
@@ -199,6 +248,15 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
             </div>
           )}
         </div>
+        {!isBoss && !isCeo && msg.agentId && !feedbackGiven.has(`${msg.agentId}-${msg.timestamp}`) && (
+          <div style={styles.inlineFeedback}>
+            <button style={styles.feedbackBtn} onClick={() => handleInlineFeedback(msg, 'good')} title="这条建议有用">👍</button>
+            <button style={styles.feedbackBtn} onClick={() => handleInlineFeedback(msg, 'poor')} title="这条建议需改进">👎</button>
+          </div>
+        )}
+        {!isBoss && !isCeo && msg.agentId && feedbackGiven.has(`${msg.agentId}-${msg.timestamp}`) && (
+          <span style={styles.feedbackGiven}>✓ 已反馈</span>
+        )}
         {(isBoss || isCeo) && (
           <div style={styles.msgAvatarEmoji}>{isBoss ? '👔' : '🧠'}</div>
         )}
@@ -537,5 +595,41 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#6b7280',
     textAlign: 'center' as const,
     borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+  },
+  skillBadge: {
+    position: 'absolute' as const,
+    bottom: '-2px',
+    right: '-2px',
+    fontSize: '8px',
+    fontWeight: 700,
+    color: '#fff',
+    background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+    padding: '0 4px',
+    borderRadius: '6px',
+    lineHeight: '14px',
+    border: '1px solid rgba(0,0,0,0.3)',
+  },
+  inlineFeedback: {
+    display: 'flex',
+    gap: '2px',
+    marginLeft: '4px',
+    alignSelf: 'flex-end',
+    opacity: 0.6,
+  },
+  feedbackBtn: {
+    background: 'none',
+    border: '1px solid rgba(255,255,255,0.15)',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '11px',
+    padding: '2px 4px',
+    lineHeight: 1,
+    transition: 'opacity 0.15s',
+  },
+  feedbackGiven: {
+    fontSize: '9px',
+    color: '#10b981',
+    marginLeft: '4px',
+    alignSelf: 'flex-end',
   },
 }
