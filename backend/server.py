@@ -835,6 +835,21 @@ async def get_performance_dashboard():
         return _fail(str(e))
 
 
+@app.get("/api/knowledge/network-stats")
+async def get_knowledge_network_stats():
+    """知识网络统计 — 技能包/规则/资产联动状态"""
+    try:
+        from knowledge_network import KnowledgeNetwork
+        network = KnowledgeNetwork(
+            data_dir=_DATA_DIR,
+            skill_packs_dir=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skill_packs"),
+        )
+        return _ok(network.get_network_stats())
+    except Exception as e:
+        logger.exception("get_knowledge_network_stats 失败")
+        return _fail(str(e))
+
+
 # 注册 skills_router（在 Agent Profile 端点之后，确保 /api/skills/tree 优先匹配）
 app.include_router(skills_router.router)
 

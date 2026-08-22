@@ -618,6 +618,17 @@ class ExperienceExtractor:
         # 记录进化日志
         self._append_evolution_log(rule, evolved, failure_reason)
 
+        # 联动进化：更新关联技能包和资产
+        try:
+            from knowledge_network import KnowledgeNetwork
+            network = KnowledgeNetwork(
+                data_dir=os.path.dirname(self._incremental_dir),
+                skill_packs_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skill_packs"),
+            )
+            network.propagate_rule_evolution(rule.rule_id, evolved.rule_id, rule.keywords)
+        except Exception as e:
+            logger.debug("联动进化跳过: %s", e)
+
         return evolved
 
     def _generate_evolved_rule(self, original: ExperienceRule, failure_reason: str) -> Optional[ExperienceRule]:
