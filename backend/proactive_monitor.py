@@ -85,20 +85,16 @@ class ProactiveMonitor:
     def _check_agent_performance(self) -> List[Dict]:
         """检查 agent 表现下降"""
         alerts = []
-        if not os.path.isdir(self._profile_dir):
+        try:
+            from agent_profile_manager import AgentProfileManager
+            mgr = AgentProfileManager(self._profile_dir)
+            profiles = mgr.list_profiles()
+        except Exception:
             return alerts
 
-        for fname in os.listdir(self._profile_dir):
-            if not fname.endswith(".json"):
-                continue
-            try:
-                with open(os.path.join(self._profile_dir, fname), encoding="utf-8") as f:
-                    profile = json.load(f)
-            except Exception:
-                continue
-
-            agent_id = profile.get("agent_id", fname[:-5])
-            skills = profile.get("skill_progress", {})
+        for profile in profiles:
+            agent_id = profile.agent_id
+            skills = profile.skill_progress
 
             for skill_id, sp in skills.items():
                 if not isinstance(sp, dict):
@@ -122,25 +118,20 @@ class ProactiveMonitor:
     def _check_skill_coverage(self) -> List[Dict]:
         """检查技能覆盖缺口"""
         alerts = []
-        if not os.path.isdir(self._profile_dir):
+        try:
+            from agent_profile_manager import AgentProfileManager
+            mgr = AgentProfileManager(self._profile_dir)
+            profiles = mgr.list_profiles()
+        except Exception:
             return alerts
 
-        # 统计每个部门的技能覆盖
         dept_skills: Dict[str, set] = defaultdict(set)
-        for fname in os.listdir(self._profile_dir):
-            if not fname.endswith(".json"):
+        for profile in profiles:
+            if not profile.department:
                 continue
-            try:
-                with open(os.path.join(self._profile_dir, fname), encoding="utf-8") as f:
-                    profile = json.load(f)
-            except Exception:
-                continue
-            dept = profile.get("department", "")
-            if not dept:
-                continue
-            for skill_id, sp in profile.get("skill_progress", {}).items():
+            for skill_id, sp in profile.skill_progress.items():
                 if isinstance(sp, dict) and sp.get("level", 0) >= 2:
-                    dept_skills[dept].add(skill_id)
+                    dept_skills[profile.department].add(skill_id)
 
         # 检查部门是否有足够的中级技能
         for dept, skills in dept_skills.items():

@@ -228,7 +228,7 @@ class TestMonitorChain:
         # 创建弱表现 agent
         mgr = AgentProfileManager(os.path.join(data_dir, "agent_profiles"))
         profile = mgr.get_or_create("weak-agent", "弱表现", department="dept-software")
-        profile.skill_progress = {"backend_dev": {"level": 1, "xp": 50, "usage_count": 5, "success_count": 1}}
+        profile.skill_progress = {"backend_dev": {"level": 1, "xp": 50, "usage_count": 5, "success_count": 1, "avg_review_score": 4.0, "task_count": 5}}
         mgr.save_profile(profile)
 
         # 运行健康巡检
