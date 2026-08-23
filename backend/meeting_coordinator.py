@@ -98,9 +98,11 @@ class MeetingCoordinator:
         approval_timeout: float = 300.0,
         asset_context_builder: Optional[Callable[[str, str, list | None], str]] = None,
         executor_url: str = "",
+        session_persistence=None,
     ):
         self._max_iterations = max_iterations
         self._executor_url = executor_url
+        self._session_persistence = session_persistence
         self._approval_manager = approval_manager
         self._approval_timeout = approval_timeout
         self._asset_context_builder = asset_context_builder
@@ -191,6 +193,54 @@ class MeetingCoordinator:
         
         # 混合位置讨论引擎（支持本地/远端Agent并行讨论）
         self._mixed_discussion: Optional[MixedLocationDiscussion] = None
+
+    # ── 持久化辅助 ──
+
+    def _save_snapshot(self) -> None:
+        """保存当前会议状态快照到 SQLite"""
+        if not self._session_persistence:
+            return
+        try:
+            state = {
+                "meeting_id": self.meeting.meeting_id if hasattr(self.meeting, 'meeting_id') else "",
+                "provider": self.provider,
+                "model_name": self.model_name,
+                "agents": [
+                    {"id": a.id, "name": a.name, "role": a.role.value, "status": a.status.value,
+                     "location": getattr(a, 'location', 'local')}
+                    for a in self.meeting.agents
+                ],
+                "tasks": [
+                    {"id": t.id, "agent_id": t.agent_id, "description": t.description[:200], "status": t.status}
+                    for t in self.meeting.tasks
+                ],
+                "messages_count": len(self.meeting.messages) if hasattr(self.meeting, 'messages') else 0,
+            }
+            self._session_persistence.save_snapshot(self.meeting.meeting_id, state)
+        except Exception as e:
+            self.logger.warning("保存会话快照失败: %s", e)
+
+    def _check_idempotent(self, execution_key: str) -> bool:
+        """检查任务是否已执行（幂等）。返回 True 表示应跳过。"""
+        if not self._session_persistence:
+            return False
+        status = self._session_persistence.check_task_executed(execution_key)
+        if status == "completed":
+            self.logger.info("任务 %s 已完成，跳过重复执行", execution_key)
+            return True
+        return False
+
+    def _mark_task_started(self, execution_key: str, task_id: str) -> None:
+        """标记任务开始（幂等执行）"""
+        if self._session_persistence:
+            self._session_persistence.mark_task_started(
+                execution_key, task_id, getattr(self.meeting, 'meeting_id', '')
+            )
+
+    def _mark_task_completed(self, execution_key: str) -> None:
+        """标记任务完成"""
+        if self._session_persistence:
+            self._session_persistence.mark_task_completed(execution_key)
 
     @property
     def _agent_pool(self):
@@ -962,6 +1012,9 @@ class MeetingCoordinator:
         if injected_rule_ids:
             await self._update_injected_rule_effectiveness(ceo_id, injected_rule_ids, review_result)
 
+        # 持久化：简单路径完成
+        self._save_snapshot()
+
         return {
             "type": "simple_completed",
             "execution_results": exec_results,
@@ -1301,6 +1354,9 @@ class MeetingCoordinator:
         """
         self._on_message = on_message
         self._current_on_message = on_message
+
+        # 持久化：开始处理时保存快照
+        self._save_snapshot()
 
         ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
         coordinator_id = self._find_agent_id(AgentRole.COORDINATOR) or "agent-coordinator"

@@ -481,6 +481,7 @@ class CeoAgent:
             from approval_manager import ApprovalManager
             self._approval_manager = ApprovalManager()
             self._session._approval_manager = self._approval_manager
+        from session_persistence import SessionPersistence
         coordinator = MeetingCoordinator(
             meeting_session=meeting,
             provider=self._session.provider,
@@ -491,6 +492,7 @@ class CeoAgent:
             workflow_engine=self._workflow_engine,
             approval_manager=self._approval_manager,
             executor_url=os.environ.get("MDH_EXECUTOR_URL", ""),
+            session_persistence=SessionPersistence(),
         )
         # 传递Team实例给协调器，用于并行讨论
         coordinator._team = team

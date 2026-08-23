@@ -114,6 +114,22 @@ def init_db(db_path: str) -> sqlite3.Connection:
             timestamp TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS session_snapshots (
+            session_id TEXT PRIMARY KEY,
+            state_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS task_executions (
+            execution_key TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            session_id TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'running',
+            started_at TEXT NOT NULL,
+            completed_at TEXT NOT NULL DEFAULT ''
+        );
+
         CREATE INDEX IF NOT EXISTS idx_rules_status ON experience_rules(status);
         CREATE INDEX IF NOT EXISTS idx_rules_team ON experience_rules(team_id);
         CREATE INDEX IF NOT EXISTS idx_rules_type ON experience_rules(rule_type);
@@ -121,6 +137,8 @@ def init_db(db_path: str) -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS idx_demotion_time ON demotion_log(demoted_at);
         CREATE INDEX IF NOT EXISTS idx_evolution_time ON evolution_log(evolved_at);
         CREATE INDEX IF NOT EXISTS idx_delivery_time ON delivery_log(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_task_exec_session ON task_executions(session_id);
+        CREATE INDEX IF NOT EXISTS idx_task_exec_status ON task_executions(status);
     """)
     return conn
 

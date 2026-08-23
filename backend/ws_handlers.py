@@ -236,7 +236,6 @@ async def handle_generate_skill_summary(msg, session, ctx):
 
 async def handle_start_meeting(msg, session, ctx):
     from meeting import MeetingSession, MeetingAgentStatus
-    from negotiation import ConsensusStrategy
     from approval_manager import ApprovalManager
     from ceo_agent import CeoAgent
     from meeting_coordinator import MeetingCoordinator
@@ -280,6 +279,9 @@ async def handle_start_meeting(msg, session, ctx):
     except Exception:
         logger.warning("会议开始前 agent_pool 健康探测失败，继续创建会议")
 
+    from session_persistence import SessionPersistence
+    session_persistence = SessionPersistence()
+
     coordinator = MeetingCoordinator(
         meeting_session=meeting,
         provider=session.provider,
@@ -291,7 +293,7 @@ async def handle_start_meeting(msg, session, ctx):
         max_iterations=msg.get("max_iterations", 3),
         workflow_engine=ctx.get_workflow_engine(),
         approval_manager=session._approval_manager,
-        consensus_strategy=ConsensusStrategy(msg.get("consensus_strategy", "simple_majority")),
+        session_persistence=session_persistence,
     )
     session._meeting_coordinator = coordinator
     ctx.active_coordinator = coordinator
