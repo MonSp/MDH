@@ -177,282 +177,122 @@ class TaskOrchestrator:
             return await self._execute_parallel(assigned_tasks, on_progress)
         return await self._execute_sequential(assigned_tasks, on_progress)
 
+    async def _execute_one_task(self, task, on_progress=None) -> dict:
+        """执行单个任务（含工具循环、环境检查、验证）— 串行和并行共享"""
+        from agent_toolset import create_agent_toolset
+        from code_extractor import extract_code_blocks
+
+        agent_info = self._meeting.get_agent(task.agent_id)
+        if agent_info is None:
+            return {"task_id": task.id, "agent_id": task.agent_id, "result": "Agent not found"}
+
+        role = AgentRole(agent_info.role.value)
+        model = self._get_model(role)
+        agent_toolset = None
+        if self._workspace_root:
+            agent_toolset = create_agent_toolset(
+                agent_id=task.agent_id, agent_role=role.value,
+                workspace_root=self._workspace_root, executor_url=self._executor_url,
+                location=getattr(agent_info, 'location', 'local'),
+            )
+
+        tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}" if agent_toolset else ""
+        experience_context = self._get_experience_context(task.description)
+        prompt = (
+            f"请执行以下任务：\n{task.description}\n\n"
+            f"重要：直接使用代码块写入文件，格式为：\n```文件路径.扩展名\n文件内容\n```\n"
+            f"注意：不要使用bash/mkdir创建目录；每个文件单独一个代码块；代码必须完整可运行"
+            f"{experience_context}{tool_prompt}"
+        )
+        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+        conversation = [msg]
+
+        try:
+            written_files, all_tool_results, last_text = [], [], ""
+            # 阶段A: 环境检查
+            if agent_toolset:
+                ls = agent_toolset.list_directory(".")
+                conversation.append(Msg(name="user", role="user", content=[{"type": "text", "text": f"工作区当前内容：\n{ls.output if ls.success else '(空目录)'}\n\n请开始创建文件。"}]))
+            # 阶段B: 文件创建循环
+            for _ in range(6):
+                response = await safe_llm_reply(model, conversation, timeout=120)
+                last_text = _extract_text(response)
+                files_this_round = []
+                code_blocks = extract_code_blocks(last_text)
+                if code_blocks and agent_toolset:
+                    for block in code_blocks:
+                        r = agent_toolset.write_file(block["filename"], block["content"])
+                        if r.success:
+                            written_files.append(block["filename"])
+                            files_this_round.append(block["filename"])
+                if not files_this_round:
+                    tool_calls = self._extract_tool_calls(last_text)
+                    if tool_calls and agent_toolset:
+                        for call in tool_calls:
+                            tc = agent_toolset.execute(call["tool"], call.get("arguments", {}))
+                            all_tool_results.append({"tool": call["tool"], "success": tc.success, "output": tc.output if tc.success else tc.error})
+                            if call["tool"] == "write_file" and tc.success:
+                                p = call.get("arguments", {}).get("path", "")
+                                if p: written_files.append(p); files_this_round.append(p)
+                if files_this_round:
+                    conversation.append(Msg(name="user", role="user", content=[{"type": "text", "text": f"已写入文件: {', '.join(files_this_round)}\n请继续创建下一个文件。如果没有更多文件，请回复'任务完成'。"}]))
+                    continue
+                break
+            # 阶段C: 验证
+            verification = []
+            if agent_toolset and written_files:
+                for dep, cmd in {"requirements.txt": "pip install -r requirements.txt", "package.json": "npm install --prefix ."}.items():
+                    if dep in written_files:
+                        r = agent_toolset.run_command(cmd)
+                        verification.append(f"依赖安装 {dep}: {'成功' if r.success else f'失败: {r.error[:200]}'}")
+                for fname in written_files:
+                    ext = '.' + fname.rsplit('.', 1)[-1] if '.' in fname else ''
+                    if ext == '.py':
+                        r = agent_toolset.run_command(f'python -c "import ast; ast.parse(open(\'{fname}\', encoding=\'utf-8\').read()); print(\'OK\')"')
+                        verification.append(f"语法检查 {fname}: {'通过' if r.success else f'错误: {r.error[:100]}'}")
+
+            self._meeting.update_task_status(task.id, "completed")
+            self._meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
+            if self._on_agent_status_change:
+                self._on_agent_status_change(task.agent_id, "done")
+            return {"task_id": task.id, "agent_id": task.agent_id, "result": last_text,
+                    "written_files": written_files, "code_blocks_count": len(extract_code_blocks(last_text)),
+                    "tool_calls": all_tool_results, "verification": verification, "agent_role": role.value}
+        except Exception as e:
+            logger.error("任务执行失败: task_id=%s error=%s", task.id, e)
+            self._meeting.update_task_status(task.id, "failed")
+            self._meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
+            if self._on_agent_status_change:
+                self._on_agent_status_change(task.agent_id, "done")
+            return {"task_id": task.id, "agent_id": task.agent_id, "result": f"任务执行失败: {e}"}
+
     async def _execute_sequential(self, tasks, on_progress):
         """串行执行任务"""
         results = []
-        total_tasks = len(tasks)
-        completed_tasks = 0
-
-        for task in tasks:
-            agent_info = self._meeting.get_agent(task.agent_id)
-            if agent_info is None:
-                continue
-            
-            # 进度汇报
-            completed_tasks += 1
+        for i, task in enumerate(tasks):
             if on_progress:
-                progress_text = f"项目经理：正在执行任务 {completed_tasks}/{total_tasks} - {task.description[:30]}..."
-                await on_progress("agent-coordinator", progress_text, "")
-            
-            role = AgentRole(agent_info.role.value)
-            model = self._get_model(role)
-            
-            # 为当前Agent创建工具集（按 location 选择 local/remote）
-            agent_toolset = None
-            if self._workspace_root:
-                from agent_toolset import create_agent_toolset
-                agent_toolset = create_agent_toolset(
-                    agent_id=task.agent_id,
-                    agent_role=role.value,
-                    workspace_root=self._workspace_root,
-                    executor_url=self._executor_url,
-                    location=getattr(agent_info, 'location', 'local'),
-                )
-            
-            # 构建包含工具说明的提示词
-            tool_prompt = ""
-            if agent_toolset:
-                tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}"
-            
-            # 注入历史经验规则
-            experience_context = self._get_experience_context(task.description)
-            
-            prompt = (
-                f"请执行以下任务：\n{task.description}\n\n"
-                f"重要：直接使用代码块写入文件，格式为：\n"
-                f"```文件路径.扩展名\n文件内容\n```\n"
-                f"例如：\n```backend/app/main.py\nfrom fastapi import FastAPI\n...\n```\n"
-                f"注意：\n"
-                f"- 不要使用bash/mkdir创建目录，write_file会自动创建父目录\n"
-                f"- 每个文件单独一个代码块\n"
-                f"- 不要使用tool_call格式\n"
-                f"- 代码必须完整可运行，不要省略"
-                f"{experience_context}{tool_prompt}"
-            )
-            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-            conversation = [msg]
-
-            try:
-                written_files = []
-                all_tool_results = []
-                last_text = ""
-                max_tool_rounds = 5
-
-                # ── 阶段A: 环境检查 ──
-                if agent_toolset:
-                    ls_result = agent_toolset.list_directory(".")
-                    env_info = ls_result.output if ls_result.success else "(空目录)"
-                    conversation.append(Msg(
-                        name="user", role="user",
-                        content=[{"type": "text", "text": f"工作区当前内容：\n{env_info}\n\n请开始创建文件。"}],
-                    ))
-                    logger.info("Agent %s 环境检查: %s", task.agent_id, env_info[:100])
-
-                # ── 阶段B: 文件创建循环 ──
-                for tool_round in range(max_tool_rounds + 1):
-                    response = await safe_llm_reply(model, conversation, timeout=120)
-                    last_text = _extract_text(response)
-
-                    files_this_round = []
-
-                    # 提取agent的计划说明（代码块/tool_call之前的文字）
-                    plan_text = self._extract_plan(last_text)
-                    if plan_text and on_progress:
-                        await on_progress(task.agent_id, plan_text, "")
-
-                    # 1. 从代码块提取文件（优先，格式更紧凑）
-                    code_blocks = extract_code_blocks(last_text)
-                    if code_blocks and agent_toolset:
-                        for block in code_blocks:
-                            cb_result = agent_toolset.write_file(block["filename"], block["content"])
-                            if cb_result.success:
-                                written_files.append(block["filename"])
-                                files_this_round.append(block["filename"])
-                                logger.info("Agent %s 代码块写入: %s", task.agent_id, block["filename"])
-                            else:
-                                logger.warning("Agent %s 写入失败: %s - %s", task.agent_id, block["filename"], cb_result.error)
-
-                    # 2. 提取tool_call（备用）
-                    if not files_this_round:
-                        tool_calls = self._extract_tool_calls(last_text)
-                        if tool_calls and agent_toolset:
-                            result_parts = []
-                            for call in tool_calls:
-                                tc_result = agent_toolset.execute(call["tool"], call.get("arguments", {}))
-                                tool_result = {
-                                    "tool": call["tool"],
-                                    "success": tc_result.success,
-                                    "output": tc_result.output if tc_result.success else tc_result.error,
-                                }
-                                all_tool_results.append(tool_result)
-                                if call["tool"] == "write_file" and tc_result.success:
-                                    path = call.get("arguments", {}).get("path", "")
-                                    if path:
-                                        written_files.append(path)
-                                        files_this_round.append(path)
-                                        logger.info("Agent %s tool_call写入: %s", task.agent_id, path)
-                                output = tc_result.output if tc_result.success else f"ERROR: {tc_result.error}"
-                                result_parts.append(f"[{call['tool']}]\n{output}")
-
-                            if result_parts:
-                                tool_feedback = "\n\n".join(result_parts)
-                                followup = Msg(
-                                    name="user", role="user",
-                                    content=[{"type": "text", "text": f"工具执行结果：\n{tool_feedback}\n\n请继续创建下一个文件。"}],
-                                )
-                                conversation.append(followup)
-                                continue
-
-                    # 3. 通知前端本轮写入了什么文件
-                    if files_this_round and on_progress:
-                        file_list = ", ".join(files_this_round)
-                        char_count = sum(len(b.get("content", "")) for b in code_blocks if b.get("filename") in files_this_round) if code_blocks else 0
-                        await on_progress(
-                            task.agent_id,
-                            f"[写入文件] {file_list} ({char_count} 字符)",
-                            "",
-                        )
-
-                    # 4. 反馈本轮结果，请求继续
-                    if files_this_round:
-                        followup = Msg(
-                            name="user", role="user",
-                            content=[{"type": "text", "text": f"已写入文件: {', '.join(files_this_round)}\n请继续创建下一个文件。如果没有更多文件需要创建，请回复'任务完成'。"}],
-                        )
-                        conversation.append(followup)
-                        continue
-
-                    # 4. 无文件写入 → 结束
-                    break
-
-                # ── 阶段C: 依赖安装与验证 ──
-                verification_results = []
-                if agent_toolset and written_files:
-                    # 扫描依赖文件
-                    dep_files = {
-                        "requirements.txt": "pip install -r requirements.txt",
-                        "package.json": "npm install --prefix .",
-                        "Pipfile": "pipenv install",
-                        "pyproject.toml": "pip install -e .",
-                    }
-                    for dep_file, install_cmd in dep_files.items():
-                        if dep_file in written_files:
-                            logger.info("Agent %s 安装依赖: %s", task.agent_id, dep_file)
-                            install_result = agent_toolset.run_command(install_cmd)
-                            status = "成功" if install_result.success else f"失败: {install_result.error[:200]}"
-                            verification_results.append(f"依赖安装 {dep_file}: {status}")
-                            if install_result.success:
-                                logger.info("Agent %s 依赖安装成功: %s", task.agent_id, dep_file)
-                            else:
-                                logger.warning("Agent %s 依赖安装失败: %s - %s", task.agent_id, dep_file, install_result.error[:200])
-
-                    # 语法检查
-                    code_exts = {'.py', '.js', '.ts', '.json', '.yaml', '.yml'}
-                    for fname in written_files:
-                        ext = '.' + fname.rsplit('.', 1)[-1] if '.' in fname else ''
-                        if ext == '.py':
-                            check = agent_toolset.run_command(f'python -c "import ast; ast.parse(open(\'{fname}\', encoding=\'utf-8\').read()); print(\'OK\')"')
-                            status = "通过" if check.success else f"语法错误: {check.error[:100]}"
-                            verification_results.append(f"语法检查 {fname}: {status}")
-                        elif ext == '.json':
-                            check = agent_toolset.run_command(f'python -c "import json; json.load(open(\'{fname}\', encoding=\'utf-8\')); print(\'OK\')"')
-                            status = "通过" if check.success else f"格式错误: {check.error[:100]}"
-                            verification_results.append(f"语法检查 {fname}: {status}")
-
-                    if verification_results:
-                        logger.info("Agent %s 验证结果: %s", task.agent_id, "; ".join(verification_results))
-
-                self._meeting.update_task_status(task.id, "completed")
-                self._meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
-                if self._on_agent_status_change:
-                    self._on_agent_status_change(task.agent_id, "done")
-
-                results.append({
-                    "task_id": task.id,
-                    "agent_id": task.agent_id,
-                    "result": last_text,
-                    "written_files": written_files,
-                    "code_blocks_count": len(extract_code_blocks(last_text)),
-                    "tool_calls": all_tool_results,
-                    "verification": verification_results,
-                    "agent_role": role.value,
-                })
-            except Exception as e:
-                logger.error("任务执行失败: task_id=%s error=%s", task.id, e)
-                self._meeting.update_task_status(task.id, "failed")
-                self._meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
-                if self._on_agent_status_change:
-                    self._on_agent_status_change(task.agent_id, "done")
-
-                results.append({
-                    "task_id": task.id,
-                    "agent_id": task.agent_id,
-                    "result": f"任务执行失败: {e}",
-                })
-        
+                await on_progress("agent-coordinator", f"项目经理：正在执行任务 {i+1}/{len(tasks)} - {task.description[:30]}...", "")
+            result = await self._execute_one_task(task, on_progress)
+            if result:
+                results.append(result)
         return results
-
     async def _execute_parallel(self, tasks, on_progress):
-        """并行执行任务"""
+        """并行执行任务（所有任务通过 asyncio.gather 同时执行）"""
         import asyncio
-
-        async def execute_one(task):
-            agent_info = self._meeting.get_agent(task.agent_id)
-            if agent_info is None:
-                return None
-
-            role = AgentRole(agent_info.role.value)
-            model = self._get_model(role)
-
-            agent_toolset = None
-            if self._workspace_root:
-                from agent_toolset import create_agent_toolset
-                agent_toolset = create_agent_toolset(
-                    agent_id=task.agent_id,
-                    agent_role=role.value,
-                    workspace_root=self._workspace_root,
-                    executor_url=self._executor_url,
-                    location=getattr(agent_info, 'location', 'local'),
-                )
-
-            prompt = self._build_prompt(task, agent_info, agent_toolset)
-            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-
-            try:
-                response = await safe_llm_reply(model, msg, timeout=120)
-                last_text = _extract_text(response)
-                self._meeting.update_task_status(task.id, "completed")
-                return {
-                    "task_id": task.id,
-                    "agent_id": task.agent_id,
-                    "result": last_text,
-                    "written_files": [],
-                    "code_blocks_count": 0,
-                    "tool_calls": [],
-                    "verification": [],
-                    "agent_role": role.value,
-                }
-            except Exception as e:
-                self._meeting.update_task_status(task.id, "failed")
-                return {
-                    "task_id": task.id,
-                    "agent_id": task.agent_id,
-                    "result": f"任务执行失败: {e}",
-                }
 
         if on_progress:
             await on_progress("agent-coordinator", f"项目经理：并行执行 {len(tasks)} 个任务", "")
 
-        coros = [execute_one(t) for t in tasks]
+        coros = [self._execute_one_task(t, on_progress) for t in tasks]
         raw_results = await asyncio.gather(*coros, return_exceptions=True)
 
         results = []
-        for r in raw_results:
+        for i, r in enumerate(raw_results):
             if isinstance(r, Exception):
-                results.append({"result": f"任务执行异常: {r}"})
+                logger.error("并行任务 %s 异常: %s", tasks[i].id, r)
+                results.append({"task_id": tasks[i].id, "agent_id": tasks[i].agent_id, "result": f"并行执行异常: {r}"})
             elif r is not None:
                 results.append(r)
-
         return results
 
     def _build_prompt(self, task, agent_info, agent_toolset=None) -> str:
