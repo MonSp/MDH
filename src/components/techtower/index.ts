@@ -2,6 +2,7 @@ export type { TeamMember, ProjectDept, Project, CustomTeam, PanelState, CameraTa
 export { DEFAULT_DEPTS, DEFAULT_PROJECTS, ALL_AGENTS, STATUS_MAP, VIEW_PRESETS, CATEGORY_ICONS, CATEGORY_COLORS } from './constants'
 export { default as TowerScene } from './TowerScene'
 export { default as SidePanel } from './SidePanel'
+export { default as AgentStatusOverlay } from './AgentStatusOverlay'
 export { ViewBookmarks, OverlayButtons } from './OverlayUI'
 export { PersonFigure, TeamMemberFigure, CEOCharacter, DEFAULT_PERSON_COLORS } from './characters'
 export type { PersonFigureProps, Accessory, TeamMemberFigureProps } from './characters'

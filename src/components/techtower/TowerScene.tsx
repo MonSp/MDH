@@ -18,6 +18,7 @@ import { DEFAULT_DEPTS, PENTHOUSE_Y, BUILDING_H, PENTHOUSE_H, BUILDING_W, BUILDI
 import { BuildingBody, GlassCurtainWall, NeonEdges, Ground, Antenna, DataFlowParticles, PenthouseFloor, PenthouseWalls } from './BuildingScene'
 import { Desk, ComputerScreen, Chair, Minibar, Plant, CEOPerson, HolographicAI } from './PenthouseFurniture'
 import { FrontFaceProjects, RightFaceDepts, FloorLabels, CEOTextLabel } from './FloorMarkers'
+import AgentStatusOverlay from './AgentStatusOverlay'
 
 /* ───────── 赛博朋克黄昏太阳 ───────── */
 function DuskSun({ isDayMode }: { isDayMode?: boolean }) {
@@ -421,6 +422,9 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
           />
         )
       })}
+
+      {/* Agent 状态叠加层 — 会议进行时显示 */}
+      <AgentStatusOverlay />
     </>
   )
 }
