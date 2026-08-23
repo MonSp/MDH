@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1585%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-1657%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
 [![Test Coverage](https://img.shields.io/badge/test%20coverage-84%25-brightgreen)]()
 
@@ -37,6 +37,8 @@ A full-domain multi-agent collaboration system built with React + Python FastAPI
 | 📄 Document-Aware Collaboration | 20+ file format parsing + context injection + dataset analysis |
 | 🔍 Proactive Monitoring | Health checks + risk warnings + alert grading + reflection priority |
 | 🤝 Team Synergy Optimization | Synergy analysis + bottleneck detection + optimal team matching |
+| 🔌 Webhook Integration | 5 event types notify external systems + HMAC signature verification |
+| 🤖 Multi-Model Support | DeepSeek/OpenAI/Anthropic/Gemini/Ollama + model routing + auto fallback |
 
 ## What is MDH
 
