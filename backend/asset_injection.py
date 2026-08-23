@@ -72,8 +72,8 @@ def _ensure_loaded() -> None:
                     if not isinstance(data.get(key), dict):
                         data[key] = {}  # 畸形子结构（如 null）归一置空
                 _REUSE_STATS.update(data)
-            except Exception:
-                pass  # 损坏/缺失容错置空
+            except Exception as e:
+                logger.warning("加载复用统计失败: %s", e)
 
 
 def get_reuse_stats() -> dict:

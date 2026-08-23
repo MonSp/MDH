@@ -367,7 +367,8 @@ class DynamicRouter:
                         if max_level >= 3:
                             return 1.0  # 已达最高，提前返回
             return max_level / 3.0  # 归一化到 0-1
-        except Exception:
+        except Exception as e:
+            logger.debug("技能等级计算失败: %s", e)
             return 0.0
 
     def route(self, user_input: str, task_type: str = None) -> RoutingDecision:

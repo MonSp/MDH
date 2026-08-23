@@ -106,8 +106,8 @@ class SkillGenerator:
             try:
                 config = self._load_roles_config()
                 existing_skills = list((config or {}).get("skills", {}).keys())
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("加载角色配置失败: %s", e)
 
         existing_list = ", ".join(existing_skills[:20]) if existing_skills else "无"
 

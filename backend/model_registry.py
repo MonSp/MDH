@@ -102,8 +102,8 @@ class ModelRegistry:
             for model_id, cfg in custom.get("models", {}).items():
                 self._models[model_id] = ModelConfig(**cfg)
             logger.info("加载自定义模型配置: %d 个模型", len(custom.get("models", {})))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("加载自定义模型配置失败: %s", e)
 
     def get_model(self, model_id: str) -> Optional[ModelConfig]:
         """获取模型配置"""

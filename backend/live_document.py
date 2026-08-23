@@ -41,13 +41,15 @@ class LiveDocumentManager:
             if os.path.isfile(self._artifacts_path):
                 with open(self._artifacts_path, encoding="utf-8") as f:
                     self._artifacts = json.load(f)
-        except Exception:
+        except Exception as e:
+            logger.warning("加载产出物历史失败: %s", e)
             self._artifacts = []
         try:
             if os.path.isfile(self._conflicts_path):
                 with open(self._conflicts_path, encoding="utf-8") as f:
                     self._conflicts = json.load(f)
-        except Exception:
+        except Exception as e:
+            logger.warning("加载冲突记录失败: %s", e)
             self._conflicts = []
 
     def _save_artifacts(self):
@@ -56,8 +58,8 @@ class LiveDocumentManager:
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(self._artifacts[-500:], f, ensure_ascii=False, indent=2)
             os.replace(tmp, self._artifacts_path)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("保存产出物历史失败: %s", e)
 
     def _save_conflicts(self):
         try:
@@ -65,8 +67,8 @@ class LiveDocumentManager:
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(self._conflicts[-100:], f, ensure_ascii=False, indent=2)
             os.replace(tmp, self._conflicts_path)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("保存冲突记录失败: %s", e)
 
     # ── 代码感知 ──
 
@@ -98,8 +100,8 @@ class LiveDocumentManager:
                             "lines": len(lines),
                             "type": ext.lstrip("."),
                         })
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("读取文件 %s 失败: %s", fpath, e)
 
         # 按行数排序，找大文件
         modules.sort(key=lambda m: -m["lines"])

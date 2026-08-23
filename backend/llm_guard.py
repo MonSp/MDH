@@ -60,8 +60,8 @@ async def safe_llm_reply(
             if on_timeout:
                 try:
                     on_timeout()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("on_timeout 回调失败: %s", e)
             if attempt < max_retries:
                 backoff = RETRY_BACKOFF_BASE * (2 ** attempt)
                 await asyncio.sleep(backoff)
