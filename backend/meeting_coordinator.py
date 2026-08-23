@@ -178,6 +178,9 @@ class MeetingCoordinator:
             router=self.router,
             workspace_root=workspace.root_path if workspace else None,
             executor_url=executor_url,
+            on_agent_status_change=lambda agent_id, status: asyncio.ensure_future(
+                self._notify_agent_status(agent_id, status)
+            ),
         )
         self._review_pipeline = ReviewPipeline(
             get_model_fn=self._get_model,
@@ -272,6 +275,40 @@ class MeetingCoordinator:
     def _task_routing(self) -> Dict[str, str]:
         """任务路由映射（委托给 RoutingStatsManager，保持向后兼容）"""
         return self._routing_stats._task_routing
+
+    # ── Agent 状态通知（T13: 3D 场景可视化） ──
+
+    async def _notify_agent_status(self, agent_id: str, status: str, current_tool: str = "", artifact_count: int = 0) -> None:
+        """发送 agent 状态变化通知到前端（用于 3D 场景可视化）"""
+        if not self._current_on_message:
+            return
+        try:
+            await self._current_on_message(
+                agent_id, "", "",
+                msg_type="agent_status_update",
+                agent_id=agent_id,
+                status=status,
+                current_tool=current_tool,
+                artifact_count=artifact_count,
+            )
+        except Exception:
+            pass  # 通知失败不阻断流程
+
+    async def _notify_artifact_created(self, agent_id: str, files_count: int, file_types: list, summary: str = "") -> None:
+        """发送 artifact 创建通知到前端（用于 3D 场景可视化）"""
+        if not self._current_on_message:
+            return
+        try:
+            await self._current_on_message(
+                agent_id, "", "",
+                msg_type="artifact_created",
+                agent_id=agent_id,
+                files_count=files_count,
+                file_types=file_types,
+                summary=summary[:200],
+            )
+        except Exception:
+            pass
 
     # ── Agent 隔离工作区 ──
 
@@ -749,6 +786,7 @@ class MeetingCoordinator:
             task = self.meeting.add_task(agent_id, subtask.get("description", ""))
             self.meeting.update_task_status(task.id, "assigned")
             self.meeting.update_agent_status(agent_id, MeetingAgentStatus.WORKING)
+            await self._notify_agent_status(agent_id, "working")
 
             assignments.append({
                 "task_id": task.id,
@@ -1227,18 +1265,26 @@ class MeetingCoordinator:
             parts.append(f"{files_line}\n[摘要] {summary}")
         return "\n\n".join(parts)
 
-    def _save_execution_artifacts(self, exec_results: List[Dict[str, Any]]) -> None:
-        """将执行产出的文件保存到 ArtifactStore"""
+    async def _save_execution_artifacts(self, exec_results: List[Dict[str, Any]]) -> None:
+        """将执行产出的文件保存到 ArtifactStore，并发送通知"""
         if not self._artifact_store:
             return
         for r in exec_results:
             written = r.get("written_files") or []
             if written:
-                self._artifact_store.save_artifacts(
+                refs = self._artifact_store.save_artifacts(
                     task_id=r.get("task_id") or r.get("agent_id", "unknown"),
                     agent_id=r.get("agent_id", ""),
                     files_written=written,
                     result_summary=(r.get("result") or "")[:500],
+                )
+                # T13: 发送 artifact 创建通知
+                file_types = list(set(ref.type for ref in refs))
+                await self._notify_artifact_created(
+                    agent_id=r.get("agent_id", ""),
+                    files_count=len(written),
+                    file_types=file_types,
+                    summary=(r.get("result") or "")[:200],
                 )
 
     async def execute_and_review_task(
@@ -1361,6 +1407,7 @@ class MeetingCoordinator:
         task = self.meeting.add_task(target_agent_id, task_description)
         self.meeting.update_task_status(task.id, "assigned")
         self.meeting.update_agent_status(target_agent_id, MeetingAgentStatus.WORKING)
+        await self._notify_agent_status(target_agent_id, "working")
 
         # 记录路由部门，用于后续统计更新
         routing = self.last_routing_decision
@@ -1770,7 +1817,7 @@ class MeetingCoordinator:
 
             # 保存 artifact 引用
             if exec_results:
-                self._save_execution_artifacts(exec_results)
+                await self._save_execution_artifacts(exec_results)
 
             # Artifact 模式：读取实际文件内容注入审查上下文
             if self._artifact_store and exec_results:

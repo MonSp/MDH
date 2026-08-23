@@ -264,9 +264,28 @@ export function handleTaskDeleted(msg: MeetingMessage, setters: MeetingSetters) 
 export function handleAgentStatusUpdate(msg: MeetingMessage, setters: MeetingSetters) {
   setters.setAgents(prev => prev.map(a =>
     a.id === msg.agentId
-      ? { ...a, status: msg.status, currentTask: msg.currentTask ?? a.currentTask }
+      ? { ...a, status: msg.status, currentTask: msg.currentTask ?? a.currentTask, currentTool: msg.currentTool ?? a.currentTool, artifactCount: msg.artifactCount ?? a.artifactCount }
       : a
   ))
+}
+
+export function handleArtifactCreated(msg: MeetingMessage, setters: MeetingSetters) {
+  // 更新 agent 的 artifact 计数
+  if (msg.agentId) {
+    setters.setAgents(prev => prev.map(a =>
+      a.id === msg.agentId
+        ? { ...a, artifactCount: (a.artifactCount || 0) + (msg.filesCount || 0) }
+        : a
+    ))
+  }
+  // 添加系统消息到聊天
+  const fileTypes = (msg.fileTypes as string[]) || []
+  const typeStr = fileTypes.length > 0 ? ` (${fileTypes.join(', ')})` : ''
+  setters.setChatMessages(prev => [...prev, {
+    role: 'system' as const,
+    content: `[Artifact] ${msg.agentId} 产出了 ${msg.filesCount || 0} 个文件${typeStr}`,
+    timestamp: Date.now(),
+  }])
 }
 
 export function handleMeetingEnded(_msg: MeetingMessage, setters: MeetingSetters) {

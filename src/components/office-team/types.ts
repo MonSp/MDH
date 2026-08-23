@@ -10,6 +10,8 @@ export interface TeamAgent {
   wanderAngle?: number
   skillId?: string | null
   skillName?: string | null
+  currentTool?: string
+  artifactCount?: number
 }
 
 export interface Task {

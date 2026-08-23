@@ -41,6 +41,7 @@ class TaskOrchestrator:
         fallback_executor: Optional[FallbackExecutor] = None,
         workspace_root: Optional[str] = None,
         executor_url: str = "",
+        on_agent_status_change=None,
     ):
         self._get_model = get_model_fn
         self._meeting = meeting
@@ -52,6 +53,7 @@ class TaskOrchestrator:
         self._task_routing: Dict[str, str] = {}
         self._workspace_root = workspace_root
         self._executor_url = executor_url
+        self._on_agent_status_change = on_agent_status_change
     
     async def decompose(self, task_description: str) -> List[Dict[str, Any]]:
         """
@@ -362,6 +364,8 @@ class TaskOrchestrator:
 
                 self._meeting.update_task_status(task.id, "completed")
                 self._meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
+                if self._on_agent_status_change:
+                    self._on_agent_status_change(task.agent_id, "done")
 
                 results.append({
                     "task_id": task.id,
@@ -377,6 +381,8 @@ class TaskOrchestrator:
                 logger.error("任务执行失败: task_id=%s error=%s", task.id, e)
                 self._meeting.update_task_status(task.id, "failed")
                 self._meeting.update_agent_status(task.agent_id, MeetingAgentStatus.MEETING)
+                if self._on_agent_status_change:
+                    self._on_agent_status_change(task.agent_id, "done")
 
                 results.append({
                     "task_id": task.id,
