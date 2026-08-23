@@ -2448,6 +2448,54 @@ async def deactivate_tenant(tenant_id: str):
         return _fail(str(e))
 
 
+@app.get("/api/models")
+async def list_models(tier: str = ""):
+    """列出可用模型"""
+    try:
+        from model_registry import ModelRegistry
+        registry = ModelRegistry()
+        models = registry.list_models(tier)
+        return _ok({"models": [
+            {"model_id": m.model_id, "provider": m.provider, "display_name": m.display_name,
+             "tier": m.tier, "cost_input": m.cost_per_1m_input, "cost_output": m.cost_per_1m_output}
+            for m in models
+        ]})
+    except Exception as e:
+        logger.exception("list_models 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/models/{model_id}")
+async def get_model(model_id: str):
+    """获取模型详情"""
+    try:
+        from model_registry import ModelRegistry
+        registry = ModelRegistry()
+        model = registry.get_model(model_id)
+        if model:
+            return _ok({"model_id": model.model_id, "provider": model.provider,
+                         "display_name": model.display_name, "tier": model.tier,
+                         "cost_input": model.cost_per_1m_input, "cost_output": model.cost_per_1m_output,
+                         "max_tokens": model.max_tokens})
+        return _fail("模型不存在", code="MODEL_NOT_FOUND")
+    except Exception as e:
+        logger.exception("get_model 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/models/{model_id}/fallback")
+async def get_model_fallback(model_id: str):
+    """获取模型降级链"""
+    try:
+        from model_registry import ModelRegistry
+        registry = ModelRegistry()
+        chain = registry.get_fallback_chain(model_id)
+        return _ok({"chain": [m.model_id for m in chain]})
+    except Exception as e:
+        logger.exception("get_model_fallback 失败")
+        return _fail(str(e))
+
+
 @app.post("/api/ops/restore")
 async def restore_backup(request: Request):
     """恢复备份"""
