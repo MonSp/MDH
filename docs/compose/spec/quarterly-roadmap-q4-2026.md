@@ -234,7 +234,13 @@ MDH 在 v1.0→v1.6.11 的 8 天内完成了 33 次发布，建立了完整的�
   > - 统一 always 注册执行器（移除条件分支死代码路径）
   > - 测试：1690 Python + 1726 TS 全部通过
 - [ ] T2: 混合执行端到端贯通 — acceptance: per-agent location 选择贯穿 TS+Python 两侧（covers: L6; **M1**)
-- [ ] T3: 路由自适应学习接线 — acceptance: 部门成功率随任务结果变化且持久化（covers: L3; **M1**)
+- [x] T3: 路由自适应学习接线 — acceptance: 部门成功率随任务结果变化且持久化（covers: L3; **M1**)
+
+  > **实施发现 (2026-08-23)**: 代码级取证的 L3 断链在 v1.6.11 已修复：
+  > - `auto_assign_task()` → `track_task(task_id, dept_id)` 记录任务→部门映射
+  > - `_update_routing_stats_safe()` 在简单路径(L954)和复杂路径(L1376)执行后消费映射
+  > - `DynamicRouter.update_stats()` 更新成功率并持久化到 JSON（原子写入）
+  > - 81 个路由统计测试验证闭环（含 `test_auto_assign_then_update_stats_closed_loop`）
 - [ ] T4: 投票机制精简或激活 — acceptance: 代码路径与行为一致（covers: L4; **M1**)
 - [ ] T5: 残余死代码清理 — acceptance: 无 orphan 模块（covers: L8; **M1**)
 - [ ] T6: Durable Execution 基础 — acceptance: 服务重启后任务从检查点恢复（covers: L9; **M1**)
