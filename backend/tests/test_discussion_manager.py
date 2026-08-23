@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from discussion_manager import DiscussionManager
 from agenda import AgendaStateMachine
-from negotiation import NegotiationEngine, ConsensusStrategy
+from negotiation import NegotiationEngine
 from meeting import MeetingSession
 
 
@@ -24,7 +24,7 @@ def _make_discussion_manager(meeting: MeetingSession) -> DiscussionManager:
     """构造带 meeting 引用的串行 DiscussionManager"""
     return DiscussionManager(
         agenda=AgendaStateMachine(),
-        negotiation=NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY),
+        negotiation=NegotiationEngine(),
         get_model_fn=lambda role: MagicMock(),
         meeting=meeting,
     )

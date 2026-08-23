@@ -1,4 +1,4 @@
-"""Tests for negotiation.py — NegotiationEngine vote + argument logic"""
+"""Tests for negotiation.py — NegotiationEngine vote logic"""
 import pytest
 from negotiation import (
     NegotiationEngine, ConsensusStrategy, Stance,
@@ -8,7 +8,7 @@ from negotiation import (
 
 @pytest.fixture
 def engine():
-    return NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
+    return NegotiationEngine()
 
 
 # ── 基础投票 ──
@@ -51,64 +51,13 @@ def test_no_votes_returns_pending(engine):
     assert graph[-1].decision == "pending"
 
 
-# ── 加权投票 ──
-
-def test_weighted_vote(engine):
-    engine._default_strategy = ConsensusStrategy.WEIGHTED_VOTE
-    p = engine.create_proposal("agent-coordinator", "方案D")
-    engine.cast_vote(p.id, "agent-executor", True, weight=3.0)
-    engine.cast_vote(p.id, "agent-planner", False, weight=1.0)
-
-    result = engine.evaluate_consensus(p.id)
-    assert result.weighted_approve == 3.0
-    assert result.weighted_oppose == 1.0
-    assert result.accepted is True
-
-
-def test_set_agent_weight(engine):
-    engine.set_agent_weight("agent-executor", 2.5)
-    assert engine.get_agent_weight("agent-executor") == 2.5
-    assert engine.get_agent_weight("unknown") == 1.0
-
-
-# ── 论据驱动投票 (argument_based) ──
-
-def test_argument_based_vote(engine):
-    engine._default_strategy = ConsensusStrategy.ARGUMENT_BASED
-    p = engine.create_proposal("agent-coordinator", "方案E")
-
-    # 添加论据
-    engine.add_argument(p.id, "agent-executor", Stance.SUPPORT, 0.9, "技术可行")
-    engine.add_argument(p.id, "agent-reviewer", Stance.OPPOSE, 0.8, "测试不足")
-
-    # 投票
-    engine.cast_vote(p.id, "agent-executor", True)
-    engine.cast_vote(p.id, "agent-reviewer", False)
-
-    result = engine.evaluate_consensus(p.id)
-    # weighted_approve = 1.0 * 0.9 = 0.9, weighted_oppose = 1.0 * 0.8 = 0.8
-    assert result.weighted_approve > result.weighted_oppose
-    assert result.accepted is True
-
-
-def test_argument_based_no_arguments_defaults_to_05(engine):
-    engine._default_strategy = ConsensusStrategy.ARGUMENT_BASED
-    p = engine.create_proposal("agent-coordinator", "方案F")
-    engine.cast_vote(p.id, "agent-executor", True)
-
-    result = engine.evaluate_consensus(p.id)
-    # 无论据时 confidence 默认 0.5
-    assert result.weighted_approve == 1.0 * 0.5
-
-
 # ── stance → vote 映射 (模拟 meeting_coordinator 的逻辑) ──
 
 def test_stance_oppose_maps_to_reject():
     """验证 oppose stance 产生 reject 投票的逻辑"""
-    engine = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
+    engine = NegotiationEngine()
     p = engine.create_proposal("coordinator", "方案")
 
-    # 模拟 meeting_coordinator 中 stance→vote 的映射逻辑
     stances = [
         ("agent-executor", "support", 0.9),
         ("agent-planner", "oppose", 0.7),
@@ -136,7 +85,7 @@ def test_stance_oppose_maps_to_reject():
 
 def test_stance_neutral_high_confidence_approves():
     """neutral + high confidence → approve"""
-    engine = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
+    engine = NegotiationEngine()
     p = engine.create_proposal("coordinator", "方案")
 
     engine.cast_vote(p.id, "agent-a", True, reason="support")
@@ -169,13 +118,11 @@ def test_reset_clears_all(engine):
     p = engine.create_proposal("coordinator", "方案")
     engine.cast_vote(p.id, "agent-a", True)
     engine.evaluate_consensus(p.id)
-    engine.set_agent_weight("agent-a", 2.0)
 
     engine.reset()
     assert engine._proposals == {}
     assert engine._votes == {}
     assert engine._decision_graph == []
-    assert engine._agent_weights == {}
 
 
 # ── 边界情况 ──
@@ -184,41 +131,7 @@ def test_vote_on_nonexistent_proposal(engine):
     assert engine.cast_vote("nonexistent", "agent-a", True) is None
 
 
-def test_argument_on_nonexistent_proposal(engine):
-    assert engine.add_argument("nonexistent", "agent-a", Stance.SUPPORT, 0.5, "x") is None
-
-
-def test_confidence_clamped(engine):
-    p = engine.create_proposal("coordinator", "方案")
-    arg = engine.add_argument(p.id, "agent-a", Stance.SUPPORT, 1.5, "x")
-    assert arg.confidence == 1.0
-    arg2 = engine.add_argument(p.id, "agent-b", Stance.SUPPORT, -0.5, "y")
-    assert arg2.confidence == 0.0
-
-
-def test_set_default_strategy(engine):
-    assert engine._default_strategy == ConsensusStrategy.SIMPLE_MAJORITY
-    engine.set_default_strategy(ConsensusStrategy.WEIGHTED_VOTE)
-    assert engine._default_strategy == ConsensusStrategy.WEIGHTED_VOTE
-
-
-def test_evaluate_consensus_uses_engine_default_strategy(engine):
-    """evaluate_consensus without explicit strategy uses engine's default."""
-    p = engine.create_proposal("coordinator", "方案")
-    engine.cast_vote(p.id, "agent-a", True, weight=1.0)
-    engine.cast_vote(p.id, "agent-b", False, weight=2.0)
-
-    # Default SIMPLE_MAJORITY: 1 approve vs 1 oppose → tie → rejected
-    result = engine.evaluate_consensus(p.id)
-    assert result.strategy == ConsensusStrategy.SIMPLE_MAJORITY
-    assert not result.accepted
-
-    # Change default to WEIGHTED_VOTE: approve 1.0 < oppose 2.0 → rejected
-    engine.set_default_strategy(ConsensusStrategy.WEIGHTED_VOTE)
-    result2 = engine.evaluate_consensus(p.id)
-    assert result2.strategy == ConsensusStrategy.WEIGHTED_VOTE
-    assert not result2.accepted
-
-    # Override with explicit strategy
-    result3 = engine.evaluate_consensus(p.id, strategy=ConsensusStrategy.SIMPLE_MAJORITY)
-    assert result3.strategy == ConsensusStrategy.SIMPLE_MAJORITY
+def test_simple_majority_strategy_enum():
+    """ConsensusStrategy 仅保留 SIMPLE_MAJORITY"""
+    assert ConsensusStrategy.SIMPLE_MAJORITY.value == "simple_majority"
+    assert len(ConsensusStrategy) == 1

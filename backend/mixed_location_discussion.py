@@ -490,16 +490,9 @@ class MixedLocationDiscussion:
 
         for agent_id, d in last_stance_by_agent.items():
             stance_str = d.get('stance', 'neutral')
-            self._negotiation.add_argument(
-                proposal.id, agent_id,
-                Stance(stance_str),
-                d.get('confidence', 0.5),
-                d['content']
-            )
             approve = stance_str in ('support', 'modify')
             self._negotiation.cast_vote(
                 proposal.id, agent_id, approve,
-                weight=d.get('confidence', 0.5),
                 reason=f"立场: {stance_str}",
             )
         vote_result = self._negotiation.evaluate_consensus(proposal.id)

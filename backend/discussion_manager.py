@@ -191,16 +191,9 @@ class DiscussionManager:
 
         for agent_id, r in last_stance_by_agent.items():
             stance_str = r.get('parsed_stance', 'neutral')
-            self._negotiation.add_argument(
-                proposal.id, agent_id,
-                Stance(stance_str),
-                r.get('parsed_confidence', 0.5),
-                r['content']
-            )
             approve = stance_str in ('support', 'modify')
             self._negotiation.cast_vote(
                 proposal.id, agent_id, approve,
-                weight=r.get('parsed_confidence', 0.5),
                 reason=f"立场: {stance_str}",
             )
         vote_result = self._negotiation.evaluate_consensus(proposal.id)

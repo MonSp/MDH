@@ -555,8 +555,8 @@ class TestProjectSummary:
 class TestConfidenceFieldCompatibility:
     def test_voting_uses_parsed_confidence(self, coordinator):
         """投票应使用 parsed_confidence（discussion_manager 格式）"""
-        from negotiation import NegotiationEngine, ConsensusStrategy
-        coordinator.negotiation = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
+        from negotiation import NegotiationEngine
+        coordinator.negotiation = NegotiationEngine()
         from meeting import MeetingAgentInfo
         from protocol import AgentRole, MeetingAgentStatus
 

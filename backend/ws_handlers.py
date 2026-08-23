@@ -533,18 +533,6 @@ async def handle_override_decision(msg, session, ctx):
     return None
 
 
-async def handle_adjust_agent_weight(msg, session, ctx):
-    agent_id = msg.get("agentId", "")
-    weight = msg.get("weight", 1.0)
-    coordinator = getattr(session, "_meeting_coordinator", None)
-    if coordinator and hasattr(coordinator, 'negotiation'):
-        coordinator.negotiation.set_agent_weight(agent_id, weight)
-    await session.ws.send_json({
-        "type": "agent_weight_adjusted", "agentId": agent_id, "weight": weight,
-    })
-    return None
-
-
 async def handle_create_proposal(msg, session, ctx):
     if not session.meeting_session or not session.meeting_session.is_running():
         await session.send_error("没有进行中的会议")
@@ -651,15 +639,7 @@ async def handle_evaluate_consensus(msg, session, ctx):
         await session.send_error("协商引擎未初始化")
         return None
     proposal_id = msg.get("proposalId", "")
-    strategy = msg.get("strategy")
-    from negotiation import ConsensusStrategy
-    strategy_enum = None
-    if strategy:
-        try:
-            strategy_enum = ConsensusStrategy(strategy)
-        except ValueError:
-            pass
-    result = coordinator.negotiation.evaluate_consensus(proposal_id, strategy_enum)
+    result = coordinator.negotiation.evaluate_consensus(proposal_id)
     agenda = getattr(coordinator, 'agenda', None) or session._agenda
     if agenda:
         if result.accepted:
@@ -669,10 +649,9 @@ async def handle_evaluate_consensus(msg, session, ctx):
     await session.send_and_buffer({
         "type": "vote_result",
         "result": {
-            "proposalId": result.proposal_id, "strategy": result.strategy.value,
+            "proposalId": result.proposal_id,
             "totalVotes": result.total_votes, "approveCount": result.approve_count,
-            "opposeCount": result.oppose_count, "weightedApprove": result.weighted_approve,
-            "weightedOppose": result.weighted_oppose, "accepted": result.accepted,
+            "opposeCount": result.oppose_count, "accepted": result.accepted,
         },
         "sequence_no": session.next_sequence(),
     })
@@ -1020,7 +999,6 @@ HANDLER_REGISTRY: Dict[str, Callable] = {
     "resume_task": handle_resume_task,
     "agenda_action": handle_agenda_action,
     "override_decision": handle_override_decision,
-    "adjust_agent_weight": handle_adjust_agent_weight,
     "create_proposal": handle_create_proposal,
     "cast_vote": handle_cast_vote,
     "evaluate_consensus": handle_evaluate_consensus,

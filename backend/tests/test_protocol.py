@@ -7,15 +7,15 @@ from protocol import (
     # Dataclasses
     WorkflowNode, WorkflowEdge, WorkflowDefinition, WorkflowExecution,
     MeetingAgentInfo, MeetingTaskInfo, MeetingSummary, TraceContext,
-    AgendaState, ArgumentRef, Proposal, Vote, VoteResult,
+    AgendaState, Proposal, Vote, VoteResult,
     ApprovalRequest, Checkpoint,
     # Serialization
     semantic_analysis_to_dict, meeting_agent_to_dict, meeting_task_to_dict,
     meeting_summary_to_dict, trace_context_to_dict, agenda_state_to_dict,
-    argument_ref_to_dict, proposal_to_dict, vote_to_dict, vote_result_to_dict,
+    proposal_to_dict, vote_to_dict, vote_result_to_dict,
     approval_request_to_dict, checkpoint_to_dict,
     # Deserialization
-    dict_to_trace_context, dict_to_agenda_state, dict_to_argument_ref,
+    dict_to_trace_context, dict_to_agenda_state,
     dict_to_proposal, dict_to_vote, dict_to_vote_result,
     dict_to_approval_request, dict_to_checkpoint,
     # LLM fallback
@@ -47,7 +47,6 @@ class TestEnums:
 
     def test_consensus_strategy(self):
         assert ConsensusStrategy.SIMPLE_MAJORITY == "simple_majority"
-        assert ConsensusStrategy.WEIGHTED_VOTE == "weighted_vote"
 
 
 # ── Dataclasses ──
@@ -118,13 +117,6 @@ class TestSerialization:
         restored = dict_to_agenda_state(d)
         assert restored.phase == AgendaPhase.DISCUSSION
 
-    def test_argument_ref_roundtrip(self):
-        ref = ArgumentRef(message_id="m1", summary="test summary")
-        d = argument_ref_to_dict(ref)
-        assert d["message_id"] == "m1"
-        restored = dict_to_argument_ref(d)
-        assert restored.message_id == "m1"
-
     def test_proposal_roundtrip(self):
         p = Proposal(id="p1", proposer_id="a1", content="proposal text", stance=Stance.SUPPORT, confidence=0.9)
         d = proposal_to_dict(p)
@@ -141,7 +133,7 @@ class TestSerialization:
         assert restored.approve is True
 
     def test_vote_result_roundtrip(self):
-        vr = VoteResult(proposal_id="p1", strategy=ConsensusStrategy.SIMPLE_MAJORITY, total_votes=3, approve_count=2, oppose_count=1, accepted=True)
+        vr = VoteResult(proposal_id="p1", total_votes=3, approve_count=2, oppose_count=1, accepted=True)
         d = vote_result_to_dict(vr)
         assert d["accepted"] is True
         restored = dict_to_vote_result(d)

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from mixed_location_discussion import MixedLocationDiscussion
 from team import Team, TeamMember, TeamRuntime, RuntimeType, AgentLocation
 from agenda import AgendaStateMachine
-from negotiation import NegotiationEngine, ConsensusStrategy
+from negotiation import NegotiationEngine
 
 
 def create_test_team():
@@ -71,7 +71,7 @@ async def test_parallel_discussion_basic():
     """测试基本的并行讨论功能"""
     team = create_test_team()
     agenda = AgendaStateMachine()
-    negotiation = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
+    negotiation = NegotiationEngine()
     
     # 模拟get_model_fn
     def get_model_fn(role):
@@ -113,7 +113,7 @@ async def test_mixed_location_team():
     """测试混合位置团队的讨论"""
     team = create_test_team()
     agenda = AgendaStateMachine()
-    negotiation = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
+    negotiation = NegotiationEngine()
     
     # 记录每个成员的位置
     location_calls = []
@@ -162,7 +162,7 @@ async def test_discussion_timeout():
     """测试讨论超时处理"""
     team = create_test_team()
     agenda = AgendaStateMachine()
-    negotiation = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
+    negotiation = NegotiationEngine()
     
     # 创建一个会超时的模型
     def get_model_fn(role):
@@ -202,7 +202,7 @@ async def test_convergence_detection():
     """测试共识检测"""
     team = create_test_team()
     agenda = AgendaStateMachine()
-    negotiation = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
+    negotiation = NegotiationEngine()
     
     # 所有成员都支持
     def get_model_fn(role):
@@ -235,7 +235,7 @@ async def test_coordinator_summary():
     """测试协调者总结"""
     team = create_test_team()
     agenda = AgendaStateMachine()
-    negotiation = NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY)
+    negotiation = NegotiationEngine()
     
     summary_received = []
     
@@ -277,7 +277,7 @@ async def test_coordinator_summary():
 class TestParseStance:
     def setup_method(self):
         from mixed_location_discussion import MixedLocationDiscussion
-        from negotiation import NegotiationEngine, ConsensusStrategy
+        from negotiation import NegotiationEngine
         from agenda import AgendaStateMachine
         from unittest.mock import MagicMock
 
@@ -286,7 +286,7 @@ class TestParseStance:
         self.discussion = MixedLocationDiscussion(
             team=team,
             agenda=AgendaStateMachine(),
-            negotiation=NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY),
+            negotiation=NegotiationEngine(),
             get_model_fn=lambda role: MagicMock(),
         )
 
@@ -335,7 +335,7 @@ class TestParseStance:
 class TestBuildPreviousContext:
     def setup_method(self):
         from mixed_location_discussion import MixedLocationDiscussion
-        from negotiation import NegotiationEngine, ConsensusStrategy
+        from negotiation import NegotiationEngine
         from agenda import AgendaStateMachine
         from unittest.mock import MagicMock
 
@@ -344,7 +344,7 @@ class TestBuildPreviousContext:
         self.discussion = MixedLocationDiscussion(
             team=team,
             agenda=AgendaStateMachine(),
-            negotiation=NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY),
+            negotiation=NegotiationEngine(),
             get_model_fn=lambda role: MagicMock(),
         )
 
@@ -402,7 +402,7 @@ def _discussion_with_meeting(meeting):
     return MixedLocationDiscussion(
         team=create_test_team(),
         agenda=AgendaStateMachine(),
-        negotiation=NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY),
+        negotiation=NegotiationEngine(),
         get_model_fn=lambda role: MagicMock(),
         meeting=meeting,
     )
@@ -455,7 +455,7 @@ async def test_parallel_discussion_logs_entries_to_meeting(tmp_path):
     discussion = MixedLocationDiscussion(
         team=team,
         agenda=AgendaStateMachine(),
-        negotiation=NegotiationEngine(ConsensusStrategy.SIMPLE_MAJORITY),
+        negotiation=NegotiationEngine(),
         get_model_fn=lambda role: create_mock_model(content="我的讨论观点 [STANCE:support] [CONFIDENCE:0.8]"),
         meeting=meeting,
     )

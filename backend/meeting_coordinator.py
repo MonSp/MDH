@@ -17,7 +17,7 @@ from collaboration.planner_agent import PlannerAgent
 from discussion_utils import parse_stance_from_content, resolve_agent_role, strip_stance_tags
 from dynamic_router import DynamicRouter
 from meeting import MeetingSession, SessionEventType
-from negotiation import NegotiationEngine, ConsensusStrategy, Stance
+from negotiation import NegotiationEngine, Stance
 from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict, WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowNodeStatus, LLM_FALLBACK_TEMPLATE
 from team import Team
 from workflow_engine import WorkflowEngine
@@ -97,7 +97,6 @@ class MeetingCoordinator:
         approval_manager: Optional[ApprovalManager] = None,
         approval_timeout: float = 300.0,
         asset_context_builder: Optional[Callable[[str, str, list | None], str]] = None,
-        consensus_strategy: ConsensusStrategy = ConsensusStrategy.SIMPLE_MAJORITY,
     ):
         self._max_iterations = max_iterations
         self._approval_manager = approval_manager
@@ -138,7 +137,7 @@ class MeetingCoordinator:
         self._current_on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
         self.logger = logging.getLogger("meeting_coordinator")
         self.agenda = AgendaStateMachine()
-        self.negotiation = NegotiationEngine(consensus_strategy)
+        self.negotiation = NegotiationEngine()
 
         # DynamicRouter 初始化
         routing_table_path = os.path.join(data_dir, "routing_table.json")
@@ -1568,13 +1567,9 @@ class MeetingCoordinator:
                 vote_reason = f"{agent.role.value}{'谨慎赞成' if vote_approve else '保留意见'}（置信度{confidence:.0%}）"
 
             self.negotiation.cast_vote(proposal.id, agent.id, vote_approve, reason=vote_reason)
-            stance_enum = {"support": Stance.SUPPORT, "oppose": Stance.OPPOSE, "modify": Stance.MODIFY}.get(stance, Stance.NEUTRAL)
-            arg_content = dr.get("content", "")[:200]
-            if arg_content:
-                self.negotiation.add_argument(proposal.id, agent.id, stance_enum, confidence, arg_content)
             await on_message(agent.id, f"[投票] {'赞成' if vote_approve else '反对'} - {vote_reason}", "")
 
-        vote_result = self.negotiation.evaluate_consensus(proposal.id, strategy=self.negotiation._default_strategy)
+        vote_result = self.negotiation.evaluate_consensus(proposal.id)
         text = f"项目经理：投票结果 — {'通过' if vote_result.accepted else '未通过'} ({vote_result.approve_count}/{vote_result.total_votes})"
         await self._msg(coordinator_id, text)
         self.meeting.add_message("agent", text, coordinator_id)

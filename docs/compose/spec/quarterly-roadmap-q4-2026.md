@@ -241,7 +241,15 @@ MDH 在 v1.0→v1.6.11 的 8 天内完成了 33 次发布，建立了完整的�
   > - `_update_routing_stats_safe()` 在简单路径(L954)和复杂路径(L1376)执行后消费映射
   > - `DynamicRouter.update_stats()` 更新成功率并持久化到 JSON（原子写入）
   > - 81 个路由统计测试验证闭环（含 `test_auto_assign_then_update_stats_closed_loop`）
-- [ ] T4: 投票机制精简或激活 — acceptance: 代码路径与行为一致（covers: L4; **M1**)
+- [x] T4: 投票机制精简或激活 — acceptance: 代码路径与行为一致（covers: L4; **M1**)
+
+  > **实施 (2026-08-23)**: 方案 A（精简）已实施：
+  > - `negotiation.py`: 删除 `WEIGHTED_VOTE`/`ARGUMENT_BASED` 策略、`ArgumentRef`/`Argument` 数据类、`add_argument`/`set_agent_weight`/`get_agent_weight`/`set_default_strategy` 方法
+  > - `protocol/voting.py`: 同步精简，移除 `ArgumentRef` 及其序列化
+  > - `meeting_coordinator.py`: 移除 `consensus_strategy` 构造参数、`add_argument` 调用
+  > - `ws_handlers.py`: 移除 `handle_adjust_agent_weight` handler、简化 `handle_evaluate_consensus`
+  > - `mixed_location_discussion.py` + `discussion_manager.py`: 移除 `add_argument` 调用
+  > - 测试更新：1681 Python + 1726 TS 全部通过
 - [ ] T5: 残余死代码清理 — acceptance: 无 orphan 模块（covers: L8; **M1**)
 - [ ] T6: Durable Execution 基础 — acceptance: 服务重启后任务从检查点恢复（covers: L9; **M1**)
 - [ ] T7: Orchestrator-Worker 编排核心 — acceptance: LLM 调用 ≤ 12×（covers: L1; **M2**; depends: T1)
