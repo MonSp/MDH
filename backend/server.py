@@ -2496,6 +2496,63 @@ async def get_model_fallback(model_id: str):
         return _fail(str(e))
 
 
+@app.post("/api/webhooks")
+async def create_webhook(request: Request):
+    """注册 webhook 订阅"""
+    try:
+        body = await request.json()
+        from webhook_manager import WebhookManager
+        mgr = WebhookManager(_DATA_DIR)
+        sub = mgr.subscribe(body.get("url", ""), body.get("events", []))
+        return _ok({"sub_id": sub.sub_id, "url": sub.url, "events": sub.events, "secret": sub.secret}, code="WEBHOOK_CREATED")
+    except Exception as e:
+        logger.exception("create_webhook 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/webhooks")
+async def list_webhooks():
+    """列出 webhook 订阅"""
+    try:
+        from webhook_manager import WebhookManager
+        mgr = WebhookManager(_DATA_DIR)
+        subs = mgr.list_subscriptions()
+        return _ok({"subscriptions": [
+            {"sub_id": s.sub_id, "url": s.url, "events": s.events, "is_active": s.is_active}
+            for s in subs
+        ]})
+    except Exception as e:
+        logger.exception("list_webhooks 失败")
+        return _fail(str(e))
+
+
+@app.delete("/api/webhooks/{sub_id}")
+async def delete_webhook(sub_id: str):
+    """取消 webhook 订阅"""
+    try:
+        from webhook_manager import WebhookManager
+        mgr = WebhookManager(_DATA_DIR)
+        success = mgr.unsubscribe(sub_id)
+        if success:
+            return _ok({"deleted": True}, code="WEBHOOK_DELETED")
+        return _fail("订阅不存在", code="WEBHOOK_NOT_FOUND")
+    except Exception as e:
+        logger.exception("delete_webhook 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/webhooks/stats")
+async def get_webhook_stats():
+    """Webhook 投递统计"""
+    try:
+        from webhook_manager import WebhookManager
+        mgr = WebhookManager(_DATA_DIR)
+        return _ok(mgr.get_stats())
+    except Exception as e:
+        logger.exception("get_webhook_stats 失败")
+        return _fail(str(e))
+
+
 @app.post("/api/ops/restore")
 async def restore_backup(request: Request):
     """恢复备份"""
