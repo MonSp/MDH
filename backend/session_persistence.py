@@ -40,6 +40,10 @@ class SessionPersistence:
         from db import get_db
         return get_db(self._db_path)
 
+    def _get_write_lock(self):
+        from db import get_write_lock
+        return get_write_lock(self._db_path)
+
     # ── 会话快照 ──
 
     def save_snapshot(self, session_id: str, state: Dict[str, Any]) -> bool:
@@ -55,16 +59,17 @@ class SessionPersistence:
         now = datetime.now(timezone.utc).isoformat()
         state_json = json.dumps(state, ensure_ascii=False, default=str)
         try:
-            conn = self._get_conn()
-            conn.execute(
-                """INSERT INTO session_snapshots (session_id, state_json, created_at, updated_at)
-                   VALUES (?, ?, ?, ?)
-                   ON CONFLICT(session_id) DO UPDATE SET
-                     state_json=excluded.state_json,
-                     updated_at=excluded.updated_at""",
-                (session_id, state_json, now, now),
-            )
-            conn.commit()
+            with self._get_write_lock():
+                conn = self._get_conn()
+                conn.execute(
+                    """INSERT INTO session_snapshots (session_id, state_json, created_at, updated_at)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(session_id) DO UPDATE SET
+                         state_json=excluded.state_json,
+                         updated_at=excluded.updated_at""",
+                    (session_id, state_json, now, now),
+                )
+                conn.commit()
             return True
         except Exception as e:
             logger.warning("保存会话快照失败: %s", e)
@@ -114,9 +119,10 @@ class SessionPersistence:
     def delete_snapshot(self, session_id: str) -> bool:
         """删除会话快照（会议正常结束后清理）"""
         try:
-            conn = self._get_conn()
-            conn.execute("DELETE FROM session_snapshots WHERE session_id=?", (session_id,))
-            conn.commit()
+            with self._get_write_lock():
+                conn = self._get_conn()
+                conn.execute("DELETE FROM session_snapshots WHERE session_id=?", (session_id,))
+                conn.commit()
             return True
         except Exception as e:
             logger.warning("删除会话快照失败: %s", e)
@@ -154,20 +160,21 @@ class SessionPersistence:
         """
         now = datetime.now(timezone.utc).isoformat()
         try:
-            conn = self._get_conn()
-            conn.execute(
-                """INSERT OR IGNORE INTO task_executions
-                   (execution_key, task_id, session_id, status, started_at)
-                   VALUES (?, ?, ?, 'running', ?)""",
-                (execution_key, task_id, session_id, now),
-            )
-            conn.commit()
-            # 检查是否是新插入
-            row = conn.execute(
-                "SELECT status FROM task_executions WHERE execution_key=?",
-                (execution_key,),
-            ).fetchone()
-            return row is not None and row["status"] == "running"
+            with self._get_write_lock():
+                conn = self._get_conn()
+                conn.execute(
+                    """INSERT OR IGNORE INTO task_executions
+                       (execution_key, task_id, session_id, status, started_at)
+                       VALUES (?, ?, ?, 'running', ?)""",
+                    (execution_key, task_id, session_id, now),
+                )
+                conn.commit()
+                # 检查是否是新插入
+                row = conn.execute(
+                    "SELECT status FROM task_executions WHERE execution_key=?",
+                    (execution_key,),
+                ).fetchone()
+                return row is not None and row["status"] == "running"
         except Exception as e:
             logger.warning("标记任务开始失败: %s", e)
             return True  # 出错时允许执行（不阻塞）
@@ -176,12 +183,13 @@ class SessionPersistence:
         """标记任务完成"""
         now = datetime.now(timezone.utc).isoformat()
         try:
-            conn = self._get_conn()
-            conn.execute(
-                "UPDATE task_executions SET status='completed', completed_at=? WHERE execution_key=?",
-                (now, execution_key),
-            )
-            conn.commit()
+            with self._get_write_lock():
+                conn = self._get_conn()
+                conn.execute(
+                    "UPDATE task_executions SET status='completed', completed_at=? WHERE execution_key=?",
+                    (now, execution_key),
+                )
+                conn.commit()
             return True
         except Exception as e:
             logger.warning("标记任务完成失败: %s", e)
@@ -191,12 +199,13 @@ class SessionPersistence:
         """标记任务失败"""
         now = datetime.now(timezone.utc).isoformat()
         try:
-            conn = self._get_conn()
-            conn.execute(
-                "UPDATE task_executions SET status='failed', completed_at=? WHERE execution_key=?",
-                (now, execution_key),
-            )
-            conn.commit()
+            with self._get_write_lock():
+                conn = self._get_conn()
+                conn.execute(
+                    "UPDATE task_executions SET status='failed', completed_at=? WHERE execution_key=?",
+                    (now, execution_key),
+                )
+                conn.commit()
             return True
         except Exception as e:
             logger.warning("标记任务失败失败: %s", e)
@@ -212,13 +221,14 @@ class SessionPersistence:
             删除的记录数
         """
         try:
-            conn = self._get_conn()
-            cursor = conn.execute(
-                "DELETE FROM task_executions WHERE completed_at != '' AND completed_at < datetime('now', ?)",
-                (f"-{days} days",),
-            )
-            conn.commit()
-            return cursor.rowcount
+            with self._get_write_lock():
+                conn = self._get_conn()
+                cursor = conn.execute(
+                    "DELETE FROM task_executions WHERE completed_at != '' AND completed_at < datetime('now', ?)",
+                    (f"-{days} days",),
+                )
+                conn.commit()
+                return cursor.rowcount
         except Exception as e:
             logger.warning("清理旧执行记录失败: %s", e)
             return 0
