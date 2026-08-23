@@ -44,7 +44,7 @@ def measure(name, fn, iterations=50):
             result, elapsed = fn()
             if elapsed > 0:
                 times.append(elapsed)
-            if isinstance(result, dict) and "error" in result:
+            if isinstance(result, dict) and result.get("error"):
                 errors += 1
         except Exception:
             errors += 1
@@ -104,7 +104,7 @@ def measure_concurrent(name, fn, concurrency=4, total=100):
 
 
 def main():
-    # Start server
+    # Start server — capture stdout to extract the generated token
     print("Starting backend...")
     env = os.environ.copy()
     env["BACKEND_TOKEN"] = TOKEN
@@ -112,8 +112,8 @@ def main():
         [sys.executable, "server.py"],
         cwd=BACKEND_DIR,
         env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
     )
 
     # Wait for ready
@@ -125,6 +125,15 @@ def main():
             time.sleep(1)
     else:
         print("❌ Server failed to start")
+        proc.kill()
+        return 1
+
+    # Verify auth works
+    try:
+        req = urllib.request.Request(f"{BASE}/api/benchmark/tasks", headers={"Authorization": f"Bearer {TOKEN}"})
+        urllib.request.urlopen(req, timeout=5)
+    except Exception as e:
+        print(f"❌ Auth verification failed: {e}")
         proc.kill()
         return 1
 
@@ -183,9 +192,11 @@ def main():
         print("=" * 90)
 
         from llm_cache import LLMCache, normalize_prompt
+        import tempfile
+        perf_cache_db = os.path.join(tempfile.gettempdir(), "llm_cache_perf.db")
 
         # 写入延迟
-        cache = LLMCache(db_path=os.path.join(BACKEND_DIR, "data", "llm_cache.db"))
+        cache = LLMCache(db_path=perf_cache_db)
         cache.clear()
         put_times = []
         for i in range(100):
@@ -322,7 +333,7 @@ def main():
         print("=" * 90)
 
         # 并发缓存
-        cache = LLMCache(db_path=os.path.join(BACKEND_DIR, "data", "llm_cache.db"))
+        cache = LLMCache(db_path=perf_cache_db)
         cache.clear()
         errors = []
         def cache_worker(tid):
