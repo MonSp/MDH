@@ -21,6 +21,9 @@ class PerformanceDashboard:
         routing_stats = self._get_routing_stats()
         cost_stats = self._get_cost_stats()
         flow_stats = self._get_knowledge_flow_stats()
+        evolution_stats = self._get_evolution_stats()
+        system_health = self._get_system_health()
+        session_stats = self._get_session_stats()
 
         return {
             "agents": agent_stats,
@@ -28,6 +31,9 @@ class PerformanceDashboard:
             "routing": routing_stats,
             "costs": cost_stats,
             "knowledge_flow": flow_stats,
+            "evolution": evolution_stats,
+            "system": system_health,
+            "sessions": session_stats,
         }
 
     def _get_agent_stats(self) -> Dict[str, Any]:
@@ -191,3 +197,77 @@ class PerformanceDashboard:
         except Exception as e:
             logger.debug("knowledge flow stats error: %s", e)
             return {"total_flows": 0, "unique_mentors": 0, "unique_mentees": 0}
+
+    def _get_evolution_stats(self) -> Dict[str, Any]:
+        """技能进化统计"""
+        try:
+            from db import get_db
+            db_path = os.path.join(self._data_dir, "mdh.db")
+            if not os.path.isfile(db_path):
+                return {"total_evolutions": 0, "recent": []}
+            conn = get_db(db_path)
+            total = conn.execute("SELECT COUNT(*) FROM evolution_log").fetchone()[0]
+            recent = conn.execute(
+                "SELECT original_rule_id, trigger_condition, evolved_at FROM evolution_log ORDER BY id DESC LIMIT 5"
+            ).fetchall()
+            return {
+                "total_evolutions": total,
+                "recent": [dict(r) for r in recent],
+            }
+        except Exception as e:
+            logger.debug("evolution stats error: %s", e)
+            return {"total_evolutions": 0, "recent": []}
+
+    def _get_system_health(self) -> Dict[str, Any]:
+        """系统健康状态"""
+        try:
+            import shutil
+            db_path = os.path.join(self._data_dir, "mdh.db")
+            db_size = os.path.getsize(db_path) if os.path.isfile(db_path) else 0
+            disk = shutil.disk_usage(self._data_dir)
+            # 检查表记录数
+            table_counts = {}
+            if os.path.isfile(db_path):
+                from db import get_db
+                conn = get_db(db_path)
+                for table in ("agent_profiles", "experience_rules", "agent_memories",
+                              "evolution_log", "session_snapshots", "task_executions"):
+                    try:
+                        count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                        table_counts[table] = count
+                    except Exception:
+                        pass
+            return {
+                "db_size_mb": round(db_size / 1024 / 1024, 2),
+                "disk_total_gb": round(disk.total / 1024**3, 1),
+                "disk_used_gb": round(disk.used / 1024**3, 1),
+                "disk_free_gb": round(disk.free / 1024**3, 1),
+                "disk_usage_pct": round(disk.used / disk.total * 100, 1),
+                "table_counts": table_counts,
+            }
+        except Exception as e:
+            logger.debug("system health error: %s", e)
+            return {"db_size_mb": 0, "error": str(e)}
+
+    def _get_session_stats(self) -> Dict[str, Any]:
+        """会话统计"""
+        try:
+            from db import get_db
+            db_path = os.path.join(self._data_dir, "mdh.db")
+            if not os.path.isfile(db_path):
+                return {"active_snapshots": 0, "total_task_executions": 0}
+            conn = get_db(db_path)
+            snapshots = conn.execute("SELECT COUNT(*) FROM session_snapshots").fetchone()[0]
+            executions = conn.execute("SELECT COUNT(*) FROM task_executions").fetchone()[0]
+            completed = conn.execute("SELECT COUNT(*) FROM task_executions WHERE status='completed'").fetchone()[0]
+            failed = conn.execute("SELECT COUNT(*) FROM task_executions WHERE status='failed'").fetchone()[0]
+            return {
+                "active_snapshots": snapshots,
+                "total_task_executions": executions,
+                "completed": completed,
+                "failed": failed,
+                "success_rate": round(completed / executions * 100, 1) if executions > 0 else 0,
+            }
+        except Exception as e:
+            logger.debug("session stats error: %s", e)
+            return {"active_snapshots": 0, "total_task_executions": 0}

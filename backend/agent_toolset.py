@@ -89,10 +89,12 @@ class AgentToolset:
         agent_role: str,
         workspace_root: str,
         config_path: str = None,
+        mcp_adapter=None,
     ):
         self._agent_id = agent_id
         self._agent_role = agent_role
         self._workspace_root = workspace_root
+        self._mcp_adapter = mcp_adapter
         
         # 加载配置
         if AgentToolset._config_cache is None:
@@ -207,8 +209,12 @@ class AgentToolset:
     
     @property
     def available_tools(self) -> List[str]:
-        """获取可用工具列表"""
-        return self._role_config.get("permissions", {}).get("tools", [])
+        """获取可用工具列表（含 MCP 工具）"""
+        tools = list(self._role_config.get("permissions", {}).get("tools", []))
+        if self._mcp_adapter:
+            for mcp_tool in self._mcp_adapter.get_all_tools():
+                tools.append(mcp_tool.name)
+        return tools
     
     @property
     def skills(self) -> List[str]:
@@ -262,12 +268,12 @@ class AgentToolset:
         return "\n\n".join(sections) if sections else "无特定技能"
     
     def execute(self, tool_name: str, arguments: Dict[str, Any]) -> ToolResult:
-        """执行工具调用
-        
+        """执行工具调用（支持 MCP 工具路由）
+
         Args:
             tool_name: 工具名称
             arguments: 工具参数
-            
+
         Returns:
             ToolResult
         """
@@ -277,6 +283,20 @@ class AgentToolset:
                 success=False,
                 error=f"工具 {tool_name} 不在您的权限范围内。可用工具: {', '.join(self.available_tools)}",
             )
+
+        # MCP 工具路由
+        if self._mcp_adapter and self._mcp_adapter.has_tool(tool_name):
+            try:
+                import asyncio
+                result_text = asyncio.get_event_loop().run_until_complete(
+                    self._mcp_adapter.call_tool(tool_name, arguments)
+                )
+                return ToolResult(success=True, output=str(result_text))
+            except RuntimeError:
+                # 事件循环已运行时，标记为需要异步调用
+                return ToolResult(success=False, error=f"MCP 工具 {tool_name} 需要异步调用")
+            except Exception as e:
+                return ToolResult(success=False, error=f"MCP 工具调用失败: {e}")
         
         # 创建工具调用
         tool_call = ToolCall(
@@ -465,6 +485,7 @@ def create_agent_toolset(
     custom_config: Dict = None,
     executor_url: str = "",
     location: str = "local",
+    mcp_adapter=None,
 ) -> Union["AgentToolset", "RemoteAgentToolset"]:
     """创建Agent工具集的便捷函数
 
@@ -475,6 +496,7 @@ def create_agent_toolset(
         custom_config: 自定义配置（可选，会覆盖默认配置）
         executor_url: 远端执行器 URL（remote 模式必填）
         location: 执行位置 "local" 或 "remote"
+        mcp_adapter: MCP 适配器实例（可选，用于 MCP 工具路由）
 
     Returns:
         AgentToolset 或 RemoteAgentToolset 实例
@@ -490,6 +512,7 @@ def create_agent_toolset(
         agent_id=agent_id,
         agent_role=agent_role,
         workspace_root=workspace_root,
+        mcp_adapter=mcp_adapter,
     )
 
 

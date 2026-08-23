@@ -115,3 +115,34 @@ class TenantManager:
             if cursor.rowcount > 0:
                 return new_key
         return None
+
+    def get_tenant_stats(self, tenant_id: str) -> Dict:
+        """获取租户数据统计（隔离验证用）"""
+        from db import get_db as get_main_db
+        db_path = os.path.join(self._data_dir, "mdh.db")
+        if not os.path.isfile(db_path):
+            return {"agent_profiles": 0, "experience_rules": 0, "session_snapshots": 0}
+        conn = get_main_db(db_path)
+        stats = {}
+        # agent_profiles 按 tenant_id
+        try:
+            stats["agent_profiles"] = conn.execute(
+                "SELECT COUNT(*) FROM agent_profiles WHERE tenant_id = ?", (tenant_id,)
+            ).fetchone()[0]
+        except Exception:
+            stats["agent_profiles"] = 0
+        # experience_rules 按 team_id (tenant 映射到 team)
+        try:
+            stats["experience_rules"] = conn.execute(
+                "SELECT COUNT(*) FROM experience_rules WHERE team_id = ?", (tenant_id,)
+            ).fetchone()[0]
+        except Exception:
+            stats["experience_rules"] = 0
+        # session_snapshots 按 tenant_id
+        try:
+            stats["session_snapshots"] = conn.execute(
+                "SELECT COUNT(*) FROM session_snapshots WHERE tenant_id = ?", (tenant_id,)
+            ).fetchone()[0]
+        except Exception:
+            stats["session_snapshots"] = 0
+        return stats

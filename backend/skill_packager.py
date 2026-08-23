@@ -257,6 +257,57 @@ class SkillPackager:
         logger.info("技能合并完成: %s", merged)
         return str(merged)
 
+    def generate_skill_md(self, merged_dir: str, skill_name: str, version: str = "1.0.0") -> str:
+        """从合并后的技能包生成 SKILL.md（Agent Skills 标准格式）。
+
+        读取 manifest.yaml 元数据 + system_prompt.md 指令，输出标准 SKILL.md。
+
+        Args:
+            merged_dir: 合并后的技能包目录
+            skill_name: 技能名称
+            version: 版本号
+
+        Returns:
+            SKILL.md 的路径
+        """
+        merged_path = Path(merged_dir)
+        manifest = {}
+        manifest_path = merged_path / "manifest.yaml"
+        if manifest_path.is_file():
+            try:
+                with open(manifest_path, encoding="utf-8") as f:
+                    manifest = yaml.safe_load(f) or {}
+            except Exception:
+                pass
+
+        # 读取指令
+        instructions = ""
+        prompt_path = merged_path / "system_prompt.md"
+        if prompt_path.is_file():
+            instructions = prompt_path.read_text(encoding="utf-8").strip()
+
+        # 构建 SKILL.md
+        meta_lines = [
+            "---",
+            f"name: {manifest.get('name', skill_name)}",
+            f"version: {manifest.get('version', version)}",
+            f"description: {manifest.get('description', '')}",
+            f"category: {manifest.get('category', '')}",
+            f"methodology: {manifest.get('methodology', '')}",
+        ]
+        if manifest.get("required_tools"):
+            meta_lines.append(f"required_tools: {manifest['required_tools']}")
+        if manifest.get("keywords"):
+            meta_lines.append(f"keywords: {manifest['keywords']}")
+        meta_lines.append("---")
+        meta_lines.append("")
+        meta_lines.append(instructions)
+
+        skill_md_path = merged_path / "SKILL.md"
+        skill_md_path.write_text("\n".join(meta_lines), encoding="utf-8")
+        logger.info("生成 SKILL.md: %s", skill_md_path)
+        return str(skill_md_path)
+
     # ──────────────────── 脱敏检查 ────────────────────
 
     def desensitize_check(self, merged_dir: str) -> list[DesensitizeIssue]:
@@ -618,13 +669,7 @@ class SkillPackager:
             # 1. 合并
             merged_dir = self.merge_skills(base_skill_path, incremental_path)
 
-            # 2. 脱敏检查
-            desensitize_report = self.desensitize_check(merged_dir)
-
-            # 3. 生成变更摘要
-            diff_summary = self._compute_diff(base_skill_path, incremental_path)
-
-            # 4. 生成 README
+            # 1.5 读取版本号 + 生成 SKILL.md（Agent Skills 标准格式）
             base_version = "1.0.0"
             manifest_path = Path(base_skill_path) / "manifest.yaml"
             if manifest_path.is_file():
@@ -636,6 +681,15 @@ class SkillPackager:
                         base_version = manifest.get("version", "1.0.0")
                 except Exception:
                     logger.debug("读取基础技能 manifest 失败，使用默认版本")
+            self.generate_skill_md(merged_dir, skill_name, base_version)
+
+            # 2. 脱敏检查
+            desensitize_report = self.desensitize_check(merged_dir)
+
+            # 3. 生成变更摘要
+            diff_summary = self._compute_diff(base_skill_path, incremental_path)
+
+            # 4. 生成 README
 
             # 解析规则摘要
             rules_summary: list[dict] = []

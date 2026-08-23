@@ -140,7 +140,24 @@ def init_db(db_path: str) -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS idx_task_exec_session ON task_executions(session_id);
         CREATE INDEX IF NOT EXISTS idx_task_exec_status ON task_executions(status);
     """)
+    # 迁移：为已有表添加 tenant_id 列（已存在则跳过），在索引前执行
+    _safe_add_column(conn, "agent_profiles", "tenant_id", "TEXT NOT NULL DEFAULT ''")
+    _safe_add_column(conn, "session_snapshots", "tenant_id", "TEXT NOT NULL DEFAULT ''")
+    conn.executescript("""
+        CREATE INDEX IF NOT EXISTS idx_profiles_tenant ON agent_profiles(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_snapshots_tenant ON session_snapshots(tenant_id);
+    """)
     return conn
+
+
+def _safe_add_column(conn: sqlite3.Connection, table: str, column: str, col_def: str):
+    """安全添加列（已存在则跳过）"""
+    try:
+        existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        if column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
+    except Exception:
+        pass
 
 
 # 全局连接池（线程安全）

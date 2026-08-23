@@ -1440,6 +1440,22 @@ class MeetingCoordinator:
             await self._msg(coordinator_id, f"项目经理：组织团队讨论「{topic[:30]}...」")
             discussion_results = await self.run_discussion(topic, on_message, max_rounds=1, team=team)
 
+        # T14: 发送结构化讨论摘要（前端可用于格式化展示）
+        if discussion_results and on_message:
+            try:
+                summary_data = {
+                    "type": "discussion_summary",
+                    "topic": topic[:100],
+                    "participants": len(discussion_results),
+                    "stances": {
+                        r.get("parsed_stance", r.get("stance", "neutral")): r.get("agent_id", "")
+                        for r in discussion_results if r.get("agent_id")
+                    },
+                }
+                await on_message(coordinator_id, "", "", msg_type="discussion_summary", **summary_data)
+            except Exception:
+                pass  # 结构化消息失败不阻断流程
+
         original_description = analysis.task_description or user_message
         enhanced_description = self._enhance_task_description(original_description, discussion_results)
         enhanced_description, injected_rule_ids = await self._inject_experience(coordinator_id, original_description, enhanced_description, discussion_results, target_agent_id=analysis.target_agent_id or "")
@@ -1779,6 +1795,18 @@ class MeetingCoordinator:
             feedback_text = f"[审查反馈]\n{reviewer_feedback}\n\n[评估反馈]\n{monitor_feedback}\n\n[总结]\n{coordinator_summary}"
             structured = review_result.get("structured_feedback", {})
             feedback_status = structured.get("status", "approved")
+
+            # T14: 发送结构化审查摘要（前端可用于格式化展示）
+            if on_message:
+                try:
+                    await on_message(coordinator_id, "", "", msg_type="review_summary",
+                                     iteration=dev_iter, status=feedback_status,
+                                     reviewer_feedback=reviewer_feedback[:200],
+                                     monitor_feedback=monitor_feedback[:200],
+                                     coordinator_summary=coordinator_summary[:200],
+                                     issues=structured.get("issues", []))
+                except Exception:
+                    pass
 
             critic_result = review_result.get("critic_result", {})
             grounding_result = review_result.get("grounding_result", {})
