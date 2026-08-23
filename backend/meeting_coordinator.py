@@ -97,8 +97,10 @@ class MeetingCoordinator:
         approval_manager: Optional[ApprovalManager] = None,
         approval_timeout: float = 300.0,
         asset_context_builder: Optional[Callable[[str, str, list | None], str]] = None,
+        executor_url: str = "",
     ):
         self._max_iterations = max_iterations
+        self._executor_url = executor_url
         self._approval_manager = approval_manager
         self._approval_timeout = approval_timeout
         self._asset_context_builder = asset_context_builder
@@ -172,6 +174,7 @@ class MeetingCoordinator:
             meeting=self.meeting,
             router=self.router,
             workspace_root=workspace.root_path if workspace else None,
+            executor_url=executor_url,
         )
         self._review_pipeline = ReviewPipeline(
             get_model_fn=self._get_model,

@@ -239,6 +239,7 @@ class MeetingSession:
                 role=agent_def["role"],
                 status=MeetingAgentStatus.MEETING,
                 capabilities=agent_def["capabilities"],
+                location=agent_def.get("location", "local"),
             )
             self.agents.append(agent)
         self._running = True

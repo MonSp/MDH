@@ -12,7 +12,7 @@ AgentToolset - Agent工具集
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import yaml
 
@@ -463,20 +463,102 @@ def create_agent_toolset(
     agent_role: str,
     workspace_root: str,
     custom_config: Dict = None,
-) -> AgentToolset:
+    executor_url: str = "",
+    location: str = "local",
+) -> Union["AgentToolset", "RemoteAgentToolset"]:
     """创建Agent工具集的便捷函数
-    
+
     Args:
         agent_id: Agent ID
         agent_role: 角色名称（基础角色或自定义角色）
         workspace_root: 工作区根目录
         custom_config: 自定义配置（可选，会覆盖默认配置）
-        
+        executor_url: 远端执行器 URL（remote 模式必填）
+        location: 执行位置 "local" 或 "remote"
+
     Returns:
-        AgentToolset实例
+        AgentToolset 或 RemoteAgentToolset 实例
     """
+    if location == "remote" and executor_url:
+        return RemoteAgentToolset(
+            agent_id=agent_id,
+            agent_role=agent_role,
+            executor_url=executor_url,
+            workspace=workspace_root,
+        )
     return AgentToolset(
         agent_id=agent_id,
         agent_role=agent_role,
         workspace_root=workspace_root,
     )
+
+
+class RemoteAgentToolset:
+    """远端 Agent 工具集 — 通过 HTTP 调用 Python Executor 执行工具
+
+    接口与 AgentToolset 兼容，工具调用路由到远端 executor_server。
+    """
+
+    def __init__(
+        self,
+        agent_id: str,
+        agent_role: str,
+        executor_url: str,
+        workspace: str = "",
+        token: str = "",
+    ):
+        self._agent_id = agent_id
+        self._agent_role = agent_role
+        self._executor_url = executor_url.rstrip("/")
+        self._workspace = workspace
+        self._token = token or os.environ.get("EXECUTOR_TOKEN", "")
+
+    def _call(self, tool_name: str, arguments: Dict[str, Any]) -> "ToolResult":
+        from tool_registry import ToolResult
+        import json as _json
+
+        payload = {
+            "tool_name": tool_name,
+            "arguments": arguments,
+            "call_id": f"{self._agent_id}:{tool_name}",
+            "workspace": self._workspace,
+        }
+        headers = {"Content-Type": "application/json"}
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
+
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                f"{self._executor_url}/execute",
+                data=_json.dumps(payload).encode(),
+                headers=headers,
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = _json.loads(resp.read())
+                return ToolResult(
+                    success=data.get("success", True),
+                    output=str(data.get("result", "")),
+                    error=data.get("error", ""),
+                )
+        except Exception as e:
+            return ToolResult(success=False, error=str(e))
+
+    def execute(self, tool_name: str, arguments: Dict[str, Any]) -> "ToolResult":
+        return self._call(tool_name, arguments)
+
+    def write_file(self, filename: str, content: str) -> "ToolResult":
+        return self._call("write_file", {"path": filename, "content": content})
+
+    def read_file(self, filename: str) -> "ToolResult":
+        return self._call("read_file", {"path": filename})
+
+    def list_directory(self, path: str = ".") -> "ToolResult":
+        return self._call("list_directory", {"path": path})
+
+    def run_command(self, command: str) -> "ToolResult":
+        return self._call("bash", {"command": command})
+
+    def get_system_prompt(self) -> str:
+        return f"[Remote Agent {self._agent_id}] 工具调用将路由到远端执行器: {self._executor_url}"

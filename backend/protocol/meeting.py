@@ -74,6 +74,7 @@ class MeetingAgentInfo:
     role: AgentRole
     status: MeetingAgentStatus
     capabilities: List[str] = field(default_factory=list)
+    location: str = "local"  # "local" or "remote"
 
 
 @dataclass

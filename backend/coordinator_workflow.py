@@ -218,8 +218,23 @@ async def execute_workflow_node(coordinator, node: WorkflowNode, input_data: dic
     agent_toolset = None
     if coordinator._workspace:
         from agent_toolset import create_agent_toolset
+        # 查找该部门对应的 agent location
+        agent_location = "local"
+        for agent in coordinator.meeting.agents:
+            if hasattr(agent, 'location') and agent.location == "remote":
+                # 匹配 dept_id 到 agent role
+                dept_to_role = {
+                    "dept-frontend": "executor", "dept-backend": "executor",
+                    "dept-qa": "reviewer", "dept-devops": "monitor",
+                    "dept-data": "executor", "dept-fullstack": "executor",
+                }
+                if dept_to_role.get(node.dept_id) == agent.role.value:
+                    agent_location = "remote"
+                    break
+        executor_url = getattr(coordinator, '_executor_url', '')
         agent_toolset = create_agent_toolset(
             agent_id=node.node_id, agent_role=role.value, workspace_root=coordinator._workspace.root_path,
+            executor_url=executor_url, location=agent_location,
         )
 
     tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}" if agent_toolset else ""

@@ -40,6 +40,7 @@ class TaskOrchestrator:
         evidence_chain: Optional[EvidenceChain] = None,
         fallback_executor: Optional[FallbackExecutor] = None,
         workspace_root: Optional[str] = None,
+        executor_url: str = "",
     ):
         self._get_model = get_model_fn
         self._meeting = meeting
@@ -50,6 +51,7 @@ class TaskOrchestrator:
         self._tasks: List[Dict[str, Any]] = []
         self._task_routing: Dict[str, str] = {}
         self._workspace_root = workspace_root
+        self._executor_url = executor_url
     
     async def decompose(self, task_description: str) -> List[Dict[str, Any]]:
         """
@@ -193,13 +195,16 @@ class TaskOrchestrator:
             role = AgentRole(agent_info.role.value)
             model = self._get_model(role)
             
-            # 为当前Agent创建工具集
+            # 为当前Agent创建工具集（按 location 选择 local/remote）
             agent_toolset = None
             if self._workspace_root:
-                agent_toolset = AgentToolset(
+                from agent_toolset import create_agent_toolset
+                agent_toolset = create_agent_toolset(
                     agent_id=task.agent_id,
                     agent_role=role.value,
                     workspace_root=self._workspace_root,
+                    executor_url=self._executor_url,
+                    location=getattr(agent_info, 'location', 'local'),
                 )
             
             # 构建包含工具说明的提示词
@@ -395,10 +400,13 @@ class TaskOrchestrator:
 
             agent_toolset = None
             if self._workspace_root:
-                agent_toolset = AgentToolset(
+                from agent_toolset import create_agent_toolset
+                agent_toolset = create_agent_toolset(
                     agent_id=task.agent_id,
                     agent_role=role.value,
                     workspace_root=self._workspace_root,
+                    executor_url=self._executor_url,
+                    location=getattr(agent_info, 'location', 'local'),
                 )
 
             prompt = self._build_prompt(task, agent_info, agent_toolset)

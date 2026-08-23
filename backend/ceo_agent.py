@@ -65,6 +65,7 @@ def team_to_meeting_template(team: Team) -> list[dict]:
             "name": member.role_name,
             "role": agent_role,
             "capabilities": capabilities,
+            "location": member.location.value if hasattr(member.location, 'value') else str(member.location),
         })
     return template
 
@@ -489,6 +490,7 @@ class CeoAgent:
             workspace=workspace,
             workflow_engine=self._workflow_engine,
             approval_manager=self._approval_manager,
+            executor_url=os.environ.get("MDH_EXECUTOR_URL", ""),
         )
         # 传递Team实例给协调器，用于并行讨论
         coordinator._team = team

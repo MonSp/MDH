@@ -233,7 +233,19 @@ MDH 在 v1.0→v1.6.11 的 8 天内完成了 33 次发布，建立了完整的�
   > - 工作流节点执行增加环境检查 + 依赖安装 + 语法验证（对齐 TaskOrchestrator 能力）
   > - 统一 always 注册执行器（移除条件分支死代码路径）
   > - 测试：1690 Python + 1726 TS 全部通过
-- [ ] T2: 混合执行端到端贯通 — acceptance: per-agent location 选择贯穿 TS+Python 两侧（covers: L6; **M1**)
+- [x] T2: 混合执行端到端贯通 — acceptance: per-agent location 选择贯穿 TS+Python 两侧（covers: L6; **M1**)
+
+  > **实施 (2026-08-23)**: TS 侧已完整接线（RouterFactory 按 location 路由到 Local/Remote/HybridToolkitRouter）。
+  > Python 侧修复：
+  > - `protocol/meeting.py`: `MeetingAgentInfo` 新增 `location` 字段
+  > - `ceo_agent.py`: `team_to_meeting_template` 传递 `member.location` 到会议模板
+  > - `meeting.py`: `start()` 从模板读取 `location` 写入 `MeetingAgentInfo`
+  > - `agent_toolset.py`: 新增 `RemoteAgentToolset`（HTTP 调用 executor_server）+ `create_agent_toolset` 支持 location/executor_url 参数
+  > - `task_orchestrator.py`: 按 `agent_info.location` 选择 local/remote toolset
+  > - `coordinator_workflow.py`: 按 agent location 选择 local/remote toolset
+  > - `meeting_coordinator.py`: 新增 `executor_url` 参数，传递到 TaskOrchestrator
+  > - `ceo_agent.py`: 从 `MDH_EXECUTOR_URL` 环境变量读取 executor URL
+  > - 1681 Python + 1726 TS 测试全部通过
 - [x] T3: 路由自适应学习接线 — acceptance: 部门成功率随任务结果变化且持久化（covers: L3; **M1**)
 
   > **实施发现 (2026-08-23)**: 代码级取证的 L3 断链在 v1.6.11 已修复：
