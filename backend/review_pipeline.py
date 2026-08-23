@@ -170,19 +170,9 @@ class ReviewPipeline:
             logger.warning("GroundingAgent失败，跳过: %s", e, exc_info=True)
             grounding_result = GroundingResult(grounded=False, sources=[])
         
-        # 3. Reviewer LLM审查
-        reviewer_feedback = await self._reviewer_review(
+        # 3. 合并审查（Reviewer + Monitor + Coordinator 合并为单次 LLM 调用）
+        reviewer_feedback, monitor_feedback, coordinator_summary = await self._combined_review(
             task_description, execution_result, on_message, discussion_context
-        )
-        
-        # 4. Monitor评估
-        monitor_feedback = await self._monitor_evaluate(
-            task_description, execution_result, reviewer_feedback, on_message, discussion_context
-        )
-        
-        # 5. Coordinator总结
-        coordinator_summary = await self._coordinator_summarize(
-            task_description, execution_result, reviewer_feedback, monitor_feedback, on_message
         )
         
         # 6. 结构化验收反馈（整合 LLM 审查意见 + 确定性门禁结果）
@@ -211,7 +201,69 @@ class ReviewPipeline:
             if a.role == role:
                 return a.id
         return None
-    
+
+    async def _combined_review(
+        self,
+        task_description: str,
+        execution_result: str,
+        on_message: Callable[[str, str, str], Awaitable[None]],
+        discussion_context: str = "",
+    ) -> tuple:
+        """合并审查：Reviewer + Monitor + Coordinator 合并为单次 LLM 调用
+
+        Returns:
+            (reviewer_feedback, monitor_feedback, coordinator_summary) 三元组
+        """
+        reviewer_id = self._find_agent_id(AgentRole.REVIEWER)
+        if not reviewer_id:
+            return ("", "", "")
+        model = self._get_model(AgentRole.REVIEWER)
+
+        context_block = f"\n\n团队讨论确定的方案：\n{discussion_context}" if discussion_context else ""
+        prompt = (
+            f"你是团队的质量审查专家。请审查以下任务执行结果，从三个角度给出意见。\n\n"
+            f"任务：{task_description}{context_block}\n"
+            f"执行结果：{execution_result[:1000]}\n\n"
+            f"请按以下格式回复：\n"
+            f"[审查意见] 代码质量、完整性、潜在问题、改进建议（2-3句）\n"
+            f"[监控评估] 性能、稳定性、运维风险（1-2句）\n"
+            f"[总结] 最终结论和建议（1-2句）\n"
+            f"status: approved 或 revision_required\nscore: 1-10"
+        )
+        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+        try:
+            response = await safe_llm_reply(model, msg, timeout=90)
+            feedback = _extract_text(response)
+        except Exception as e:
+            logger.warning("合并审查 LLM 调用失败: %s", e)
+            self._safe_notify_model_error(AgentRole.REVIEWER)
+            feedback = LLM_FALLBACK_TEMPLATE.format(role="reviewer", content_type="审查意见")
+
+        # 解析三段式输出
+        reviewer_feedback = feedback
+        monitor_feedback = ""
+        coordinator_summary = ""
+
+        if "[监控评估]" in feedback:
+            parts = feedback.split("[监控评估]", 1)
+            reviewer_feedback = parts[0].replace("[审查意见]", "").strip()
+            rest = parts[1]
+            if "[总结]" in rest:
+                sub_parts = rest.split("[总结]", 1)
+                monitor_feedback = sub_parts[0].strip()
+                coordinator_summary = sub_parts[1].strip()
+            else:
+                monitor_feedback = rest.strip()
+        elif "[总结]" in feedback:
+            parts = feedback.split("[总结]", 1)
+            reviewer_feedback = parts[0].replace("[审查意见]", "").strip()
+            coordinator_summary = parts[1].strip()
+
+        if on_message:
+            await on_message(reviewer_id, feedback, "")
+        self._meeting.add_message("agent", feedback, reviewer_id)
+        return reviewer_feedback, monitor_feedback, coordinator_summary
+
     async def _reviewer_review(
         self,
         task_description: str,

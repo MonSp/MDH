@@ -1385,9 +1385,15 @@ class MeetingCoordinator:
 
         # 2. 串行流程：讨论 → [投票?] → 分派 → 执行 → 审查
         topic = (analysis.discussion_topic.strip() if analysis.discussion_topic else "") or user_message
-        await self._msg(coordinator_id, f"项目经理：组织团队讨论「{topic[:30]}...」")
         team = getattr(self, '_team', None)
-        discussion_results = await self.run_discussion(topic, on_message, team=team)
+
+        # 标准任务跳过讨论，直接分派（减少 LLM 调用）
+        if triage["level"] == "standard":
+            await self._msg(coordinator_id, f"项目经理：标准任务，跳过讨论直接分派。")
+            discussion_results = []
+        else:
+            await self._msg(coordinator_id, f"项目经理：组织团队讨论「{topic[:30]}...」")
+            discussion_results = await self.run_discussion(topic, on_message, max_rounds=1, team=team)
 
         original_description = analysis.task_description or user_message
         enhanced_description = self._enhance_task_description(original_description, discussion_results)

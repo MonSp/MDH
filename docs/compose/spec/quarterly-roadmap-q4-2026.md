@@ -281,7 +281,13 @@ MDH 在 v1.0→v1.6.11 的 8 天内完成了 33 次发布，建立了完整的�
   > - `db.py`: 新增 session_snapshots + task_executions 表
   > - `meeting_coordinator.py`: 集成快照保存和幂等检查
   > - 1664 Python + 1726 TS 测试全部通过
-- [ ] T7: Orchestrator-Worker 编排核心 — acceptance: LLM 调用 ≤ 12×（covers: L1; **M2**; depends: T1)
+- [x] T7: Orchestrator-Worker 编排核心 — acceptance: LLM 调用 ≤ 12×（covers: L1; **M2**; depends: T1）
+
+  > **实施 (2026-08-23)**:
+  > - 讨论轮数从 2 减至 1（max_rounds=1），标准任务跳过讨论直接分派
+  > - 审查流水线合并：Reviewer + Monitor + Coordinator 从 3 次 LLM 调用合并为 1 次
+  > - 复杂路径 LLM 调用从 ~15-19× 降至 ~9-12×
+  > - 1665 Python + 1726 TS 测试全部通过
 - [ ] T8: Artifact 模式 — acceptance: 多角色产物通过文件系统传递（covers: L1; **M2**; depends: T1)
 - [ ] T9: 审查接入真实 LLM — acceptance: 审查报告含 LLM 生成的具体建议（covers: L7; **M2**)
 - [ ] T10: 技能闭环自动完成 — acceptance: 会议结束自动更新技能包（covers: L5; **M2**)
