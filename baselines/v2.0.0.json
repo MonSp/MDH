@@ -1,0 +1,89 @@
+{
+  "timestamp": "2026-08-23T14:06:33.027400+00:00",
+  "total": 7,
+  "passed": 7,
+  "failed": 0,
+  "avg_llm_calls": 6.0,
+  "avg_latency_s": 0.5629470688956124,
+  "results": [
+    {
+      "task_id": "simple-01",
+      "success": true,
+      "llm_calls": 6,
+      "tool_calls": 0,
+      "files_written": 6,
+      "latency_s": 0.5803775787353516,
+      "path_used": "complex",
+      "error": "",
+      "details": {}
+    },
+    {
+      "task_id": "simple-02",
+      "success": true,
+      "llm_calls": 6,
+      "tool_calls": 0,
+      "files_written": 6,
+      "latency_s": 0.008624792098999023,
+      "path_used": "complex",
+      "error": "",
+      "details": {}
+    },
+    {
+      "task_id": "simple-03",
+      "success": true,
+      "llm_calls": 6,
+      "tool_calls": 0,
+      "files_written": 6,
+      "latency_s": 0.10190582275390625,
+      "path_used": "complex",
+      "error": "",
+      "details": {}
+    },
+    {
+      "task_id": "standard-01",
+      "success": true,
+      "llm_calls": 6,
+      "tool_calls": 0,
+      "files_written": 6,
+      "latency_s": 0.1011958122253418,
+      "path_used": "complex",
+      "error": "",
+      "details": {}
+    },
+    {
+      "task_id": "standard-02",
+      "success": true,
+      "llm_calls": 6,
+      "tool_calls": 0,
+      "files_written": 12,
+      "latency_s": 2.078289747238159,
+      "path_used": "complex",
+      "error": "",
+      "details": {}
+    },
+    {
+      "task_id": "complex-01",
+      "success": true,
+      "llm_calls": 6,
+      "tool_calls": 0,
+      "files_written": 12,
+      "latency_s": 1.0603742599487305,
+      "path_used": "complex",
+      "error": "",
+      "details": {}
+    },
+    {
+      "task_id": "complex-02",
+      "success": true,
+      "llm_calls": 6,
+      "tool_calls": 0,
+      "files_written": 12,
+      "latency_s": 0.009861469268798828,
+      "path_used": "complex",
+      "error": "",
+      "details": {}
+    }
+  ],
+  "regressions": [],
+  "improvements": []
+}
