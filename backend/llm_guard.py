@@ -19,6 +19,36 @@ DEFAULT_MAX_RETRIES = 2
 RETRY_BACKOFF_BASE = 2.0
 
 
+def _extract_prompt_text(msg: Any) -> str:
+    """从消息对象中提取纯文本用于缓存 key
+
+    支持 AgentScope Msg 和普通字符串。
+    规范化空白字符以提高缓存命中率。
+    """
+    import re
+    text = ""
+    if isinstance(msg, str):
+        text = msg
+    elif hasattr(msg, 'content'):
+        content = msg.content
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, dict) and item.get('type') == 'text':
+                    parts.append(item.get('text', ''))
+                elif isinstance(item, str):
+                    parts.append(item)
+            text = ' '.join(parts)
+    # 规范化：去除多余空白、时间戳、UUID
+    if text:
+        text = re.sub(r'\s+', ' ', text).strip()
+        text = re.sub(r'\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[.\d]*Z?', '', text)
+        text = re.sub(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', '', text)
+    return text[:2000]  # 截断避免过长 key
+
+
 async def safe_llm_reply(
     model: Any,
     msg: Any,
@@ -42,6 +72,16 @@ async def safe_llm_reply(
         asyncio.TimeoutError: 超时且重试耗尽
         Exception: 模型调用的原始异常
     """
+    from llm_cache import llm_cache
+
+    # 缓存检查：提取 prompt 文本用于缓存 key
+    prompt_text = _extract_prompt_text(msg)
+    if prompt_text:
+        cached = llm_cache.get(prompt_text, role=getattr(model, 'name', ''), model=str(type(model).__name__))
+        if cached is not None:
+            logger.debug("LLM 缓存命中: %s...", prompt_text[:50])
+            return cached
+
     last_error = None
 
     for attempt in range(max_retries + 1):
@@ -50,6 +90,9 @@ async def safe_llm_reply(
                 model.reply(msg),
                 timeout=timeout,
             )
+            # 缓存结果
+            if prompt_text:
+                llm_cache.put(prompt_text, result, role=getattr(model, 'name', ''), model=str(type(model).__name__))
             return result
         except asyncio.TimeoutError:
             last_error = asyncio.TimeoutError(

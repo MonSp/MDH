@@ -163,14 +163,21 @@ class PerformanceDashboard:
             return {"departments": 0, "depts": []}
 
     def _get_cost_stats(self) -> Dict[str, Any]:
-        """LLM 成本统计"""
+        """LLM 成本统计（含缓存命中率）"""
         try:
             from llm_cost_tracker import get_tracker
             tracker = get_tracker(self._data_dir)
-            return tracker.get_summary()
+            stats = tracker.get_summary()
         except Exception as e:
             logger.debug("cost stats error: %s", e)
-            return {"total_calls": 0, "total_cost_usd": 0}
+            stats = {"total_calls": 0, "total_cost_usd": 0}
+        # 追加缓存统计
+        try:
+            from llm_cache import llm_cache
+            stats["cache"] = llm_cache.stats
+        except Exception:
+            pass
+        return stats
 
     def _get_knowledge_flow_stats(self) -> Dict[str, Any]:
         """知识流动统计"""

@@ -3,6 +3,15 @@ import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from llm_guard import safe_llm_reply, safe_llm_call, DEFAULT_LLM_TIMEOUT
+from llm_cache import llm_cache
+
+
+@pytest.fixture(autouse=True)
+def _clear_llm_cache():
+    """每个测试前清空 LLM 缓存，避免测试间干扰"""
+    llm_cache.clear()
+    yield
+    llm_cache.clear()
 
 
 class MockModel:
