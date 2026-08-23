@@ -1,0 +1,117 @@
+"""多租户基础 — 团队隔离 + 数据分域
+
+核心概念：
+- Tenant = 一个独立的团队，有自己的数据空间
+- 所有数据查询按 tenant_id 分域
+- 每个 tenant 有独立的 API key
+"""
+
+import json
+import logging
+import os
+import secrets
+import threading
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
+
+from db import get_db, get_write_lock
+
+logger = logging.getLogger("tenant")
+
+
+@dataclass
+class Tenant:
+    tenant_id: str
+    name: str
+    description: str = ""
+    created_at: str = ""
+    api_key: str = ""
+    is_active: bool = True
+
+
+class TenantManager:
+    """租户管理器"""
+
+    def __init__(self, data_dir: str):
+        self._data_dir = data_dir
+        self._db_path = os.path.join(data_dir, "tenants.db")
+        self._db = get_db(self._db_path)
+        self._ensure_table()
+        self._lock = threading.Lock()
+
+    def _ensure_table(self):
+        self._db.executescript("""
+            CREATE TABLE IF NOT EXISTS tenants (
+                tenant_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                created_at TEXT NOT NULL,
+                api_key TEXT NOT NULL,
+                is_active INTEGER DEFAULT 1
+            );
+            CREATE INDEX IF NOT EXISTS idx_tenants_api_key ON tenants(api_key);
+        """)
+        self._db.commit()
+
+    def create_tenant(self, name: str, description: str = "") -> Tenant:
+        """创建租户"""
+        tenant_id = f"t-{secrets.token_urlsafe(8)}"
+        api_key = f"mdh_tenant_{secrets.token_urlsafe(24)}"
+        now = datetime.now(timezone.utc).isoformat()
+
+        with self._lock:
+            self._db.execute(
+                "INSERT INTO tenants (tenant_id, name, description, created_at, api_key, is_active) VALUES (?, ?, ?, ?, ?, 1)",
+                (tenant_id, name, description, now, api_key),
+            )
+            self._db.commit()
+
+        logger.info("创建租户: %s (%s)", name, tenant_id)
+        return Tenant(tenant_id=tenant_id, name=name, description=description, created_at=now, api_key=api_key, is_active=True)
+
+    def get_tenant(self, tenant_id: str) -> Optional[Tenant]:
+        """获取租户"""
+        row = self._db.execute("SELECT * FROM tenants WHERE tenant_id = ?", (tenant_id,)).fetchone()
+        if not row:
+            return None
+        return Tenant(
+            tenant_id=row["tenant_id"], name=row["name"], description=row["description"] or "",
+            created_at=row["created_at"], api_key=row["api_key"], is_active=bool(row["is_active"]),
+        )
+
+    def get_tenant_by_api_key(self, api_key: str) -> Optional[Tenant]:
+        """通过 API key 获取租户"""
+        row = self._db.execute("SELECT * FROM tenants WHERE api_key = ? AND is_active = 1", (api_key,)).fetchone()
+        if not row:
+            return None
+        return Tenant(
+            tenant_id=row["tenant_id"], name=row["name"], description=row["description"] or "",
+            created_at=row["created_at"], api_key=row["api_key"], is_active=bool(row["is_active"]),
+        )
+
+    def list_tenants(self) -> List[Tenant]:
+        """列出所有租户"""
+        rows = self._db.execute("SELECT * FROM tenants ORDER BY created_at DESC").fetchall()
+        return [
+            Tenant(tenant_id=r["tenant_id"], name=r["name"], description=r["description"] or "",
+                   created_at=r["created_at"], api_key=r["api_key"], is_active=bool(r["is_active"]))
+            for r in rows
+        ]
+
+    def deactivate_tenant(self, tenant_id: str) -> bool:
+        """停用租户"""
+        with self._lock:
+            cursor = self._db.execute("UPDATE tenants SET is_active = 0 WHERE tenant_id = ?", (tenant_id,))
+            self._db.commit()
+            return cursor.rowcount > 0
+
+    def regenerate_api_key(self, tenant_id: str) -> Optional[str]:
+        """重新生成 API key"""
+        new_key = f"mdh_tenant_{secrets.token_urlsafe(24)}"
+        with self._lock:
+            cursor = self._db.execute("UPDATE tenants SET api_key = ? WHERE tenant_id = ?", (new_key, tenant_id))
+            self._db.commit()
+            if cursor.rowcount > 0:
+                return new_key
+        return None

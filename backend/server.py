@@ -2391,6 +2391,63 @@ async def clear_cache():
         return _fail(str(e))
 
 
+@app.post("/api/tenants")
+async def create_tenant(request: Request):
+    """创建租户"""
+    try:
+        body = await request.json()
+        from tenant_manager import TenantManager
+        mgr = TenantManager(_DATA_DIR)
+        tenant = mgr.create_tenant(body.get("name", ""), body.get("description", ""))
+        return _ok(asdict(tenant), code="TENANT_CREATED")
+    except Exception as e:
+        logger.exception("create_tenant 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/tenants")
+async def list_tenants():
+    """列出所有租户"""
+    try:
+        from tenant_manager import TenantManager
+        mgr = TenantManager(_DATA_DIR)
+        tenants = mgr.list_tenants()
+        return _ok({"tenants": [asdict(t) for t in tenants], "total": len(tenants)})
+    except Exception as e:
+        logger.exception("list_tenants 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/tenants/{tenant_id}")
+async def get_tenant(tenant_id: str):
+    """获取租户详情"""
+    try:
+        from tenant_manager import TenantManager
+        mgr = TenantManager(_DATA_DIR)
+        tenant = mgr.get_tenant(tenant_id)
+        if tenant:
+            return _ok(asdict(tenant))
+        return _fail("租户不存在", code="TENANT_NOT_FOUND")
+    except Exception as e:
+        logger.exception("get_tenant 失败")
+        return _fail(str(e))
+
+
+@app.delete("/api/tenants/{tenant_id}")
+async def deactivate_tenant(tenant_id: str):
+    """停用租户"""
+    try:
+        from tenant_manager import TenantManager
+        mgr = TenantManager(_DATA_DIR)
+        success = mgr.deactivate_tenant(tenant_id)
+        if success:
+            return _ok({"deactivated": True}, code="TENANT_DEACTIVATED")
+        return _fail("租户不存在", code="TENANT_NOT_FOUND")
+    except Exception as e:
+        logger.exception("deactivate_tenant 失败")
+        return _fail(str(e))
+
+
 @app.post("/api/ops/restore")
 async def restore_backup(request: Request):
     """恢复备份"""
