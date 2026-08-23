@@ -121,14 +121,23 @@ app.add_middleware(
 # API 版本化中间件
 @app.middleware("http")
 async def api_version_middleware(request, call_next):
-    """API 版本化：/api/v1/* 重写到 /api/*，响应头加版本标识"""
+    """API 版本化 + 请求追踪"""
+    import uuid as _uuid
     path = request.url.path
     if path.startswith("/api/v1/"):
-        # 重写路径：/api/v1/foo → /api/foo
-        request.scope["path"] = path[3:]  # 去掉 /v1
+        request.scope["path"] = path[3:]
+    # 请求追踪
+    trace_id = _uuid.uuid4().hex[:12]
+    request.scope["trace_id"] = trace_id
+    try:
+        from logging_config import set_trace_id
+        set_trace_id(trace_id)
+    except ImportError:
+        pass
     response = await call_next(request)
     response.headers["X-API-Version"] = "v1"
     response.headers["X-MDH-Version"] = "1.6.0"
+    response.headers["X-Trace-Id"] = trace_id
     return response
 
 # 注册路由模块（渐进迁移：内联端点保留，新代码使用路由器）
@@ -2376,6 +2385,28 @@ async def get_cache_stats():
         return _ok(stats)
     except Exception as e:
         logger.exception("get_cache_stats 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/ops/logging")
+async def get_logging_config():
+    """日志配置信息"""
+    try:
+        root = logging.getLogger()
+        handlers = []
+        for h in root.handlers:
+            handlers.append({
+                "type": type(h).__name__,
+                "level": logging.getLevelName(h.level),
+                "formatter": type(h.formatter).__name__ if h.formatter else None,
+            })
+        return _ok({
+            "level": logging.getLevelName(root.level),
+            "handlers": handlers,
+            "logger_count": len(logging.Logger.manager.loggerDict),
+        })
+    except Exception as e:
+        logger.exception("get_logging_config 失败")
         return _fail(str(e))
 
 

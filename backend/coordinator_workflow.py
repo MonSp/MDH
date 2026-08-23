@@ -50,10 +50,16 @@ async def run_agent_execution_loop(
     max_tool_rounds: int = 5,
     on_model_error: Optional[Callable[[], None]] = None,
 ) -> Dict[str, Any]:
-    """LLM + 工具执行循环：代码块写文件、工具调用、产物收集"""
+    """LLM + 工具执行循环：环境检查、代码块写文件、工具调用、产物收集"""
     from agentscope.message import Msg
     from code_extractor import extract_code_blocks
     from llm_guard import safe_llm_reply
+
+    # ── 阶段A: 环境检查 ──
+    if agent_toolset:
+        ls_result = agent_toolset.list_directory(".")
+        env_info = ls_result.output if ls_result.success else "(空目录)"
+        prompt = f"工作区当前内容：\n{env_info}\n\n{prompt}"
 
     msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
     conversation = [msg]
@@ -61,6 +67,7 @@ async def run_agent_execution_loop(
     tool_outputs: List[Dict[str, Any]] = []
     last_text = ""
 
+    # ── 阶段B: 文件创建循环 ──
     for _ in range(max_tool_rounds + 1):
         try:
             response = await safe_llm_reply(model, conversation, timeout=120)
@@ -73,12 +80,14 @@ async def run_agent_execution_loop(
             raise
         last_text = _extract_text(response)
 
+        files_this_round: List[str] = []
         code_blocks = extract_code_blocks(last_text)
         if code_blocks and agent_toolset:
             for block in code_blocks:
                 wf = agent_toolset.write_file(block["filename"], block["content"])
                 if wf.success:
                     files_written.append(block["filename"])
+                    files_this_round.append(block["filename"])
                 else:
                     logger.warning("工作流节点写文件失败: %s", block["filename"])
 
@@ -87,14 +96,58 @@ async def run_agent_execution_loop(
             for call in tool_calls:
                 tc = agent_toolset.execute(call["tool"], call.get("arguments", {}))
                 tool_outputs.append({"tool": call["tool"], "success": tc.success, "output": tc.output})
+                if call["tool"] == "write_file" and tc.success:
+                    path = call.get("arguments", {}).get("path", "")
+                    if path:
+                        files_written.append(path)
+                        files_this_round.append(path)
+
+        if files_this_round:
+            followup = Msg(
+                name="user", role="user",
+                content=[{"type": "text", "text": f"已写入文件: {', '.join(files_this_round)}\n请继续创建下一个文件。如果没有更多文件需要创建，请回复'任务完成'。"}],
+            )
+            conversation.append(followup)
+            continue
 
         conversation.append(Msg(name="assistant", role="assistant", content=[{"type": "text", "text": last_text}]))
-        if files_written or tool_outputs:
+        if tool_outputs:
             break
         if "完成" in last_text or "done" in last_text.lower():
             break
 
-    return {"result": last_text, "files_written": files_written, "tool_outputs": tool_outputs}
+    # ── 阶段C: 依赖安装与语法验证 ──
+    verification_results = []
+    if agent_toolset and files_written:
+        dep_files = {
+            "requirements.txt": "pip install -r requirements.txt",
+            "package.json": "npm install --prefix .",
+            "Pipfile": "pipenv install",
+            "pyproject.toml": "pip install -e .",
+        }
+        for dep_file, install_cmd in dep_files.items():
+            if dep_file in files_written:
+                install_result = agent_toolset.run_command(install_cmd)
+                status = "成功" if install_result.success else f"失败: {install_result.error[:200]}"
+                verification_results.append(f"依赖安装 {dep_file}: {status}")
+
+        for fname in files_written:
+            ext = '.' + fname.rsplit('.', 1)[-1] if '.' in fname else ''
+            if ext == '.py':
+                check = agent_toolset.run_command(f'python -c "import ast; ast.parse(open(\'{fname}\', encoding=\'utf-8\').read()); print(\'OK\')"')
+                status = "通过" if check.success else f"语法错误: {check.error[:100]}"
+                verification_results.append(f"语法检查 {fname}: {status}")
+            elif ext == '.json':
+                check = agent_toolset.run_command(f'python -c "import json; json.load(open(\'{fname}\', encoding=\'utf-8\')); print(\'OK\')"')
+                status = "通过" if check.success else f"格式错误: {check.error[:100]}"
+                verification_results.append(f"语法检查 {fname}: {status}")
+
+    return {
+        "result": last_text,
+        "files_written": files_written,
+        "tool_outputs": tool_outputs,
+        "verification": verification_results,
+    }
 
 
 def extract_tool_calls_from_text(text: str) -> List[Dict[str, Any]]:
@@ -199,12 +252,13 @@ async def execute_workflow_node(coordinator, node: WorkflowNode, input_data: dic
         logger.warning("工作流节点执行失败: %s", e)
         loop_result = {
             "result": LLM_FALLBACK_TEMPLATE.format(role=node.dept_id, content_type="执行结果"),
-            "files_written": [], "tool_outputs": [],
+            "files_written": [], "tool_outputs": [], "verification": [],
         }
 
     node_result = {
         "result": loop_result["result"], "node_id": node.node_id, "dept_id": node.dept_id,
         "files_written": loop_result["files_written"], "tool_outputs": loop_result["tool_outputs"],
+        "verification": loop_result.get("verification", []),
     }
 
     gate_result = await run_node_gate(coordinator, node)

@@ -77,7 +77,7 @@ class SemanticAnalyzer:
         if is_complex:
             logger.info("检测到复杂任务，生成工作流定义")
             from workflow_engine import WorkflowEngine
-            workflow_definition = self._generate_workflow_definition(user_message, routing_decision)
+            workflow_definition = await self._generate_workflow_definition(user_message, routing_decision)
             return SemanticAnalysisResult(
                 is_task=True,
                 is_workflow=True,
@@ -218,7 +218,7 @@ class SemanticAnalyzer:
             f"- 匹配关键词：{', '.join(decision.matched_keywords) or '无'}\n"
         )
     
-    def _generate_workflow_definition(self, user_message: str, routing_decision: RoutingDecision):
+    async def _generate_workflow_definition(self, user_message: str, routing_decision: RoutingDecision):
         """根据用户消息生成工作流定义
 
         优先使用 LLM 生成节点列表，失败时回退到确定性关键词匹配。
@@ -230,7 +230,7 @@ class SemanticAnalyzer:
         workflow_id = str(uuid.uuid4())[:8]
 
         # 1. 尝试 LLM 生成节点
-        llm_nodes = self._llm_generate_nodes_sync(user_message)
+        llm_nodes = await self._llm_generate_nodes(user_message)
 
         # 2. 验证 LLM 输出
         if llm_nodes and self._validate_workflow_nodes(llm_nodes):
@@ -264,8 +264,8 @@ class SemanticAnalyzer:
             execution_strategy=execution_strategy,
         )
 
-    def _llm_generate_nodes_sync(self, user_message: str) -> list:
-        """使用 LLM 生成工作流节点列表（同步版本，用于确定性路径）
+    async def _llm_generate_nodes(self, user_message: str) -> list:
+        """使用 LLM 生成工作流节点列表（异步版本）
 
         Returns:
             [{"task": str, "dept": str, "description": str}, ...] 或空列表
@@ -288,18 +288,7 @@ class SemanticAnalyzer:
             )
 
             msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-
-            # 使用同步方式调用（在确定性路径中）
-            import asyncio
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # 如果事件循环已运行，跳过 LLM 调用（避免嵌套）
-                    return []
-                response = loop.run_until_complete(safe_llm_reply(model, msg, timeout=30))
-            except RuntimeError:
-                return []
-
+            response = await safe_llm_reply(model, msg, timeout=30)
             text = _extract_text(response)
 
             # 解析 JSON

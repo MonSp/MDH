@@ -159,11 +159,8 @@ class MeetingCoordinator:
         self.planner = PlannerAgent(name="coordinator_planner")
 
         # WorkflowEngine 初始化（可由外部注入共享实例，保证 REST 可管理会议工作流）
-        # 仅当本地自建引擎时才注册执行器与回调，避免多个 coordinator 注入同一共享引擎时
-        # 发生 last-wins 覆盖（共享引擎由 server 统一注册委托执行器）
         self.workflow_engine = workflow_engine or WorkflowEngine()
-        if not workflow_engine:
-            self._setup_workflow_engine()
+        self._setup_workflow_engine()
 
         # WhyBuddy化：实例化拆分后的子模块
         self._semantic_analyzer = SemanticAnalyzer(

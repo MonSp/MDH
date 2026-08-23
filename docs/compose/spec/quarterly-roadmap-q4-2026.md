@@ -1,9 +1,9 @@
 ---
 feature: quarterly-roadmap-q4-2026
-status: delivered
+status: in-progress
 updated: 2026-08-23
 branch: main
-commits: aea8e36..aea8e36
+commits: aea8e36..HEAD
 ---
 
 # MDH 季度战略路线图 (2026 Q4)
@@ -220,7 +220,19 @@ MDH 在 v1.0→v1.6.11 的 8 天内完成了 33 次发布，建立了完整的�
 
 ## Tasks
 
-- [ ] T1: 工作流引擎统一与增强 — acceptance: 会议内工作流可通过 REST 管理、节点产出真实文件（covers: L2; **M1**)
+- [x] T1: 工作流引擎统一与增强 — acceptance: 会议内工作流可通过 REST 管理、节点产出真实文件（covers: L2; **M1**)
+
+  > **实施发现 (2026-08-23)**: 代码级取证基于 v1.3.4，但 v1.6.11 已修复大部分问题：
+  > - 双引擎实例 → 已统一（server.py 注入共享引擎到所有 3 条生产路径）
+  > - 硬编码线性 DAG → 已修复（LLM + 确定性关键词双路径，真实 DAG 推断）
+  > - 节点不写文件 → 已修复（AgentToolset + 代码提取 + 多轮循环）
+  > - _running_tasks 未使用 → 已修复（start_workflow 注册）
+  >
+  > 本次实际修复：
+  > - `_llm_generate_nodes_sync` → async `_llm_generate_nodes`（同步版本在 FastAPI 事件循环中永远返回空，LLM 路径实际为死代码）
+  > - 工作流节点执行增加环境检查 + 依赖安装 + 语法验证（对齐 TaskOrchestrator 能力）
+  > - 统一 always 注册执行器（移除条件分支死代码路径）
+  > - 测试：1690 Python + 1726 TS 全部通过
 - [ ] T2: 混合执行端到端贯通 — acceptance: per-agent location 选择贯穿 TS+Python 两侧（covers: L6; **M1**)
 - [ ] T3: 路由自适应学习接线 — acceptance: 部门成功率随任务结果变化且持久化（covers: L3; **M1**)
 - [ ] T4: 投票机制精简或激活 — acceptance: 代码路径与行为一致（covers: L4; **M1**)

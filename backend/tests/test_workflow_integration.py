@@ -87,7 +87,7 @@ async def test_generate_workflow_definition(meeting_coordinator):
     routing_decision = MockRoutingDecision()
 
     # 测试生成工作流定义
-    workflow_def = analyzer._generate_workflow_definition(
+    workflow_def = await analyzer._generate_workflow_definition(
         "前端和后端一起开发",
         routing_decision,
     )
@@ -282,11 +282,12 @@ async def test_run_agent_execution_loop_no_tool_no_blocks(meeting_coordinator):
     assert result["files_written"] == []
 
 
-def test_generate_workflow_definition_parallel_batch():
+@pytest.mark.asyncio
+async def test_generate_workflow_definition_parallel_batch():
     """前端+后端节点无依赖边（可并行），策略为 parallel"""
     from semantic_analyzer import SemanticAnalyzer
     analyzer = SemanticAnalyzer(router=None, get_model_fn=None, meeting_agents=[])
-    wf = analyzer._generate_workflow_definition("前端和后端一起开发", MockRoutingDecision(selected_dept="dept-frontend"))
+    wf = await analyzer._generate_workflow_definition("前端和后端一起开发", MockRoutingDecision(selected_dept="dept-frontend"))
     depts = [n.dept_id for n in wf.nodes]
     assert "dept-frontend" in depts and "dept-backend" in depts
     edge_pairs = {(e.source_node_id, e.target_node_id) for e in wf.edges}
@@ -296,11 +297,12 @@ def test_generate_workflow_definition_parallel_batch():
     assert wf.execution_strategy == "parallel"
 
 
-def test_generate_workflow_definition_qa_depends_on_impl():
+@pytest.mark.asyncio
+async def test_generate_workflow_definition_qa_depends_on_impl():
     """qa 节点依赖所有实现类节点"""
     from semantic_analyzer import SemanticAnalyzer
     analyzer = SemanticAnalyzer(router=None, get_model_fn=None, meeting_agents=[])
-    wf = analyzer._generate_workflow_definition("前端和后端以及测试", MockRoutingDecision(selected_dept="dept-frontend"))
+    wf = await analyzer._generate_workflow_definition("前端和后端以及测试", MockRoutingDecision(selected_dept="dept-frontend"))
     by_dept = {n.node_id: n.dept_id for n in wf.nodes}
     qa_ids = [nid for nid, d in by_dept.items() if d == "dept-qa"]
     impl_ids = [nid for nid, d in by_dept.items() if d in {"dept-frontend", "dept-backend", "dept-fullstack", "dept-data"}]
@@ -309,20 +311,22 @@ def test_generate_workflow_definition_qa_depends_on_impl():
     assert set(impl_ids) <= incoming
 
 
-def test_generate_workflow_definition_single_node_sequential():
+@pytest.mark.asyncio
+async def test_generate_workflow_definition_single_node_sequential():
     """单节点工作流策略为 sequential"""
     from semantic_analyzer import SemanticAnalyzer
     analyzer = SemanticAnalyzer(router=None, get_model_fn=None, meeting_agents=[])
-    wf = analyzer._generate_workflow_definition("优化数据库查询", MockRoutingDecision(selected_dept="dept-backend"))
+    wf = await analyzer._generate_workflow_definition("优化数据库查询", MockRoutingDecision(selected_dept="dept-backend"))
     assert len(wf.nodes) == 1
     assert wf.execution_strategy == "sequential"
 
 
-def test_generate_workflow_definition_devops_depends_on_impl():
+@pytest.mark.asyncio
+async def test_generate_workflow_definition_devops_depends_on_impl():
     """devops 节点依赖实现类节点"""
     from semantic_analyzer import SemanticAnalyzer
     analyzer = SemanticAnalyzer(router=None, get_model_fn=None, meeting_agents=[])
-    wf = analyzer._generate_workflow_definition("前端和部署", MockRoutingDecision(selected_dept="dept-frontend"))
+    wf = await analyzer._generate_workflow_definition("前端和部署", MockRoutingDecision(selected_dept="dept-frontend"))
     by_dept = {n.node_id: n.dept_id for n in wf.nodes}
     devops_ids = [nid for nid, d in by_dept.items() if d == "dept-devops"]
     impl_ids = [nid for nid, d in by_dept.items() if d in {"dept-frontend", "dept-backend", "dept-fullstack", "dept-data"}]
@@ -332,11 +336,12 @@ def test_generate_workflow_definition_devops_depends_on_impl():
     assert wf.execution_strategy == "sequential"
 
 
-def test_generate_workflow_definition_qa_devops_chain():
+@pytest.mark.asyncio
+async def test_generate_workflow_definition_qa_devops_chain():
     """测试+部署：qa→devops 依赖链，策略 sequential"""
     from semantic_analyzer import SemanticAnalyzer
     analyzer = SemanticAnalyzer(router=None, get_model_fn=None, meeting_agents=[])
-    wf = analyzer._generate_workflow_definition("测试和部署", MockRoutingDecision(selected_dept="dept-qa"))
+    wf = await analyzer._generate_workflow_definition("测试和部署", MockRoutingDecision(selected_dept="dept-qa"))
     by_dept = {n.node_id: n.dept_id for n in wf.nodes}
     qa_ids = [nid for nid, d in by_dept.items() if d == "dept-qa"]
     devops_ids = [nid for nid, d in by_dept.items() if d == "dept-devops"]
