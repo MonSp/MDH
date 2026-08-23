@@ -162,14 +162,19 @@ def _with_approver_names(requests: list[dict]) -> list[dict]:
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
-    """REST 请求认证中间件，跳过 /health /metrics /docs /openapi.json 和 OPTIONS 预检"""
+    """REST 请求认证中间件，跳过 /health /metrics /docs /openapi.json 和 OPTIONS 预检
+
+    认证链：
+    1. BACKEND_TOKEN（master token）→ admin 权限
+    2. API key（rbac 管理的 key）→ 按角色检查权限
+    """
 
     _PUBLIC = {"/health", "/metrics", "/docs", "/openapi.json", "/redoc"}
+    _WRITE_METHODS = {"POST", "PUT", "DELETE"}
 
     async def dispatch(self, request: Request, call_next):
         if not BACKEND_TOKEN:
             return await call_next(request)
-        # OPTIONS 预检请求由 CORS 中间件处理，不拦截
         if request.method == "OPTIONS":
             return await call_next(request)
         path = request.url.path
@@ -180,10 +185,27 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not token:
             from starlette.responses import JSONResponse
             return JSONResponse({"detail": "Missing Authorization header"}, status_code=401)
-        if not hmac.compare_digest(token, BACKEND_TOKEN):
+
+        # Master token → admin 全权限
+        if hmac.compare_digest(token, BACKEND_TOKEN):
+            return await call_next(request)
+
+        # API key → RBAC 权限检查
+        try:
+            from rbac import RBACManager
+            rbac = RBACManager(_DATA_DIR)
+            key_info = rbac.verify_key(token)
+            if not key_info:
+                from starlette.responses import JSONResponse
+                return JSONResponse({"detail": "Invalid token"}, status_code=403)
+            role = key_info.get("role", "viewer")
+            if not rbac.check_permission(role, request.method, path):
+                from starlette.responses import JSONResponse
+                return JSONResponse({"detail": f"Role '{role}' cannot {request.method} {path}"}, status_code=403)
+            return await call_next(request)
+        except Exception:
             from starlette.responses import JSONResponse
             return JSONResponse({"detail": "Invalid token"}, status_code=403)
-        return await call_next(request)
 
 
 app.add_middleware(AuthMiddleware)

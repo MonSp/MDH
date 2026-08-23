@@ -109,7 +109,7 @@ class AgentProfileManager:
                  json.dumps(profile.skill_progress, ensure_ascii=False)),
             )
             self._db.commit()
-        get_cache().invalidate(f"profile:{profile.agent_id}")
+            get_cache().invalidate(f"profile:{profile.agent_id}")
 
     def list_profiles(self) -> List[AgentProfile]:
         rows = self._db.execute("SELECT * FROM agent_profiles").fetchall()
