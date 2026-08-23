@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 from agentscope.agent import Agent
@@ -1156,6 +1157,8 @@ class MeetingCoordinator:
     ) -> Dict[str, Any]:
         """技能闭环自动触发：审核 pending 规则 → 写增量区 → 打包升级版技能包
 
+        自动将进化事件记录到 SQLite evolution_log 表。
+
         Returns:
             {"approved": int, "written": int, "packaged": List[str]}
         """
@@ -1176,6 +1179,8 @@ class MeetingCoordinator:
             approved_rule = extractor._load_rule(rule.rule_id)
             if approved_rule and extractor.write_to_incremental_area(approved_rule):
                 result["written"] += 1
+                # 记录进化事件到 SQLite
+                self._log_skill_evolution(project_id, approved_rule)
                 for kw in approved_rule.keywords or []:
                     base_skill = os.path.join(skill_packs_root, kw)
                     if os.path.isdir(base_skill) and kw not in result["packaged"]:
@@ -1188,7 +1193,26 @@ class MeetingCoordinator:
                         result["packaged"].append(kw)
         return result
 
-    @staticmethod
+    def _log_skill_evolution(self, project_id: str, rule) -> None:
+        """将技能进化事件记录到 SQLite evolution_log 表"""
+        try:
+            from db import get_db
+            db_path = os.path.join(os.path.dirname(__file__), "data", "mdh.db")
+            conn = get_db(db_path)
+            conn.execute(
+                """INSERT INTO evolution_log
+                   (original_rule_id, evolved_rule_id, trigger_condition, original_action,
+                    evolved_action, original_score, usage_count, failure_reason, evolved_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (rule.rule_id, rule.rule_id, rule.trigger_condition,
+                 rule.action, rule.action, rule.effectiveness_score,
+                 rule.usage_count, f"meeting_finalize:{project_id}",
+                 datetime.now(timezone.utc).isoformat()),
+            )
+            conn.commit()
+        except Exception as e:
+            self.logger.warning("记录技能进化事件失败: %s", e)
+
     @staticmethod
     def _build_execution_artifact_text(
         exec_results: List[Dict[str, Any]],

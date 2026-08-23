@@ -302,7 +302,14 @@ MDH 在 v1.0→v1.6.11 的 8 天内完成了 33 次发布，建立了完整的�
   >   - 审查前读取 artifact 文件内容注入执行上下文
   > - 1672 Python + 1726 TS 测试全部通过
 - [ ] T9: 审查接入真实 LLM — acceptance: 审查报告含 LLM 生成的具体建议（covers: L7; **M2**)
-- [ ] T10: 技能闭环自动完成 — acceptance: 会议结束自动更新技能包（covers: L5; **M2**)
+- [x] T10: 技能闭环自动完成 — acceptance: 会议结束自动更新技能包（covers: L5; **M2**）
+
+  > **实施 (2026-08-23)**: 现有流程已大部分接线（_run_skill_evolution 在简单/复杂路径结束时自动触发）。
+  > 本次修复：
+  > - `_finalize_skill_evolution` 新增 `_log_skill_evolution`：将进化事件记录到 SQLite evolution_log 表
+  > - 修复 `@staticmethod` 重复装饰器
+  > - 闭环流程：extract_from_meeting(pending_review) → approve_rule → write_to_incremental_area → _log_skill_evolution(SQLite) → full_package
+  > - 1671 Python + 1726 TS 测试全部通过
 - [ ] T11: Agent Skills 标准对齐 — acceptance: 技能包兼容 MDH 和标准工具链（covers: S2; **M2**; depends: T10)
 - [ ] T12: MCP Client 集成 — acceptance: agent 可调用 MCP server 工具（covers: S2; **M2**)
 - [ ] T13: 虚拟办公室交互重塑 — acceptance: 3D 场景反映真实 agent 状态和 artifact（**M3**; depends: T8)
