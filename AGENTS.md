@@ -51,6 +51,12 @@
 | **1.5.22** | 2026-08-22 | 主动式监控（健康巡检+风险预警） |
 | **1.5.23** | 2026-08-22 | 团队协同优化（协同分析+瓶颈识别） |
 | **1.5.24** | 2026-08-22 | 端到端集成验证（4 条链路 8 个测试） |
+| **1.6.3** | 2026-08-22 | API 文档与一致性（OpenAPI 标签分组 + CHANGELOG 同步） |
+| **1.6.4** | 2026-08-22 | 性能优化与缓存（TTLCache + 热数据缓存） |
+| **1.6.5** | 2026-08-22 | 开发者体验（Makefile + 架构文档） |
+| **1.6.6** | 2026-08-22 | 多租户基础（租户管理 + 团队级 API key） |
+| **1.6.7** | 2026-08-22 | 多模型支持（9 个提供商 + 模型路由 + 自动降级） |
+| **1.6.8** | 2026-08-22 | Webhook 集成（事件注册 + 签名验证 + 投递日志） |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -80,7 +86,7 @@
 | 前端 | React 18 + TypeScript + Vite 6 + Three.js | 3D 虚拟办公室、实时通信 |
 | 后端 | Python 3.11 + FastAPI + WebSocket | 智能体协调、工具执行 |
 | AI 引擎 | AgentScope + DeepSeek API | 多模型支持 (DeepSeek/OpenAI/Anthropic) |
-| 测试 | Vitest (TS) + pytest (Python) | 1726 TS 测试用例（前端 1726 + orchestrator 216）+ 1585 Python 测试 |
+| 测试 | Vitest (TS) + pytest (Python) | 1726 TS 测试用例（前端 1726 + orchestrator 216）+ 1657 Python 测试 |
 
 ### 项目结构
 
