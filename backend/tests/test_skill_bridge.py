@@ -1,10 +1,9 @@
-"""Tests for SkillBridge and ProgressiveSkillLoader"""
+"""Tests for SkillBridge"""
 import pytest
 import tempfile
 from pathlib import Path
 
 from skill_bridge import SkillBridge, SkillDescriptor
-from progressive_skill_loader import ProgressiveSkillLoader, SkillSummary
 
 
 # ── Fixtures ──
@@ -104,39 +103,3 @@ class TestSkillBridge:
         result = bridge.export_to_skill_md("api_design")
         assert result is False
 
-
-# ── ProgressiveSkillLoader Tests ──
-
-class TestProgressiveSkillLoader:
-    def test_get_skill_index(self, skill_dir):
-        loader = ProgressiveSkillLoader(str(skill_dir))
-        index = loader.get_skill_index()
-        assert len(index) == 2
-        assert all(isinstance(s, SkillSummary) for s in index)
-
-    def test_format_skill_index(self, skill_dir):
-        loader = ProgressiveSkillLoader(str(skill_dir))
-        text = loader.format_skill_index()
-        assert "可用技能索引" in text
-        assert "frontend_dev" in text
-        assert "api_design" in text
-
-    def test_load_instructions(self, skill_dir):
-        loader = ProgressiveSkillLoader(str(skill_dir))
-        instructions = loader.load_instructions("frontend_dev")
-        assert "前端开发专家" in instructions
-
-    def test_load_reference(self, skill_dir):
-        loader = ProgressiveSkillLoader(str(skill_dir))
-        ref = loader.load_reference("api_design", "patterns.md")
-        assert "REST Patterns" in ref
-
-    def test_find_skills_for_task(self, skill_dir):
-        loader = ProgressiveSkillLoader(str(skill_dir))
-        matched = loader.find_skills_for_task("设计一个 REST API 接口")
-        assert "api_design" in matched
-
-    def test_find_skills_no_match(self, skill_dir):
-        loader = ProgressiveSkillLoader(str(skill_dir))
-        matched = loader.find_skills_for_task("完全无关的任务 xyz")
-        assert len(matched) == 0

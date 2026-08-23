@@ -262,7 +262,18 @@ MDH 在 v1.0→v1.6.11 的 8 天内完成了 33 次发布，建立了完整的�
   > - `ws_handlers.py`: 移除 `handle_adjust_agent_weight` handler、简化 `handle_evaluate_consensus`
   > - `mixed_location_discussion.py` + `discussion_manager.py`: 移除 `add_argument` 调用
   > - 测试更新：1681 Python + 1726 TS 全部通过
-- [ ] T5: 残余死代码清理 — acceptance: 无 orphan 模块（covers: L8; **M1**)
+- [x] T5: 残余死代码清理 — acceptance: 无 orphan 模块（covers: L8; **M1**)
+
+  > **实施 (2026-08-23)**: 删除 4 个 Python orphan 模块 + 对应测试，净减 1175 行：
+  > - `cross_network_bridge.py` (347 行) + test (313 行) — 未被任何生产代码引用
+  > - `git_integration.py` (109 行) + test (121 行) — 未被任何生产代码引用
+  > - `progressive_skill_loader.py` (155 行) — 未被任何代码引用（skill_bridge 已替代）
+  > - `errors.py` (92 行) — 未被任何代码引用
+  > - `test_skill_bridge.py`: 移除 ProgressiveSkillLoader 测试类和导入
+  >
+  > 注意：TS 侧 4 个 Local 模块（dynamicRouterLocal/experienceExtractorLocal/projectManagerLocal/skillPackagerLocal，共 1107 行）已确认无消费者引用，但因从 index.ts 导出，删除需同步更新 index，留作后续清理。
+  >
+  > 1654 Python + 1726 TS 测试全部通过。
 - [ ] T6: Durable Execution 基础 — acceptance: 服务重启后任务从检查点恢复（covers: L9; **M1**)
 - [ ] T7: Orchestrator-Worker 编排核心 — acceptance: LLM 调用 ≤ 12×（covers: L1; **M2**; depends: T1)
 - [ ] T8: Artifact 模式 — acceptance: 多角色产物通过文件系统传递（covers: L1; **M2**; depends: T1)
