@@ -876,6 +876,35 @@ async def get_performance_dashboard():
         return _fail(str(e))
 
 
+@app.get("/api/benchmark/tasks")
+async def list_benchmark_tasks():
+    """列出评测基准任务"""
+    try:
+        from benchmark.tasks import get_benchmark_tasks
+        tasks = get_benchmark_tasks()
+        return _ok([{
+            "id": t.id, "task": t.task, "category": t.category,
+            "expected_path": t.expected_path, "max_llm_calls": t.max_llm_calls,
+            "tags": t.tags,
+        } for t in tasks])
+    except Exception as e:
+        return _fail(str(e))
+
+
+@app.post("/api/benchmark/run")
+async def run_benchmark_endpoint(body: dict):
+    """运行评测基准"""
+    try:
+        from benchmark.runner import run_benchmark, format_report
+        from dataclasses import asdict
+        category = body.get("category")
+        report = await run_benchmark(category=category)
+        return _ok(asdict(report))
+    except Exception as e:
+        logger.exception("run_benchmark 失败")
+        return _fail(str(e))
+
+
 @app.get("/api/knowledge/network-stats")
 async def get_knowledge_network_stats():
     """知识网络统计 — 技能包/规则/资产联动状态"""
