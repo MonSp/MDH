@@ -57,6 +57,26 @@ jobs:
         # 无 key 时（未配置 secret）跑确定性 perfect-judge 自检（恒过，注明未跑真实评测）；
         # 配置 DEEPSEEK_API_KEY secret 后启用真实 judge 评测门禁。
 
+  task-benchmark-gate:
+    name: Task benchmark gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run benchmark gate (self-check)
+        working-directory: backend
+        run: python benchmark_gate.py
+      - name: Run benchmark with baseline
+        working-directory: backend
+        run: python benchmark_cli.py --baseline ../baselines/v2.0.0.json
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+
   docker-build:
     name: Docker build
     runs-on: ubuntu-latest

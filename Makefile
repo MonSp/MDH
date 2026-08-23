@@ -39,6 +39,23 @@ lint: ## 运行 lint
 typecheck: ## TypeScript 类型检查
 	npx tsc --noEmit
 
+# ── 评测基准 ──
+
+benchmark: ## 运行评测基准（全部）
+	cd backend && python benchmark_cli.py
+
+benchmark-simple: ## 运行 simple 类评测
+	cd backend && python benchmark_cli.py --category simple
+
+benchmark-baseline: ## 对比基线检测回归
+	cd backend && python benchmark_cli.py --baseline ../baselines/v2.0.0.json
+
+benchmark-gate: ## CI 门禁（无 key 自检）
+	cd backend && python benchmark_gate.py
+
+benchmark-gate-llm: ## CI 门禁（真实 LLM）
+	cd backend && python benchmark_gate.py --with-llm
+
 # ── 构建 ──
 
 build: ## 构建前端
