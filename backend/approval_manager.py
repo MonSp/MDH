@@ -351,6 +351,9 @@ class ApprovalManager:
 WHITELIST_OPERATIONS = frozenset({
     "read_file", "list_directory", "git_status", "git_diff", "git_log",
     "search_files", "grep_content",
+    # Tier 1 扩展：常见开发操作自动通过（降低审批疲劳）
+    "write_file", "edit_file", "run_tests", "run_linter",
+    "create_document", "edit_document", "web_fetch",
 })
 
 # 高危操作：需要人工审批

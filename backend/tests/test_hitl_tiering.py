@@ -43,14 +43,14 @@ class TestHumanTier:
 # ── Tier 2: 分类器判定 ──
 
 class TestClassifierTier:
-    def test_write_file_goes_to_classifier(self):
-        assert classify_approval_tier("write_file") == "classifier"
+    def test_write_file_auto_approve(self):
+        assert classify_approval_tier("write_file") == "auto_approve"
 
     def test_bash_normal_command_goes_to_classifier(self):
         assert classify_approval_tier("bash", "npm install express") == "classifier"
 
-    def test_run_tests_goes_to_classifier(self):
-        assert classify_approval_tier("run_tests") == "classifier"
+    def test_run_tests_auto_approve(self):
+        assert classify_approval_tier("run_tests") == "auto_approve"
 
 
 # ── 风险分类器 ──
