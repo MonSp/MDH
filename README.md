@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1585%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-1657%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
 [![Test Coverage](https://img.shields.io/badge/test%20coverage-84%25-brightgreen)]()
 
@@ -40,6 +40,8 @@
 | 📄 文档感知协作 | 20+ 种文件格式解析 + 上下文注入 + 数据集分析 |
 | 🔍 主动式监控 | 健康巡检 + 风险预警 + 告警分级 + 反思优先级 |
 | 🤝 团队协同优化 | 协同分析 + 瓶颈识别 + 最优搭配推荐 |
+| 🔌 Webhook 集成 | 5 种事件通知外部系统 + HMAC 签名验证 + 投递日志 |
+| 🤖 多模型支持 | DeepSeek/OpenAI/Anthropic/Gemini/Ollama + 模型路由 + 自动降级 |
 
 ## MDH 是什么
 
@@ -146,7 +148,7 @@ docker compose up -d
 │   ├── ceo_agent.py              # CEO 智能体
 │   ├── agent_bridge.py           # TS-Python 桥接
 │   ├── roles_config.yaml         # 角色配置（25+ 角色 + 10 部门职业路径 + 42 技能树）
-│   └── tests/                    # Python 测试（1585 tests）
+│   └── tests/                    # Python 测试（1657 tests）
 ├── orchestrator/                 # TS 编排器（用户本地 Node.js）
 │   └── src/
 │       ├── cli.ts                # CLI 入口
@@ -260,6 +262,16 @@ custom_roles:
 | 📊 前端面板 | 部门卡片网格 + 晋升时间线 + 技能进度条 + 技能树可视化 |
 | 🧭 路由感知 | agent 技能等级影响路由决策，升级驱动部门路由加成（正反馈循环） |
 
+## 生产就绪 (v1.6)
+
+| 能力 | 说明 |
+|------|------|
+| 💾 SQLite 存储 | 所有数据迁移到 SQLite（WAL 模式，并发安全） |
+| 🔐 RBAC 权限 | API key 三级角色（admin/agent/viewer） |
+| 📊 健康检查 | 数据库/磁盘/模块状态 + 自动备份 |
+| ⚡ 性能缓存 | TTLCache 内存缓存 + 热数据自动缓存 |
+| 🔌 Webhook | 5 种事件通知外部系统 |
+
 ## 版本历史
 
 完整变更记录见 [CHANGELOG.md](CHANGELOG.md)。
@@ -358,7 +370,7 @@ custom_roles:
 # 前端测试 (1726 tests)
 npx vitest run
 
-# 后端测试 (1585 tests)
+# 后端测试 (1657 tests)
 cd backend && python -m pytest tests/ --timeout=60
 
 # Orchestrator 测试 (164 tests)
