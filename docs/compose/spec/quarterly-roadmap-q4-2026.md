@@ -288,7 +288,19 @@ MDH 在 v1.0→v1.6.11 的 8 天内完成了 33 次发布，建立了完整的�
   > - 审查流水线合并：Reviewer + Monitor + Coordinator 从 3 次 LLM 调用合并为 1 次
   > - 复杂路径 LLM 调用从 ~15-19× 降至 ~9-12×
   > - 1665 Python + 1726 TS 测试全部通过
-- [ ] T8: Artifact 模式 — acceptance: 多角色产物通过文件系统传递（covers: L1; **M2**; depends: T1)
+- [x] T8: Artifact 模式 — acceptance: 多角色产物通过文件系统传递（covers: L1; **M2**; depends: T1)
+
+  > **实施 (2026-08-23)**:
+  > - `artifact_store.py`: 新建 ArtifactStore（结构化产物存储）
+  >   - ArtifactRef 数据类（type/path/summary/agent_id/size）
+  >   - save_artifacts: 保存文件引用到 `.artifacts/<task_id>.json`
+  >   - load_artifacts / read_artifact_content: 读取引用和实际文件内容
+  >   - build_artifact_context: 构建审查用的文件内容上下文
+  >   - 自动类型推断（code/document/data/file）
+  > - `meeting_coordinator.py`: 集成 ArtifactStore
+  >   - _save_execution_artifacts: 执行后保存 artifact 引用
+  >   - 审查前读取 artifact 文件内容注入执行上下文
+  > - 1672 Python + 1726 TS 测试全部通过
 - [ ] T9: 审查接入真实 LLM — acceptance: 审查报告含 LLM 生成的具体建议（covers: L7; **M2**)
 - [ ] T10: 技能闭环自动完成 — acceptance: 会议结束自动更新技能包（covers: L5; **M2**)
 - [ ] T11: Agent Skills 标准对齐 — acceptance: 技能包兼容 MDH 和标准工具链（covers: S2; **M2**; depends: T10)

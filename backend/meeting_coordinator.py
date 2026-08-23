@@ -194,6 +194,12 @@ class MeetingCoordinator:
         # 混合位置讨论引擎（支持本地/远端Agent并行讨论）
         self._mixed_discussion: Optional[MixedLocationDiscussion] = None
 
+        # Artifact 存储（角色产出物通过文件系统传递）
+        self._artifact_store = None
+        if workspace and workspace.root_path:
+            from artifact_store import ArtifactStore
+            self._artifact_store = ArtifactStore(workspace.root_path)
+
     # ── 持久化辅助 ──
 
     def _save_snapshot(self) -> None:
@@ -1183,6 +1189,7 @@ class MeetingCoordinator:
         return result
 
     @staticmethod
+    @staticmethod
     def _build_execution_artifact_text(
         exec_results: List[Dict[str, Any]],
         max_summary_len: int = 400,
@@ -1195,6 +1202,20 @@ class MeetingCoordinator:
             summary = (r.get("result") or "")[:max_summary_len]
             parts.append(f"{files_line}\n[摘要] {summary}")
         return "\n\n".join(parts)
+
+    def _save_execution_artifacts(self, exec_results: List[Dict[str, Any]]) -> None:
+        """将执行产出的文件保存到 ArtifactStore"""
+        if not self._artifact_store:
+            return
+        for r in exec_results:
+            written = r.get("written_files") or []
+            if written:
+                self._artifact_store.save_artifacts(
+                    task_id=r.get("task_id") or r.get("agent_id", "unknown"),
+                    agent_id=r.get("agent_id", ""),
+                    files_written=written,
+                    result_summary=(r.get("result") or "")[:500],
+                )
 
     async def execute_and_review_task(
         self,
@@ -1706,6 +1727,17 @@ class MeetingCoordinator:
             await self._msg(coordinator_id, f"项目经理：第 {dev_iter} 轮质量审查。")
             self.meeting.add_message("agent", f"项目经理：第 {dev_iter} 轮质量审查。", coordinator_id)
             execution_text = self._build_execution_artifact_text(exec_results) if exec_results else ""
+
+            # 保存 artifact 引用
+            if exec_results:
+                self._save_execution_artifacts(exec_results)
+
+            # Artifact 模式：读取实际文件内容注入审查上下文
+            if self._artifact_store and exec_results:
+                task_ids = [r.get("task_id") or r.get("agent_id", "") for r in exec_results if r.get("written_files")]
+                artifact_context = self._artifact_store.build_artifact_context(task_ids, max_chars_per_file=2000)
+                if artifact_context:
+                    execution_text = f"{execution_text}\n\n[文件内容]\n{artifact_context}"
 
             try:
                 if exec_results:
