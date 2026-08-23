@@ -36,6 +36,8 @@ async def main():
     parser.add_argument("--save-baseline", help="保存结果为基线")
     parser.add_argument("--output", help="报告输出路径（JSON）")
     parser.add_argument("--workspace", help="工作区路径")
+    parser.add_argument("--analyze", action="store_true", help="输出详细分析报告")
+    parser.add_argument("--trends", nargs="*", help="趋势对比：多个基线文件路径")
     args = parser.parse_args()
 
     # 获取任务
@@ -58,6 +60,24 @@ async def main():
 
     # 输出报告
     print(format_report(report))
+
+    # 分析报告
+    if args.analyze:
+        from benchmark.analysis import analyze_report, format_analysis, compare_versions
+        from dataclasses import asdict
+        report_dict = asdict(report)
+        analysis = analyze_report(report_dict)
+
+        # 趋势对比
+        if args.trends:
+            analysis.trends = compare_versions(args.trends)
+            if len(analysis.trends) >= 2:
+                first, last = analysis.trends[0], analysis.trends[-1]
+                rate_delta = last.success_rate - first.success_rate
+                llm_delta = last.avg_llm_calls - first.avg_llm_calls
+                analysis.trend_summary = f"成功率 {'↑' if rate_delta >= 0 else '↓'}{abs(rate_delta):.0%} | LLM 调用 {'↑' if llm_delta >= 0 else '↓'}{abs(llm_delta):.1f}"
+
+        print(format_analysis(analysis))
 
     # 保存基线
     if args.save_baseline:

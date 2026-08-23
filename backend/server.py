@@ -905,6 +905,42 @@ async def run_benchmark_endpoint(body: dict):
         return _fail(str(e))
 
 
+@app.get("/api/benchmark/analyze")
+async def analyze_benchmark():
+    """分析最新评测结果"""
+    try:
+        from benchmark.analysis import analyze_report, compare_versions
+        from dataclasses import asdict
+        # 读取最新基线
+        baseline_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "baselines")
+        baselines = sorted([
+            os.path.join(baseline_dir, f) for f in os.listdir(baseline_dir)
+            if f.endswith(".json")
+        ]) if os.path.isdir(baseline_dir) else []
+        if not baselines:
+            return _fail("无基线文件")
+        latest = baselines[-1]
+        with open(latest, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        analysis = analyze_report(data)
+        analysis.trends = compare_versions(baselines)
+        return _ok({
+            "summary": {
+                "total": analysis.total_tasks, "passed": analysis.passed,
+                "success_rate": analysis.success_rate,
+                "avg_llm_calls": analysis.avg_llm_calls,
+                "avg_latency": analysis.avg_latency,
+            },
+            "by_category": {k: asdict(v) for k, v in analysis.by_category.items()},
+            "by_tag": {k: asdict(v) for k, v in analysis.by_tag.items()},
+            "anomalies": [asdict(a) for a in analysis.anomalies],
+            "trends": [asdict(t) for t in analysis.trends],
+        })
+    except Exception as e:
+        logger.exception("analyze_benchmark 失败")
+        return _fail(str(e))
+
+
 @app.get("/api/knowledge/network-stats")
 async def get_knowledge_network_stats():
     """知识网络统计 — 技能包/规则/资产联动状态"""
