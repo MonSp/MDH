@@ -2,6 +2,65 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.6.8] - 2026-08-22
+
+### Added
+
+**Webhook 集成**
+- `WebhookManager`：事件通知外部系统（SQLite 存储）
+- 支持 5 种事件：task.completed / agent.promoted / rule.demoted / rule.evolved / health.alert
+- HMAC-SHA256 签名验证（X-MDH-Signature 头）
+- 投递日志记录 + 投递统计
+- API：POST/GET/DELETE `/api/webhooks`, GET `/api/webhooks/stats`
+
+## [1.6.7] - 2026-08-22
+
+### Added
+
+**多模型支持**
+- `ModelRegistry`：9 个模型配置（DeepSeek/OpenAI/Anthropic/Google/Ollama）
+- 模型路由：根据任务复杂度选 big/medium/small tier
+- 自动降级链：big → medium → small
+- Ollama 本地模型支持（零成本）
+- API：GET `/api/models`, GET `/api/models/{id}`, GET `/api/models/{id}/fallback`
+
+## [1.6.6] - 2026-08-22
+
+### Added
+
+**多租户基础**
+- `TenantManager`：租户 CRUD（SQLite 存储）
+- 每个租户独立 API key（mdh_tenant_ 前缀）
+- 租户可停用（API key 立即失效）
+- API：POST/GET/DELETE `/api/tenants`
+
+## [1.6.5] - 2026-08-22
+
+### Added
+
+**开发者体验**
+- `Makefile`：一键启动（make dev）、全量测试（make test）、备份（make db-backup）
+- `docs/ARCHITECTURE.md`：架构总览图、14 个核心模块、数据流图、数据库表、API 端点分组
+
+## [1.6.4] - 2026-08-22
+
+### Added
+
+**性能优化与缓存**
+- `TTLCache`：带 TTL 的内存缓存（线程安全，自动过期）
+- AgentProfile 读取缓存 120 秒，写入自动失效
+- 缓存管理 API：GET `/api/ops/cache`, POST `/api/ops/cache/clear`
+- conftest.py 每个测试自动清空缓存
+
+## [1.6.3] - 2026-08-22
+
+### Added
+
+**API 文档与一致性**
+- CHANGELOG 补全 v1.6.0-v1.6.2 条目
+- OpenAPI 标签分组：100+ 端点分为 13 个功能组
+- API 描述：Matrix DaHuang — 数字员工操作系统 API
+
 ## [1.6.2] - 2026-08-22
 
 ### Added
