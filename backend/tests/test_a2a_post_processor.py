@@ -57,10 +57,10 @@ class TestA2APostProcessor:
         assert "config.ts" in call_args["task_description"]
         assert call_args["success"] is True
 
-        # 记忆写入应被调用
+        # 记忆写入应被调用（归属于数字员工 executor，而非执行节点）
         mock_memory.add_memory.assert_called_once()
         mem_args = mock_memory.add_memory.call_args[0]
-        assert mem_args[0] == "ts-orchestrator"
+        assert mem_args[0] == "executor"  # xp_target defaults to "executor"
         assert "成功" in mem_args[1]["content"]
 
         # 路由统计应被调用
@@ -120,10 +120,10 @@ class TestA2APostProcessor:
             agent_id="executor-001",
         )
 
-        # XP 应被授予
+        # XP 应授予给 xp_target（默认 executor），而非执行节点
         mock_profiles.grant_xp.assert_called_once()
         xp_call = mock_profiles.grant_xp.call_args[0]
-        assert xp_call[0] == "executor-001"
+        assert xp_call[0] == "executor"
         assert xp_call[1] > 0  # XP > 0
 
     @pytest.mark.asyncio
