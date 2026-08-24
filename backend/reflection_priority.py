@@ -44,7 +44,7 @@ class ReflectionPriorityQueue:
                 "domains": [],
                 "evolution_stats": {"total": 0, "success_rate": 0.0, "by_domain": {}},
                 "queue": [],
-                "summary": {"healthy": 0, "needs_attention": 0, "critical": 0, "no_data": True},
+                "summary": {"healthy": 0, "needs_attention": 0, "critical": 0, "total_domains": 0, "no_data": True},
             }
 
         # 2. 按技能领域分组计算健康度
