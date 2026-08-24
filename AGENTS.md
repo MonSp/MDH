@@ -64,6 +64,7 @@
 | **1.7.0** | 2026-08-26 | Agent OS 架构：A2A 协议基础设施 + TS Orchestrator 瘦身 + 双层状态同步 |
 | **1.7.1** | 2026-08-26 | Claude Code A2A 适配器 + A2A 生产加固（SSRF 防护/Prometheus 指标/HTTP 复用） |
 | **1.7.2** | 2026-08-26 | E2E A2A 测试 (31项) + 前端 A2A 管理面板 + Docker Claude Code 适配器 + AGENTS.md 架构更新 |
+| **1.7.3** | 2026-08-26 | AGENTS.md 架构全面更新 + 前端 A2A 面板接入导航 + TS Orchestrator 清理 |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 

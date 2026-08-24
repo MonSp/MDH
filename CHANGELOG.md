@@ -2,6 +2,25 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.7.3] - 2026-08-26
+
+### Added
+
+**前端 A2A 面板接入导航**
+- `MeetingPanel.tsx`: 新增「🔗 执行节点」标签页，展示 A2AAgentPanel
+
+### Changed
+
+**AGENTS.md 架构全面更新**
+- 「运行时进程架构」段落：从旧双路径模型更新为 Agent OS 模型（Python 大脑 + A2A 执行节点）
+- 「关键设计决策 #2」：从 TeamCoordinator 混合执行架构更新为 A2A + A2A Task Router 架构
+- Docker 服务组成表更新为 5 个服务
+
+**TS Orchestrator 清理**
+- `team/coordinator.ts`: 添加 `@deprecated` 标记
+- `server.ts`: 移除 `startServer()` 中未使用的参数（routerFactory, executorUrl, executorToken, hybridProfile）
+- `cli.ts`: 更新调用签名匹配简化后的 `startServer()`
+
 ## [1.7.2] - 2026-08-26
 
 ### Added
