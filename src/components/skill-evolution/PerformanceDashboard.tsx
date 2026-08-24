@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { apiGet } from '../../services/apiFetch'
 
 interface DashboardData {
   agents: {
@@ -36,9 +37,8 @@ export default function PerformanceDashboard() {
 
   useEffect(() => {
     setLoading(true)
-    fetch('/api/dashboard/performance')
-      .then(r => r.json())
-      .then(res => { if (res.success) setData(res.data) })
+    apiGet<DashboardData>('/api/dashboard/performance')
+      .then(res => setData(res))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])

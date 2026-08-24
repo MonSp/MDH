@@ -1,24 +1,18 @@
-import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react'
+import React, { useRef, useState, useCallback, useEffect, Suspense } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { OrbitControls, Stars, Environment } from '@react-three/drei'
-import { EffectComposer, Bloom, ChromaticAberration, Noise, Vignette } from '@react-three/postprocessing'
-import { BlendFunction } from 'postprocessing'
 import * as THREE from 'three'
-import { CyberpunkBuildings, FlyingVehicles, CyberRain, NeonLights, SkyDome, generateBuildings, CyberpunkCityInstanced, HolographicBillboard, CyberpunkParticles, generateCityLayout } from '../cyberpunk'
-import SkyBridge from '../cyberpunk/SkyBridge'
-import FreightShip from '../cyberpunk/FreightShip'
-import DroneSwarm from '../cyberpunk/DroneSwarm'
-import SteamVent from '../cyberpunk/SteamVent'
-import SmokePlume from '../cyberpunk/SmokePlume'
-import PedestrianFlow from '../cyberpunk/PedestrianFlow'
-import VehicleTraffic from '../cyberpunk/VehicleTraffic'
-import StreetVendor from '../cyberpunk/StreetVendor'
+import { SkyDome } from '../cyberpunk'
 import type { Project, ProjectDept, CustomTeam, CameraTarget } from './types'
 import { DEFAULT_DEPTS, PENTHOUSE_Y, BUILDING_H, PENTHOUSE_H, BUILDING_W, BUILDING_D } from './constants'
 import { BuildingBody, GlassCurtainWall, NeonEdges, Ground, Antenna, DataFlowParticles, PenthouseFloor, PenthouseWalls } from './BuildingScene'
 import { Desk, ComputerScreen, Chair, Minibar, Plant, CEOPerson, HolographicAI } from './PenthouseFurniture'
 import { FrontFaceProjects, RightFaceDepts, FloorLabels, CEOTextLabel } from './FloorMarkers'
 import AgentStatusOverlay from './AgentStatusOverlay'
+
+/* ───────── Lazy-loaded decorative 3D components ───────── */
+const CyberpunkSceneElements = React.lazy(() => import('./CyberpunkSceneElements'))
+const PostProcessingEffects = React.lazy(() => import('./PostProcessingEffects'))
 
 /* ───────── 赛博朋克黄昏太阳 ───────── */
 function DuskSun({ isDayMode }: { isDayMode?: boolean }) {
@@ -239,11 +233,6 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
 
   const totalIterations = projects.reduce((sum, p) => sum + p.iterations, 0)
 
-  // 生成建筑群数据（共享给CyberpunkBuildings和HolographicAds）— 三环分布
-  const buildings = useMemo(() => generateBuildings(55, 15), [])
-  // 电影级城市布局数据（500+ 栋 InstancedMesh 建筑）
-  const cityBuildings = useMemo(() => generateCityLayout(500), [])
-
   return (
     <>
       <SkyDome />
@@ -287,54 +276,18 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       )}
       <DataFlowParticles totalIterations={totalIterations} />
 
-      {/* 电影级赛博朋克城市 — 500+ 栋 InstancedMesh 建筑 */}
-      {showBuildings && <CyberpunkCityInstanced count={500} />}
-      {showBillboards && <HolographicBillboard buildings={cityBuildings} maxBillboards={300} />}
-
-      {/* 楼间连桥（使用原始建筑数据） */}
-      {showBridges && <SkyBridge buildings={buildings} maxBridges={25} maxDistance={20} />}
-      {showFlyingVehicles && (
-        <>
-          <FlyingVehicles />
-          <FreightShip radius={80} height={45} speed={0.04} color="#0a84ff" size={1.0} />
-          <FreightShip radius={90} height={50} speed={0.03} color="#ff375f" size={0.8} />
-          <DroneSwarm count={8} radius={35} height={30} speed={0.08} color="#64d2ff" size={0.15} />
-          <DroneSwarm count={6} radius={50} height={45} speed={0.06} color="#bf5af2" size={0.12} />
-        </>
-      )}
-      {showRain && <CyberRain />}
-      <NeonLights />
-
-      {/* 电影级多层粒子系统：车流/飞行器尾迹/灰尘 */}
-      {showParticles && <CyberpunkParticles trafficCount={500} trailCount={200} dustCount={800} />}
-
-      {/* 蒸汽喷口效果 */}
-      <SteamVent position={[15, 0, 15]} color="#ffffff" particleCount={50} speed={1.0} height={3} />
-      <SteamVent position={[-15, 0, -15]} color="#aaccff" particleCount={40} speed={0.8} height={2.5} />
-      <SteamVent position={[0, 0, 20]} color="#ffffff" particleCount={45} speed={1.2} height={3.5} />
-
-      {/* 烟尘柱效果 */}
-      <SmokePlume position={[25, 5, -10]} color="#4a4a6a" size={2.5} speed={0.3} opacity={0.08} />
-      <SmokePlume position={[-20, 8, 15]} color="#3a3a5a" size={3.0} speed={0.25} opacity={0.06} />
-      <SmokePlume position={[10, 12, -25]} color="#5a5a7a" size={2.0} speed={0.35} opacity={0.1} />
-
-      {/* 地面人群与交通 */}
-      <PedestrianFlow roadLength={60} roadWidth={4} particleCount={100} speed={1.0} direction="east" position={[0, 0.1, 22]} />
-      <PedestrianFlow roadLength={60} roadWidth={4} particleCount={100} speed={1.0} direction="west" position={[0, 0.1, -22]} />
-      <PedestrianFlow roadLength={60} roadWidth={4} particleCount={100} speed={1.0} direction="north" position={[22, 0.1, 0]} />
-      <PedestrianFlow roadLength={60} roadWidth={4} particleCount={100} speed={1.0} direction="south" position={[-22, 0.1, 0]} />
-
-      <VehicleTraffic roadLength={60} roadWidth={4} particleCount={50} speed={2.0} direction="east" position={[0, 0.15, 20]} />
-      <VehicleTraffic roadLength={60} roadWidth={4} particleCount={50} speed={2.0} direction="west" position={[0, 0.15, -20]} />
-      <VehicleTraffic roadLength={60} roadWidth={4} particleCount={50} speed={2.0} direction="north" position={[20, 0.15, 0]} />
-      <VehicleTraffic roadLength={60} roadWidth={4} particleCount={50} speed={2.0} direction="south" position={[-20, 0.15, 0]} />
-
-      {/* 街道摊贩 */}
-      <StreetVendor position={[8, 0, 8]} color="#ff9f0a" size={0.5} steamParticleCount={30} />
-      <StreetVendor position={[-8, 0, -8]} color="#0a84ff" size={0.5} steamParticleCount={25} />
-      <StreetVendor position={[0, 0, 12]} color="#30d158" size={0.5} steamParticleCount={28} />
-      <StreetVendor position={[-12, 0, 0]} color="#bf5af2" size={0.5} steamParticleCount={32} />
-      <StreetVendor position={[12, 0, -8]} color="#ff375f" size={0.5} steamParticleCount={27} />
+      {/* Lazy-loaded decorative cyberpunk city effects */}
+      <Suspense fallback={null}>
+        <CyberpunkSceneElements
+          showBuildings={showBuildings}
+          showBillboards={showBillboards}
+          showFlyingVehicles={showFlyingVehicles}
+          showBridges={showBridges}
+          showParticles={showParticles}
+          showRain={showRain}
+          showNeonLines={showNeonLines}
+        />
+      </Suspense>
 
       {/* 透明碰撞检测层 */}
       <mesh
@@ -378,33 +331,10 @@ export default function TowerScene({ projects, customTeams, onSelectProject, onS
       <FloorLabels />
       <CEOTextLabel />
 
-      {/* 后处理：Bloom + 色差 + 胶片颗粒 + 暗角（白天减弱） */}
-      <EffectComposer>
-        <Bloom
-          luminanceThreshold={isDayMode ? 0.6 : 0.1}
-          luminanceSmoothing={0.4}
-          intensity={isDayMode ? 0.6 : 1.5}
-          radius={0.4}
-        />
-        {!isDayMode && (
-          <>
-            <ChromaticAberration
-              offset={new THREE.Vector2(0.006, 0.006)}
-              radialModulation={true}
-              modulationOffset={0.5}
-            />
-            <Noise
-              premultiply
-              blendFunction={BlendFunction.ADD}
-              opacity={0.15}
-            />
-          </>
-        )}
-        <Vignette
-          offset={0.3}
-          darkness={isDayMode ? 0.2 : 0.6}
-        />
-      </EffectComposer>
+      {/* Lazy-loaded post-processing: Bloom + ChromaticAberration + Film Grain + Vignette */}
+      <Suspense fallback={null}>
+        <PostProcessingEffects isDayMode={isDayMode} />
+      </Suspense>
 
       {/* 体积雾层 — 12层渐变雾，由云雾按钮控制，动态密度 */}
       {[1, 2, 3, 5, 8, 12, 16, 20, 25, 30, 35, 40].map((y, i) => {

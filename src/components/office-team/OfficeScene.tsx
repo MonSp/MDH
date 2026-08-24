@@ -10,6 +10,7 @@ import TasksTab from './office-scene/TasksTab'
 import FilesTab from './office-scene/FilesTab'
 import SkillsTab from './office-scene/SkillsTab'
 import EvolutionToast from '../skill-evolution/EvolutionToast'
+import { apiGet } from '../../services/apiFetch'
 
 interface OfficeSceneProps {
   agents: TeamAgent[]
@@ -28,11 +29,10 @@ export default function OfficeScene({ agents, viewState, onStartMeeting, project
 
   // 获取经验规则
   useEffect(() => {
-    fetch('/api/experience/rules')
-      .then(r => r.json())
+    apiGet<{ rule_id: string; trigger_condition: string; action: string; status: string; keywords: string[]; effectiveness_score?: number; usage_count?: number }[]>('/api/experience/rules')
       .then(data => {
-        if (data.success && Array.isArray(data.data)) {
-          setExperienceRules(data.data)
+        if (Array.isArray(data)) {
+          setExperienceRules(data)
         }
       })
       .catch(err => console.error('加载经验规则失败:', err))

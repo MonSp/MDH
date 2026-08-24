@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
+import { apiGet, apiPost, apiDelete } from '../../services/apiFetch'
 
 interface EvolutionEvent {
   type: 'demotion' | 'evolution' | 'promotion' | 'levelup'
@@ -21,10 +22,9 @@ export default function EvolutionToast({ agentId }: { agentId?: string }) {
   const checkForEvents = useCallback(async () => {
     try {
       // 检查降级日志
-      const demotionRes = await fetch('/api/experience/rules/demotion-log')
-      const demotionData = await demotionRes.json()
-      if (demotionData.success && demotionData.data?.entries?.length > 0) {
-        const latest = demotionData.data.entries[0]
+      const demotionData = await apiGet<{ entries?: Array<{ demoted_at: string; trigger_condition?: string; rule_id?: string; effectiveness_score: number }> }>("/api/experience/rules/demotion-log")
+      if (demotionData.entries && demotionData.entries.length > 0) {
+        const latest = demotionData.entries[0]
         if (latest.demoted_at !== lastCheck) {
           setLastCheck(latest.demoted_at)
           setEvents(prev => [...prev, {
@@ -37,19 +37,17 @@ export default function EvolutionToast({ agentId }: { agentId?: string }) {
 
       // 检查晋升
       if (agentId) {
-        const profileRes = await fetch(`/api/agents/${agentId}/profile`)
-        const profileData = await profileRes.json()
-        if (profileData.success && profileData.data?.career_stage) {
+        const profileData = await apiGet<{ career_stage?: string }>(`/api/agents/${agentId}/profile`)
+        if (profileData?.career_stage) {
           // 晋升检查
-          const promoRes = await fetch(`/api/agents/${agentId}/promotion`)
-          const promoData = await promoRes.json()
-          if (promoData.success && promoData.data?.can_promote_to) {
+          const promoData = await apiGet<{ can_promote_to?: string }>(`/api/agents/${agentId}/promotion`)
+          if (promoData?.can_promote_to) {
             setEvents(prev => {
-              const exists = prev.some(e => e.type === 'promotion' && e.message.includes(promoData.data.can_promote_to))
+              const exists = prev.some(e => e.type === 'promotion' && e.message.includes(promoData.can_promote_to!))
               if (exists) return prev
               return [...prev, {
                 type: 'promotion',
-                message: `可晋升为: ${promoData.data.can_promote_to}`,
+                message: `可晋升为: ${promoData.can_promote_to}`,
                 timestamp: new Date().toISOString(),
               }].slice(-5)
             })

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { apiGet, apiPost, apiPut, apiDelete } from '../../services/apiFetch'
 
 interface RoleConfig {
   name: string
@@ -28,13 +29,11 @@ export default function RoleManager({ onRolesLoaded }: RoleManagerProps) {
   const loadRolesConfig = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/roles/config')
-      if (!res.ok) return
-      const data = await res.json()
-      if (data.success && data.data) {
-        setRoles(data.data.base_roles || {})
-        setCustomRoles(data.data.custom_roles || {})
-        onRolesLoaded?.(data.data.base_roles || {}, data.data.custom_roles || {})
+      const data = await apiGet<{ base_roles?: Record<string, RoleConfig>; custom_roles?: Record<string, RoleConfig> }>('/api/roles/config')
+      if (data) {
+        setRoles(data.base_roles || {})
+        setCustomRoles(data.custom_roles || {})
+        onRolesLoaded?.(data.base_roles || {}, data.custom_roles || {})
       }
     } catch (e) { console.error('加载角色配置失败:', e) }
     finally { setLoading(false) }
@@ -44,11 +43,7 @@ export default function RoleManager({ onRolesLoaded }: RoleManagerProps) {
 
   const handleSaveRole = async (roleId: string) => {
     try {
-      await fetch(`/api/roles/${roleId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm),
-      })
+      await apiPut(`/api/roles/${roleId}`, editForm)
       await loadRolesConfig()
       setEditingRole(null)
     } catch (e) { console.error('保存失败:', e) }
@@ -58,11 +53,7 @@ export default function RoleManager({ onRolesLoaded }: RoleManagerProps) {
     const roleId = newRoleForm.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
     if (!roleId) return
     try {
-      await fetch(`/api/roles/${roleId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRoleForm),
-      })
+      await apiPost(`/api/roles/${roleId}`, newRoleForm)
       await loadRolesConfig()
       setShowNewRole(false)
       setNewRoleForm({ name: '', description: '', base_role: 'executor', extra_tools: [], extra_skills: [], custom_prompt: '' })
@@ -71,7 +62,7 @@ export default function RoleManager({ onRolesLoaded }: RoleManagerProps) {
 
   const handleDeleteRole = async (roleId: string) => {
     try {
-      await fetch(`/api/roles/${roleId}`, { method: 'DELETE' })
+      await apiDelete(`/api/roles/${roleId}`)
       await loadRolesConfig()
       if (selectedRole === roleId) setSelectedRole(null)
     } catch (e) { console.error('删除失败:', e) }

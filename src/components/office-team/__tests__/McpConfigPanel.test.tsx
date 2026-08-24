@@ -14,7 +14,8 @@ describe('McpConfigPanel', () => {
 
   it('renders MCP config panel title', () => {
     mockFetch.mockResolvedValueOnce({
-      json: () => Promise.resolve({ success: true, servers: [] }),
+      ok: true,
+      json: () => Promise.resolve({ success: true, data: [] }),
     })
     render(<McpConfigPanel />)
     expect(screen.getByText(/MCP 服务器配置/)).toBeDefined()
@@ -22,9 +23,10 @@ describe('McpConfigPanel', () => {
 
   it('displays servers list when loaded', async () => {
     mockFetch.mockResolvedValueOnce({
+      ok: true,
       json: () => Promise.resolve({
         success: true,
-        servers: [
+        data: [
           { name: 'test-server', transport: 'stdio', command: 'echo', args: [], url: '', env: {}, enabled: true, status: 'connected', tools_count: 3, last_connected: '', error_message: '' },
         ],
       }),
@@ -37,7 +39,8 @@ describe('McpConfigPanel', () => {
 
   it('shows add server button', () => {
     mockFetch.mockResolvedValueOnce({
-      json: () => Promise.resolve({ success: true, servers: [] }),
+      ok: true,
+      json: () => Promise.resolve({ success: true, data: [] }),
     })
     render(<McpConfigPanel />)
     expect(screen.getByText(/添加/)).toBeDefined()
@@ -45,7 +48,8 @@ describe('McpConfigPanel', () => {
 
   it('shows empty state when no servers', async () => {
     mockFetch.mockResolvedValueOnce({
-      json: () => Promise.resolve({ success: true, servers: [] }),
+      ok: true,
+      json: () => Promise.resolve({ success: true, data: [] }),
     })
     render(<McpConfigPanel />)
     await waitFor(() => {
@@ -55,9 +59,10 @@ describe('McpConfigPanel', () => {
 
   it('displays server status', async () => {
     mockFetch.mockResolvedValueOnce({
+      ok: true,
       json: () => Promise.resolve({
         success: true,
-        servers: [
+        data: [
           { name: 'my-server', transport: 'stdio', command: 'node', args: ['server.js'], url: '', env: {}, enabled: true, status: 'connected', tools_count: 5, last_connected: '2024-01-01', error_message: '' },
         ],
       }),

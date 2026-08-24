@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { apiGet, apiPost, apiPut, apiDelete } from '../../services/apiFetch'
 
 interface MCPServer {
   name: string
@@ -34,9 +35,8 @@ export default function McpConfigPanel() {
   const fetchServers = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/mcp/servers')
-      const data = await res.json()
-      setServers(data.servers || [])
+      const data: any = await apiGet("/api/mcp/servers")
+      setServers(data?.servers || data || [])
     } catch { /* ignore */ }
     setLoading(false)
   }, [])
@@ -67,55 +67,34 @@ export default function McpConfigPanel() {
         try { body.env = JSON.parse(form.env) } catch { body.env = {} }
       }
 
-      const res = await fetch('/api/mcp/servers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setMessage(`已添加: ${form.name}`)
-        resetForm()
-        fetchServers()
-      } else {
-        setMessage(`添加失败: ${data.error}`)
-      }
-    } catch { setMessage('添加失败') }
+      const data = await apiPost<{ success?: boolean; error?: string }>('/api/mcp/servers', body)
+      setMessage(`已添加: ${form.name}`)
+      resetForm()
+      fetchServers()
+    } catch (e: any) { setMessage(`添加失败: ${e.message}`) }
   }
 
   const handleDelete = async (name: string) => {
     if (!confirm(`确定删除 ${name}？`)) return
     try {
-      const res = await fetch(`/api/mcp/servers/${name}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (data.success) {
-        setMessage(`已删除: ${name}`)
-        fetchServers()
-      }
+      await apiDelete(`/api/mcp/servers/${name}`)
+      setMessage(`已删除: ${name}`)
+      fetchServers()
     } catch { setMessage('删除失败') }
   }
 
   const handleTest = async (name: string) => {
     setMessage(`测试连接: ${name}...`)
     try {
-      const res = await fetch(`/api/mcp/servers/${name}/test`, { method: 'POST' })
-      const data = await res.json()
-      if (data.success) {
-        setMessage(`连接成功: ${name} (${data.tools_count} 个工具)`)
-      } else {
-        setMessage(`连接失败: ${data.error}`)
-      }
+      const data = await apiPost<{ tools_count?: number }>(`/api/mcp/servers/${name}/test`)
+      setMessage(`连接成功: ${name} (${data.tools_count ?? 0} 个工具)`)
       fetchServers()
-    } catch { setMessage('测试失败') }
+    } catch (e: any) { setMessage(`连接失败: ${e.message}`) }
   }
 
   const handleToggle = async (server: MCPServer) => {
     try {
-      await fetch(`/api/mcp/servers/${server.name}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: !server.enabled }),
-      })
+      await apiPut(`/api/mcp/servers/${server.name}`, { enabled: !server.enabled })
       fetchServers()
     } catch { /* ignore */ }
   }
@@ -149,17 +128,10 @@ export default function McpConfigPanel() {
         try { updates.env = JSON.parse(form.env) } catch { /* ignore */ }
       }
 
-      const res = await fetch(`/api/mcp/servers/${editing}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setMessage(`已更新: ${editing}`)
-        resetForm()
-        fetchServers()
-      }
+      await apiPut(`/api/mcp/servers/${editing}`, updates)
+      setMessage(`已更新: ${editing}`)
+      resetForm()
+      fetchServers()
     } catch { setMessage('更新失败') }
   }
 

@@ -2,10 +2,11 @@
  * API 客户端 — 自动切换 Electron IPC / HTTP fetch
  *
  * 在 Electron 环境下通过 IPC 获取数据（不需要 Python 后端）
- * 在浏览器环境下通过 HTTP fetch 获取数据
+ * 在浏览器环境下通过统一的 apiGet 获取数据
  */
 
 import { isElectron, getMdH } from '../constants';
+import { apiFetch as serviceApiFetch } from '../services/apiFetch';
 
 const isElectronMode = isElectron();
 
@@ -16,8 +17,11 @@ const IPC_MAP: Record<string, string> = {
 };
 
 /**
- * 统一的 API 请求函数
+ * 统一的 API 请求函数（不自动解包 envelope，返回原始 JSON）
  * Electron 模式下自动路由到 IPC，浏览器模式下使用 fetch
+ *
+ * 注意：与 services/apiFetch 不同，此函数返回完整的 API envelope
+ * 供 dynamicRouter / experienceExtractor / careerDevelopment 等模块使用。
  */
 export async function apiFetch<T = any>(url: string, options?: RequestInit): Promise<T> {
   if (isElectronMode && IPC_MAP[url] && (!options || options.method === 'GET' || !options.method)) {
@@ -54,8 +58,7 @@ export async function loadRolesConfig(): Promise<any> {
     }
   }
 
-  const res = await fetch('/api/roles/config');
-  return res.json();
+  return serviceApiFetch('/api/roles/config');
 }
 
 /**
@@ -73,7 +76,6 @@ export async function loadSkillsList(): Promise<any[]> {
     }
   }
 
-  const res = await fetch('/api/skills/list');
-  const data = await res.json();
+  const data = await serviceApiFetch<any>('/api/skills/list');
   return data.skills || data;
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { apiGet, apiPost, apiPut, apiDelete } from '../../services/apiFetch'
 
 interface RoleConfig {
   name: string
@@ -23,8 +24,7 @@ export default function RoleEditorPanel({ wsRef }: RoleEditorPanelProps) {
 
   const fetchRoles = useCallback(async () => {
     try {
-      const res = await fetch('/api/roles/config')
-      const data = await res.json()
+      const data = await apiGet<{ base_roles?: Record<string, RoleConfig>; custom_roles?: Record<string, RoleConfig> }>('/api/roles/config')
       if (data.base_roles || data.custom_roles) {
         setRoles({ ...(data.base_roles || {}), ...(data.custom_roles || {}) })
       }
@@ -67,12 +67,8 @@ export default function RoleEditorPanel({ wsRef }: RoleEditorPanelProps) {
       system_prompt: editPrompt,
     }
 
-    const method = isNew ? 'POST' : 'PUT'
-    await fetch(`/api/roles/${roleId}`, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
+    const method = isNew ? apiPost : apiPut
+    await method(`/api/roles/${roleId}`, payload)
 
     await fetchRoles()
     setSelectedRole(roleId)
@@ -81,7 +77,7 @@ export default function RoleEditorPanel({ wsRef }: RoleEditorPanelProps) {
 
   const deleteRole = async () => {
     if (!selectedRole) return
-    await fetch(`/api/roles/${selectedRole}`, { method: 'DELETE' })
+    await apiDelete(`/api/roles/${selectedRole}`)
     setSelectedRole(null)
     await fetchRoles()
   }

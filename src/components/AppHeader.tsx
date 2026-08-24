@@ -8,6 +8,7 @@ interface AppHeaderProps {
   onToggleTheme: () => void;
   onOpenSettings: () => void;
   onOpenSkills: () => void;
+  onOpenEvolution: () => void;
   onNewSession: () => void;
   onLogout: () => void;
 }
@@ -27,6 +28,7 @@ export default function AppHeader({
   onToggleTheme,
   onOpenSettings,
   onOpenSkills,
+  onOpenEvolution,
   onNewSession,
   onLogout,
 }: AppHeaderProps) {
@@ -58,6 +60,7 @@ export default function AppHeader({
         </button>
         <button className="icon-btn" onClick={onOpenSettings} title="配置">⚙</button>
         <button className="icon-btn" onClick={onOpenSkills} title="Skill 模板">📋</button>
+        <button className="icon-btn" onClick={onOpenEvolution} title="技能进化">🧬</button>
         <button className="icon-btn" onClick={onNewSession} title="新建对话">＋</button>
         <button className="icon-btn" onClick={() => { window.location.href = 'test.html'; }} title="协议测试">🧪</button>
       </div>

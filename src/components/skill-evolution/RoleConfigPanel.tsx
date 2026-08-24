@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { DEPT_MAP } from './RoleConfigPanel.types'
 import type { RoleConfig, ToolInfo, SkillInfo } from './RoleConfigPanel.types'
 import NewRoleModal from './NewRoleModal'
+import { apiGet, apiPost, apiPut, apiDelete } from '../../services/apiFetch'
 
 export default function RoleConfigPanel() {
   const [roles, setRoles] = useState<Record<string, RoleConfig>>({})
@@ -27,8 +28,7 @@ export default function RoleConfigPanel() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/roles/config')
-      const data = await res.json()
+      const data = await apiGet<{ base_roles?: Record<string, RoleConfig>; custom_roles?: Record<string, RoleConfig & { base_role?: string; extra_tools?: string[]; extra_skills?: string[]; custom_prompt?: string }>; tools?: Record<string, ToolInfo>; skills?: Record<string, SkillInfo> }>('/api/roles/config')
       setRoles(data.base_roles || {})
       setCustomRoles(data.custom_roles || {})
       setTools(data.tools || {})
@@ -46,17 +46,9 @@ export default function RoleConfigPanel() {
 
   const handleSaveRole = async (roleId: string) => {
     try {
-      const res = await fetch(`/api/roles/${roleId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm),
-      })
-      if (res.ok) {
-        await loadConfig()
-        setEditingRole(null)
-      } else {
-        setError('保存失败')
-      }
+      await apiPut(`/api/roles/${roleId}`, editForm)
+      await loadConfig()
+      setEditingRole(null)
     } catch (e: any) {
       setError(e.message || '保存失败')
     }
@@ -65,18 +57,10 @@ export default function RoleConfigPanel() {
   const handleCreateRole = async () => {
     try {
       const roleId = newRoleForm.name.toLowerCase().replace(/\s+/g, '_')
-      const res = await fetch(`/api/roles/${roleId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newRoleForm),
-      })
-      if (res.ok) {
-        await loadConfig()
-        setShowNewRole(false)
-        setNewRoleForm({ name: '', description: '', base_role: 'executor', extra_tools: [], extra_skills: [], custom_prompt: '' })
-      } else {
-        setError('创建失败')
-      }
+      await apiPost(`/api/roles/${roleId}`, newRoleForm)
+      await loadConfig()
+      setShowNewRole(false)
+      setNewRoleForm({ name: '', description: '', base_role: 'executor', extra_tools: [], extra_skills: [], custom_prompt: '' })
     } catch (e: any) {
       setError(e.message || '创建失败')
     }
@@ -85,13 +69,9 @@ export default function RoleConfigPanel() {
   const handleDeleteRole = async (roleId: string) => {
     if (!confirm(`确定要删除角色 "${roleId}" 吗？`)) return
     try {
-      const res = await fetch(`/api/roles/${roleId}`, { method: 'DELETE' })
-      if (res.ok) {
-        await loadConfig()
-        if (selectedRole === roleId) setSelectedRole(null)
-      } else {
-        setError('删除失败')
-      }
+      await apiDelete(`/api/roles/${roleId}`)
+      await loadConfig()
+      if (selectedRole === roleId) setSelectedRole(null)
     } catch (e: any) {
       setError(e.message || '删除失败')
     }

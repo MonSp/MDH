@@ -9,8 +9,12 @@ import { SkillTreeView } from './SkillTreeView'
 import CareerPathPanel from './CareerPathPanel'
 import PerformanceDashboard from './PerformanceDashboard'
 import FeedbackPanel from './FeedbackPanel'
+import EvolutionTimelinePanel from './EvolutionTimelinePanel'
+import RuleLineageView from './RuleLineageView'
+import CapabilityRadarChart from './CapabilityRadarChart'
+import EvolutionProofCard from './EvolutionProofCard'
 
-type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles' | 'career' | 'dashboard' | 'feedback'
+type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles' | 'career' | 'dashboard' | 'feedback' | 'timeline' | 'lineage' | 'radar' | 'proof'
 
 const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'skills', label: '技能包', icon: '📦' },
@@ -21,10 +25,15 @@ const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'career', label: '职业发展', icon: '🚀' },
   { key: 'dashboard', label: '性能仪表盘', icon: '📊' },
   { key: 'feedback', label: '反馈', icon: '💬' },
+  { key: 'timeline', label: '进化时间线', icon: '⏳' },
+  { key: 'lineage', label: '规则链', icon: '🔗' },
+  { key: 'radar', label: '能力雷达', icon: '🎯' },
+  { key: 'proof', label: '进化验证', icon: '🏆' },
 ]
 
 export default function SkillEvolutionDashboard() {
   const [activeTab, setActiveTab] = useState<TabKey>('skills')
+  const [lineageRuleId, setLineageRuleId] = useState('')
 
   return (
     <div style={styles.container}>
@@ -59,6 +68,31 @@ export default function SkillEvolutionDashboard() {
         )}
         {activeTab === 'dashboard' && <PerformanceDashboard />}
         {activeTab === 'feedback' && <FeedbackPanel />}
+        {activeTab === 'timeline' && <EvolutionTimelinePanel />}
+        {activeTab === 'lineage' && (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="text"
+                value={lineageRuleId}
+                onChange={e => setLineageRuleId(e.target.value)}
+                placeholder="输入 rule_id 查看进化链"
+                style={{ background: 'rgba(0,0,0,0.3)', color: '#e2e8f0', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, padding: '6px 10px', fontSize: 12, fontFamily: 'inherit', flex: 1 }}
+              />
+            </div>
+            {lineageRuleId ? (
+              <div style={{ flex: 1, overflow: 'auto' }}>
+                <RuleLineageView rule_id={lineageRuleId} />
+              </div>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280', fontSize: 13 }}>
+                请输入 rule_id 以查看规则进化链
+              </div>
+            )}
+          </div>
+        )}
+        {activeTab === 'radar' && <CapabilityRadarChart />}
+        {activeTab === 'proof' && <EvolutionProofCard />}
       </div>
     </div>
   )
