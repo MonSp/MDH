@@ -2,6 +2,20 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.0] - 2026-08-26
+
+### Added
+
+**智能调度：A2A 自动路由集成**
+- **T1**: `simple_executor.py` 新增 A2A 路径 — 任务执行前自动检查 A2A 节点可用性，置信度 > 0.6 时路由到外部节点，失败时降级到 Python 内部执行
+- **T2**: `WorkflowNode` 新增 `execution_target` 字段（`local`/`auto`/`a2a:<id>`），`SemanticAnalyzer._suggest_execution_target()` 根据部门自动建议执行目标
+- **T3**: 前端 `CeoChatPanel` 新增执行节点偏好（`auto`/`local`/`claude-code`/`python`），通过 `execution_preference` 字段传递到后端
+- **T5**: E2E 智能路由测试（5 项）— A2A 路由、降级回退、经验注入、结果记录、execution_target 判断
+
+### Fixed
+
+- `a2a_client.py`: SSE 解析保留 artifact — 最终 status 事件不再丢失前序 artifact
+
 ## [1.7.7] - 2026-08-26
 
 ### Fixed
