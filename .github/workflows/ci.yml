@@ -73,7 +73,7 @@ jobs:
         run: python benchmark_gate.py
       - name: Run benchmark with baseline
         working-directory: backend
-        run: python benchmark_cli.py --baseline ../baselines/v2.0.0.json
+        run: python benchmark_cli.py --baseline ../baselines/v2.1.0.json
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
 
