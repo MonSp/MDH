@@ -2,6 +2,17 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.7.5] - 2026-08-26
+
+### Added
+
+**A2A 任务可观测性**
+- `a2a_client.py`: 任务执行日志（task_id, agent_id, 开始/结束时间, 耗时）
+- `/metrics` 端点新增 `mdh_a2a_task_duration_avg_seconds` 和 `mdh_a2a_task_duration_max_seconds`
+
+**E2E 验证增强**
+- `e2e_verify.py`: 新增 9 项 A2A 协议检查（注册、路由、客户端、状态同步），总检查项 31→40
+
 ## [1.7.4] - 2026-08-26
 
 ### Added

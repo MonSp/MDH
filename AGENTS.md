@@ -66,6 +66,7 @@
 | **1.7.2** | 2026-08-26 | E2E A2A 测试 (31项) + 前端 A2A 管理面板 + Docker Claude Code 适配器 + AGENTS.md 架构更新 |
 | **1.7.3** | 2026-08-26 | AGENTS.md 架构全面更新 + 前端 A2A 面板接入导航 + TS Orchestrator 清理 |
 | **1.7.4** | 2026-08-26 | A2A WebSocket 实时推送 + Orchestrator 遗留清理 + 冒烟测试 |
+| **1.7.5** | 2026-08-26 | A2A 任务可观测性（日志+耗时指标）+ E2E 验证增强（31→40 项） |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
