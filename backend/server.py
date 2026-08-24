@@ -2953,6 +2953,24 @@ async def metrics():
         f"mdh_a2a_success_rate {(total_success / total_tasks) if total_tasks > 0 else 0:.4f}",
     ])
 
+    # A2A 任务耗时统计
+    task_logs = a2a_client.get_task_log()
+    if task_logs:
+        durations = [t.get("duration_s", 0) for t in task_logs if t.get("status") == "completed"]
+        if durations:
+            avg_duration = sum(durations) / len(durations)
+            max_duration = max(durations)
+            lines.extend([
+                "",
+                "# HELP mdh_a2a_task_duration_avg_seconds Average A2A task duration",
+                "# TYPE mdh_a2a_task_duration_avg_seconds gauge",
+                f"mdh_a2a_task_duration_avg_seconds {avg_duration:.3f}",
+                "",
+                "# HELP mdh_a2a_task_duration_max_seconds Max A2A task duration",
+                "# TYPE mdh_a2a_task_duration_max_seconds gauge",
+                f"mdh_a2a_task_duration_max_seconds {max_duration:.3f}",
+            ])
+
     for sid, session in sessions.items():
         meeting = getattr(session, 'meeting_session', None)
         if meeting:

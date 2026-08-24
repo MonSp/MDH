@@ -12,7 +12,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Union
 
 import httpx
 
@@ -71,6 +71,7 @@ class A2AClient:
     def __init__(self, timeout: float = 300):
         self._timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
+        self._task_log: Dict[str, Dict] = {}  # task_id → {agent_id, message, started_at, finished_at, status, duration_s}
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -103,6 +104,15 @@ class A2AClient:
         """
         task_id = str(uuid.uuid4())
         url = f"{agent.card.url.rstrip('/')}/a2a/tasks/send"
+        start_time = time.time()
+
+        self._task_log[task_id] = {
+            "task_id": task_id,
+            "agent_id": agent.agent_id,
+            "message": message[:200],
+            "started_at": start_time,
+            "status": "running",
+        }
 
         request_body = {
             "task_id": task_id,
@@ -163,7 +173,21 @@ class A2AClient:
                 status=A2ATaskStatus(state="failed", message=str(e)),
             )
 
+        # 记录任务完成
+        duration = time.time() - start_time
+        self._task_log[task_id].update({
+            "finished_at": time.time(),
+            "status": last_event.status.state if last_event.status else "unknown",
+            "duration_s": round(duration, 3),
+        })
+
         return last_event
+
+    def get_task_log(self, task_id: str = None) -> Union[Dict, List[Dict]]:
+        """查询任务执行日志"""
+        if task_id:
+            return self._task_log.get(task_id, {})
+        return list(self._task_log.values())
 
     async def get_task(self, agent: RegisteredAgent, task_id: str) -> Optional[Dict]:
         """查询任务状态"""
