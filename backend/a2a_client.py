@@ -7,6 +7,7 @@ A2A Client — 向执行节点发送任务
 - 管理任务生命周期
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -21,6 +22,8 @@ from a2a_registry import RegisteredAgent
 logger = logging.getLogger("a2a_client")
 
 MAX_LOG_SIZE = 1000
+MAX_RETRIES = 3
+RETRY_BACKOFF_BASE = 1.0  # seconds, exponential: 1s, 2s, 4s
 
 
 @dataclass
@@ -73,7 +76,8 @@ class A2AClient:
     def __init__(self, timeout: float = 300):
         self._timeout = timeout
         self._client: Optional[httpx.AsyncClient] = None
-        self._task_log: Dict[str, Dict] = {}  # task_id → {agent_id, message, started_at, finished_at, status, duration_s}
+        self._task_log: Dict[str, Dict] = {}
+        self._log_lock = asyncio.Lock()
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -111,13 +115,14 @@ class A2AClient:
         url = f"{agent.card.url.rstrip('/')}/a2a/tasks/send"
         start_time = time.time()
 
-        self._task_log[task_id] = {
-            "task_id": task_id,
-            "agent_id": agent.agent_id,
-            "message": message[:200],
-            "started_at": start_time,
-            "status": "running",
-        }
+        async with self._log_lock:
+            self._task_log[task_id] = {
+                "task_id": task_id,
+                "agent_id": agent.agent_id,
+                "message": message[:200],
+                "started_at": start_time,
+                "status": "running",
+            }
 
         request_body = {
             "task_id": task_id,
@@ -130,77 +135,91 @@ class A2AClient:
 
         last_event = A2ATaskEvent(task_id=task_id)
 
-        try:
-            client = await self._get_client()
-            async with client.stream(
-                "POST",
-                url,
-                json=request_body,
-                headers={"Accept": "text/event-stream"},
-            ) as response:
-                response.raise_for_status()
+        for attempt in range(MAX_RETRIES):
+            try:
+                client = await self._get_client()
+                async with client.stream(
+                    "POST",
+                    url,
+                    json=request_body,
+                    headers={"Accept": "text/event-stream"},
+                ) as response:
+                    response.raise_for_status()
 
-                async for line in response.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
 
-                    data_str = line[6:]
-                    try:
-                        data = json.loads(data_str)
-                        event = self._parse_event(task_id, data)
+                        data_str = line[6:]
+                        try:
+                            data = json.loads(data_str)
+                            event = self._parse_event(task_id, data)
 
-                        # 保留前一个事件的 artifact（最终 status 事件通常不带 artifact）
-                        if not event.artifact and last_event.artifact:
-                            event.artifact = last_event.artifact
-                        last_event = event
+                            # 保留前一个事件的 artifact（最终 status 事件通常不带 artifact）
+                            if not event.artifact and last_event.artifact:
+                                event.artifact = last_event.artifact
+                            last_event = event
 
-                        if on_event:
-                            import asyncio
-                            result = on_event(event)
-                            if asyncio.iscoroutine(result):
-                                await result
+                            if on_event:
+                                result = on_event(event)
+                                if asyncio.iscoroutine(result):
+                                    await result
 
-                        if event.status and event.status.state in ("completed", "failed"):
-                            break
+                            if event.status and event.status.state in ("completed", "failed"):
+                                break
 
-                    except json.JSONDecodeError:
-                        logger.warning("A2A SSE 解析失败: %s", data_str[:100])
+                        except json.JSONDecodeError:
+                            logger.warning("A2A SSE 解析失败: %s", data_str[:100])
 
-        except httpx.TimeoutException:
-            logger.error("A2A 任务超时: %s -> %s", task_id, agent.agent_id)
-            last_event = A2ATaskEvent(
-                task_id=task_id,
-                status=A2ATaskStatus(state="failed", message="Task timed out"),
-            )
-        except httpx.HTTPStatusError as e:
-            logger.error("A2A 任务 HTTP 错误: %s %s", e.response.status_code, url)
-            last_event = A2ATaskEvent(
-                task_id=task_id,
-                status=A2ATaskStatus(state="failed", message=f"HTTP {e.response.status_code}"),
-            )
-        except Exception as e:
-            logger.error("A2A 任务异常: %s", e)
-            last_event = A2ATaskEvent(
-                task_id=task_id,
-                status=A2ATaskStatus(state="failed", message=str(e)),
-            )
+                break  # success — exit retry loop
+
+            except httpx.TimeoutException:
+                logger.warning("A2A 任务超时 (attempt %d/%d): %s -> %s", attempt + 1, MAX_RETRIES, task_id, agent.agent_id)
+                last_event = A2ATaskEvent(
+                    task_id=task_id,
+                    status=A2ATaskStatus(state="failed", message="Task timed out"),
+                )
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code >= 500 and attempt < MAX_RETRIES - 1:
+                    logger.warning("A2A 服务端错误 (attempt %d/%d): HTTP %s", attempt + 1, MAX_RETRIES, e.response.status_code)
+                else:
+                    logger.error("A2A 任务 HTTP 错误: %s %s", e.response.status_code, url)
+                    last_event = A2ATaskEvent(
+                        task_id=task_id,
+                        status=A2ATaskStatus(state="failed", message=f"HTTP {e.response.status_code}"),
+                    )
+                    if e.response.status_code < 500:
+                        break  # 4xx — don't retry
+            except Exception as e:
+                logger.error("A2A 任务异常: %s", e)
+                last_event = A2ATaskEvent(
+                    task_id=task_id,
+                    status=A2ATaskStatus(state="failed", message=str(e)),
+                )
+                break  # non-transient — don't retry
+
+            # exponential backoff before retry
+            if attempt < MAX_RETRIES - 1:
+                delay = RETRY_BACKOFF_BASE * (2 ** attempt)
+                await asyncio.sleep(delay)
 
         # 记录任务完成
         duration = time.time() - start_time
-        self._task_log[task_id].update({
-            "finished_at": time.time(),
-            "status": last_event.status.state if last_event.status else "unknown",
-            "duration_s": round(duration, 3),
-        })
+        async with self._log_lock:
+            self._task_log[task_id].update({
+                "finished_at": time.time(),
+                "status": last_event.status.state if last_event.status else "unknown",
+                "duration_s": round(duration, 3),
+            })
 
-        # 淘汰最旧的条目，保持 _task_log 大小不超过 MAX_LOG_SIZE
-        if len(self._task_log) > MAX_LOG_SIZE:
-            sorted_entries = sorted(
-                self._task_log.values(),
-                key=lambda e: e.get("started_at", 0),
-                reverse=True,
-            )
-            self._task_log = {e["task_id"]: e for e in sorted_entries[:MAX_LOG_SIZE]}
+            # 淘汰最旧的条目，保持 _task_log 大小不超过 MAX_LOG_SIZE
+            if len(self._task_log) > MAX_LOG_SIZE:
+                sorted_entries = sorted(
+                    self._task_log.values(),
+                    key=lambda e: e.get("started_at", 0),
+                    reverse=True,
+                )
+                self._task_log = {e["task_id"]: e for e in sorted_entries[:MAX_LOG_SIZE]}
 
         return last_event
 

@@ -14,10 +14,11 @@ import { StateCache } from './state-cache.js';
 
 // ─── CLI argument parsing ────────────────────────────────────────────────────
 
-function parseArgs(): { port: number; backendUrl: string } {
+function parseArgs(): { port: number; backendUrl: string; agentId: string } {
   const args = process.argv.slice(2);
   let port = 9091;
   let backendUrl = 'http://localhost:8765';
+  let agentId = process.env.MDH_AGENT_ID || '';
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--port' && args[i + 1]) {
@@ -26,15 +27,21 @@ function parseArgs(): { port: number; backendUrl: string } {
     } else if (args[i] === '--backend' && args[i + 1]) {
       backendUrl = args[i + 1];
       i++;
+    } else if (args[i] === '--agent-id' && args[i + 1]) {
+      agentId = args[i + 1];
+      i++;
     }
   }
 
-  return { port, backendUrl };
+  // Default: claude-code-{port} to avoid ID collisions with multiple instances
+  if (!agentId) {
+    agentId = port === 9091 ? 'claude-code' : `claude-code-${port}`;
+  }
+
+  return { port, backendUrl, agentId };
 }
 
 // ─── Registration ────────────────────────────────────────────────────────────
-
-const AGENT_ID = 'claude-code';
 
 const AGENT_CARD = {
   name: 'claude-code',
@@ -58,14 +65,14 @@ const AGENT_CARD = {
   ],
 };
 
-async function registerWithBackend(backendUrl: string, port: number, stateCache: StateCache): Promise<boolean> {
+async function registerWithBackend(backendUrl: string, port: number, agentId: string, stateCache: StateCache): Promise<boolean> {
   const card = { ...AGENT_CARD, url: `http://localhost:${port}` };
 
   try {
     const res = await fetch(`${backendUrl}/api/a2a/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agent_id: AGENT_ID, card }),
+      body: JSON.stringify({ agent_id: agentId, card }),
     });
 
     if (!res.ok) {
@@ -76,11 +83,11 @@ async function registerWithBackend(backendUrl: string, port: number, stateCache:
     const data = await res.json() as { success: boolean };
     if (data.success) {
       stateCache.saveState({
-        agent_id: AGENT_ID,
+        agent_id: agentId,
         backend_url: backendUrl,
         registered_at: new Date().toISOString(),
       });
-      console.log(`[register] Successfully registered with backend at ${backendUrl}`);
+      console.log(`[register] Registered as "${agentId}" with backend at ${backendUrl}`);
       return true;
     }
 
@@ -91,10 +98,10 @@ async function registerWithBackend(backendUrl: string, port: number, stateCache:
   }
 }
 
-async function unregisterFromBackend(backendUrl: string): Promise<void> {
+async function unregisterFromBackend(backendUrl: string, agentId: string): Promise<void> {
   try {
-    await fetch(`${backendUrl}/api/a2a/unregister/${AGENT_ID}`, { method: 'POST' });
-    console.log(`[unregister] Unregistered from backend`);
+    await fetch(`${backendUrl}/api/a2a/unregister/${agentId}`, { method: 'POST' });
+    console.log(`[unregister] Unregistered "${agentId}" from backend`);
   } catch {
     // Best-effort cleanup
   }
@@ -104,10 +111,10 @@ async function unregisterFromBackend(backendUrl: string): Promise<void> {
 
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
-function startHeartbeat(backendUrl: string): void {
+function startHeartbeat(backendUrl: string, agentId: string): void {
   heartbeatTimer = setInterval(async () => {
     try {
-      const res = await fetch(`${backendUrl}/api/a2a/heartbeat/${AGENT_ID}`, { method: 'POST' });
+      const res = await fetch(`${backendUrl}/api/a2a/heartbeat/${agentId}`, { method: 'POST' });
       if (!res.ok) {
         console.warn(`[heartbeat] Failed: HTTP ${res.status}`);
       }
@@ -127,7 +134,7 @@ function stopHeartbeat(): void {
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  const { port, backendUrl } = parseArgs();
+  const { port, backendUrl, agentId } = parseArgs();
   const stateCache = new StateCache();
   stateCache.ensureDirs();
 
@@ -137,7 +144,7 @@ async function main(): Promise<void> {
     // Health check
     if (req.method === 'GET' && req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', agent_id: AGENT_ID }));
+      res.end(JSON.stringify({ status: 'ok', agent_id: agentId }));
       return;
     }
 
@@ -151,12 +158,13 @@ async function main(): Promise<void> {
 
   server.listen(port, async () => {
     console.log(`[claude-code-adapter] Listening on http://localhost:${port}`);
+    console.log(`[claude-code-adapter] Agent ID: ${agentId}`);
     console.log(`[claude-code-adapter] Agent Card: http://localhost:${port}/.well-known/agent.json`);
 
     // Register with backend
-    const registered = await registerWithBackend(backendUrl, port, stateCache);
+    const registered = await registerWithBackend(backendUrl, port, agentId, stateCache);
     if (registered) {
-      startHeartbeat(backendUrl);
+      startHeartbeat(backendUrl, agentId);
     }
   });
 
@@ -164,7 +172,7 @@ async function main(): Promise<void> {
   const shutdown = async () => {
     console.log('[claude-code-adapter] Shutting down...');
     stopHeartbeat();
-    await unregisterFromBackend(backendUrl);
+    await unregisterFromBackend(backendUrl, agentId);
     server.close();
     process.exit(0);
   };

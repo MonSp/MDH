@@ -134,11 +134,9 @@ class HumanFeedbackManager:
     def _convert_suggestions_to_rules(self, feedback: Dict) -> int:
         """将具体建议转化为经验规则"""
         try:
-            import yaml
             experience_dir = os.path.join(self._data_dir, "experience", "rules")
             os.makedirs(experience_dir, exist_ok=True)
 
-            rules_dir = os.path.join(self._data_dir, "experience", "rules")
             created = 0
 
             for suggestion in feedback.get("specific_suggestions", []):
@@ -166,9 +164,11 @@ class HumanFeedbackManager:
                     }]
                 }
 
-                path = os.path.join(rules_dir, f"{rule_id}.yaml")
-                with open(path, "w", encoding="utf-8") as f:
-                    yaml.dump(rule_data, f, allow_unicode=True, default_flow_style=False)
+                path = os.path.join(experience_dir, f"{rule_id}.json")
+                tmp = path + ".tmp"
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(rule_data, f, ensure_ascii=False, indent=2)
+                os.replace(tmp, path)
                 created += 1
 
             return created
