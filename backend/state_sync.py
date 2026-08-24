@@ -26,9 +26,11 @@ class StateSyncManager:
         self,
         experience_extractor: ExperienceExtractor,
         memory_manager: AgentMemory = None,
+        capability_boundary=None,
     ):
         self._experience = experience_extractor
         self._memory = memory_manager
+        self._boundary = capability_boundary
 
     def prepare_task_metadata(
         self,
@@ -47,6 +49,21 @@ class StateSyncManager:
             包含经验规则和技能上下文的 metadata dict
         """
         metadata = {}
+
+        # 能力边界检测：检查任务是否落在已知领域
+        if self._boundary:
+            try:
+                keywords = self._extract_keywords(task_description)
+                boundary = self._boundary.detect_unknown_domain(keywords)
+                if boundary.get("is_unknown"):
+                    metadata["capability_warning"] = {
+                        "is_unknown": True,
+                        "best_confidence": boundary.get("best_confidence", 0),
+                        "recommendation": boundary.get("recommendation", ""),
+                    }
+                    logger.warning("任务落入未知领域: confidence=%.2f", boundary.get("best_confidence", 0))
+            except Exception as e:
+                logger.debug("能力边界检测跳过: %s", e)
 
         # 检索相关经验规则
         try:

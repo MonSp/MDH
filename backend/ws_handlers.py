@@ -283,6 +283,15 @@ async def handle_start_meeting(msg, session, ctx):
     from session_persistence import SessionPersistence
     session_persistence = SessionPersistence()
 
+    # 资产注入回调：自动检索团队资产注入到任务上下文
+    from asset_injection import build_asset_context
+    from asset_store import AssetStore
+    _asset_store = AssetStore(os.path.join(ctx.data_dir, "assets"))
+    _extractor = ctx.experience_extractor
+    asset_context_builder = lambda team_id, task_type, keywords: build_asset_context(
+        _asset_store, _extractor, team_id, task_type, keywords
+    )
+
     coordinator = MeetingCoordinator(
         meeting_session=meeting,
         provider=session.provider,
@@ -295,6 +304,7 @@ async def handle_start_meeting(msg, session, ctx):
         workflow_engine=ctx.get_workflow_engine(),
         approval_manager=session._approval_manager,
         session_persistence=session_persistence,
+        asset_context_builder=asset_context_builder,
     )
     session._meeting_coordinator = coordinator
     ctx.active_coordinator = coordinator
