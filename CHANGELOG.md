@@ -2,6 +2,24 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.7.4] - 2026-08-26
+
+### Added
+
+**A2A WebSocket 实时推送**
+- 后端: 注册/注销时广播 `a2a_agent_update` 消息到所有 WebSocket 会话
+- 前端: A2AAgentPanel 监听 `a2a_agent_update` 消息即时刷新（保留 30 秒轮询兜底）
+
+**冒烟测试**
+- `a2a_smoke_test.py`: 6 项端到端验证（模块导入、注册、路由、SSE 分发、状态同步、SSRF 防护）
+
+### Changed
+
+**Orchestrator 遗留清理**
+- `team/assembler.ts`: 添加 `@deprecated` 标记
+- `team/templates.ts`: 添加 `@deprecated` 标记
+- `cli.ts`: 移除未使用的 `routerFactory` 变量和 `RouterFactory` 导入
+
 ## [1.7.3] - 2026-08-26
 
 ### Added
