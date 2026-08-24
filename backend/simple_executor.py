@@ -122,6 +122,19 @@ class SimpleExecutor:
             review = self._lightweight_review(result_text, tool_calls)
             logger.info("轻量验收: passed=%s reason=%s", review.passed, review.reason)
 
+            # 5. 经验闭环后处理（与 A2A 路径共享同一管线）
+            if self._post_processor and review.passed:
+                try:
+                    await self._post_processor.process(
+                        task_description=content,
+                        result_text=result_text,
+                        success=True,
+                        agent_id="executor",
+                        xp_target="executor",
+                    )
+                except Exception as e:
+                    logger.warning("简单路径后处理失败（不阻塞结果）: %s", e)
+
             return SimpleResult(
                 success=True,
                 result=result_text,

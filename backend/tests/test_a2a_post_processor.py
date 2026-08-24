@@ -51,11 +51,12 @@ class TestA2APostProcessor:
             task_id="task-001",
         )
 
-        # 经验提炼应被调用
+        # 经验提炼应被调用（5 个位置参数）
         mock_experience.extract_from_meeting.assert_called_once()
-        call_args = mock_experience.extract_from_meeting.call_args[0][0]
-        assert "config.ts" in call_args["task_description"]
-        assert call_args["success"] is True
+        call_args = mock_experience.extract_from_meeting.call_args[0]
+        # call_args = (project_id, task_description, discussion_results, review_result, execution_results)
+        assert "config.ts" in call_args[1]  # task_description is 2nd arg
+        assert call_args[3]["passed"] is True  # review_result.passed
 
         # 记忆写入应被调用（归属于数字员工 executor，而非执行节点）
         mock_memory.add_memory.assert_called_once()
@@ -120,11 +121,13 @@ class TestA2APostProcessor:
             agent_id="executor-001",
         )
 
-        # XP 应授予给 xp_target（默认 executor），而非执行节点
+        # XP 应授予给 xp_target（默认 executor），使用正确签名
         mock_profiles.grant_xp.assert_called_once()
-        xp_call = mock_profiles.grant_xp.call_args[0]
-        assert xp_call[0] == "executor"
-        assert xp_call[1] > 0  # XP > 0
+        xp_kwargs = mock_profiles.grant_xp.call_args[1]  # keyword args
+        assert xp_kwargs["agent_id"] == "executor"
+        assert xp_kwargs["skill_id"] == "general"
+        assert xp_kwargs["task_success"] is True
+        assert xp_kwargs["task_complexity"] >= 1  # complexity >= 1
 
     @pytest.mark.asyncio
     async def test_no_xp_on_failure(self, mock_experience, mock_memory, mock_router, mock_profiles):
