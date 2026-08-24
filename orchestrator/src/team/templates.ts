@@ -1,3 +1,7 @@
+/**
+ * @deprecated Since v1.7.0 — Role templates are now managed by the Python backend's roles_config.yaml.
+ * This module is preserved for the A2A Agent Card skill declarations.
+ */
 import { RoleTemplate } from './types';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';

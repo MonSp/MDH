@@ -15,7 +15,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 /*  组件                                                              */
 /* ------------------------------------------------------------------ */
 
-export default function A2AAgentPanel() {
+export default function A2AAgentPanel({ wsRef }: { wsRef?: React.MutableRefObject<WebSocket | null> } = {}) {
   const [agents, setAgents] = useState<A2AAgent[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -44,6 +44,21 @@ export default function A2AAgentPanel() {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
   }, [load])
+
+  // 监听 WebSocket A2A 实时更新（注册/注销事件触发即时刷新）
+  useEffect(() => {
+    if (!wsRef?.current) return
+    const handler = (ev: MessageEvent) => {
+      try {
+        const msg = JSON.parse(ev.data)
+        if (msg.type === 'a2a_agent_update') {
+          load() // 收到节点状态变化时立即刷新
+        }
+      } catch {}
+    }
+    wsRef.current.addEventListener('message', handler)
+    return () => { wsRef.current?.removeEventListener('message', handler) }
+  }, [wsRef, load])
 
   const handleUnregister = async (agentId: string) => {
     if (!confirm(`确定注销节点 ${agentId}？`)) return
