@@ -38,6 +38,15 @@ class ReflectionPriorityQueue:
         # 1. 加载所有规则
         rules = self._load_all_rules()
 
+        # 无经验数据时返回"无数据"状态，而非将所有领域标记为 critical
+        if not rules:
+            return {
+                "domains": [],
+                "evolution_stats": {"total": 0, "success_rate": 0.0, "by_domain": {}},
+                "queue": [],
+                "summary": {"healthy": 0, "needs_attention": 0, "critical": 0, "no_data": True},
+            }
+
         # 2. 按技能领域分组计算健康度
         domains = self._compute_domain_health(rules)
 

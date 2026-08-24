@@ -20,21 +20,28 @@ import os
 import sys
 
 # 数据目录
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend", "data")
+_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # backend/
+_DATA_DIR = os.path.join(_BACKEND_DIR, "data")
+sys.path.insert(0, _BACKEND_DIR)
 
 
 def check_reflection_priority():
     """检查反思优先级队列"""
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend"))
+    # sys.path already set at module level
     try:
         from reflection_priority import ReflectionPriorityQueue
-        queue = ReflectionPriorityQueue(DATA_DIR)
+        queue = ReflectionPriorityQueue(_DATA_DIR)
         result = queue.compute_priorities()
         summary = result.get("summary", {})
 
         critical = summary.get("critical", 0)
         needs_attention = summary.get("needs_attention", 0)
         total = summary.get("total_domains", 0)
+        no_data = summary.get("no_data", False)
+
+        if no_data:
+            print("  ℹ️ 无经验数据，跳过反思优先级检查")
+            return 0, result
 
         print(f"  领域总数: {total}")
         print(f"  健康: {summary.get('healthy', 0)} | 需关注: {needs_attention} | 紧急: {critical}")
@@ -55,10 +62,10 @@ def check_reflection_priority():
 
 def check_evolution_diversity():
     """检查进化多样性"""
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend"))
+    # sys.path already set at module level
     try:
         from experience_extractor import ExperienceExtractor
-        extractor = ExperienceExtractor(incremental_dir=os.path.join(DATA_DIR, "experience"))
+        extractor = ExperienceExtractor(incremental_dir=os.path.join(_DATA_DIR, "experience"))
         evolution_log = extractor.get_evolution_log()
 
         if not evolution_log:
@@ -98,10 +105,10 @@ def check_evolution_diversity():
 
 def check_evolution_success_rate():
     """检查进化成功率"""
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend"))
+    # sys.path already set at module level
     try:
         from reflection_priority import ReflectionPriorityQueue
-        queue = ReflectionPriorityQueue(DATA_DIR)
+        queue = ReflectionPriorityQueue(_DATA_DIR)
         result = queue.compute_priorities()
         evo_stats = result.get("evolution_stats", {})
 
@@ -130,10 +137,10 @@ def check_evolution_success_rate():
 
 def check_federation_health():
     """检查联邦健康"""
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "backend"))
+    # sys.path already set at module level
     try:
         from team_federation import TeamFederation
-        federation = TeamFederation(DATA_DIR)
+        federation = TeamFederation(_DATA_DIR)
         stats = federation.get_federation_stats()
 
         total = stats.get("total_evolutions", 0)
