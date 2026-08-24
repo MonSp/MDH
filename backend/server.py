@@ -844,6 +844,17 @@ async def get_pending_rules():
         return _fail(str(e))
 
 
+@app.get("/api/experience/rules/{rule_id}/chain")
+async def get_rule_evolution_chain(rule_id: str):
+    """获取规则进化链 — 从原始规则到最新版本的完整 parent→child 链"""
+    try:
+        chain = experience_extractor.get_evolution_chain(rule_id)
+        return _ok(chain)
+    except Exception as e:
+        logger.exception("get_rule_evolution_chain 失败")
+        return _fail(str(e))
+
+
 @app.post("/api/experience/rules/{rule_id}/approve")
 async def approve_rule(rule_id: str, body: dict = Body(...)):
     try:
@@ -1307,6 +1318,18 @@ async def get_capability_boundary():
         return _ok(boundary.get_boundary_report())
     except Exception as e:
         logger.exception("get_capability_boundary 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/capability/confidence-map")
+async def get_confidence_map():
+    """各领域置信度地图 — 供前端雷达图使用"""
+    try:
+        from capability_boundary import CapabilityBoundary
+        boundary = CapabilityBoundary(_DATA_DIR)
+        return _ok(boundary.compute_confidence_map())
+    except Exception as e:
+        logger.exception("get_confidence_map 失败")
         return _fail(str(e))
 
 
