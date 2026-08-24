@@ -2,6 +2,26 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.7.2] - 2026-08-26
+
+### Added
+
+**E2E A2A 集成测试（31 项）**
+- `test_a2a_e2e.py`: 7 个测试类覆盖完整 A2A 协议链路
+- 注册/列表、路由决策、SSE 分发（含 Mock A2A Server）、SSRF 防护（9 种攻击向量）、心跳激活、超时标记不健康
+
+**前端 A2A 管理面板**
+- `A2AAgentPanel.tsx` (347行): 卡片网格展示已注册节点（状态指示灯、技能标签、成功率条、注销按钮、30秒自动刷新）
+- `a2aClient.ts` (75行): `/api/a2a/*` REST API 客户端
+
+**Docker 部署**
+- `docker-compose.yml`: 新增 `claude-code-adapter` 服务
+- `adapters/claude-code/Dockerfile`: Node.js 20 + tsx + Claude CLI
+
+### Changed
+
+- AGENTS.md 架构链更新：L6 Toolkit 层新增 A2A 执行节点调度说明
+
 ## [1.7.1] - 2026-08-26
 
 ### Added
