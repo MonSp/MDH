@@ -23,27 +23,29 @@ import { pullExperience, flushPendingMemories } from './sync.js';
 
 // ─── Agent Card ──────────────────────────────────────────────────────────────
 
-const AGENT_CARD = {
-  name: 'claude-code',
-  description: 'Anthropic Claude Code — local AI coding assistant',
-  url: 'http://localhost:9091',
-  version: '1.0.0',
-  capabilities: { streaming: true },
-  skills: [
-    {
-      id: 'code_implementation',
-      name: 'Code Implementation',
-      tags: ['file', 'git', 'shell', 'search', 'code', 'test'],
-      description: 'Implement code changes: write files, run commands, create tests, manage git',
-    },
-    {
-      id: 'code_review',
-      name: 'Code Review',
-      tags: ['review', 'code', 'security'],
-      description: 'Review code for correctness, security, style, and best practices',
-    },
-  ],
-};
+function buildAgentCard(url: string) {
+  return {
+    name: 'claude-code',
+    description: 'Anthropic Claude Code — local AI coding assistant',
+    url,
+    version: '1.0.0',
+    capabilities: { streaming: true },
+    skills: [
+      {
+        id: 'code_implementation',
+        name: 'Code Implementation',
+        tags: ['file', 'git', 'shell', 'search', 'code', 'test'],
+        description: 'Implement code changes: write files, run commands, create tests, manage git',
+      },
+      {
+        id: 'code_review',
+        name: 'Code Review',
+        tags: ['review', 'code', 'security'],
+        description: 'Review code for correctness, security, style, and best practices',
+      },
+    ],
+  };
+}
 
 // ─── SSE helpers ─────────────────────────────────────────────────────────────
 
@@ -278,6 +280,7 @@ function mapAndSendSSE(res: ServerResponse, event: ClaudeEvent): void {
 export interface A2AHandlerOptions {
   stateCache: StateCache;
   backendUrl: string;
+  url?: string;
 }
 
 /**
@@ -286,7 +289,8 @@ export interface A2AHandlerOptions {
  * Returns `true` if the request was handled, `false` otherwise.
  */
 export function createA2AHandler(options: A2AHandlerOptions) {
-  const { stateCache, backendUrl } = options;
+  const { stateCache, backendUrl, url: baseUrl } = options;
+  const agentCard = buildAgentCard(baseUrl ?? 'http://localhost:9091');
 
   return async function handleA2ARequest(
     req: IncomingMessage,
@@ -298,7 +302,7 @@ export function createA2AHandler(options: A2AHandlerOptions) {
     // --- GET /.well-known/agent.json ---
     if (method === 'GET' && url === '/.well-known/agent.json') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(AGENT_CARD, null, 2));
+      res.end(JSON.stringify(agentCard, null, 2));
       return true;
     }
 

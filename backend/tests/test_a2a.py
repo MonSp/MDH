@@ -7,6 +7,7 @@ import pytest
 
 from a2a_registry import A2ARegistry, AgentCard, AgentSkill, RegisteredAgent
 from a2a_task_router import A2ATaskRouter
+from a2a_client import A2AClient, A2ATaskEvent
 
 
 @pytest.fixture
@@ -163,3 +164,65 @@ class TestA2ATaskRouter:
         decision = router.route("读取文件")
         assert decision is not None
         assert decision.agent.agent_id == "ts-001"
+
+
+@pytest.fixture
+def sample_agent(sample_card):
+    """创建一个 RegisteredAgent"""
+    return RegisteredAgent(
+        agent_id="test-agent",
+        card=sample_card,
+    )
+
+
+@pytest.mark.asyncio
+class TestA2AClientErrorPaths:
+    """测试 A2AClient 错误路径"""
+
+    @pytest.fixture
+    def client(self):
+        return A2AClient(timeout=2)
+
+    async def test_send_task_timeout(self, client, sample_agent):
+        """测试发送到不存在服务的超时场景（连接超时）"""
+        # 使用一个几乎不可能有服务监听的端口
+        sample_agent.card.url = "http://127.0.0.1:59999"
+        event = await client.send_task(sample_agent, "test task")
+        assert event.status is not None
+        assert event.status.state == "failed"
+        # 验证 task_log 已记录
+        assert len(client._task_log) == 1
+        log_entry = list(client._task_log.values())[0]
+        assert log_entry["status"] == "failed"
+
+    async def test_send_task_connection_refused(self, client, sample_agent):
+        """测试连接被拒绝的场景"""
+        sample_agent.card.url = "http://127.0.0.1:59998"
+        event = await client.send_task(sample_agent, "test task")
+        assert event.status is not None
+        assert event.status.state == "failed"
+
+    async def test_get_task_log(self, client, sample_agent):
+        """测试任务日志记录功能"""
+        sample_agent.card.url = "http://127.0.0.1:59999"
+        await client.send_task(sample_agent, "test task")
+
+        # 查询所有日志
+        all_logs = client.get_task_log()
+        assert isinstance(all_logs, list)
+        assert len(all_logs) == 1
+        log_entry = all_logs[0]
+        assert "task_id" in log_entry
+        assert "agent_id" in log_entry
+        assert "started_at" in log_entry
+        assert "finished_at" in log_entry
+        assert "duration_s" in log_entry
+        assert log_entry["agent_id"] == "test-agent"
+
+        # 查询单条日志
+        task_id = log_entry["task_id"]
+        single_log = client.get_task_log(task_id)
+        assert single_log["task_id"] == task_id
+
+        # 查询不存在的日志
+        assert client.get_task_log("nonexistent") == {}
