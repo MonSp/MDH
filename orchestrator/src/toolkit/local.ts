@@ -191,7 +191,7 @@ export class LocalToolkitRouter implements IToolkitRouter {
     }
 
     const shell = existsSync('/bin/bash') ? '/bin/bash' : '/bin/sh';
-    return execSync(cmd, { cwd: workspace, timeout, encoding: 'utf-8', stderr: 'pipe', shell });
+    return execSync(cmd, { cwd: workspace, timeout, encoding: 'utf-8', shell } as any);
   }
 
   // ========== 新增 13 个工具 ==========

@@ -16,7 +16,7 @@ describe('HybridToolkitRouter', () => {
     const router = new HybridToolkitRouter(config);
 
     const result = await router.execute(
-      { id: 'c1', function: { name: 'write_file', arguments: JSON.stringify({ path: 'test.txt', content: 'hello' }) } },
+      { id: 'c1', type: 'function' as const, function: { name: 'write_file', arguments: JSON.stringify({ path: 'test.txt', content: 'hello' }) } },
       '/remote/workspace',
     );
     expect(result.error).toBeUndefined();
@@ -31,7 +31,7 @@ describe('HybridToolkitRouter', () => {
     const router = new HybridToolkitRouter(config);
 
     const result = await router.execute(
-      { id: 'c2', function: { name: 'read_file', arguments: JSON.stringify({ path: 'data.txt' }) } },
+      { id: 'c2', type: 'function' as const, function: { name: 'read_file', arguments: JSON.stringify({ path: 'data.txt' }) } },
       '/remote/workspace',
     );
     expect(result.result).toBe('local data');
@@ -42,7 +42,7 @@ describe('HybridToolkitRouter', () => {
     const router = new HybridToolkitRouter(config);
 
     const result = await router.execute(
-      { id: 'c3', function: { name: 'write_file', arguments: JSON.stringify({ path: 'a.txt', content: 'A' }) } },
+      { id: 'c3', type: 'function' as const, function: { name: 'write_file', arguments: JSON.stringify({ path: 'a.txt', content: 'A' }) } },
       '/any/workspace',
     );
     expect(readFileSync(join(TEST_DIR, 'a.txt'), 'utf-8')).toBe('A');

@@ -2,7 +2,7 @@
 export type { TeamRuntime, SkillPack, DagTask, Dag } from './team.js';
 
 // TeamMember — coordinator uses this extended version with template info
-import type { TeamMemberRuntime } from './team.js';
+import type { TeamRuntime } from './team.js';
 
 export interface RoleTemplate {
   name: string;
@@ -23,7 +23,7 @@ export interface TeamMember {
   template: RoleTemplate;
   status: 'idle' | 'working' | 'speaking' | 'done';
   location: 'local' | 'remote';
-  runtime: TeamMemberRuntime;
+  runtime: TeamRuntime;
 }
 
 export interface Team {

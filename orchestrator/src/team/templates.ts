@@ -31,7 +31,7 @@ function loadConfig(): RolesConfig {
     const fallbackPath = resolve(_dirname, '../../templates/roles.json');
     _config = JSON.parse(readFileSync(fallbackPath, 'utf-8'));
   }
-  return _config;
+  return _config!;
 }
 
 export function loadRoleTemplates(): Map<string, RoleTemplate> {

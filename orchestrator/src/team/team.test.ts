@@ -17,6 +17,8 @@ function makeMember(overrides: Partial<TeamMember> = {}): TeamMember {
     id: 'm1',
     roleName: 'Engineer',
     teamRole: 'Executor',
+    location: 'local',
+    runtime,
     tools: ['bash'],
     dangerousTools: [],
     status: 'idle',

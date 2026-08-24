@@ -27,9 +27,9 @@ export class ExecutorClient {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const body = { ...request };
+    const body: Record<string, unknown> = { ...request };
     if (permissionToken) {
-      body.permission_token = permissionToken;
+      body['permission_token'] = permissionToken;
     }
 
     const response = await fetch(`${this.baseUrl}/execute`, {

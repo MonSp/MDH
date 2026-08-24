@@ -102,7 +102,7 @@ export function assembleTeam(
     // 确定该成员的 location
     const primarySkill = template.skills?.[0] || roleId;
     const memberLocation = skillLocations[primarySkill] || 'local';
-    const memberRuntime: TeamMemberRuntime = memberLocation === 'remote'
+    const memberRuntime: import('./team.js').TeamRuntime = memberLocation === 'remote'
       ? { type: 'remote', workspace: runtime.workspace, executorUrl: runtime.executorUrl, executorToken: runtime.executorToken }
       : { type: 'local', workspace: runtime.workspace };
 

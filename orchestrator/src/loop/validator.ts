@@ -100,7 +100,7 @@ export async function validate(task: Task): Promise<ValidationResult> {
   const results = {
     tests: checkTests(),
     lint: checkLint(),
-    typecheck: checkTypeScript(),
+    typecheck: checkTypeScript(task),
     regressions: checkNoRegressions(task),
     docker: checkDockerServices(),
   };

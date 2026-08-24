@@ -164,7 +164,7 @@ describe('PlaywrightBrowser Integration Tests', () => {
     it('should type text with delay', async () => {
       if (!requirePlaywright()) return;
       await browser.fill('#email', '');
-      await browser.type_text('#email', 'test@example.com', 10);
+      await browser.typeText('#email', 'test@example.com', 10);
       const result = await browser.getAttribute('#email', 'value');
       expect(result.value).toBe('test@example.com');
     });
@@ -262,14 +262,14 @@ describe('PlaywrightBrowser Integration Tests', () => {
 
     it('should take element screenshot', async () => {
       if (!requirePlaywright()) return;
-      const result = await browser.screenshot_element('#title');
+      const result = await browser.screenshotElement('#title');
       expect(result.base64).toBeDefined();
       expect(result.base64.length).toBeGreaterThan(0);
     });
 
     it('should throw on non-existent element screenshot', async () => {
       if (!requirePlaywright()) return;
-      await expect(browser.screenshot_element('#non-existent')).rejects.toThrow();
+      await expect(browser.screenshotElement('#non-existent')).rejects.toThrow();
     });
   });
 

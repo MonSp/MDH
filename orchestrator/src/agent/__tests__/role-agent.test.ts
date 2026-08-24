@@ -278,9 +278,10 @@ describe('RoleAgent.chatWithTools — ExecutionSummary', () => {
     mockRouter.execute.mockResolvedValueOnce({
       call_id: 'fail-1',
       tool_name: 'write_file',
-      result: null,
+      result: '',
       error: 'Permission denied',
-    });
+      success: false,
+    } as any);
 
     setMockToolSequence([
       { content: '写入文件', tool_calls: [makeToolCall('write_file', { path: '/root/secret', content: 'x' })] },

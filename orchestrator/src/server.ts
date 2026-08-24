@@ -152,7 +152,7 @@ async function handleMessage(
     case 'unified_message': {
       // Support both: config-in-message (MDH frontend) and pre-configured session
       if (msg.provider || msg.api_key || msg.base_url || msg.model_name) {
-        if (msg.provider) session.config.provider = msg.provider as string;
+        if (msg.provider) session.config.provider = msg.provider as typeof session.config.provider;
         if (msg.api_key) session.config.apiKey = msg.api_key as string;
         if (msg.base_url) session.config.baseUrl = msg.base_url as string;
         if (msg.model_name) session.config.model = msg.model_name as string;

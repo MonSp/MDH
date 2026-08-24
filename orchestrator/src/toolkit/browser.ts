@@ -120,8 +120,9 @@ export class PlaywrightBrowser {
 
     // 加载浏览器扩展（仅有头模式支持）
     if (this.config.extensions.length > 0 && !this.config.headless) {
-      launchOptions.args = this.config.extensions.map(ext => `--load-extension=${ext}`);
-      launchOptions.args.push('--disable-extensions-except=' + this.config.extensions.join(','));
+      const args: string[] = this.config.extensions.map(ext => `--load-extension=${ext}`);
+      args.push('--disable-extensions-except=' + this.config.extensions.join(','));
+      launchOptions.args = args;
     }
 
     this.browser = await chromium.launch(launchOptions);

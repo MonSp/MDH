@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
-import { LocalToolkitRouter } from './local.ts';
+import { LocalToolkitRouter } from './local.js';
 import { ToolCall } from '../team/types.js';
 
 const FIXTURE = join(import.meta.dirname, '__test_workspace__');
