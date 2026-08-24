@@ -3,7 +3,6 @@ import { resolve } from 'path';
 import { startServer } from './server.js';
 import { resolveConfig } from './llm/openai.js';
 import type { IToolkitRouter } from './toolkit/router.js';
-import { RouterFactory } from './toolkit/router.js';
 import { RemoteToolkitRouter } from './toolkit/remote.js';
 import { LocalToolkitRouter } from './toolkit/local.js';
 import { HybridToolkitRouter, createExecutionConfig, type ExecutionProfile } from './toolkit/hybrid.js';
@@ -54,7 +53,6 @@ async function main() {
   console.log('========================================');
 
   let defaultRouter: IToolkitRouter;
-  const routerFactory = new RouterFactory();
 
   if (profile) {
     // HybridToolkitRouter with profile

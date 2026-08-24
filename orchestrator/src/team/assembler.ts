@@ -1,3 +1,7 @@
+/**
+ * @deprecated Since v1.7.0 — TeamAssembler is no longer used in the main flow.
+ * Team assembly is now handled by the Python backend's CeoAgent + TeamAssembler.
+ */
 import {
   createTeam,
   addMember,

@@ -175,7 +175,7 @@ export default function MeetingPanel(props: MeetingPanelProps) {
           ) : meetingTab === 'assets' ? (
             <AssetBrowserPanel />
           ) : meetingTab === 'a2a' ? (
-            <A2AAgentPanel />
+            <A2AAgentPanel wsRef={wsRef} />
           ) : (
             <SkillEvolutionPanel />
           )}

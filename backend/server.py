@@ -358,6 +358,15 @@ async def global_exception_handler(request: Request, exc: Exception):
 import ipaddress
 from urllib.parse import urlparse
 
+async def _broadcast_a2a_update(event_type: str, agent_data: dict):
+    """向所有 WebSocket 会话广播 A2A 节点状态变化"""
+    message = json.dumps({"type": "a2a_agent_update", "event": event_type, **agent_data})
+    for sid, session in list(sessions.items()):
+        try:
+            await session.ws.send_text(message)
+        except Exception:
+            pass
+
 def _validate_a2a_url(url: str) -> str:
     """校验 A2A 节点 URL，防止 SSRF 攻击"""
     parsed = urlparse(url)
@@ -400,6 +409,9 @@ async def a2a_register_agent(body: dict = Body(...)):
         version=card_data.get("version", "1.0.0"),
     )
     agent = a2a_registry.register(agent_id, card)
+    await _broadcast_a2a_update("registered", {
+        "agent_id": agent_id, "name": card.name, "status": agent.status,
+    })
     return {"success": True, "agent_id": agent_id, "status": agent.status}
 
 
@@ -407,6 +419,8 @@ async def a2a_register_agent(body: dict = Body(...)):
 async def a2a_unregister_agent(agent_id: str):
     """注销 A2A 执行节点"""
     ok = a2a_registry.unregister(agent_id)
+    if ok:
+        await _broadcast_a2a_update("unregistered", {"agent_id": agent_id})
     return {"success": ok}
 
 
