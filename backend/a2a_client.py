@@ -12,7 +12,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import AsyncIterator, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import httpx
 
@@ -65,10 +65,23 @@ class A2AClient:
     """A2A 协议客户端
 
     向执行节点（A2A Server）发送任务并接收结果。
+    复用 httpx.AsyncClient 连接池，避免每次请求新建连接。
     """
 
     def __init__(self, timeout: float = 300):
         self._timeout = timeout
+        self._client: Optional[httpx.AsyncClient] = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self._timeout)
+        return self._client
+
+    async def close(self):
+        """关闭共享 HTTP 客户端"""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     async def send_task(
         self,
@@ -103,33 +116,33 @@ class A2AClient:
         last_event = A2ATaskEvent(task_id=task_id)
 
         try:
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                async with client.stream(
-                    "POST",
-                    url,
-                    json=request_body,
-                    headers={"Accept": "text/event-stream"},
-                ) as response:
-                    response.raise_for_status()
+            client = await self._get_client()
+            async with client.stream(
+                "POST",
+                url,
+                json=request_body,
+                headers={"Accept": "text/event-stream"},
+            ) as response:
+                response.raise_for_status()
 
-                    async for line in response.aiter_lines():
-                        if not line.startswith("data: "):
-                            continue
+                async for line in response.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
 
-                        data_str = line[6:]
-                        try:
-                            data = json.loads(data_str)
-                            event = self._parse_event(task_id, data)
-                            last_event = event
+                    data_str = line[6:]
+                    try:
+                        data = json.loads(data_str)
+                        event = self._parse_event(task_id, data)
+                        last_event = event
 
-                            if on_event:
-                                on_event(event)
+                        if on_event:
+                            on_event(event)
 
-                            if event.status and event.status.state in ("completed", "failed"):
-                                break
+                        if event.status and event.status.state in ("completed", "failed"):
+                            break
 
-                        except json.JSONDecodeError:
-                            logger.warning("A2A SSE 解析失败: %s", data_str[:100])
+                    except json.JSONDecodeError:
+                        logger.warning("A2A SSE 解析失败: %s", data_str[:100])
 
         except httpx.TimeoutException:
             logger.error("A2A 任务超时: %s -> %s", task_id, agent.agent_id)
@@ -156,10 +169,10 @@ class A2AClient:
         """查询任务状态"""
         url = f"{agent.card.url.rstrip('/')}/a2a/tasks/{task_id}"
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                response = await client.get(url)
-                response.raise_for_status()
-                return response.json()
+            client = await self._get_client()
+            response = await client.get(url)
+            response.raise_for_status()
+            return response.json()
         except Exception as e:
             logger.error("A2A 任务查询失败: %s %s", task_id, e)
             return None
@@ -168,10 +181,10 @@ class A2AClient:
         """取消任务"""
         url = f"{agent.card.url.rstrip('/')}/a2a/tasks/{task_id}/cancel"
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                response = await client.post(url)
-                response.raise_for_status()
-                return True
+            client = await self._get_client()
+            response = await client.post(url)
+            response.raise_for_status()
+            return True
         except Exception as e:
             logger.error("A2A 任务取消失败: %s %s", task_id, e)
             return False
