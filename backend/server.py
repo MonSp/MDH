@@ -356,6 +356,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ── A2A 执行节点管理 API ──
 
 import ipaddress
+import socket
 from urllib.parse import urlparse
 
 async def _broadcast_a2a_update(event_type: str, agent_data: dict):
@@ -368,36 +369,55 @@ async def _broadcast_a2a_update(event_type: str, agent_data: dict):
             pass
 
 def _validate_a2a_url(url: str) -> str:
-    """校验 A2A 节点 URL，防止 SSRF 攻击"""
+    """校验 A2A 节点 URL，防止 SSRF 攻击（含 DNS rebinding）"""
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise HTTPException(400, "URL 必须使用 http/https 协议")
     hostname = parsed.hostname or ""
-    # 禁止内网地址
+    # 禁止内网地址（直接 IP 检查）
     try:
         ip = ipaddress.ip_address(hostname)
         if ip.is_private or ip.is_loopback or ip.is_link_local:
             raise HTTPException(400, "不允许注册内网/回环地址")
     except ValueError:
-        # hostname 不是 IP（是域名），放行
-        pass
+        # hostname 是域名，需 DNS 解析后检查（防 DNS rebinding）
+        try:
+            addrinfos = socket.getaddrinfo(hostname, None)
+            for family, _, _, _, sockaddr in addrinfos:
+                resolved_ip = ipaddress.ip_address(sockaddr[0])
+                if resolved_ip.is_private or resolved_ip.is_loopback or resolved_ip.is_link_local:
+                    raise HTTPException(400, f"域名解析到内网/回环地址: {resolved_ip}")
+        except socket.gaierror:
+            pass  # DNS 解析失败，放行（域名可能是内网 DNS）
     if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
         raise HTTPException(400, "不允许注册 localhost")
     return url
 
 @app.post("/api/a2a/register")
-async def a2a_register_agent(body: dict = Body(...)):
+async def a2a_register_agent(body: dict = Body(...), request: Request = None):
     """注册 A2A 执行节点
 
     请求体: { "agent_id": "ts-orchestrator", "card": { "name": "...", "url": "...", ... } }
+
+    已认证的调用者（携带有效 BACKEND_TOKEN）可跳过 SSRF 校验，
+    因为内部调用者被视为可信来源。
     """
     agent_id = body.get("agent_id")
     card_data = body.get("card", {})
     if not agent_id or not card_data.get("url"):
         raise HTTPException(400, "agent_id 和 card.url 必填")
 
-    # SSRF 防护：校验注册 URL
-    _validate_a2a_url(card_data["url"])
+    # 校验 agent_id: 1-64 字符，仅允许字母数字 + 连字符 + 下划线
+    import re
+    if not re.fullmatch(r'[a-zA-Z0-9_-]{1,64}', agent_id):
+        raise HTTPException(400, "agent_id 必须为 1-64 个字符，仅允许字母、数字、连字符和下划线")
+
+    # SSRF 防护：校验注册 URL（已认证的调用者跳过 SSRF 校验）
+    auth_header = request.headers.get("authorization", "") if request else ""
+    caller_token = auth_header.replace("Bearer ", "") if auth_header else ""
+    is_trusted_caller = BACKEND_TOKEN and hmac.compare_digest(caller_token, BACKEND_TOKEN)
+    if not is_trusted_caller:
+        _validate_a2a_url(card_data["url"])
 
     skills = [AgentSkill(**s) for s in card_data.get("skills", [])]
     card = AgentCard(
@@ -473,7 +493,9 @@ async def a2a_route_task(task_description: str):
 
 @app.post("/api/a2a/dispatch")
 async def a2a_dispatch_task(body: dict = Body(...)):
-    """向 A2A 执行节点发送任务
+    """向 A2A 执行节点发送任务（异步）
+
+    立即返回 task_id，任务在后台执行，结果可通过 _task_log 查询。
 
     请求体: {
         "task_description": "读取 config.yaml 并修改端口",
@@ -499,39 +521,44 @@ async def a2a_dispatch_task(body: dict = Body(...)):
             raise HTTPException(503, "无可用执行节点")
         agent = decision.agent
 
-    # 发送任务
     # 任务前: 注入相关经验规则和记忆上下文
     sync_metadata = state_sync.prepare_task_metadata(task_desc, agent.agent_id)
     merged_metadata = {**metadata, **sync_metadata}
 
-    event = await a2a_client.send_task(agent, task_desc, merged_metadata)
+    # 预先生成 task_id，立即返回
+    dispatch_task_id = str(uuid.uuid4())
+    agent_id = agent.agent_id
 
-    # 记录结果
-    success = event.status and event.status.state == "completed"
-    a2a_registry.record_task(agent.agent_id, success)
+    async def _run_dispatch():
+        """后台执行任务，结果写入 a2a_client._task_log"""
+        try:
+            event = await a2a_client.send_task(
+                agent, task_desc, merged_metadata, task_id=dispatch_task_id,
+            )
 
-    # 任务后: 提取执行结果写入 Agent 记忆
-    result_text = ""
-    if event.artifact and event.artifact.parts:
-        result_text = event.artifact.parts[0].text or ""
-    state_sync.process_task_result(
-        agent_id=agent.agent_id,
-        task_description=task_desc,
-        result_text=result_text,
-        success=success,
-        task_id=event.task_id,
-    )
+            success = event.status and event.status.state == "completed"
+            a2a_registry.record_task(agent_id, success)
+
+            # 任务后: 提取执行结果写入 Agent 记忆
+            result_text = ""
+            if event.artifact and event.artifact.parts:
+                result_text = event.artifact.parts[0].text or ""
+            state_sync.process_task_result(
+                agent_id=agent_id,
+                task_description=task_desc,
+                result_text=result_text,
+                success=success,
+                task_id=event.task_id,
+            )
+        except Exception as e:
+            logger.error("A2A 后台任务执行异常: %s", e)
+
+    asyncio.create_task(_run_dispatch())
 
     return {
-        "success": success,
-        "agent_id": agent.agent_id,
-        "task_id": event.task_id,
-        "status": event.status.state if event.status else "unknown",
-        "artifact": {
-            "name": event.artifact.name,
-            "text": event.artifact.parts[0].text if event.artifact and event.artifact.parts else "",
-        } if event.artifact else None,
-        "error": event.status.message if event.status and event.status.state == "failed" else None,
+        "status": "dispatched",
+        "task_id": dispatch_task_id,
+        "agent_id": agent_id,
     }
 
 

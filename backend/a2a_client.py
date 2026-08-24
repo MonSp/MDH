@@ -20,6 +20,8 @@ from a2a_registry import RegisteredAgent
 
 logger = logging.getLogger("a2a_client")
 
+MAX_LOG_SIZE = 1000
+
 
 @dataclass
 class A2ATextPart:
@@ -90,6 +92,7 @@ class A2AClient:
         message: str,
         metadata: Dict = None,
         on_event: Callable[[A2ATaskEvent], None] = None,
+        task_id: str = None,
     ) -> A2ATaskEvent:
         """发送任务到执行节点，返回最终结果
 
@@ -98,11 +101,13 @@ class A2AClient:
             message: 任务描述文本
             metadata: 附加元数据（经验规则、技能上下文等）
             on_event: 流式事件回调
+            task_id: 可选的任务 ID（如未提供则自动生成）
 
         Returns:
             最终的 A2ATaskEvent
         """
-        task_id = str(uuid.uuid4())
+        if task_id is None:
+            task_id = str(uuid.uuid4())
         url = f"{agent.card.url.rstrip('/')}/a2a/tasks/send"
         start_time = time.time()
 
@@ -180,6 +185,15 @@ class A2AClient:
             "status": last_event.status.state if last_event.status else "unknown",
             "duration_s": round(duration, 3),
         })
+
+        # 淘汰最旧的条目，保持 _task_log 大小不超过 MAX_LOG_SIZE
+        if len(self._task_log) > MAX_LOG_SIZE:
+            sorted_entries = sorted(
+                self._task_log.values(),
+                key=lambda e: e.get("started_at", 0),
+                reverse=True,
+            )
+            self._task_log = {e["task_id"]: e for e in sorted_entries[:MAX_LOG_SIZE]}
 
         return last_event
 

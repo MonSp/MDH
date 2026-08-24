@@ -21,10 +21,9 @@ import type { IToolkitRouter } from '../toolkit/router.js';
 
 // ─── Agent Card ──────────────────────────────────────────────────────────────
 
-const AGENT_CARD = {
+const AGENT_CARD_BASE = {
   name: 'ts-orchestrator',
   description: '本地 Node.js 工具执行 + 多提供商 LLM 路由',
-  url: 'http://localhost:9090',
   version: '1.0.0',
   capabilities: { streaming: true },
   skills: [
@@ -242,6 +241,7 @@ export interface A2AOptions {
   llmConfig: LLMConfig;
   workspace: string;
   router?: IToolkitRouter;
+  baseUrl?: string;
 }
 
 /**
@@ -252,6 +252,7 @@ export interface A2AOptions {
  */
 export function createA2AHandler(options: A2AOptions) {
   const router = options.router ?? new LocalToolkitRouter();
+  const agentCard = { ...AGENT_CARD_BASE, url: options.baseUrl ?? 'http://localhost:9090' };
 
   return async function handleA2ARequest(
     req: IncomingMessage,
@@ -262,7 +263,7 @@ export function createA2AHandler(options: A2AOptions) {
     // --- GET /.well-known/agent.json ---
     if (req.method === 'GET' && url === '/.well-known/agent.json') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(AGENT_CARD, null, 2));
+      res.end(JSON.stringify(agentCard, null, 2));
       return true;
     }
 
