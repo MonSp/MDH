@@ -2,6 +2,38 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.9.0] - 2026-08-27
+
+### Added
+
+**三大主题：进化可见 + LLM 提炼 + 前端治理**
+
+**进化可见性（T1/T2/T4/T5/T7-T11）**
+- **EvolutionEvent 系统**: 8 种事件类型（xp_granted/skill_level_up/career_promotion/rule_created/evolved/approved/demoted/domain_confidence_change），SQLite 持久化，自动采集（接入 agent_profile_manager 和 experience_extractor）
+- **A/B 进化证明**: 按 task_type 追踪有/无规则注入的成功率对比，证明"越用越强"
+- **进化时间线面板**: EvolutionTimelinePanel — 可交互垂直时间线，按事件类型着色，支持过滤
+- **规则进化链面板**: RuleLineageView — 树形图展示 parent→child 规则进化历程
+- **能力雷达图**: CapabilityRadarChart — SVG 雷达图展示各领域置信度
+- **进化证明卡片**: EvolutionProofCard — 条形图对比有/无规则注入的成功率
+- **进化面板提升为顶级入口**: AppHeader 新增 🧬 按钮，点击打开进化仪表盘
+- 新增 5 个 REST 端点: /api/evolution/timeline, /api/evolution/timeline/summary, /api/evolution/ab-stats, /api/experience/rules/{id}/chain, /api/capability/confidence-map
+
+**LLM 经验提炼（T3）**
+- `experience_extractor.py` 新增 `_llm_distill()` 方法，调用 DeepSeek 从执行结果中提炼通用经验规则
+- 集成到 `extract_from_meeting()` 和 `extract_from_success()`，LLM 不可用时自动降级到模板提取
+- LLM 产出规则标记 `source_agent_id='llm_distill'`，可按来源对比规则质量
+
+**前端治理（T6/T12）**
+- 统一 `apiGet`/`apiPost`/`apiPut`/`apiDelete` 工具方法（apiFetch.ts），已迁移 8 个文件的 fetch 调用
+- 15 个 Cyberpunk 3D 组件提取为 `React.lazy()` 懒加载模块（CyberpunkSceneElements + PostProcessingEffects）
+- 首屏不加载 3D 装饰内容，减少初始 bundle 大小
+
+### Tests
+- 后端: 1842 passed, 1 skipped
+- 前端: 1726 passed, 98 test files
+- 编排器: 216 passed, 4 skipped
+- 新增测试: 36 个（T1: 12, T2: 3, T3: 12, T4: 5, T5: 4）
+
 ## [1.8.10] - 2026-08-26
 
 ### Fixed
