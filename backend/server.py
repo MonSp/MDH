@@ -257,10 +257,13 @@ a2a_memory = AgentMemory(data_dir=_DATA_DIR)
 a2a_profile_manager = AgentProfileManager(profiles_dir=os.path.join(_DATA_DIR, "agent_profiles"))
 a2a_webhook_manager = WebhookManager(_DATA_DIR)
 from team_synergy import TeamSynergy
+from capability_boundary import CapabilityBoundary
 a2a_team_synergy = TeamSynergy(_DATA_DIR)
+a2a_capability_boundary = CapabilityBoundary(data_dir=_DATA_DIR)
 state_sync = StateSyncManager(
     experience_extractor=experience_extractor,
     memory_manager=a2a_memory,
+    capability_boundary=a2a_capability_boundary,
 )
 a2a_post_processor = A2APostProcessor(
     experience_extractor=experience_extractor,
