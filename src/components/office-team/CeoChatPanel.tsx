@@ -21,6 +21,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
   const [roleLocations, setRoleLocations] = useState<Record<string, 'local' | 'remote'>>({})
   const [showRoleSelector, setShowRoleSelector] = useState(false)
   const [autoMode, setAutoMode] = useState(true)
+  const [executionPreference, setExecutionPreference] = useState<'auto' | 'local' | 'claude-code' | 'python'>('auto')
   const [workspaceConfirm, setWorkspaceConfirm] = useState<WorkspaceConfirmRequest | null>(null)
   const [wsType, setWsType] = useState('standalone')
   const [wsRepoPath, setWsRepoPath] = useState('')
@@ -75,8 +76,8 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
     const text = input.trim()
     setInput('')
     addMsg('user', text)
-    sendToBackend(text, selectedRoles, roleLocations, autoMode)
-  }, [input, isProcessing, sendToBackend, addMsg, selectedRoles, roleLocations, autoMode])
+    sendToBackend(text, selectedRoles, roleLocations, autoMode, executionPreference)
+  }, [input, isProcessing, sendToBackend, addMsg, selectedRoles, roleLocations, autoMode, executionPreference])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
