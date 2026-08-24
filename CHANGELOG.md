@@ -2,6 +2,16 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.9] - 2026-08-26
+
+### Fixed
+
+**数据源统一：人类反馈规则写入 SQLite**
+- `HumanFeedbackManager` 新增 `experience_extractor` 可选参数，注入后规则通过 `ExperienceExtractor._save_rule()` 写入 SQLite
+- 消除人类反馈与主检索系统的数据源分裂：反馈规则现在可通过 `retrieve_relevant_rules()` 被后续任务检索
+- 保留 JSON 文件回退（无 extractor 时向后兼容）
+- `server.py` 3 个 feedback 端点传入全局 `experience_extractor` 单例
+
 ## [1.8.8] - 2026-08-26
 
 ### Fixed
