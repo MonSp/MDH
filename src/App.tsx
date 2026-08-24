@@ -7,6 +7,7 @@ import AppHeader from './components/AppHeader';
 import ConversationStream, { type Conversation } from './components/ConversationStream';
 import SettingsPanel from './components/SettingsPanel';
 import SkillPanel from './components/SkillPanel';
+import { SkillEvolutionDashboard } from './components/skill-evolution';
 import ApprovalDialog from './components/ApprovalDialog';
 import OfficeTeamMode from './components/OfficeTeamMode/index'
 import ErrorBoundary from './components/ErrorBoundary';
@@ -41,6 +42,7 @@ function AppContent() {
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [skillPanelOpen, setSkillPanelOpen] = useState(false);
+  const [evolutionDashboardOpen, setEvolutionDashboardOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState<EditingSkill | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [pageCtx] = useState({ url: '', title: '' });
@@ -359,6 +361,7 @@ function AppContent() {
         onToggleTheme={toggleTheme}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenSkills={() => setSkillPanelOpen(true)}
+        onOpenEvolution={() => setEvolutionDashboardOpen(true)}
         onNewSession={newSession}
         onLogout={logout}
       />
@@ -435,6 +438,36 @@ function AppContent() {
         onRunSkill={runSkill}
         onClose={() => setSkillPanelOpen(false)}
       />
+
+      {evolutionDashboardOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => setEvolutionDashboardOpen(false)}>
+          <div style={{
+            width: '90vw', maxWidth: 1200, height: '85vh',
+            background: 'rgba(15,15,25,0.97)', borderRadius: 12,
+            border: '1px solid rgba(255,255,255,0.1)',
+            overflow: 'hidden', display: 'flex', flexDirection: 'column',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)',
+              background: 'rgba(0,0,0,0.2)',
+            }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#a78bfa' }}>🧬 技能进化仪表盘</span>
+              <button
+                onClick={() => setEvolutionDashboardOpen(false)}
+                style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 18 }}
+              >✕</button>
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <SkillEvolutionDashboard />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

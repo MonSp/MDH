@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import { apiGet, apiPost, apiDelete } from '../../services/apiFetch'
+import { apiGet } from '../../services/apiFetch'
 
 interface BoundaryResult {
   is_unknown: boolean
@@ -28,10 +28,9 @@ export default function CapabilityBoundaryWarning({ taskDescription }: { taskDes
         const keywords = [...new Set(words.map(w => w.toLowerCase()))].slice(0, 5).join(',')
         if (!keywords) return
 
-        const res = await fetch(`/api/capability/detect?keywords=${encodeURIComponent(keywords)}`)
-        const data = await res.json()
-        if (data.success && data.data?.is_unknown) {
-          setResult(data.data)
+        const data = await apiGet<BoundaryResult>(`/api/capability/detect?keywords=${encodeURIComponent(keywords)}`)
+        if (data?.is_unknown) {
+          setResult(data)
           setDismissed(false)
         }
       } catch { /* silent */ }

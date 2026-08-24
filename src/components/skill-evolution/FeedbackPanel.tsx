@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import { apiGet, apiPost, apiDelete } from '../../services/apiFetch'
+import { apiGet } from '../../services/apiFetch'
 
 interface FeedbackSummary {
   total: number
@@ -34,9 +34,8 @@ export default function FeedbackPanel() {
 
   useEffect(() => {
     setLoading(true)
-    fetch('/api/feedback/summary')
-      .then(r => r.json())
-      .then(data => { if (data.success) setSummary(data.data) })
+    apiGet<FeedbackSummary>('/api/feedback/summary')
+      .then(data => setSummary(data))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
