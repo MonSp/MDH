@@ -355,6 +355,27 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # ── A2A 执行节点管理 API ──
 
+import ipaddress
+from urllib.parse import urlparse
+
+def _validate_a2a_url(url: str) -> str:
+    """校验 A2A 节点 URL，防止 SSRF 攻击"""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(400, "URL 必须使用 http/https 协议")
+    hostname = parsed.hostname or ""
+    # 禁止内网地址
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local:
+            raise HTTPException(400, "不允许注册内网/回环地址")
+    except ValueError:
+        # hostname 不是 IP（是域名），放行
+        pass
+    if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+        raise HTTPException(400, "不允许注册 localhost")
+    return url
+
 @app.post("/api/a2a/register")
 async def a2a_register_agent(body: dict = Body(...)):
     """注册 A2A 执行节点
@@ -365,6 +386,9 @@ async def a2a_register_agent(body: dict = Body(...)):
     card_data = body.get("card", {})
     if not agent_id or not card_data.get("url"):
         raise HTTPException(400, "agent_id 和 card.url 必填")
+
+    # SSRF 防护：校验注册 URL
+    _validate_a2a_url(card_data["url"])
 
     skills = [AgentSkill(**s) for s in card_data.get("skills", [])]
     card = AgentCard(
@@ -2891,6 +2915,29 @@ async def metrics():
         "# TYPE mdh_llm_cache_hit_rate gauge",
         f"mdh_llm_cache_hit_rate {cache_stats['hit_rate']:.4f}",
     ]
+
+    # A2A 执行节点指标
+    a2a_agents = a2a_registry.list_active()
+    total_tasks = sum(a.task_count for a in a2a_agents)
+    total_success = sum(a.success_count for a in a2a_agents)
+    lines.extend([
+        "",
+        "# HELP mdh_a2a_agents_active Number of active A2A execution nodes",
+        "# TYPE mdh_a2a_agents_active gauge",
+        f"mdh_a2a_agents_active {len(a2a_agents)}",
+        "",
+        "# HELP mdh_a2a_tasks_total Total A2A tasks dispatched",
+        "# TYPE mdh_a2a_tasks_total counter",
+        f"mdh_a2a_tasks_total {total_tasks}",
+        "",
+        "# HELP mdh_a2a_tasks_success Total successful A2A tasks",
+        "# TYPE mdh_a2a_tasks_success counter",
+        f"mdh_a2a_tasks_success {total_success}",
+        "",
+        "# HELP mdh_a2a_success_rate A2A task success rate",
+        "# TYPE mdh_a2a_success_rate gauge",
+        f"mdh_a2a_success_rate {(total_success / total_tasks) if total_tasks > 0 else 0:.4f}",
+    ])
 
     for sid, session in sessions.items():
         meeting = getattr(session, 'meeting_session', None)

@@ -16,7 +16,6 @@ import { createA2AHandler } from './a2a/server.js';
 interface ClientSession {
   config: Partial<LLMConfig>;
   workspace: string;
-  teamId?: string;
 }
 
 const CONTENT_TYPES: Record<string, string> = {
