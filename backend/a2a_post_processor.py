@@ -27,11 +27,13 @@ class A2APostProcessor:
         agent_profile_manager=None,
         agent_memory=None,
         dynamic_router=None,
+        webhook_manager=None,
     ):
         self._experience = experience_extractor
         self._profiles = agent_profile_manager
         self._memory = agent_memory
         self._router = dynamic_router
+        self._webhooks = webhook_manager
 
     async def process(
         self,
@@ -70,20 +72,26 @@ class A2APostProcessor:
         if self._router:
             self._update_routing_stats(dept_id, success)
 
+        # 5. Webhook 触发
+        if self._webhooks:
+            self._fire_webhook(task_description, success, xp_target, task_id)
+
     def _distill_experience(self, task_description: str, result_text: str, agent_id: str):
         """从 A2A 任务结果中提炼经验规则"""
         try:
-            # 构造模拟的会议记录，供 ExperienceExtractor 提炼
-            meeting_record = {
-                "messages": [
-                    {"role": "user", "content": task_description},
-                    {"role": "assistant", "content": result_text, "agent_id": agent_id},
-                ],
-                "task_description": task_description,
+            # 调用 extract_from_meeting 需要 5 个位置参数
+            project_id = f"a2a-{agent_id}"
+            discussion_results = []
+            review_result = {"passed": True, "score": 8.0}
+            execution_results = {
                 "success": True,
-                "agent_id": agent_id,
+                "output": result_text[:2000],
+                "tool_calls": [],
             }
-            rules = self._experience.extract_from_meeting(meeting_record)
+            rules = self._experience.extract_from_meeting(
+                project_id, task_description, discussion_results,
+                review_result, execution_results,
+            )
             if rules:
                 logger.info("A2A 任务提炼 %d 条经验规则 (agent=%s)", len(rules), agent_id)
         except Exception as e:
@@ -95,16 +103,18 @@ class A2APostProcessor:
             if not success:
                 return
 
-            # 查找与该任务关联的数字员工（通过路由统计或默认 agent）
-            # A2A 任务的 XP 授给发起任务的数字员工，而非执行节点
-            # 这里使用默认的 executor agent
-            profile = self._profiles.get_profile(agent_id)
-            if profile:
-                # 基础 XP：10 + 任务复杂度奖励
-                complexity = self._estimate_complexity(task_description)
-                base_xp = 10 + complexity * 5
-                self._profiles.grant_xp(agent_id, base_xp, task_description)
-                logger.info("A2A XP 授予: agent=%s xp=%d complexity=%d", agent_id, base_xp, complexity)
+            complexity = self._estimate_complexity(task_description)
+            # grant_xp 签名: (agent_id, skill_id, task_success, review_score, task_complexity, skill_config)
+            # 使用 "general" 作为通用 skill_id
+            self._profiles.grant_xp(
+                agent_id=agent_id,
+                skill_id="general",
+                task_success=True,
+                review_score=8.0,
+                task_complexity=complexity,
+                skill_config={},
+            )
+            logger.info("A2A XP 授予: agent=%s complexity=%d", agent_id, complexity)
         except Exception as e:
             logger.warning("A2A XP 授予失败: %s", e)
 
@@ -163,3 +173,15 @@ class A2APostProcessor:
         if text.count("文件") >= 3 or text.count("file") >= 3:
             score += 1
         return min(score, 5)
+
+    def _fire_webhook(self, task_description: str, success: bool, agent_id: str, task_id: str):
+        """触发 task.completed webhook"""
+        try:
+            self._webhooks.trigger("task.completed", {
+                "task_id": task_id,
+                "agent_id": agent_id,
+                "success": success,
+                "task_description": task_description[:200],
+            })
+        except Exception as e:
+            logger.warning("Webhook 触发失败: %s", e)
