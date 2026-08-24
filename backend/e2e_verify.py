@@ -217,8 +217,36 @@ def main():
         check("has _execute_one_task method", hasattr(TaskOrchestrator, "_execute_one_task"))
         check("has _execute_parallel method", hasattr(TaskOrchestrator, "_execute_parallel"))
 
-        # ── Test 11: DB Schema ──
-        print("\n=== 11. Database Schema ===")
+        # ── Test 11: A2A Protocol ──
+        print("\n=== 11. A2A Protocol ===")
+        from a2a_registry import A2ARegistry, AgentCard, AgentSkill
+        from a2a_task_router import A2ATaskRouter
+        from a2a_client import A2AClient
+        from state_sync import StateSyncManager
+
+        reg = A2ARegistry(persist_path=os.path.join(BACKEND_DIR, "data", "a2a_agents.json"))
+        check("A2ARegistry instantiation", True)
+        check("A2ARegistry list_active", isinstance(reg.list_active(), list))
+
+        card = AgentCard(name="test", description="test", url="http://example.com",
+                         skills=[AgentSkill(id="test", name="test", description="test", tags=["file"])])
+        check("AgentCard creation", card.name == "test")
+
+        router = A2ATaskRouter(reg)
+        check("A2ATaskRouter instantiation", True)
+        check("A2ATaskRouter route (no agents)", router.route("test") is None)
+
+        client = A2AClient()
+        check("A2AClient instantiation", True)
+        check("A2AClient task log empty", client.get_task_log() == [])
+
+        sync = StateSyncManager(experience_extractor=None)
+        check("StateSyncManager instantiation", True)
+        metadata = sync.prepare_task_metadata("test", "test-agent")
+        check("StateSync metadata is dict", isinstance(metadata, dict))
+
+        # ── Test 12: DB Schema ──
+        print("\n=== 12. Database Schema ===")
         import sqlite3
         conn = sqlite3.connect(os.path.join(BACKEND_DIR, "data", "mdh.db"))
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
