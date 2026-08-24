@@ -51,8 +51,8 @@ export default function A2AAgentPanel({ wsRef }: { wsRef?: React.MutableRefObjec
     const handler = (ev: MessageEvent) => {
       try {
         const msg = JSON.parse(ev.data)
-        if (msg.type === 'a2a_agent_update') {
-          load() // 收到节点状态变化时立即刷新
+        if (msg.type === 'a2a_agent_update' && !loading) {
+          load() // 收到节点状态变化时立即刷新（避免并发）
         }
       } catch {}
     }

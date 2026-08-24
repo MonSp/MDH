@@ -105,7 +105,7 @@ def run_smoke_tests():
         thread.start()
 
         client = A2AClient(timeout=10)
-        event = asyncio.get_event_loop().run_until_complete(
+        event = asyncio.run(
             client.send_task(agent, "test task")
         )
         server.shutdown()
