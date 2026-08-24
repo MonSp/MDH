@@ -11,7 +11,6 @@
 7. Agent 状态通知消息
 """
 
-import asyncio
 import json
 import os
 import time
@@ -94,13 +93,7 @@ class TestBenchmarkSystem:
         from benchmark.runner import run_benchmark
         from benchmark.tasks import get_benchmark_tasks
         tasks = get_benchmark_tasks(category="simple")[:1]
-        loop = asyncio.new_event_loop()
-        try:
-            report = loop.run_until_complete(
-                run_benchmark(tasks=tasks, workspace=str(tmp_path))
-            )
-        finally:
-            loop.close()
+        report = run_benchmark(tasks=tasks, workspace=str(tmp_path))
         assert report.total == 1
         assert report.passed + report.failed == 1
         assert report.avg_latency_s >= 0
@@ -111,13 +104,7 @@ class TestBenchmarkSystem:
         from benchmark.tasks import get_benchmark_tasks
         from dataclasses import asdict
         tasks = get_benchmark_tasks(category="simple")[:2]
-        loop = asyncio.new_event_loop()
-        try:
-            report = loop.run_until_complete(
-                run_benchmark(tasks=tasks, workspace=str(tmp_path))
-            )
-        finally:
-            loop.close()
+        report = run_benchmark(tasks=tasks, workspace=str(tmp_path))
         analysis = analyze_report(asdict(report))
         assert analysis.total_tasks == 2
         assert "simple" in analysis.by_category

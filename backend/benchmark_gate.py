@@ -12,7 +12,6 @@
 """
 
 import argparse
-import asyncio
 import json
 import os
 import sys
@@ -83,7 +82,7 @@ def check_thresholds(report: BenchmarkReport) -> list:
     return failures
 
 
-async def main():
+def main():
     parser = argparse.ArgumentParser(description="MDH 评测基准 CI 门禁")
     parser.add_argument("--with-llm", action="store_true", help="使用真实 LLM 运行评测")
     parser.add_argument("--baseline", default="", help="基线 JSON 路径")
@@ -104,7 +103,7 @@ async def main():
         # 真实 LLM 模式
         print("模式: 真实 LLM 评测")
         tasks = get_benchmark_tasks(category=args.category or None)
-        report = await run_benchmark(tasks=tasks)
+        report = run_benchmark(tasks=tasks)
     else:
         # 自检模式
         print("模式: 无 key 自检（验证框架可用性）")
@@ -134,4 +133,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

@@ -103,9 +103,9 @@ class OpsManager:
             # 先备份当前数据库
             if os.path.isfile(db_path):
                 self.backup_database(label="before_restore")
-            # 关闭所有连接再恢复，防止运行中实例读到脏数据
-            from db import close_all
-            close_all()
+            # 关闭目标数据库连接再恢复，防止运行中实例读到脏数据
+            from db import close_connection
+            close_connection(db_path)
             shutil.copy2(backup_path, db_path)
             logger.info("数据库恢复完成: %s", backup_name)
             return {"restored": True, "backup_name": backup_name}

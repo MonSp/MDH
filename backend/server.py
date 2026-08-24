@@ -920,7 +920,7 @@ async def run_benchmark_endpoint(body: dict):
         from benchmark.runner import run_benchmark, format_report
         from dataclasses import asdict
         category = body.get("category")
-        report = await run_benchmark(category=category)
+        report = run_benchmark(category=category)
         return _ok(asdict(report))
     except Exception as e:
         logger.exception("run_benchmark 失败")

@@ -10,7 +10,6 @@
 """
 
 import argparse
-import asyncio
 import json
 import logging
 import os
@@ -28,7 +27,7 @@ logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 logger = logging.getLogger("benchmark_cli")
 
 
-async def main():
+def main():
     parser = argparse.ArgumentParser(description="MDH 评测基准")
     parser.add_argument("--category", choices=["simple", "standard", "complex"], help="按类别过滤")
     parser.add_argument("--task-id", help="运行单个任务")
@@ -52,7 +51,7 @@ async def main():
     logger.info("运行 %d 个评测任务", len(tasks))
 
     # 执行评测
-    report = await run_benchmark(tasks=tasks, workspace=args.workspace)
+    report = run_benchmark(tasks=tasks, workspace=args.workspace)
 
     # 对比基线
     if args.baseline:
@@ -100,4 +99,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

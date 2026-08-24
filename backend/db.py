@@ -183,6 +183,18 @@ def get_write_lock(db_path: str) -> threading.RLock:
         return _write_locks[db_path]
 
 
+def close_connection(db_path: str):
+    """关闭指定数据库连接"""
+    with _db_lock:
+        conn = _connections.pop(db_path, None)
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        _write_locks.pop(db_path, None)
+
+
 def close_all():
     """关闭所有数据库连接"""
     with _db_lock:
