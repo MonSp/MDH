@@ -16,4 +16,30 @@ export const apiFetch = async <T,>(url: string, init?: RequestInit): Promise<T> 
   return body.data as T
 }
 
+/** GET with automatic JSON parsing and error handling */
+export const apiGet = <T,>(path: string): Promise<T> =>
+  apiFetch<T>(path.startsWith('/api') ? path : `/api${path}`)
+
+/** POST with JSON body */
+export const apiPost = <T,>(path: string, body?: unknown): Promise<T> =>
+  apiFetch<T>(path.startsWith('/api') ? path : `/api${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+
+/** PUT with JSON body */
+export const apiPut = <T,>(path: string, body?: unknown): Promise<T> =>
+  apiFetch<T>(path.startsWith('/api') ? path : `/api${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+
+/** DELETE */
+export const apiDelete = <T,>(path: string): Promise<T> =>
+  apiFetch<T>(path.startsWith('/api') ? path : `/api${path}`, {
+    method: 'DELETE',
+  })
+
 export default apiFetch
