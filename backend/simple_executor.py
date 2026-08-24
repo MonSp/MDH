@@ -44,18 +44,25 @@ class SimpleExecutor:
         project_manager: ProjectManager,
         workflow_engine=None,
         on_coordinator_created=None,
+        a2a_task_router=None,
+        a2a_client=None,
+        state_sync=None,
     ):
         """
         Args:
             project_manager: 项目管理器实例
-            workflow_engine: 共享 WorkflowEngine（与 server/ceo_agent 构造点一致，
-                升级路径注入后工作流受共享引擎管理）
-            on_coordinator_created: 协调器创建回调（server 用于更新 _active_coordinator，
-                保证共享引擎委托执行器能路由到升级路径创建的协调器）
+            workflow_engine: 共享 WorkflowEngine
+            on_coordinator_created: 协调器创建回调
+            a2a_task_router: A2A 任务路由器（可选，启用 A2A 路由）
+            a2a_client: A2A 协议客户端（可选）
+            state_sync: 双层状态同步管理器（可选）
         """
         self._project_manager = project_manager
         self._workflow_engine = workflow_engine
         self._on_coordinator_created = on_coordinator_created
+        self._a2a_router = a2a_task_router
+        self._a2a_client = a2a_client
+        self._state_sync = state_sync
 
     async def execute(
         self,
@@ -83,6 +90,15 @@ class SimpleExecutor:
         """
         tool_calls = []
         result_text = ""
+
+        # A2A 路由：检查是否有可用的执行节点
+        if self._a2a_router and self._a2a_client:
+            try:
+                a2a_result = await self._try_a2a_routing(content, on_progress)
+                if a2a_result:
+                    return a2a_result
+            except Exception as e:
+                logger.warning("A2A 路由失败，降级到 Python 内部执行: %s", e)
 
         try:
             # 1. 创建轻量项目
@@ -121,6 +137,67 @@ class SimpleExecutor:
                 retry_with_complex=True,
                 tool_calls=tool_calls,
             )
+
+    async def _try_a2a_routing(self, content: str, on_progress) -> Optional[SimpleResult]:
+        """尝试通过 A2A 协议路由任务到外部执行节点
+
+        Returns:
+            SimpleResult 如果成功路由并执行，None 如果需要降级到 Python 内部执行
+        """
+        decision = self._a2a_router.route(content)
+        if not decision or decision.confidence < 0.6:
+            return None
+
+        agent = decision.agent
+        logger.info("A2A 路由: %s -> %s (置信度=%.2f, 匹配=%s)",
+                     content[:50], agent.agent_id, decision.confidence, decision.matched_tags)
+
+        # 通知前端
+        if on_progress:
+            await on_progress("system", f"通过 A2A 路由到 {agent.card.name} 执行", "")
+
+        # 准备经验注入
+        metadata = {}
+        if self._state_sync:
+            metadata = self._state_sync.prepare_task_metadata(content, agent.agent_id)
+
+        # 发送任务
+        event = await self._a2a_client.send_task(agent, content, metadata)
+
+        # 处理结果
+        success = event.status and event.status.state == "completed"
+        result_text = ""
+        if event.artifact and event.artifact.parts:
+            result_text = event.artifact.parts[0].text or ""
+
+        # 记录到注册表
+        from a2a_registry import A2ARegistry
+        # 注册表通过 router 间接访问
+        self._a2a_router._registry.record_task(agent.agent_id, success)
+
+        # 任务后状态同步
+        if self._state_sync:
+            self._state_sync.process_task_result(
+                agent_id=agent.agent_id,
+                task_description=content,
+                result_text=result_text,
+                success=success,
+                task_id=event.task_id,
+            )
+
+        if success:
+            return SimpleResult(
+                success=True,
+                result=result_text,
+                project_id=f"a2a-{event.task_id}",
+                review_passed=True,
+                retry_with_complex=False,
+                tool_calls=[],
+            )
+
+        # A2A 执行失败，降级到 Python 内部执行
+        logger.warning("A2A 执行失败，降级: %s", event.status.message if event.status else "unknown")
+        return None
 
     def _create_lightweight_project(self, content: str):
         """创建轻量项目容器"""
