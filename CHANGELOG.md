@@ -2,6 +2,17 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.7] - 2026-08-26
+
+### Fixed
+
+**A2A 代码审查 P1 修复（5 项）**
+- **C4 readBody 大小限制**: `orchestrator/src/a2a/server.ts` 和 `adapters/claude-code/src/a2a-handler.ts` 的 `readBody()` 添加 10MB 上限，超限返回 413（防 DoS）
+- **I1 _task_log 竞态**: `backend/a2a_client.py` 所有 `_task_log` 读写加 `asyncio.Lock`，消除并发 SSE 任务的日志丢失风险
+- **I10 YAML→JSON 格式统一**: `backend/human_feedback.py` 反馈规则写入格式从 YAML 改为 JSON，与 ExperienceExtractor 主检索系统一致
+- **I12 agent_id 可配置**: `adapters/claude-code/src/index.ts` 支持 `--agent-id` 参数和 `MDH_AGENT_ID` 环境变量，默认 `claude-code-{port}` 避免多实例 ID 碰撞
+- **I13 A2A 调用重试**: `backend/a2a_client.py` `send_task()` 添加 3 次指数退避重试（1s/2s/4s），仅对 5xx 和超时重试，4xx 不重试
+
 ## [1.8.6] - 2026-08-26
 
 ### Fixed

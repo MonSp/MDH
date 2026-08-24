@@ -76,6 +76,7 @@
 | **1.8.4** | 2026-08-26 | 集成差距修复（SimpleExecutor 进化管线 + A2A API 签名修正 + Webhook 接入） |
 | **1.8.5** | 2026-08-26 | 集成差距修复续（TeamSynergy 自动记录 + ProactiveMonitor 后台调度） |
 | **1.8.6** | 2026-08-26 | 集成差距修复终章（AssetInjection 接入 MeetingCoordinator + CapabilityBoundary 接入任务流） |
+| **1.8.7** | 2026-08-26 | A2A 代码审查 P1 修复（readBody 限制 + 竞态锁 + YAML→JSON + agent_id 可配置 + 重试机制） |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
