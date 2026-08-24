@@ -6,7 +6,7 @@ State Sync — 双层状态同步
 """
 
 import logging
-import time
+import re
 from typing import Dict, List, Optional
 
 from experience_extractor import ExperienceExtractor
@@ -50,9 +50,10 @@ class StateSyncManager:
 
         # 检索相关经验规则
         try:
-            rules = self._experience.retrieve_rules(
-                task_description,
-                limit=max_rules,
+            keywords = self._extract_keywords(task_description)
+            rules = self._experience.retrieve_relevant_rules(
+                task_type="general",
+                keywords=keywords,
             )
             if rules:
                 metadata["experience_rules"] = [
@@ -114,14 +115,13 @@ class StateSyncManager:
                 task_description, result_text, success
             )
 
-            self._memory.add_memory(
-                agent_id=agent_id,
-                memory_type=memory_type,
-                content=content,
-                task_id=task_id,
-                keywords=keywords,
-                importance=importance,
-            )
+            self._memory.add_memory(agent_id, {
+                "type": memory_type,
+                "content": content,
+                "task_id": task_id,
+                "keywords": keywords,
+                "importance": importance,
+            })
             logger.info("写入记忆: agent=%s type=%s success=%s",
                         agent_id, memory_type, success)
 
@@ -134,7 +134,6 @@ class StateSyncManager:
 
     def _extract_keywords(self, text: str) -> List[str]:
         """从文本中提取关键词"""
-        import re
         # 中文分词（简单滑动窗口）
         cn_words = []
         for i in range(len(text) - 1):
@@ -158,8 +157,12 @@ class StateSyncManager:
     def _update_rule_effectiveness(self, task_description: str, success: bool):
         """更新相关规则的有效性评分"""
         try:
-            rules = self._experience.retrieve_rules(task_description, limit=3)
-            for rule in rules:
+            keywords = self._extract_keywords(task_description)
+            rules = self._experience.retrieve_relevant_rules(
+                task_type="general",
+                keywords=keywords,
+            )
+            for rule in rules[:3]:
                 rule_id = rule.get("rule_id")
                 if rule_id:
                     self._experience.update_rule_effectiveness(rule_id, success)

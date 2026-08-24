@@ -10,7 +10,7 @@ from state_sync import StateSyncManager
 def mock_experience():
     """模拟 ExperienceExtractor"""
     exp = MagicMock()
-    exp.retrieve_rules.return_value = [
+    exp.retrieve_relevant_rules.return_value = [
         {
             "rule_id": "rule-001",
             "action": "配置文件修改后需要运行 TypeScript 检查",
@@ -32,7 +32,7 @@ def mock_experience():
 
 @pytest.fixture
 def mock_memory():
-    """模拟 AgentMemoryManager"""
+    """模拟 AgentMemory"""
     mem = MagicMock()
     mem.recall_for_task.return_value = "之前处理过类似的配置修改任务"
     return mem
@@ -51,7 +51,7 @@ class TestStateSyncManager:
         assert "experience_rules" in metadata
         assert len(metadata["experience_rules"]) == 2
         assert metadata["experience_rules"][0]["rule_id"] == "rule-001"
-        mock_experience.retrieve_rules.assert_called_once()
+        mock_experience.retrieve_relevant_rules.assert_called_once()
 
     def test_prepare_task_metadata_with_memory(self, mock_experience, mock_memory):
         sync = StateSyncManager(
@@ -69,7 +69,7 @@ class TestStateSyncManager:
         assert metadata["skill_context"] == "之前处理过类似的配置修改任务"
 
     def test_prepare_task_metadata_no_rules(self, mock_experience):
-        mock_experience.retrieve_rules.return_value = []
+        mock_experience.retrieve_relevant_rules.return_value = []
         sync = StateSyncManager(experience_extractor=mock_experience)
 
         metadata = sync.prepare_task_metadata("翻译这段文字", "claude-code")
@@ -91,11 +91,13 @@ class TestStateSyncManager:
         )
 
         mock_memory.add_memory.assert_called_once()
-        call_kwargs = mock_memory.add_memory.call_args[1]
-        assert call_kwargs["agent_id"] == "ts-orchestrator"
-        assert call_kwargs["memory_type"] == "task_summary"
-        assert call_kwargs["importance"] == 0.7
-        assert call_kwargs["task_id"] == "task-001"
+        # add_memory takes (agent_id, entry_dict)
+        args = mock_memory.add_memory.call_args[0]
+        assert args[0] == "ts-orchestrator"
+        entry = args[1]
+        assert entry["type"] == "task_summary"
+        assert entry["importance"] == 0.7
+        assert entry["task_id"] == "task-001"
 
     def test_process_task_result_failure_updates_rules(self, mock_experience, mock_memory):
         sync = StateSyncManager(
@@ -112,9 +114,10 @@ class TestStateSyncManager:
         )
 
         mock_memory.add_memory.assert_called_once()
-        call_kwargs = mock_memory.add_memory.call_args[1]
-        assert call_kwargs["memory_type"] == "learning"
-        assert call_kwargs["importance"] == 0.5
+        args = mock_memory.add_memory.call_args[0]
+        entry = args[1]
+        assert entry["type"] == "learning"
+        assert entry["importance"] == 0.5
         # 失败时应更新规则有效性
         mock_experience.update_rule_effectiveness.assert_called()
 
