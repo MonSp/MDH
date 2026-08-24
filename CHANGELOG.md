@@ -2,6 +2,17 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.7.7] - 2026-08-26
+
+### Fixed
+
+**A2A 代码审查收尾（6 项剩余问题）**
+- **I3**: `on_event` 回调支持 async/sync 双模式（`Awaitable` 兼容）
+- **I4**: `_broadcast_a2a_update` 广播后清理断开的 WebSocket 会话
+- **M4**: 冒烟测试使用 `asyncio.run()` 替代废弃的 `get_event_loop()`
+- **M13**: A2AAgentPanel WS handler 加载守卫，防止并发 `load()` 调用
+- **I8**: 文档化 Python (bigram) vs TS (stop-word) 关键词提取的有意差异
+
 ## [1.7.6] - 2026-08-26
 
 ### Fixed
