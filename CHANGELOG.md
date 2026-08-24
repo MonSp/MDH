@@ -2,6 +2,17 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.8] - 2026-08-26
+
+### Fixed
+
+**A2A 代码审查 P2 修复（10 项 Minor）**
+- 清理 5 处未使用导入（re/Dict in task_router, Optional/Dict in post_processor, resolveConfig in server.ts）
+- `a2a_registry.check_health()` 状态变更后持久化到磁盘（之前重启丢失 unhealthy 状态）
+- `a2a_client` 回调 awaitable 检查从 `iscoroutine` 改为 `inspect.isawaitable`（兼容更多 awaitable 类型）
+- 提取 `state_sync.extract_keywords()` 模块级工具函数，消除 a2a_post_processor 中的重复代码
+- Claude Code Adapter: `buildAgentCard()` 导出并复用，消除 index.ts 中的重复定义
+
 ## [1.8.7] - 2026-08-26
 
 ### Fixed

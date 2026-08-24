@@ -77,6 +77,7 @@
 | **1.8.5** | 2026-08-26 | 集成差距修复续（TeamSynergy 自动记录 + ProactiveMonitor 后台调度） |
 | **1.8.6** | 2026-08-26 | 集成差距修复终章（AssetInjection 接入 MeetingCoordinator + CapabilityBoundary 接入任务流） |
 | **1.8.7** | 2026-08-26 | A2A 代码审查 P1 修复（readBody 限制 + 竞态锁 + YAML→JSON + agent_id 可配置 + 重试机制） |
+| **1.8.8** | 2026-08-26 | A2A 代码审查 P2 修复（10 项 Minor：未使用导入 + 健康持久化 + awaitable + 关键词去重 + Card 去重） |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
