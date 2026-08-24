@@ -2,13 +2,16 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { readFileSync, existsSync, createReadStream } from 'fs';
 import { resolve, extname, join } from 'path';
-import { TeamCoordinator } from './team/coordinator.js';
 import type { IToolkitRouter } from './toolkit/router.js';
 import { RouterFactory } from './toolkit/router.js';
 import type { ExecutionProfile } from './toolkit/hybrid.js';
 import { LLMConfig } from './llm/types.js';
 import { resolveConfig } from './llm/openai.js';
 import { getAvailableRoles } from './team/templates.js';
+import { RoleAgent, type AgentConfig, type EventHandler } from './agent/role-agent.js';
+import { ALL_TOOL_DEFINITIONS } from './agent/tools.js';
+import { buildSystemPrompt } from './agent/system-prompt.js';
+import { createA2AHandler } from './a2a/server.js';
 
 interface ClientSession {
   config: Partial<LLMConfig>;
@@ -31,7 +34,28 @@ const CONTENT_TYPES: Record<string, string> = {
 export async function startServer(port: number, routerFactory: RouterFactory, defaultRouter: IToolkitRouter, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>, executorUrl?: string, executorToken?: string, hybridProfile?: ExecutionProfile) {
   const distDir = process.env.DIST_DIR || resolve(process.cwd(), '../dist');
 
-  const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
+  // A2A handler — serves /.well-known/agent.json and POST /a2a/tasks/send
+  const handleA2A = createA2AHandler({
+    llmConfig: defaultLlmConfig ? resolveConfig(defaultLlmConfig) : resolveConfig({ provider: 'deepseek' }),
+    workspace: defaultWorkspace,
+    router: defaultRouter,
+  });
+
+  const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    // A2A routes — delegate if matched
+    try {
+      const handled = await handleA2A(req, res);
+      if (handled) return;
+    } catch (err: unknown) {
+      // A2A handler threw before writing a response — return 500
+      if (!res.headersSent) {
+        const msg = err instanceof Error ? err.message : String(err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: msg }));
+      }
+      return;
+    }
+
     const url = req.url || '/';
 
     // API endpoints
@@ -94,7 +118,7 @@ export async function startServer(port: number, routerFactory: RouterFactory, de
     ws.on('message', async (data: Buffer) => {
       try {
         const msg = JSON.parse(data.toString());
-        await handleMessage(ws, session, msg, routerFactory, defaultRouter, executorUrl, executorToken, hybridProfile);
+        await handleMessage(ws, session, msg, defaultRouter);
       } catch (err: any) {
         ws.send(JSON.stringify({ type: 'error', message: err.message }));
       }
@@ -116,11 +140,7 @@ async function handleMessage(
   ws: WebSocket,
   session: ClientSession,
   msg: Record<string, unknown>,
-  routerFactory: RouterFactory,
   defaultRouter: IToolkitRouter,
-  executorUrl?: string,
-  executorToken?: string,
-  hybridProfile?: ExecutionProfile,
 ) {
   switch (msg.type) {
     case 'config': {
@@ -140,8 +160,6 @@ async function handleMessage(
         if (msg.base_url) session.config.baseUrl = msg.base_url as string;
         if (msg.model_name) session.config.model = msg.model_name as string;
       }
-      // 提取 teamId 用于资产注入
-      if (msg.team_id) session.teamId = msg.team_id as string;
 
       const llmConfig = resolveConfig(session.config);
       if (!llmConfig.apiKey) {
@@ -152,83 +170,45 @@ async function handleMessage(
         return;
       }
 
-      // CLI --profile / MDH_PROFILE：默认应用到所有角色（全角色映射），
-      // 使 createTeam 为每个成员写入 runtime.hybrid → HybridToolkitRouter。
-      const hybridProfiles = hybridProfile
-        ? Object.fromEntries(getAvailableRoles().map((r) => [r, hybridProfile]))
-        : undefined;
-
-      const coordinator = new TeamCoordinator({
-        llm: llmConfig,
-        routerFactory,
-        defaultRouter,
-        workspace: session.workspace,
-        executorUrl,
-        executorToken,
-        hybridProfiles,
-        // 增量区路径（进化后的 CoW 技能）— 对齐 Python 端 backend/data/experience
-        incrementalDir: process.env.MDH_INCREMENTAL_DIR || join(process.cwd(), '..', 'backend', 'data', 'experience'),
-        // 后端 REST API 地址（资产注入用）
-        backendUrl: process.env.MDH_BACKEND_URL || 'http://localhost:8765',
-        // 团队 ID — 从 session 或 unified_message 获取
-        teamId: session.teamId || 'default',
-        onWorkspaceConfirm: (request) => {
-          return new Promise((resolve) => {
-            // 发送工作区确认请求给前端
-            ws.send(JSON.stringify({
-              type: 'workspace_confirm_request',
-              task_description: request.taskDescription,
-              suggested_type: request.suggestedType,
-              options: request.options,
-            }));
-
-            // 等待前端回复 workspace_confirm_response
-            const handler = (data: Buffer) => {
-              try {
-                const resp = JSON.parse(data.toString());
-                if (resp.type === 'workspace_confirm_response') {
-                  ws.removeListener('message', handler);
-                  resolve({
-                    workspace_type: resp.workspace_type || 'standalone',
-                    repo_path: resp.repo_path,
-                    branch_name: resp.branch_name,
-                  });
-                }
-              } catch {}
-            };
-            ws.on('message', handler);
-          });
-        },
-      });
       const content = msg.content as string;
-      const DEFAULT_ROLES = ['coordinator', 'planner', 'executor', 'reviewer'];
-      const selectedRoles = Array.isArray(msg.selected_roles) && msg.selected_roles.length > 0
-        ? msg.selected_roles as string[]
-        : DEFAULT_ROLES;
+      console.log(`[WS] Task: "${content.substring(0, 60)}..." (single-agent mode)`);
 
-      console.log(`[WS] Task: "${content.substring(0, 60)}..." roles: [${selectedRoles.join(', ')}]`);
-
-      // 读取前端 per-agent location 选择（如 { executor: 'remote', reviewer: 'local' }）
-      const roleLocations = (msg.role_locations && typeof msg.role_locations === 'object')
-        ? msg.role_locations as Record<string, 'local' | 'remote'>
-        : undefined;
-      if (roleLocations) {
-        console.log(`[WS] roleLocations: ${JSON.stringify(roleLocations)}`);
-      }
+      // Create a single RoleAgent — A2A execution model
+      const systemPrompt = await buildSystemPrompt('executor');
+      const agentConfig: AgentConfig = {
+        id: `ws-${Date.now()}`,
+        roleId: 'executor',
+        roleName: 'Executor',
+        systemPrompt,
+        tools: ALL_TOOL_DEFINITIONS,
+        router: defaultRouter,
+        workspace: session.workspace,
+        llm: llmConfig,
+      };
+      const agent = new RoleAgent(agentConfig);
 
       try {
-        const result = await coordinator.execute(content, selectedRoles, (event) => {
-          // 转换 phase 事件为前端期望的 agenda_update 格式
-          if (event.type === 'phase') {
-            ws.send(JSON.stringify({
-              type: 'agenda_update',
-              agenda: { phase: event.phase, topic: content.substring(0, 50) },
-            }));
-          } else {
-            ws.send(JSON.stringify(event));
+        ws.send(JSON.stringify({ type: 'agenda_update', agenda: { phase: 'executing', topic: content.substring(0, 50) } }));
+
+        const onEvent: EventHandler = (event) => {
+          switch (event.type) {
+            case 'tool_result':
+              ws.send(JSON.stringify({ type: 'tool_result', tool_name: event.tool, output: event.output ?? event.result }));
+              break;
+            case 'tool_call':
+              ws.send(JSON.stringify({ type: 'tool_call', tool_name: event.tool, arguments: event.args }));
+              break;
+            case 'agent_message':
+              ws.send(JSON.stringify({ type: 'agent_message', content: event.content }));
+              break;
+            default:
+              ws.send(JSON.stringify(event));
+              break;
           }
-        }, roleLocations);
-        ws.send(JSON.stringify({ type: 'task_result', content: result }));
+        };
+
+        const { result } = await agent.chatWithTools(content, onEvent);
+        ws.send(JSON.stringify({ type: 'task_result', content: result, path_used: 'single-agent' }));
       } catch (err: any) {
         console.error('[WS] Error:', err.message);
         ws.send(JSON.stringify({ type: 'error', message: err.message }));
