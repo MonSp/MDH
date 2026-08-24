@@ -10,6 +10,7 @@ import RoleAvatar from '../../RoleAvatar'
 import type { TeamAgent, ChatMessage } from '../types'
 import { ROLE_EMOJI } from '../constants'
 import { formatTime } from '../utils'
+import { apiPost, apiGet } from '../../../services/apiFetch'
 import { extractCodeBlock, parseFileWriteMessage, getFileIcon } from './helpers'
 import {
   renderStructuredFeedback,
@@ -62,18 +63,14 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
     const feedbackKey = `${msg.agentId}-${msg.timestamp}`
     if (feedbackGiven.has(feedbackKey)) return
     try {
-      await fetch('/api/feedback/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await apiPost('/api/feedback/submit', {
           agent_id: msg.agentId || '',
           task_id: '',
           task_description: msg.content?.slice(0, 100) || '',
           rating: rating === 'good' ? 'good' : 'needs_improvement',
           specific_suggestions: suggestion ? [suggestion] : [],
           reviewer: 'human-inline',
-        }),
-      })
+        })
       setFeedbackGiven(prev => new Set(prev).add(feedbackKey))
       setFeedbackInput(null)
       setFeedbackText('')
@@ -101,12 +98,11 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
       for (const agent of agents) {
         if (agentProfiles[agent.id]) continue // 已缓存
         try {
-          const res = await fetch(`/api/agents/${agent.id}/profile`)
-          const data = await res.json()
-          if (data.success && data.data) {
+          const profileData = await apiGet<{ skill_progress?: Record<string, { level: number }>; department?: string }>(`/api/agents/${agent.id}/profile`)
+          if (profileData) {
             profiles[agent.id] = {
-              skills: data.data.skill_progress || {},
-              department: data.data.department || '',
+              skills: profileData.skill_progress || {},
+              department: profileData.department || '',
             }
           }
         } catch { /* silent */ }
@@ -133,12 +129,11 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
           const words = content.match(/[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}/g) || []
           const keywords = [...new Set(words.map(w => w.toLowerCase()))].slice(0, 5).join(',')
           if (!keywords) continue
-          const res = await fetch(`/api/capability/detect?keywords=${encodeURIComponent(keywords)}`)
-          const data = await res.json()
-          if (data.success && data.data?.is_unknown) {
+          const capData = await apiGet<{ is_unknown?: boolean; matched_domains?: string[]; best_confidence?: number }>(`/api/capability/detect?keywords=${encodeURIComponent(keywords)}`)
+          if (capData?.is_unknown) {
             setCapabilityWarnings(prev => ({
               ...prev,
-              [idx]: { domains: data.data.matched_domains, confidence: data.data.best_confidence },
+              [idx]: { domains: capData.matched_domains || [], confidence: capData.best_confidence || 0 },
             }))
           }
         } catch { /* silent */ }

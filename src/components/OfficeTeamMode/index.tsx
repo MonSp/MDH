@@ -11,6 +11,7 @@ import OfficeScene from '../office-team/OfficeScene'
 import WorkflowPanel from '../WorkflowPanel'
 import { useAgentSystem } from '../../hooks/useAgentSystem'
 import useMeetingSocket from '../../hooks/useMeetingSocket'
+import { apiGet } from '../../services/apiFetch'
 import TaskList from './TaskList'
 import MeetingPanel from './MeetingPanel'
 
@@ -57,9 +58,8 @@ export default function OfficeTeamMode({ wsRef, onBackToSingle, pendingApprovalC
   }, [])
 
   const refreshProjectDetail = useCallback((projectId: string) => {
-    fetch(`/api/projects/${projectId}`)
-      .then(r => r.json())
-      .then(data => { if (data.success && data.data) setProjectDetail(data.data) })
+    apiGet<ProjectDetail>(`/api/projects/${projectId}`)
+      .then(data => { if (data) setProjectDetail(data) })
       .catch(err => console.error('加载项目详情失败:', err))
   }, [])
 

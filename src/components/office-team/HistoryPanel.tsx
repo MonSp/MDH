@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { apiGet } from '../../services/apiFetch'
 
 interface HistorySession {
   session_id: string
@@ -24,8 +25,7 @@ export default function HistoryPanel() {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch('/api/history/sessions')
-      const data = await res.json()
+      const data = await apiGet<HistorySession[]>('/api/history/sessions')
       setSessions(data)
     } catch (e) {
       console.error('Failed to fetch history:', e)
@@ -38,8 +38,7 @@ export default function HistoryPanel() {
     setSelectedSession(sessionId)
     setLoading(true)
     try {
-      const res = await fetch(`/api/history/sessions/${sessionId}/messages`)
-      const data = await res.json()
+      const data = await apiGet<{ messages: HistoryMessage[] }>(`/api/history/sessions/${sessionId}/messages`)
       setMessages(data.messages || [])
     } catch (e) {
       console.error('Failed to fetch messages:', e)

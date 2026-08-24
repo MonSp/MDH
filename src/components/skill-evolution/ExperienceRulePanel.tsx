@@ -52,10 +52,9 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
 
   const loadDemotionAlerts = async () => {
     try {
-      const resp = await apiGet("/api/experience/rules/demotion-log")
-      const data = await resp.json()
-      if (data.success && data.data?.summary?.recent_24h > 0) {
-        setDemotionAlerts(data.data.entries.slice(0, 5))
+      const data = await apiGet<{ summary?: { recent_24h?: number }; entries: DemotionEntry[] }>("/api/experience/rules/demotion-log")
+      if (data?.summary?.recent_24h && data.summary.recent_24h > 0) {
+        setDemotionAlerts(data.entries.slice(0, 5))
         setAlertsDismissed(false)
       }
     } catch { /* silent */ }
@@ -63,9 +62,8 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
 
   const loadStats = async () => {
     try {
-      const resp = await apiGet("/api/experience/rules/demotion-stats")
-      const data = await resp.json()
-      if (data.success) setStats(data.data)
+      const data = await apiGet<DemotionStats>("/api/experience/rules/demotion-stats")
+      if (data) setStats(data)
     } catch { /* silent */ }
   }
 
