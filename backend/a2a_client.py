@@ -12,7 +12,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Union
+from typing import Awaitable, Callable, Dict, List, Optional, Union
 
 import httpx
 
@@ -91,7 +91,7 @@ class A2AClient:
         agent: RegisteredAgent,
         message: str,
         metadata: Dict = None,
-        on_event: Callable[[A2ATaskEvent], None] = None,
+        on_event: Callable[[A2ATaskEvent], Optional[Awaitable[None]]] = None,
         task_id: str = None,
     ) -> A2ATaskEvent:
         """发送任务到执行节点，返回最终结果
@@ -151,7 +151,10 @@ class A2AClient:
                         last_event = event
 
                         if on_event:
-                            on_event(event)
+                            import asyncio
+                            result = on_event(event)
+                            if asyncio.iscoroutine(result):
+                                await result
 
                         if event.status and event.status.state in ("completed", "failed"):
                             break

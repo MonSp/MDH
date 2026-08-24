@@ -362,11 +362,14 @@ from urllib.parse import urlparse
 async def _broadcast_a2a_update(event_type: str, agent_data: dict):
     """向所有 WebSocket 会话广播 A2A 节点状态变化"""
     message = json.dumps({"type": "a2a_agent_update", "event": event_type, **agent_data})
+    dead = []
     for sid, session in list(sessions.items()):
         try:
             await session.ws.send_text(message)
         except Exception:
-            pass
+            dead.append(sid)
+    for sid in dead:
+        sessions.pop(sid, None)
 
 def _validate_a2a_url(url: str) -> str:
     """校验 A2A 节点 URL，防止 SSRF 攻击（含 DNS rebinding）"""

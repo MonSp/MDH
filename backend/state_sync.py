@@ -133,7 +133,13 @@ class StateSyncManager:
             logger.warning("记忆写入失败: %s", e)
 
     def _extract_keywords(self, text: str) -> List[str]:
-        """从文本中提取关键词"""
+        """从文本中提取关键词
+
+        注意: TS 端 (adapters/claude-code/src/sync.ts) 使用 stop-word 过滤，
+        与本方法的 bigram 滑动窗口会产生不同结果。
+        这是有意的设计：Python 端用于经验检索（需要精确匹配），
+        TS 端用于本地记忆索引（需要更宽泛的召回）。
+        """
         # 中文分词（简单滑动窗口）
         cn_words = []
         for i in range(len(text) - 1):
