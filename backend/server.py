@@ -243,7 +243,6 @@ dynamic_router = DynamicRouter(
 
 # 自适应协作链路组件
 complexity_classifier = ComplexityClassifier()
-simple_executor = SimpleExecutor(project_manager=project_manager)
 
 # Agent 池（全局单例，支持复用和负载均衡）
 key_manager = KeyManager()
@@ -255,6 +254,13 @@ a2a_memory = AgentMemory(data_dir=_DATA_DIR)
 state_sync = StateSyncManager(
     experience_extractor=experience_extractor,
     memory_manager=a2a_memory,
+)
+
+simple_executor = SimpleExecutor(
+    project_manager=project_manager,
+    a2a_task_router=a2a_task_router,
+    a2a_client=a2a_client,
+    state_sync=state_sync,
 )
 
 agent_pool = AgentPool(

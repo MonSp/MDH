@@ -35,6 +35,7 @@ class WorkflowNode:
     status: WorkflowNodeStatus = WorkflowNodeStatus.PENDING
     result: dict | None = None
     gate: Optional[dict] = None
+    execution_target: str = "local"  # "local" | "a2a:<agent_id>" | "auto"
 
 
 @dataclass

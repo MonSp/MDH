@@ -35,7 +35,7 @@ export function useCeoCommunication(options: CeoCommunicationOptions) {
 
   const listenerCleanupRef = useRef<(() => void) | null>(null)
 
-  const sendToBackend = useCallback((content: string, selectedRoles: string[], roleLocations: Record<string, 'local' | 'remote'>, autoMode: boolean) => {
+  const sendToBackend = useCallback((content: string, selectedRoles: string[], roleLocations: Record<string, 'local' | 'remote'>, autoMode: boolean, executionPreference?: string) => {
     setIsProcessing(true)
 
     // Electron IPC 模式
@@ -141,6 +141,7 @@ export function useCeoCommunication(options: CeoCommunicationOptions) {
       content,
       selected_roles: autoMode ? [] : selectedRoles,
       role_locations: autoMode ? {} : roleLocations,
+      execution_preference: executionPreference || 'auto',
       provider: localStorage.getItem(STORAGE_KEYS.PROVIDER) || undefined,
       model_name: localStorage.getItem(STORAGE_KEYS.MODEL_NAME) || undefined,
       api_key: localStorage.getItem(STORAGE_KEYS.API_KEY) || undefined,

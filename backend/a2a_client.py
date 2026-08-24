@@ -148,6 +148,10 @@ class A2AClient:
                     try:
                         data = json.loads(data_str)
                         event = self._parse_event(task_id, data)
+
+                        # 保留前一个事件的 artifact（最终 status 事件通常不带 artifact）
+                        if not event.artifact and last_event.artifact:
+                            event.artifact = last_event.artifact
                         last_event = event
 
                         if on_event:

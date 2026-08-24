@@ -344,6 +344,7 @@ class SemanticAnalyzer:
                 task_description="前端开发任务",
                 dept_id="dept-frontend",
                 status=WorkflowNodeStatus.PENDING,
+                execution_target=self._suggest_execution_target("dept-frontend", user_message),
             ))
 
         if '后端' in user_message or 'backend' in user_message or 'api' in user_message.lower():
@@ -410,3 +411,23 @@ class SemanticAnalyzer:
                 edges.append(WorkflowEdge(source_node_id=nodes[i].node_id, target_node_id=nodes[i + 1].node_id))
 
         return edges
+
+    @staticmethod
+    def _suggest_execution_target(dept_id: str, task_description: str) -> str:
+        """根据部门和任务描述建议执行目标
+
+        Returns:
+            "local" — Python 内部执行（协作/审查类任务）
+            "auto" — 由 SimpleExecutor 的 A2A 路由自动决定
+        """
+        # 协作/审查/管理类任务留在 Python 内部
+        local_depts = {"dept-software"}  # CEO/PM 协调
+        if dept_id in local_depts:
+            return "local"
+
+        # 开发/测试/运维类任务可路由到 A2A 节点
+        routable_depts = {"dept-frontend", "dept-backend", "dept-qa", "dept-devops"}
+        if dept_id in routable_depts:
+            return "auto"
+
+        return "local"
