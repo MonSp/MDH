@@ -2,6 +2,19 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.1] - 2026-08-26
+
+### Added
+
+**A2A 经验闭环（A2APostProcessor）**
+- `a2a_post_processor.py` (168行): A2A 任务完成后的完整后处理流水线
+  - 经验提炼: `ExperienceExtractor.extract_from_meeting()` 从 A2A 结果中提取经验规则
+  - XP 授予: `AgentProfileManager.grant_xp()` 为成功任务授予经验值
+  - 记忆写入: `AgentMemory.add_memory()` 将任务结果写入持久记忆
+  - 路由统计: `DynamicRouter.update_stats()` 更新部门成功率
+- `simple_executor.py`: `_try_a2a_routing()` 任务完成后调用 `A2APostProcessor.process()`
+- 8 项新测试，34 项 A2A 测试全部通过
+
 ## [1.8.0] - 2026-08-26
 
 ### Added
