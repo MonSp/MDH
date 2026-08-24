@@ -200,7 +200,8 @@ class OpsManager:
         """检查核心模块状态"""
         modules = {}
         for mod_name in ["agent_profile_manager", "experience_extractor", "agent_memory",
-                         "dynamic_router", "promotion_engine", "delivery_engine"]:
+                         "dynamic_router", "promotion_engine", "delivery_engine",
+                         "a2a_registry", "a2a_client", "a2a_task_router", "state_sync"]:
             try:
                 __import__(mod_name)
                 modules[mod_name] = "ok"

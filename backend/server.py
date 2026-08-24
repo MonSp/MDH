@@ -48,6 +48,7 @@ from a2a_registry import A2ARegistry, AgentCard, AgentSkill
 from a2a_client import A2AClient
 from a2a_task_router import A2ATaskRouter
 from state_sync import StateSyncManager
+from agent_memory import AgentMemory
 
 # ── 请求模型 ──
 from schemas import (
@@ -250,7 +251,11 @@ key_manager = KeyManager()
 a2a_registry = A2ARegistry(persist_path=os.path.join(_DATA_DIR, "a2a_agents.json"))
 a2a_client = A2AClient()
 a2a_task_router = A2ATaskRouter(a2a_registry)
-state_sync = StateSyncManager(experience_extractor=experience_extractor)
+a2a_memory = AgentMemory(data_dir=_DATA_DIR)
+state_sync = StateSyncManager(
+    experience_extractor=experience_extractor,
+    memory_manager=a2a_memory,
+)
 
 agent_pool = AgentPool(
     key_manager=key_manager,
@@ -316,6 +321,24 @@ def _build_agenda_snapshot(agenda, session, proposal_id=None) -> dict:
 
 # 初始化 WebSocket handler 上下文（所有单例和辅助函数就绪后）
 _init_ws_ctx()
+
+
+# ── 后台定时任务 ──
+
+@app.on_event("startup")
+async def _start_a2a_health_check():
+    """每 60 秒检查 A2A 节点健康状态，超时节点标记为 unhealthy"""
+    import asyncio
+
+    async def _loop():
+        while True:
+            try:
+                a2a_registry.check_health(timeout_seconds=120)
+            except Exception as e:
+                logger.warning("A2A 健康检查异常: %s", e)
+            await asyncio.sleep(60)
+
+    asyncio.create_task(_loop())
 
 
 # ── 统一异常处理 ──

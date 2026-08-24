@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer, IncomingMessage, ServerResponse } from 'http';
-import { readFileSync, existsSync, createReadStream } from 'fs';
+import { existsSync, createReadStream } from 'fs';
 import { resolve, extname, join } from 'path';
 import type { IToolkitRouter } from './toolkit/router.js';
 import { RouterFactory } from './toolkit/router.js';
