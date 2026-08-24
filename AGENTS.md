@@ -70,10 +70,12 @@
 
 ## 系统架构
 
-### 6层架构链
+### 6层架构链 + A2A 执行节点
 
 ```
 用户需求 → CEO Agent → Project Manager → Team → Role Agent → Skill Pack → Toolkit
+                                                                              ↓
+                                                              A2A 协议 → 执行节点 (TS/Claude Code/...)
 ```
 
 | 层 | 组件 | 说明 |
@@ -83,7 +85,7 @@
 | L3 | Team | 团队组装、角色分配、位置选择 |
 | L4 | Role Agent | 角色实例、LLM 调用、工具执行、技能总结提升 |
 | L5 | Skill Pack | 技能加载、经验注入、技能增量区（随用随进化） |
-| L6 | Toolkit | 工具路由 (local/remote/hybrid) |
+| L6 | Toolkit | 工具路由 (local/remote/hybrid) + A2A 执行节点调度 |
 
 ### 技术栈
 
