@@ -91,7 +91,7 @@ def _verify_ws_token(ws: WebSocket) -> bool:
 
 app = FastAPI(
     title="MDH API",
-    version="1.6.0",
+    version="1.6.12",
     description="Matrix DaHuang — 数字员工操作系统 API",
     tags=[
         {"name": "agents", "description": "Agent 档案、XP、晋升、优化"},

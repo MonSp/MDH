@@ -2,6 +2,71 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.6.12] - 2026-08-24
+
+### Fixed
+
+**v1.6.x 代码审查修复（14 项）**
+- CRITICAL: RBAC `check_permission()` 接线到 AuthMiddleware（之前从未调用，权限形同虚设）
+- CRITICAL: `agent_profile_manager` 缓存失效移入写锁内（防并发脏读）
+- CRITICAL: 租户 API key 认证通过 RBAC 覆盖
+- HIGH: DB 恢复前调用 `close_all()` 关闭现有连接（防读到脏数据）
+- HIGH: `cached` 装饰器 key 包含 `args+kwargs`（之前不同参数共享缓存）
+- HIGH: Webhook 失败投递重试 3 次 + 指数退避
+- HIGH: Webhook HMAC 签名含时间戳（防重放攻击）
+- MEDIUM: 模型降级链无跨提供商候选时降级到同提供商
+- MEDIUM: API key 轮换旧 key 保留 5 分钟宽限期
+- MEDIUM: `_safe_add_column` 迁移异常记录 warning
+- MEDIUM: 无 DB 时健康检查返回 `status=not_initialized`
+
+### Added
+
+**季度路线图实施（18 项任务 + 优化）**
+- 工作流引擎统一（async LLM 节点生成 + 三阶段执行）
+- 混合执行贯通（RemoteAgentToolset + per-agent location 路由）
+- 投票机制精简（删除未接线的 weighted/argument_based，-293 行）
+- 死代码清理（-1175 行）
+- Durable Execution 基础（SessionPersistence + 幂等执行）
+- Orchestrator-Worker 编排（LLM 调用 ~19× 降至 ~12×）
+- Artifact 模式（ArtifactStore 结构化产物存储）
+- 技能闭环自动完成（进化事件记录到 SQLite）
+- Agent Skills 标准对齐（SKILL.md 自动生成）
+- MCP Client 集成（AgentToolset MCP 工具路由）
+- HITL 分级重设计（开发操作自动通过率 >90%）
+- 虚拟办公室交互重塑（AgentStatusOverlay 3D 状态叠加）
+- 对话体验优化（discussion_summary + review_summary 结构化消息）
+- 可观测性仪表盘增强（evolution/system/sessions 统计）
+- 多租户完善（tenant_id 列迁移 + tenant_stats）
+- 并行执行增强（串行/并行共享 `_execute_one_task`，-160 行）
+- LLM 缓存集成 + 优化（SQLite 持久化 + 语义规范化 + 分层 TTL）
+- 评测基准系统（16 条任务 + 运行器 + 分析 + CI 集成 + 基线）
+- 性能基准测试（真实数据测量 + E2E 验证脚本）
+- 系统集成测试（31 项 E2E 验证）
+
+## [1.6.11] - 2026-08-22
+
+### Fixed
+
+**错误处理标准化**
+- 标准错误码（`_ok`/`_fail` 新增 `code` 字段）
+- 静默异常修复（关键路径 try/except 不再吞掉异常）
+
+## [1.6.10] - 2026-08-22
+
+### Added
+
+**E2E 测试强化**
+- 5 条关键路径 14 个端到端测试
+- 覆盖任务执行、技能进化、路由、协作、监控
+
+## [1.6.9] - 2026-08-22
+
+### Added
+
+**集成验证 + 文档同步**
+- v1.6 全链路端到端测试
+- README/AGENTS.md 同步 v1.6.x 能力
+
 ## [1.6.8] - 2026-08-22
 
 ### Added
