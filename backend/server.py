@@ -1662,7 +1662,7 @@ async def submit_human_feedback(request: Request):
     try:
         body = await request.json()
         from human_feedback import HumanFeedbackManager
-        mgr = HumanFeedbackManager(_DATA_DIR)
+        mgr = HumanFeedbackManager(_DATA_DIR, experience_extractor=experience_extractor)
         result = mgr.submit_feedback(body)
         return _ok(result)
     except Exception as e:
@@ -1675,7 +1675,7 @@ async def get_feedback_summary():
     """反馈汇总"""
     try:
         from human_feedback import HumanFeedbackManager
-        mgr = HumanFeedbackManager(_DATA_DIR)
+        mgr = HumanFeedbackManager(_DATA_DIR, experience_extractor=experience_extractor)
         return _ok(mgr.get_feedback_summary())
     except Exception as e:
         logger.exception("get_feedback_summary 失败")
@@ -1687,7 +1687,7 @@ async def get_skill_guidance(agent_id: str):
     """获取 agent 技能发展方向指导"""
     try:
         from human_feedback import HumanFeedbackManager
-        mgr = HumanFeedbackManager(_DATA_DIR)
+        mgr = HumanFeedbackManager(_DATA_DIR, experience_extractor=experience_extractor)
         return _ok({"agent_id": agent_id, "directions": mgr.get_skill_guidance(agent_id)})
     except Exception as e:
         logger.exception("get_skill_guidance 失败")

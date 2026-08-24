@@ -40,12 +40,13 @@ class HumanFeedback:
 class HumanFeedbackManager:
     """人类反馈管理器"""
 
-    def __init__(self, data_dir: str):
+    def __init__(self, data_dir: str, experience_extractor=None):
         self._data_dir = data_dir
         self._feedback_path = os.path.join(data_dir, "human_feedback.json")
         self._guidance_path = os.path.join(data_dir, "skill_guidance.json")
         self._feedbacks: List[Dict] = []
         self._guidance: Dict[str, Any] = {}
+        self._experience = experience_extractor
         self._load()
 
     def _load(self):
@@ -132,18 +133,44 @@ class HumanFeedbackManager:
         }
 
     def _convert_suggestions_to_rules(self, feedback: Dict) -> int:
-        """将具体建议转化为经验规则"""
-        try:
-            experience_dir = os.path.join(self._data_dir, "experience", "rules")
-            os.makedirs(experience_dir, exist_ok=True)
+        """将具体建议转化为经验规则
 
-            created = 0
+        优先写入 SQLite（通过 ExperienceExtractor），回退到 JSON 文件。
+        """
+        created = 0
+        for suggestion in feedback.get("specific_suggestions", []):
+            if not suggestion.strip():
+                continue
 
-            for suggestion in feedback.get("specific_suggestions", []):
-                if not suggestion.strip():
+            rule_id = str(uuid.uuid4())[:8]
+            rule_type = "correction_tip" if feedback.get("rating") in ("needs_improvement", "poor") else "success_pattern"
+
+            if self._experience:
+                try:
+                    from experience_extractor import ExperienceRule
+                    rule = ExperienceRule(
+                        rule_id=rule_id,
+                        trigger_condition=f"human_feedback for task type: {feedback.get('task_description', '')[:50]}",
+                        action=suggestion.strip(),
+                        note=f"来自人类反馈 ({feedback.get('reviewer', 'human')})，评分: {feedback.get('rating', 'good')}",
+                        source_task_id=feedback.get("task_id", ""),
+                        source_task_type="human_feedback",
+                        rule_type=rule_type,
+                        status="approved",
+                        keywords=["human_feedback"],
+                        created_at=datetime.now(timezone.utc).isoformat(),
+                        effectiveness_score=0.5,
+                    )
+                    self._experience._save_rule(rule)
+                    created += 1
                     continue
+                except Exception as e:
+                    logger.debug("SQLite 规则写入失败，回退 JSON: %s", e)
 
-                rule_id = str(uuid.uuid4())[:8]
+            # 回退：写入 JSON 文件
+            try:
+                experience_dir = os.path.join(self._data_dir, "experience", "rules")
+                os.makedirs(experience_dir, exist_ok=True)
                 rule_data = {
                     "rules": [{
                         "rule_id": rule_id,
@@ -152,29 +179,27 @@ class HumanFeedbackManager:
                         "note": f"来自人类反馈 ({feedback.get('reviewer', 'human')})，评分: {feedback.get('rating', 'good')}",
                         "source_task_id": feedback.get("task_id", ""),
                         "source_task_type": "human_feedback",
-                        "rule_type": "correction_tip" if feedback.get("rating") in ("needs_improvement", "poor") else "success_pattern",
-                        "status": "approved",  # 人类反馈直接批准
+                        "rule_type": rule_type,
+                        "status": "approved",
                         "keywords": ["human_feedback"],
                         "created_at": datetime.now(timezone.utc).isoformat(),
                         "team_id": "",
                         "source_agent_id": "",
-                        "effectiveness_score": 0.5,  # 中性起点
+                        "effectiveness_score": 0.5,
                         "usage_count": 0,
                         "success_count": 0,
                     }]
                 }
-
                 path = os.path.join(experience_dir, f"{rule_id}.json")
                 tmp = path + ".tmp"
                 with open(tmp, "w", encoding="utf-8") as f:
                     json.dump(rule_data, f, ensure_ascii=False, indent=2)
                 os.replace(tmp, path)
                 created += 1
+            except Exception as e:
+                logger.debug("JSON 规则写入失败: %s", e)
 
-            return created
-        except Exception as e:
-            logger.debug("反馈转规则失败: %s", e)
-            return 0
+        return created
 
     def _update_skill_guidance(self, agent_id: str, skill_directions: List[str]):
         """更新技能方向指导"""
