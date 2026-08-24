@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
+import { apiGet, apiPost, apiDelete } from '../../services/apiFetch'
 
 interface EvolutionEvent {
   type: 'demotion' | 'evolution' | 'promotion' | 'levelup'
@@ -21,7 +22,7 @@ export default function EvolutionToast({ agentId }: { agentId?: string }) {
   const checkForEvents = useCallback(async () => {
     try {
       // 检查降级日志
-      const demotionRes = await fetch('/api/experience/rules/demotion-log')
+      const demotionRes = await apiGet("/api/experience/rules/demotion-log")
       const demotionData = await demotionRes.json()
       if (demotionData.success && demotionData.data?.entries?.length > 0) {
         const latest = demotionData.data.entries[0]

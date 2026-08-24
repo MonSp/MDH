@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { apiGet, apiPost, apiPut, apiDelete } from '../../services/apiFetch'
 
 interface MCPServer {
   name: string
@@ -34,9 +35,8 @@ export default function McpConfigPanel() {
   const fetchServers = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/mcp/servers')
-      const data = await res.json()
-      setServers(data.servers || [])
+      const data: any = await apiGet("/api/mcp/servers")
+      setServers(data?.servers || data || [])
     } catch { /* ignore */ }
     setLoading(false)
   }, [])
@@ -67,19 +67,10 @@ export default function McpConfigPanel() {
         try { body.env = JSON.parse(form.env) } catch { body.env = {} }
       }
 
-      const res = await fetch('/api/mcp/servers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setMessage(`已添加: ${form.name}`)
-        resetForm()
-        fetchServers()
-      } else {
-        setMessage(`添加失败: ${data.error}`)
-      }
+      const data = await apiPost<{ success?: boolean; error?: string }>('/api/mcp/servers', body)
+      setMessage(`已添加: ${form.name}`)
+      resetForm()
+      fetchServers()
     } catch { setMessage('添加失败') }
   }
 

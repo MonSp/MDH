@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { getAllRules, getPendingRules, approveRule, rejectRule } from '../../modules/experienceExtractor'
 import type { ExperienceRule } from '../../modules/agentTypes'
+import { apiGet, apiPost, apiDelete } from '../../services/apiFetch'
 
 interface Props {
   mode?: 'all' | 'pending'
@@ -51,7 +52,7 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
 
   const loadDemotionAlerts = async () => {
     try {
-      const resp = await fetch('/api/experience/rules/demotion-log')
+      const resp = await apiGet("/api/experience/rules/demotion-log")
       const data = await resp.json()
       if (data.success && data.data?.summary?.recent_24h > 0) {
         setDemotionAlerts(data.data.entries.slice(0, 5))
@@ -62,7 +63,7 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
 
   const loadStats = async () => {
     try {
-      const resp = await fetch('/api/experience/rules/demotion-stats')
+      const resp = await apiGet("/api/experience/rules/demotion-stats")
       const data = await resp.json()
       if (data.success) setStats(data.data)
     } catch { /* silent */ }

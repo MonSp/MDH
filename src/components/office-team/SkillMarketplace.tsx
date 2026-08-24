@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import type { SharedRule, SkillFork, MarketplaceStats, SkillDetail, CommunitySkill } from './skillMarketplace.types'
 import { s } from './SkillMarketplace.styles'
+import { apiGet, apiPost } from '../../services/apiFetch'
 
 type Tab = 'skills' | 'experience' | 'forks' | 'export' | 'community' | 'leaderboard'
 
@@ -27,8 +28,7 @@ export default function SkillMarketplace() {
   const fetchSkills = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/skills/list')
-      const data = await res.json()
+      const data = await apiGet<unknown>("/api/skills/list")
       setSkills(Array.isArray(data) ? data : [])
     } catch { /* ignore */ }
     setLoading(false)
@@ -39,8 +39,7 @@ export default function SkillMarketplace() {
     try {
       const params = new URLSearchParams()
       if (filter) params.set('keywords', filter)
-      const res = await fetch(`/api/marketplace/experience/search?${params}`)
-      const data = await res.json()
+      const data = await apiGet<{ rules: SharedRule[] }>(`/api/marketplace/experience/search?${params}`)
       setSharedRules(data.rules || [])
     } catch { /* ignore */ }
     setLoading(false)
@@ -49,8 +48,7 @@ export default function SkillMarketplace() {
   const fetchForks = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/marketplace/skills/forks?project_id=current')
-      const data = await res.json()
+      const data = await apiGet<{ forks: SkillFork[] }>("/api/marketplace/skills/forks?project_id=current")
       setForks(data.forks || [])
     } catch { /* ignore */ }
     setLoading(false)
@@ -58,8 +56,7 @@ export default function SkillMarketplace() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch('/api/marketplace/stats')
-      const data = await res.json()
+      const data = await apiGet<{ stats: MarketplaceStats }>("/api/marketplace/stats")
       setStats(data.stats || null)
     } catch { /* ignore */ }
   }, [])
@@ -69,8 +66,7 @@ export default function SkillMarketplace() {
     try {
       const params = new URLSearchParams()
       if (communitySearch) params.set('q', communitySearch)
-      const res = await fetch(`/api/community/search?${params}`)
-      const data = await res.json()
+      const data = await apiGet<{ skills: CommunitySkill[] }>(`/api/community/search?${params}`)
       setCommunitySkills(data.skills || [])
     } catch { /* ignore */ }
     setLoading(false)
@@ -78,22 +74,16 @@ export default function SkillMarketplace() {
 
   const installFromCommunity = async (skillName: string) => {
     try {
-      const res = await fetch('/api/community/install', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skill_name: skillName }),
-      })
-      const data = await res.json()
-      setMessage(data.success ? `已安装: ${skillName}` : `安装失败: ${data.error}`)
-    } catch { setMessage('安装失败') }
+      await apiPost('/api/community/install', { skill_name: skillName })
+      setMessage(`已安装: ${skillName}`)
+    } catch (e: any) { setMessage(`安装失败: ${e.message}`) }
   }
 
   const fetchLeaderboard = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/marketplace/experience/leaderboard?limit=20')
-      const data = await res.json()
-      if (data.success) setLeaderboard(data.leaderboard || [])
+      const data = await apiGet<{ leaderboard: any[] }>("/api/marketplace/experience/leaderboard?limit=20")
+      setLeaderboard(data.leaderboard || [])
     } catch { /* ignore */ }
     setLoading(false)
   }, [])
@@ -112,26 +102,16 @@ export default function SkillMarketplace() {
 
   const forkSkill = async (skillName: string) => {
     try {
-      const res = await fetch('/api/marketplace/skills/fork', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skill_name: skillName, project_id: 'current' }),
-      })
-      const data = await res.json()
-      setMessage(data.success ? `已 Fork: ${skillName}` : `Fork 失败: ${data.error}`)
-    } catch { setMessage('Fork 失败') }
+      await apiPost('/api/marketplace/skills/fork', { skill_name: skillName, project_id: 'current' })
+      setMessage(`已 Fork: ${skillName}`)
+    } catch (e: any) { setMessage(`Fork 失败: ${e.message}`) }
   }
 
   const forkRule = async (ruleId: string) => {
     try {
-      const res = await fetch('/api/marketplace/experience/fork', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rule_id: ruleId, target_project: 'current' }),
-      })
-      const data = await res.json()
-      setMessage(data.success ? '已 Fork 经验规则' : `Fork 失败: ${data.error}`)
-    } catch { setMessage('Fork 失败') }
+      await apiPost('/api/marketplace/experience/fork', { rule_id: ruleId, target_project: 'current' })
+      setMessage('已 Fork 经验规则')
+    } catch (e: any) { setMessage(`Fork 失败: ${e.message}`) }
   }
 
   const publishRule = async () => {
@@ -139,28 +119,18 @@ export default function SkillMarketplace() {
     const action = prompt('建议动作:')
     if (!trigger || !action) return
     try {
-      const res = await fetch('/api/marketplace/experience/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rule: { trigger_condition: trigger, action, keywords: trigger.split(/\s+/).slice(0, 5) },
-          source_project: 'current',
-        }),
+      await apiPost('/api/marketplace/experience/publish', {
+        rule: { trigger_condition: trigger, action, keywords: trigger.split(/\s+/).slice(0, 5) },
+        source_project: 'current',
       })
-      const data = await res.json()
-      setMessage(data.success ? '已发布到共享池' : '发布失败')
+      setMessage('已发布到共享池')
       fetchSharedRules()
     } catch { setMessage('发布失败') }
   }
 
   const pullUpdate = async (skillName: string) => {
     try {
-      const res = await fetch('/api/marketplace/skills/pull', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skill_name: skillName, project_id: 'current' }),
-      })
-      const data = await res.json()
+      const data = await apiPost<{ updated?: boolean }>('/api/marketplace/skills/pull', { skill_name: skillName, project_id: 'current' })
       setMessage(data.updated ? `已更新: ${skillName}` : '已是最新版本')
       fetchForks()
     } catch { setMessage('更新失败') }
@@ -374,13 +344,8 @@ export default function SkillMarketplace() {
                 const sel = document.getElementById('export-skill') as HTMLSelectElement
                 if (!sel?.value) return
                 try {
-                  const res = await fetch('/api/marketplace/export', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ skill_name: sel.value, include_experience: true }),
-                  })
-                  const data = await res.json()
-                  setMessage(data.success ? `已导出: ${data.path}` : '导出失败')
+                  const data = await apiPost<{ success?: boolean; path?: string }>('/api/marketplace/export', { skill_name: sel.value, include_experience: true })
+                  setMessage(data.path ? `已导出: ${data.path}` : '导出失败')
                 } catch { setMessage('导出失败') }
               }}>导出</button>
             </div>
