@@ -2,6 +2,15 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.4] - 2026-08-26
+
+### Fixed
+
+**集成差距修复（深度分析发现的 P0+P1 问题）**
+- **P0-1**: SimpleExecutor 接入进化管线 — 简单任务成功后调用 `A2APostProcessor.process()`，触发经验提炼 + XP 授予 + 记忆写入 + 路由统计
+- **P0-2**: A2A post-processor API 签名修正 — `extract_from_meeting()` 改为 5 个位置参数，`grant_xp()` 改为正确的 keyword 参数
+- **P1-1**: Webhook 触发接入 — `WebhookManager` 初始化并注入 `A2APostProcessor`，任务完成后触发 `task.completed` webhook
+
 ## [1.8.3] - 2026-08-26
 
 ### Fixed
