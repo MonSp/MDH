@@ -2,6 +2,29 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.10] - 2026-08-26
+
+### Fixed
+
+**Orchestrator 全部 17 个 TypeScript 编译错误清零**
+
+源码修复（8 项）:
+- `types.ts`: `TeamMemberRuntime` → `TeamRuntime`（修正不存在的导入）
+- `assembler.ts`: 同步使用 `TeamRuntime`
+- `templates.ts`: `_config` nullable 处理
+- `executor/client.ts`: `permission_token` 属性类型修正
+- `validator.ts`: `checkTypeScript(task)` 补传缺失参数
+- `server.ts`: LLM provider 类型转换修正
+- `browser.ts`: `launchOptions.args` 类型显式声明
+- `local.ts`: `execSync` 选项类型修正
+
+测试修复（9 项）:
+- `role-agent.test.ts`: mock 返回类型修正
+- `team.test.ts`: `makeMember()` 补齐 location/runtime 字段
+- `browser.test.ts`: snake_case → camelCase 方法名
+- `hybrid.test.ts`: ToolCall 字面量补 `type: 'function'`
+- `local.test.ts`: `.ts` 导入 → `.js`
+
 ## [1.8.9] - 2026-08-26
 
 ### Fixed
