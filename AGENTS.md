@@ -72,6 +72,7 @@
 | **1.8.0** | 2026-08-26 | 智能调度：A2A 自动路由集成（SimpleExecutor A2A 路径 + 前端执行偏好 + E2E 测试） |
 | **1.8.1** | 2026-08-26 | A2A 经验闭环（A2APostProcessor：经验提炼 + XP 授予 + 记忆写入 + 路由统计） |
 | **1.8.2** | 2026-08-26 | A2A 路由质量提升（阈值 0.7 + 本地执行守卫 + execution_preference 端到端传递） |
+| **1.8.3** | 2026-08-26 | A2A 经验闭环修复（AgentProfileManager 接入 + XP 授予目标修正） |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 

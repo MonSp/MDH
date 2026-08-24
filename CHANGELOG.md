@@ -2,6 +2,15 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.3] - 2026-08-26
+
+### Fixed
+
+**A2A 经验闭环修复**
+- `AgentProfileManager` 接入 `A2APostProcessor`：之前 `agent_profile_manager=None` 导致 XP 授予静默失败，现在正确初始化并传入
+- XP 授予目标修正：XP 和记忆归属于发起任务的数字员工（`xp_target="executor"`），而非 A2A 执行节点
+- `AgentProfileManager` 构造函数参数修正：`profiles_dir` 而非 `data_dir`
+
 ## [1.8.2] - 2026-08-26
 
 ### Fixed
