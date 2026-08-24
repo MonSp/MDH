@@ -3,8 +3,6 @@ import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { existsSync, createReadStream } from 'fs';
 import { resolve, extname, join } from 'path';
 import type { IToolkitRouter } from './toolkit/router.js';
-import { RouterFactory } from './toolkit/router.js';
-import type { ExecutionProfile } from './toolkit/hybrid.js';
 import { LLMConfig } from './llm/types.js';
 import { resolveConfig } from './llm/openai.js';
 import { getAvailableRoles } from './team/templates.js';
@@ -30,7 +28,7 @@ const CONTENT_TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-export async function startServer(port: number, routerFactory: RouterFactory, defaultRouter: IToolkitRouter, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>, executorUrl?: string, executorToken?: string, hybridProfile?: ExecutionProfile) {
+export async function startServer(port: number, defaultRouter: IToolkitRouter, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>) {
   const distDir = process.env.DIST_DIR || resolve(process.cwd(), '../dist');
 
   // A2A handler — serves /.well-known/agent.json and POST /a2a/tasks/send

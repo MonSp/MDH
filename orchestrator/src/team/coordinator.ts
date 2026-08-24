@@ -1,3 +1,9 @@
+/**
+ * @deprecated Since v1.7.0 — TeamCoordinator is no longer used in the main
+ * WebSocket handler. The orchestrator now creates a single RoleAgent per task
+ * (A2A execution model). This module is preserved for reference and its tests,
+ * but should not be used in new code.
+ */
 import { LLMConfig, Message } from '../llm/types.js';
 import { safeChatStream } from '../llm/guard.js';
 import type { IToolkitRouter } from '../toolkit/router.js';
