@@ -47,6 +47,7 @@ from routers import community as community_router
 from a2a_registry import A2ARegistry, AgentCard, AgentSkill
 from a2a_client import A2AClient
 from a2a_task_router import A2ATaskRouter
+from state_sync import StateSyncManager
 
 # ── 请求模型 ──
 from schemas import (
@@ -249,6 +250,7 @@ key_manager = KeyManager()
 a2a_registry = A2ARegistry(persist_path=os.path.join(_DATA_DIR, "a2a_agents.json"))
 a2a_client = A2AClient()
 a2a_task_router = A2ATaskRouter(a2a_registry)
+state_sync = StateSyncManager(experience_extractor=experience_extractor)
 
 agent_pool = AgentPool(
     key_manager=key_manager,
@@ -437,11 +439,27 @@ async def a2a_dispatch_task(body: dict = Body(...)):
         agent = decision.agent
 
     # 发送任务
-    event = await a2a_client.send_task(agent, task_desc, metadata)
+    # 任务前: 注入相关经验规则和记忆上下文
+    sync_metadata = state_sync.prepare_task_metadata(task_desc, agent.agent_id)
+    merged_metadata = {**metadata, **sync_metadata}
+
+    event = await a2a_client.send_task(agent, task_desc, merged_metadata)
 
     # 记录结果
     success = event.status and event.status.state == "completed"
     a2a_registry.record_task(agent.agent_id, success)
+
+    # 任务后: 提取执行结果写入 Agent 记忆
+    result_text = ""
+    if event.artifact and event.artifact.parts:
+        result_text = event.artifact.parts[0].text or ""
+    state_sync.process_task_result(
+        agent_id=agent.agent_id,
+        task_description=task_desc,
+        result_text=result_text,
+        success=success,
+        task_id=event.task_id,
+    )
 
     return {
         "success": success,
