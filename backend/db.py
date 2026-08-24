@@ -156,8 +156,8 @@ def _safe_add_column(conn: sqlite3.Connection, table: str, column: str, col_def:
         existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
         if column not in existing:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("迁移 %s.%s 失败（可能已存在）: %s", table, column, e)
 
 
 # 全局连接池（线程安全）

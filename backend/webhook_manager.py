@@ -131,19 +131,31 @@ class WebhookManager:
 
         for sub in matching:
             signature = self._sign(sub.secret, payload_json)
-            try:
-                self._deliver(sub.url, payload_json, signature)
-                self._record_delivery(sub.sub_id, event_type, payload_json, "success", 200, now)
-                notified += 1
-            except Exception as e:
-                self._record_delivery(sub.sub_id, event_type, payload_json, "failed", 0, now, str(e))
-                logger.warning("Webhook 投递失败: %s → %s: %s", sub.sub_id, sub.url, e)
+            success = False
+            last_error = ""
+            for attempt in range(3):
+                try:
+                    self._deliver(sub.url, payload_json, signature)
+                    self._record_delivery(sub.sub_id, event_type, payload_json, "success", 200, now)
+                    notified += 1
+                    success = True
+                    break
+                except Exception as e:
+                    last_error = str(e)
+                    if attempt < 2:
+                        time.sleep(2 ** attempt)  # 指数退避: 1s, 2s
+            if not success:
+                self._record_delivery(sub.sub_id, event_type, payload_json, "failed", 0, now, last_error)
+                logger.warning("Webhook 投递失败 (3次重试): %s → %s: %s", sub.sub_id, sub.url, last_error)
 
         return notified
 
     def _sign(self, secret: str, payload: str) -> str:
-        """生成 HMAC-SHA256 签名"""
-        return hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        """生成 HMAC-SHA256 签名（含时间戳防重放）"""
+        timestamp = str(int(time.time()))
+        message = f"{timestamp}.{payload}"
+        sig = hmac.new(secret.encode(), message.encode(), hashlib.sha256).hexdigest()
+        return f"t={timestamp},v1={sig}"
 
     def _deliver(self, url: str, payload: str, signature: str):
         """投递 webhook（同步）"""
@@ -151,6 +163,7 @@ class WebhookManager:
         req.add_header("Content-Type", "application/json")
         req.add_header("X-MDH-Signature", signature)
         req.add_header("X-MDH-Event", "webhook")
+        req.add_header("X-MDH-Timestamp", str(int(time.time())))
         resp = urlopen(req, timeout=10)
         if resp.status >= 400:
             raise URLError(f"HTTP {resp.status}")

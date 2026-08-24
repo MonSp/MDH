@@ -103,6 +103,9 @@ class OpsManager:
             # 先备份当前数据库
             if os.path.isfile(db_path):
                 self.backup_database(label="before_restore")
+            # 关闭所有连接再恢复，防止运行中实例读到脏数据
+            from db import close_all
+            close_all()
             shutil.copy2(backup_path, db_path)
             logger.info("数据库恢复完成: %s", backup_name)
             return {"restored": True, "backup_name": backup_name}
@@ -144,21 +147,27 @@ class OpsManager:
         # 4. 备份状态
         checks["backups"] = self._check_backups()
 
-        overall = all(c.get("healthy", False) for c in checks.values())
+        overall = all(c.get("healthy", False) for c in checks.values() if c.get("healthy") is not None)
+        any_none = any(c.get("healthy") is None for c in checks.values())
         return {
-            "healthy": overall,
+            "healthy": overall if not any_none else None,
+            "status": "degraded" if any_none else ("healthy" if overall else "unhealthy"),
             "checks": checks,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     def _check_database(self) -> Dict:
         """检查数据库连接"""
-        db_files = [f for f in os.listdir(self._data_dir) if f.endswith(".db")]
+        db_files = []
+        for root, _dirs, files in os.walk(self._data_dir):
+            for f in files:
+                if f.endswith(".db"):
+                    db_files.append(os.path.join(root, f))
         if not db_files:
-            return {"healthy": True, "message": "数据库将在首次使用时创建", "files": 0}
+            return {"healthy": None, "status": "not_initialized", "message": "数据库将在首次使用时创建", "files": 0}
 
-        for fname in db_files:
-            db_path = os.path.join(self._data_dir, fname)
+        for db_path in db_files:
+            fname = os.path.basename(db_path)
             try:
                 conn = sqlite3.connect(db_path)
                 conn.execute("SELECT 1")

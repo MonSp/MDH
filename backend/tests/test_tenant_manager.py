@@ -52,14 +52,15 @@ class TestTenantManager:
         assert mgr.get_tenant_by_api_key(tenant.api_key) is None
 
     def test_regenerate_api_key(self, mgr):
-        """重新生成 API key"""
+        """重新生成 API key（旧 key 宽限期内仍可用）"""
         tenant = mgr.create_tenant("测试")
         old_key = tenant.api_key
         new_key = mgr.regenerate_api_key(tenant.tenant_id)
         assert new_key is not None
         assert new_key != old_key
         assert mgr.get_tenant_by_api_key(new_key) is not None
-        assert mgr.get_tenant_by_api_key(old_key) is None
+        # 旧 key 在 5 分钟宽限期内仍可用
+        assert mgr.get_tenant_by_api_key(old_key) is not None
 
     def test_persistence(self, mgr, tmp_path):
         """持久化"""

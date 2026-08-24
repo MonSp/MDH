@@ -39,6 +39,7 @@ class TenantManager:
         self._db = get_db(self._db_path)
         self._ensure_table()
         self._lock = threading.Lock()
+        self._previous_keys: Dict[str, tuple] = {}  # api_key → (tenant_id, expires_at)
 
     def _ensure_table(self):
         self._db.executescript("""
@@ -81,14 +82,28 @@ class TenantManager:
         )
 
     def get_tenant_by_api_key(self, api_key: str) -> Optional[Tenant]:
-        """通过 API key 获取租户"""
+        """通过 API key 获取租户（含旧 key 宽限期检查）"""
         row = self._db.execute("SELECT * FROM tenants WHERE api_key = ? AND is_active = 1", (api_key,)).fetchone()
-        if not row:
-            return None
-        return Tenant(
-            tenant_id=row["tenant_id"], name=row["name"], description=row["description"] or "",
-            created_at=row["created_at"], api_key=row["api_key"], is_active=bool(row["is_active"]),
-        )
+        if row:
+            return Tenant(
+                tenant_id=row["tenant_id"], name=row["name"], description=row["description"] or "",
+                created_at=row["created_at"], api_key=row["api_key"], is_active=bool(row["is_active"]),
+            )
+        # 检查宽限期内的旧 key
+        import time
+        prev = self._previous_keys.get(api_key)
+        if prev:
+            tenant_id, expires_at = prev
+            if time.time() < expires_at:
+                row = self._db.execute("SELECT * FROM tenants WHERE tenant_id = ? AND is_active = 1", (tenant_id,)).fetchone()
+                if row:
+                    return Tenant(
+                        tenant_id=row["tenant_id"], name=row["name"], description=row["description"] or "",
+                        created_at=row["created_at"], api_key=row["api_key"], is_active=bool(row["is_active"]),
+                    )
+            else:
+                del self._previous_keys[api_key]
+        return None
 
     def list_tenants(self) -> List[Tenant]:
         """列出所有租户"""
@@ -107,9 +122,14 @@ class TenantManager:
             return cursor.rowcount > 0
 
     def regenerate_api_key(self, tenant_id: str) -> Optional[str]:
-        """重新生成 API key"""
+        """重新生成 API key（旧 key 保留 5 分钟宽限期）"""
         new_key = f"mdh_tenant_{secrets.token_urlsafe(24)}"
         with self._lock:
+            # 保存旧 key 用于宽限期
+            row = self._db.execute("SELECT api_key FROM tenants WHERE tenant_id = ?", (tenant_id,)).fetchone()
+            if row and row["api_key"]:
+                import time
+                self._previous_keys[row["api_key"]] = (tenant_id, time.time() + 300)  # 5 分钟
             cursor = self._db.execute("UPDATE tenants SET api_key = ? WHERE tenant_id = ?", (new_key, tenant_id))
             self._db.commit()
             if cursor.rowcount > 0:

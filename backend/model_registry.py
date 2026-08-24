@@ -157,7 +157,12 @@ class ModelRegistry:
         chain = [model]
         tier_order = {"big": ["medium", "small"], "medium": ["small"], "small": []}
         for next_tier in tier_order.get(model.tier, []):
-            candidates = [m for m in self._models.values() if m.tier == next_tier and m.provider != model.provider]
-            if candidates:
-                chain.append(min(candidates, key=lambda m: m.cost_per_1m_input))
+            # 优先跨提供商，无跨提供商候选时降级到同提供商
+            cross = [m for m in self._models.values() if m.tier == next_tier and m.provider != model.provider]
+            if cross:
+                chain.append(min(cross, key=lambda m: m.cost_per_1m_input))
+            else:
+                same = [m for m in self._models.values() if m.tier == next_tier]
+                if same:
+                    chain.append(min(same, key=lambda m: m.cost_per_1m_input))
         return chain

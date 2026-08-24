@@ -89,15 +89,17 @@ def get_cache() -> TTLCache:
 
 
 def cached(key: str, ttl: int = 120):
-    """缓存装饰器（用于同步函数）"""
+    """缓存装饰器（用于同步函数）— key 自动包含函数参数"""
     def decorator(func: Callable) -> Callable:
         def wrapper(*args, **kwargs):
             cache = get_cache()
-            result = cache.get(key)
+            # 从 args/kwargs 生成唯一缓存 key
+            cache_key = f"{key}:{hash((args, tuple(sorted(kwargs.items()))))}"
+            result = cache.get(cache_key)
             if result is not None:
                 return result
             value = func(*args, **kwargs)
-            cache.set(key, value, ttl)
+            cache.set(cache_key, value, ttl)
             return value
         wrapper.__name__ = func.__name__
         wrapper.__doc__ = func.__doc__
