@@ -2,6 +2,19 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.7.6] - 2026-08-26
+
+### Fixed
+
+**A2A 代码审查修复（6 Critical + 1 Important）**
+- **C1**: SSRF DNS 重绑定防护 — 域名解析后检查 IP（而非仅检查 hostname）
+- **C3**: `_task_log` 内存泄漏 — 上限 1000 条，FIFO 淘汰
+- **C5**: dispatch 端点阻塞 — 改用 `asyncio.create_task` 后台执行
+- **C6**: Agent Card URL 可配置 — 不再硬编码，通过参数传入
+- **I5**: `agent_id` 格式校验 — 1-64 字符，仅字母数字+连字符+下划线
+- **I9**: A2AClient 错误路径测试 — 超时/连接拒绝/日志验证（+3 测试）
+- **I11**: 认证调用者跳过 SSRF — 携带有效 BACKEND_TOKEN 时放行
+
 ## [1.7.5] - 2026-08-26
 
 ### Added
