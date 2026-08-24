@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1732%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-1731%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
 
 [中文版](README.md) | **English**
@@ -71,14 +71,14 @@ Human feedback isn't "seen and forgotten" — structured review comments are aut
 | 📈 Rule Effectiveness Tracking | Injected rules auto-track task success rate, low-score rules auto-demoted |
 | 🚀 Digital Employee Careers | AgentProfile persistent archive + XP system + 42 skill trees + 10 department career paths + auto-promotion |
 | 🤝 Cross-Team Skill Sharing | Quality gates (score ≥ 0.6 + usage ≥ 2) + approval flow + shared experience pool |
-| 🧭 Routing-Aware Skill Levels | DynamicRouter 5-dimension weighted routing, agent skill levels influence department selection and task assignment |
+| 🧭 Routing-Aware Skill Levels | DynamicRouter 6-dimension weighted routing (keyword/semantic/success rate/priority/skill level/upgrade boost), agent skill levels influence department selection and task assignment |
 | 🎯 Promotion-Driven Assignment | Simple tasks prefer junior agents (XP accumulation), complex tasks prefer senior agents (capability matching) |
 | 🧠 Agent Persistent Memory | Cross-project personal memory + auto-summary + memory injection + aging |
 | 📄 Document-Aware Collaboration | 20+ file format parsing + context injection + dataset analysis |
 | 🔍 Proactive Monitoring | Health checks + risk warnings + alert grading + reflection priority |
 | 🤝 Team Synergy Optimization | Synergy analysis + bottleneck detection + optimal team matching |
 | 🔌 Webhook Integration | 5 event types notify external systems + HMAC signature verification |
-| 🤖 Multi-Model Support | DeepSeek/OpenAI/Anthropic/Gemini/Ollama + model routing + auto fallback |
+| 🤖 Multi-Model Support | DeepSeek/OpenAI/Anthropic/Gemini/Ollama etc. (9 providers) + model routing + auto fallback |
 
 ## Quick Start
 
@@ -136,7 +136,7 @@ User Browser (Chrome Side Panel)
         ▼                              ▼
 ┌───────────────────┐        ┌───────────────────┐
 │  TS Orchestrator  │        │  Python Backend   │
-│  (port 8080)      │        │  (port 8765)      │
+│  (port 9090)      │        │  (port 8765)      │
 │  - TeamCoordinator│        │  - CEO Agent      │
 │  - LLM calls      │        │  - Voting/Approval│
 │  - Local tools    │        │  - Skill evolution│
@@ -227,10 +227,10 @@ Each digital employee has a persistent career profile, accumulating experience a
 # Frontend tests (1726 tests)
 npx vitest run
 
-# Backend tests (1732 tests)
+# Backend tests (1731 tests)
 cd backend && python -m pytest tests/ --timeout=60
 
-# Orchestrator tests (216 tests)
+# Orchestrator tests (214 tests)
 cd orchestrator && npm test
 
 # E2E verification (31 checks)

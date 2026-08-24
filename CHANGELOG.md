@@ -2,6 +2,36 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.7.0] - 2026-08-26
+
+### Added
+
+**Agent OS 架构：A2A 协议基础设施**
+- `a2a_registry.py`: 执行节点注册中心，支持注册/注销/心跳/按技能和标签查找，JSON 持久化
+- `a2a_client.py`: A2A 协议客户端，通过 HTTP SSE 流式发送任务和接收结果
+- `a2a_task_router.py`: 任务路由器，按技能标签匹配 + 成功率加权选择最优执行节点
+- `state_sync.py`: 双层状态同步管理器，任务前注入相关经验规则，任务后将执行结果写入 Agent 记忆
+- `server.py`: 6 个 A2A REST 端点（`/api/a2a/register`, `/unregister`, `/heartbeat`, `/agents`, `/route`, `/dispatch`）
+- `orchestrator/src/a2a/server.ts`: TS Orchestrator A2A Server，Agent Card（`/.well-known/agent.json`）+ SSE 流式任务端点（`/a2a/tasks/send`）
+- 20 个新测试（test_a2a.py 13 个 + test_state_sync.py 7 个），全部通过
+
+**设计文档**
+- `docs/compose/spec/agent-os-architecture.md`: Agent OS 架构设计规格
+- `docs/compose/spec/claude-code-a2a-adapter.md`: Claude Code A2A Adapter 设计文档
+
+### Changed
+
+**TS Orchestrator 瘦身**
+- WebSocket handler 从 TeamCoordinator（多角色团队编排）重构为单 RoleAgent（A2A 执行模型）
+- 移除 TeamCoordinator 相关的 workspace_confirm、role_locations、selected_roles 处理逻辑
+- 新增 RoleAgent + chatWithTools 作为主要执行路径
+
+**文档修正**
+- README.md/README.en.md/AGENTS.md: 修正架构图 TS Orchestrator 端口（8080→9090）
+- README.md/README.en.md/AGENTS.md: 修正 DynamicRouter 维度（四维→五维+自适应加成）和权重
+- README.md/README.en.md/AGENTS.md: 修正测试计数（后端 1732→1731，Orchestrator 216→214）
+- README.md/README.en.md: 补充多模型支持为 9 个提供商
+
 ## [1.6.12] - 2026-08-24
 
 ### Fixed

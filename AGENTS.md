@@ -5,7 +5,7 @@
 **大荒界 (MDH)** 是一个基于 React + Python FastAPI + AgentScope 的全领域智能体协作系统。用户派发任务后，CEO 智能体利用意图识别引擎拆解任务，动态组建智能体团队并行执行，并由专门的审查智能体把控开发进度与作品完成度；每个领域智能体在使用中不断总结提升自己的技能（skill），技能随用随进化。
 
 ### 核心定位
-- **意图驱动的任务派发**: 用户派发任务 → CEO 智能体利用意图识别引擎拆解任务（两层复杂度判定：规则引擎 + LLM；四维加权路由：关键词/语义/成功率/优先级）
+- **意图驱动的任务派发**: 用户派发任务 → CEO 智能体利用意图识别引擎拆解任务（两层复杂度判定：规则引擎 + LLM；五维加权路由 + 自适应加成：关键词/语义/成功率/优先级/技能等级）
 - **动态团队组装**: 按拆解结果智能创建智能体团队——通过预配置的角色模板组装，或直接选取工具创建
 - **并行任务执行**: 任务派发后由团队成员并行执行；复杂任务按 DAG 工作流调度（顺序/并行/混合三种策略）
 - **审查智能体把控**: 团队中指定审查智能体全程把控开发进度与作品完成度，输出审查意见并驱动迭代
@@ -61,6 +61,7 @@
 | **1.6.10** | 2026-08-22 | E2E 测试强化（5 条关键路径 14 个测试） |
 | **1.6.11** | 2026-08-22 | 错误处理标准化（标准错误码 + 静默异常修复） |
 | **1.6.12** | 2026-08-24 | 季度路线图 18 项 + v1.6.x 审查 14 项修复 + 评测基准 + 性能优化 |
+| **1.7.0** | 2026-08-26 | Agent OS 架构：A2A 协议基础设施 + TS Orchestrator 瘦身 + 双层状态同步 |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -89,8 +90,8 @@
 |---|---|---|
 | 前端 | React 18 + TypeScript + Vite 6 + Three.js | 3D 虚拟办公室、实时通信 |
 | 后端 | Python 3.11 + FastAPI + WebSocket | 智能体协调、工具执行 |
-| AI 引擎 | AgentScope + DeepSeek API | 多模型支持 (DeepSeek/OpenAI/Anthropic) |
-| 测试 | Vitest (TS) + pytest (Python) | 1726 TS 测试用例（前端 1726 + orchestrator 216）+ 1657 Python 测试 |
+| AI 引擎 | AgentScope + DeepSeek API | 多模型支持 (DeepSeek/OpenAI/Anthropic/Gemini/Ollama 等 9 个提供商) |
+| 测试 | Vitest (TS) + pytest (Python) | 1726 TS 测试用例（前端 1726 + orchestrator 214）+ 1731 Python 测试 |
 
 ### 项目结构
 
@@ -224,7 +225,7 @@ MDH/
 │   ├── ceo_agent.py              # CEO 智能体
 │   ├── semantic_analyzer.py      # 语义分析器 (DynamicRouter + LLM)
 │   ├── complexity_classifier.py  # 复杂度分类器 (规则+LLM 两层)
-│   ├── dynamic_router.py         # 动态路由器 (四维加权)
+│   ├── dynamic_router.py         # 动态路由器 (五维加权 + 自适应加成)
 │   ├── simple_executor.py        # 简单任务轻量执行器
 │   ├── team.py                   # Team/TeamMember 数据模型
 │   ├── team_assembler.py         # TeamAssembler (DAG→Team)
@@ -663,13 +664,15 @@ prompt = "请分析以下用户消息的任务复杂度..."
 
 ### 动态路由 (DynamicRouter)
 
-`dynamic_router.py` 实现四维加权路由：
+`dynamic_router.py` 实现五维加权路由 + 自适应加成：
 
 ```python
-final_score = keyword_score * 0.4    # 关键词匹配
-            + semantic_score * 0.3   # 语义相似度（Jaccard）
-            + success_rate * 0.2     # 历史成功率（自适应学习）
-            + priority * 0.1         # 部门优先级
+final_score = keyword_score * 0.35    # 关键词匹配
+            + semantic_score * 0.25   # 语义相似度（Jaccard）
+            + success_rate * 0.20     # 历史成功率（自适应学习）
+            + priority * 0.10         # 部门优先级
+            + skill_level * 0.10      # agent 技能等级
+            + skill_level_boost       # 技能升级自适应加成（持久化，随升级累积，上限 0.3）
 ```
 
 **关键特性**：
@@ -1050,7 +1053,7 @@ def _select_roles_for_dag(dag):
 
 ### 动态路由器 (dynamic_router.py)
 
-- 四维加权评分: keyword×0.4 + semantic×0.3 + success_rate×0.2 + priority×0.1
+- 五维加权评分 + 自适应加成: keyword×0.35 + semantic×0.25 + success_rate×0.20 + priority×0.10 + skill_level×0.10 + skill_level_boost
 - 中英文混合分词: 英文正则 + 中文 2-4 字滑动窗口
 - 路由表持久化: JSON 存储，线程安全读写（threading.Lock）
 - 自适应学习: `update_stats(dept_id, success)` 更新部门成功率
@@ -1574,7 +1577,7 @@ EXECUTOR_TOKEN=your_token_here
 ### 8. 动态路由与意图识别
 
 - **两层复杂度判定**：规则引擎（快速）+ LLM（精确），置信度阈值 0.7
-- **四维加权路由**：keyword×0.4 + semantic×0.3 + success_rate×0.2 + priority×0.1
+- **五维加权路由 + 自适应加成**：keyword×0.35 + semantic×0.25 + success_rate×0.20 + priority×0.10 + skill_level×0.10 + skill_level_boost
 - **自适应学习**：`update_stats(dept_id, success)` 更新部门成功率
 - **中英文混合分词**：英文正则 + 中文 2-4 字滑动窗口
 - **路由表持久化**：JSON 存储，线程安全读写

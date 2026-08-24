@@ -89,3 +89,4 @@ mock-sso/
 docs/compose/
 
 # Protocol docs
+.worktrees

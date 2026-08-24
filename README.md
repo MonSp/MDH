@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1732%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-1731%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
 
 **中文** | [English](README.en.md)
@@ -77,14 +77,14 @@ MDH 是一个**数字员工操作系统**。它不是又一个 AI 聊天工具�
 | 📈 规则有效性追踪 | 注入规则自动追踪任务成功率，低分规则自动降级退回审核 |
 | 🚀 数字员工职业发展 | AgentProfile 持久档案 + XP 系统 + 42 个技能树 + 10 部门职业路径 + 自动晋升 |
 | 🤝 跨团队技能共享 | 质量门禁（score ≥ 0.6 + usage ≥ 2）+ 审批流 + 共享经验池 |
-| 🧭 路由感知技能等级 | DynamicRouter 五维加权路由，agent 技能等级影响部门选择和任务分配 |
+| 🧭 路由感知技能等级 | DynamicRouter 六维加权路由（关键词/语义/成功率/优先级/技能等级/升级加成），agent 技能等级影响部门选择和任务分配 |
 | 🎯 晋升驱动任务分配 | 简单任务优先初级 agent（积累 XP），复杂任务优先高级 agent（能力匹配） |
 | 🧠 Agent 持久记忆 | 跨项目个人记忆 + 自动摘要 + 记忆注入 + 老化机制 |
 | 📄 文档感知协作 | 20+ 种文件格式解析 + 上下文注入 + 数据集分析 |
 | 🔍 主动式监控 | 健康巡检 + 风险预警 + 告警分级 + 反思优先级 |
 | 🤝 团队协同优化 | 协同分析 + 瓶颈识别 + 最优搭配推荐 |
 | 🔌 Webhook 集成 | 5 种事件通知外部系统 + HMAC 签名验证 + 投递日志 |
-| 🤖 多模型支持 | DeepSeek/OpenAI/Anthropic/Gemini/Ollama + 模型路由 + 自动降级 |
+| 🤖 多模型支持 | DeepSeek/OpenAI/Anthropic/Gemini/Ollama 等 9 个提供商 + 模型路由 + 自动降级 |
 
 ## 快速开始
 
@@ -142,7 +142,7 @@ docker compose up -d
         ▼                              ▼
 ┌───────────────────┐        ┌───────────────────┐
 │  TS Orchestrator  │        │  Python Backend   │
-│  (端口 8080)      │        │  (端口 8765)      │
+│  (端口 9090)      │        │  (端口 8765)      │
 │  - TeamCoordinator│        │  - CEO Agent      │
 │  - LLM 调用       │        │  - 投票/审批      │
 │  - 本地工具执行    │        │  - 技能进化       │
@@ -231,10 +231,10 @@ custom_roles:
 # 前端测试 (1726 tests)
 npx vitest run
 
-# 后端测试 (1732 tests)
+# 后端测试 (1731 tests)
 cd backend && python -m pytest tests/ --timeout=60
 
-# Orchestrator 测试 (216 tests)
+# Orchestrator 测试 (214 tests)
 cd orchestrator && npm test
 
 # E2E 功能验证 (31 项)
