@@ -41,6 +41,7 @@ class A2APostProcessor:
         agent_id: str = "a2a-node",
         task_id: str = "",
         dept_id: str = "dept-software",
+        xp_target: str = "executor",
     ):
         """A2A 任务完成后的完整后处理
 
@@ -48,21 +49,22 @@ class A2APostProcessor:
             task_description: 原始任务描述
             result_text: 执行结果文本
             success: 是否成功
-            agent_id: 执行节点 ID
+            agent_id: 执行节点 ID（A2A 节点）
             task_id: A2A 任务 ID
             dept_id: 部门 ID（用于 XP 计算和路由统计）
+            xp_target: XP 授予目标（数字员工 ID，默认 executor）
         """
-        # 1. 经验提炼
+        # 1. 经验提炼（归属于执行节点）
         if self._experience and success:
             self._distill_experience(task_description, result_text, agent_id)
 
-        # 2. XP 授予
+        # 2. XP 授予（归属于数字员工，而非执行节点）
         if self._profiles:
-            self._grant_xp(agent_id, task_description, success)
+            self._grant_xp(xp_target, task_description, success)
 
-        # 3. 记忆写入
+        # 3. 记忆写入（归属于数字员工）
         if self._memory:
-            self._write_memory(agent_id, task_description, result_text, success, task_id)
+            self._write_memory(xp_target, task_description, result_text, success, task_id)
 
         # 4. 路由统计更新
         if self._router:

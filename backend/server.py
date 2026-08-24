@@ -49,6 +49,7 @@ from a2a_client import A2AClient
 from a2a_task_router import A2ATaskRouter
 from state_sync import StateSyncManager
 from agent_memory import AgentMemory
+from agent_profile_manager import AgentProfileManager
 from a2a_post_processor import A2APostProcessor
 
 # ── 请求模型 ──
@@ -252,6 +253,7 @@ a2a_registry = A2ARegistry(persist_path=os.path.join(_DATA_DIR, "a2a_agents.json
 a2a_client = A2AClient()
 a2a_task_router = A2ATaskRouter(a2a_registry)
 a2a_memory = AgentMemory(data_dir=_DATA_DIR)
+a2a_profile_manager = AgentProfileManager(profiles_dir=os.path.join(_DATA_DIR, "agent_profiles"))
 state_sync = StateSyncManager(
     experience_extractor=experience_extractor,
     memory_manager=a2a_memory,
@@ -260,6 +262,7 @@ a2a_post_processor = A2APostProcessor(
     experience_extractor=experience_extractor,
     agent_memory=a2a_memory,
     dynamic_router=dynamic_router,
+    agent_profile_manager=a2a_profile_manager,
 )
 
 simple_executor = SimpleExecutor(
