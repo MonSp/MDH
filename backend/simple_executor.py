@@ -47,6 +47,7 @@ class SimpleExecutor:
         a2a_task_router=None,
         a2a_client=None,
         state_sync=None,
+        a2a_post_processor=None,
     ):
         """
         Args:
@@ -56,6 +57,7 @@ class SimpleExecutor:
             a2a_task_router: A2A 任务路由器（可选，启用 A2A 路由）
             a2a_client: A2A 协议客户端（可选）
             state_sync: 双层状态同步管理器（可选）
+            a2a_post_processor: A2A 后处理器（可选，启用完整经验闭环）
         """
         self._project_manager = project_manager
         self._workflow_engine = workflow_engine
@@ -63,6 +65,7 @@ class SimpleExecutor:
         self._a2a_router = a2a_task_router
         self._a2a_client = a2a_client
         self._state_sync = state_sync
+        self._post_processor = a2a_post_processor
 
     async def execute(
         self,
@@ -171,17 +174,25 @@ class SimpleExecutor:
             result_text = event.artifact.parts[0].text or ""
 
         # 记录到注册表
-        from a2a_registry import A2ARegistry
-        # 注册表通过 router 间接访问
         self._a2a_router._registry.record_task(agent.agent_id, success)
 
-        # 任务后状态同步
+        # 任务后状态同步（轻量：记忆 + 规则有效性）
         if self._state_sync:
             self._state_sync.process_task_result(
                 agent_id=agent.agent_id,
                 task_description=content,
                 result_text=result_text,
                 success=success,
+                task_id=event.task_id,
+            )
+
+        # 任务后完整经验闭环（经验提炼 + XP + 记忆 + 路由统计）
+        if self._post_processor:
+            await self._post_processor.process(
+                task_description=content,
+                result_text=result_text,
+                success=success,
+                agent_id=agent.agent_id,
                 task_id=event.task_id,
             )
 

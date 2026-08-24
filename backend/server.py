@@ -49,6 +49,7 @@ from a2a_client import A2AClient
 from a2a_task_router import A2ATaskRouter
 from state_sync import StateSyncManager
 from agent_memory import AgentMemory
+from a2a_post_processor import A2APostProcessor
 
 # ── 请求模型 ──
 from schemas import (
@@ -255,12 +256,18 @@ state_sync = StateSyncManager(
     experience_extractor=experience_extractor,
     memory_manager=a2a_memory,
 )
+a2a_post_processor = A2APostProcessor(
+    experience_extractor=experience_extractor,
+    agent_memory=a2a_memory,
+    dynamic_router=dynamic_router,
+)
 
 simple_executor = SimpleExecutor(
     project_manager=project_manager,
     a2a_task_router=a2a_task_router,
     a2a_client=a2a_client,
     state_sync=state_sync,
+    a2a_post_processor=a2a_post_processor,
 )
 
 agent_pool = AgentPool(
