@@ -9,7 +9,7 @@
  */
 
 import { createServer } from 'node:http';
-import { createA2AHandler } from './a2a-handler.js';
+import { createA2AHandler, buildAgentCard } from './a2a-handler.js';
 import { StateCache } from './state-cache.js';
 
 // ─── CLI argument parsing ────────────────────────────────────────────────────
@@ -43,30 +43,8 @@ function parseArgs(): { port: number; backendUrl: string; agentId: string } {
 
 // ─── Registration ────────────────────────────────────────────────────────────
 
-const AGENT_CARD = {
-  name: 'claude-code',
-  description: 'Anthropic Claude Code — local AI coding assistant',
-  url: '', // Set dynamically from port
-  version: '1.0.0',
-  capabilities: { streaming: true },
-  skills: [
-    {
-      id: 'code_implementation',
-      name: 'Code Implementation',
-      tags: ['file', 'git', 'shell', 'search', 'code', 'test'],
-      description: 'Implement code changes: write files, run commands, create tests, manage git',
-    },
-    {
-      id: 'code_review',
-      name: 'Code Review',
-      tags: ['review', 'code', 'security'],
-      description: 'Review code for correctness, security, style, and best practices',
-    },
-  ],
-};
-
 async function registerWithBackend(backendUrl: string, port: number, agentId: string, stateCache: StateCache): Promise<boolean> {
-  const card = { ...AGENT_CARD, url: `http://localhost:${port}` };
+  const card = buildAgentCard(`http://localhost:${port}`);
 
   try {
     const res = await fetch(`${backendUrl}/api/a2a/register`, {

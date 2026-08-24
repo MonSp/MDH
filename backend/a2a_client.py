@@ -8,6 +8,7 @@ A2A Client — 向执行节点发送任务
 """
 
 import asyncio
+import inspect
 import json
 import logging
 import time
@@ -162,7 +163,7 @@ class A2AClient:
 
                             if on_event:
                                 result = on_event(event)
-                                if asyncio.iscoroutine(result):
+                                if inspect.isawaitable(result):
                                     await result
 
                             if event.status and event.status.state in ("completed", "failed"):

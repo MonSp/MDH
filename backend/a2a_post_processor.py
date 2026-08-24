@@ -9,7 +9,8 @@ A2A Post Processor — A2A 任务完成后的完整后处理流水线
 """
 
 import logging
-from typing import Dict, Optional
+
+from state_sync import extract_keywords
 
 logger = logging.getLogger("a2a_post_processor")
 
@@ -128,14 +129,7 @@ class A2APostProcessor:
                       success: bool, task_id: str):
         """将 A2A 任务结果写入 Agent 持久记忆"""
         try:
-            import re
-            # 提取关键词
-            keywords = []
-            for i in range(len(task_description) - 1):
-                if '\u4e00' <= task_description[i] <= '\u9fff' and '\u4e00' <= task_description[i+1] <= '\u9fff':
-                    keywords.append(task_description[i:i+2])
-            keywords.extend(re.findall(r'[a-zA-Z_]{3,}', task_description))
-            keywords = list(set(keywords))[:10]
+            keywords = extract_keywords(task_description)
 
             status = "成功" if success else "失败"
             result_preview = result_text[:500] if len(result_text) > 500 else result_text

@@ -15,6 +15,16 @@ from agent_memory import AgentMemory
 logger = logging.getLogger("state_sync")
 
 
+def extract_keywords(text: str, max_keywords: int = 10) -> List[str]:
+    """从文本中提取关键词（中文 bigram + 英文分词）"""
+    cn_words = []
+    for i in range(len(text) - 1):
+        if '\u4e00' <= text[i] <= '\u9fff' and '\u4e00' <= text[i+1] <= '\u9fff':
+            cn_words.append(text[i:i+2])
+    en_words = re.findall(r'[a-zA-Z_]{3,}', text)
+    return list(set(cn_words + en_words))[:max_keywords]
+
+
 class StateSyncManager:
     """双层状态同步管理器
 
@@ -50,10 +60,12 @@ class StateSyncManager:
         """
         metadata = {}
 
+        # 提取关键词（边界检测和规则检索共享）
+        keywords = self._extract_keywords(task_description)
+
         # 能力边界检测：检查任务是否落在已知领域
         if self._boundary:
             try:
-                keywords = self._extract_keywords(task_description)
                 boundary = self._boundary.detect_unknown_domain(keywords)
                 if boundary.get("is_unknown"):
                     metadata["capability_warning"] = {
@@ -67,7 +79,6 @@ class StateSyncManager:
 
         # 检索相关经验规则
         try:
-            keywords = self._extract_keywords(task_description)
             rules = self._experience.retrieve_relevant_rules(
                 task_type="general",
                 keywords=keywords,
@@ -149,24 +160,10 @@ class StateSyncManager:
         except Exception as e:
             logger.warning("记忆写入失败: %s", e)
 
-    def _extract_keywords(self, text: str) -> List[str]:
-        """从文本中提取关键词
-
-        注意: TS 端 (adapters/claude-code/src/sync.ts) 使用 stop-word 过滤，
-        与本方法的 bigram 滑动窗口会产生不同结果。
-        这是有意的设计：Python 端用于经验检索（需要精确匹配），
-        TS 端用于本地记忆索引（需要更宽泛的召回）。
-        """
-        # 中文分词（简单滑动窗口）
-        cn_words = []
-        for i in range(len(text) - 1):
-            if '\u4e00' <= text[i] <= '\u9fff' and '\u4e00' <= text[i+1] <= '\u9fff':
-                cn_words.append(text[i:i+2])
-        # 英文分词
-        en_words = re.findall(r'[a-zA-Z_]{3,}', text)
-        # 去重
-        all_words = list(set(cn_words + en_words))
-        return all_words[:10]
+    @staticmethod
+    def _extract_keywords(text: str) -> List[str]:
+        """从文本中提取关键词"""
+        return extract_keywords(text)
 
     def _build_memory_content(
         self, task: str, result: str, success: bool

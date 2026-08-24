@@ -152,10 +152,14 @@ class A2ARegistry:
         """检查节点健康状态，超时标记为 unhealthy"""
         with self._lock:
             now = time.time()
+            changed = False
             for agent in self._agents.values():
                 if agent.status == "active" and (now - agent.last_heartbeat) > timeout_seconds:
                     agent.status = "unhealthy"
+                    changed = True
                     logger.warning("A2A 节点超时: %s", agent.agent_id)
+            if changed:
+                self._save()
 
     def _save(self):
         """持久化到 JSON"""

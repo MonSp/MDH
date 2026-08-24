@@ -12,7 +12,6 @@
 
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { LLMConfig } from '../llm/types.js';
-import { resolveConfig } from '../llm/openai.js';
 import { RoleAgent, type AgentConfig, type EventHandler } from '../agent/role-agent.js';
 import { ALL_TOOL_DEFINITIONS } from '../agent/tools.js';
 import { buildSystemPrompt } from '../agent/system-prompt.js';

@@ -5,9 +5,8 @@ A2A Task Router — 根据任务特征选择最优执行节点
 """
 
 import logging
-import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from a2a_registry import A2ARegistry, RegisteredAgent
 

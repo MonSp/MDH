@@ -23,7 +23,7 @@ import { pullExperience, flushPendingMemories } from './sync.js';
 
 // ─── Agent Card ──────────────────────────────────────────────────────────────
 
-function buildAgentCard(url: string) {
+export function buildAgentCard(url: string) {
   return {
     name: 'claude-code',
     description: 'Anthropic Claude Code — local AI coding assistant',
