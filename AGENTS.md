@@ -74,6 +74,7 @@
 | **1.8.2** | 2026-08-26 | A2A 路由质量提升（阈值 0.7 + 本地执行守卫 + execution_preference 端到端传递） |
 | **1.8.3** | 2026-08-26 | A2A 经验闭环修复（AgentProfileManager 接入 + XP 授予目标修正） |
 | **1.8.4** | 2026-08-26 | 集成差距修复（SimpleExecutor 进化管线 + A2A API 签名修正 + Webhook 接入） |
+| **1.8.5** | 2026-08-26 | 集成差距修复续（TeamSynergy 自动记录 + ProactiveMonitor 后台调度） |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 

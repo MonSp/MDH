@@ -2,6 +2,14 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.5] - 2026-08-26
+
+### Fixed
+
+**集成差距修复续（剩余 DEAD 模块接入）**
+- `TeamSynergy.record_team_task()` 接入 `A2APostProcessor`：每次任务完成后自动记录协同数据
+- `ProactiveMonitor.run_health_check()` 接入 FastAPI startup 后台调度：每 5 分钟自动执行健康巡检
+
 ## [1.8.4] - 2026-08-26
 
 ### Fixed
