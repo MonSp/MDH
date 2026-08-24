@@ -2,6 +2,33 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.7.1] - 2026-08-26
+
+### Added
+
+**Claude Code A2A Adapter (`adapters/claude-code/`, 935 行)**
+- 独立 Node.js 项目，将 Claude Code CLI 包装为 A2A Server
+- Agent Card（`/.well-known/agent.json`）声明 `code_implementation` + `code_review` 两个技能
+- SSE 流式任务端点（`/a2a/tasks/send`），解析 Claude 的 `stream-json` 输出
+- `claude -p` 子进程管理：5 分钟超时、AbortController 取消支持
+- `.mdh/` 本地状态缓存：`agent-state.json`、`experience-cache/`、`memory-inbox/`
+- 自动注册到 Python 后端 + 每 30 秒心跳
+- 优雅关闭：SIGINT/SIGTERM 时自动注销
+- 零运行时依赖（仅用 Node.js 内置 `http` + `child_process`）
+
+**A2A Prometheus 指标**
+- `mdh_a2a_agents_active`：活跃 A2A 执行节点数
+- `mdh_a2a_tasks_total`：累计派发任务数
+- `mdh_a2a_tasks_success`：累计成功任务数
+- `mdh_a2a_success_rate`：任务成功率
+
+### Changed
+
+**A2A 生产加固**
+- SSRF 防护：注册端点校验 URL，禁止内网/回环地址
+- HTTP 客户端复用：`A2AClient` 共享 `httpx.AsyncClient` 连接池，避免每次请求新建连接
+- 死代码清理：移除未使用的 `session.teamId`、未使用的 `readFileSync` 导入
+
 ## [1.7.0] - 2026-08-26
 
 ### Added
