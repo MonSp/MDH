@@ -81,6 +81,21 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  claude-code-adapter:
+    build:
+      context: ./adapters/claude-code
+      dockerfile: Dockerfile
+    ports:
+      - "9091:9091"
+    restart: unless-stopped
+    networks:
+      - app-network
+    environment:
+      - MDH_BACKEND_URL=http://backend:8765
+      - MDH_ADAPTER_PORT=9091
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 networks:
   app-network:
     driver: bridge
