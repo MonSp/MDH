@@ -2,13 +2,50 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1657%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-1732%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
-[![Test Coverage](https://img.shields.io/badge/test%20coverage-84%25-brightgreen)]()
 
 [中文版](README.md) | **English**
 
-A full-domain multi-agent collaboration system built with React + Python FastAPI + AgentScope. Multiple AI agents collaborate in a virtual office, completing the full pipeline from requirement analysis to code delivery.
+## What is MDH
+
+MDH is an **operating system for digital employees**. It is not another AI chat tool — it is a collaboration platform where AI agents work, learn, and grow like real employees.
+
+In MDH, digital employees form a team: a CEO analyzes requirements, an architect designs solutions, developers write code, QA reviews quality, and a project manager coordinates progress. They meet in a 3D virtual office, discuss, vote, and execute tasks — just like a real company.
+
+### The Core Loop
+
+```
+Task → Execute → Produce Assets → Distill Experience → Evolve Skills → Next Task More Efficient
+```
+
+This loop transforms digital employees from one-shot tools into continuously evolving colleagues. They carry their own memory, experience, skill trees, and career paths — and they get stronger with every task.
+
+### They Accumulate Experience
+
+Every task produces artifacts that are automatically stored as assets. Insights from team discussions are distilled into skill rules. When a similar task comes up next time, the system retrieves the most relevant experience and injects it into the agent's context — mistakes made once are not made twice.
+
+### They Self-Purify
+
+Not all experience is good experience. Every rule carries an effectiveness score: +1 when the task succeeds after injection, -1 when it fails. Rules used 3+ times with a success rate below 40% are automatically demoted for re-review. Bad experience is eliminated; good experience stays and gets shared across teams through quality gates.
+
+Digital employees develop an immune system.
+
+### They Have Careers
+
+42 skills form a dependency tree spanning engineering, design, content, data, and management. Each digital employee has a persistent career profile that survives across projects. Completing tasks earns XP; skills level up from beginner to intermediate to advanced.
+
+Each of 10 departments has independent promotion criteria — engineering requires `backend_dev` and `testing`, video requires `video_editing`, data requires `data_analysis`. Promotion is automatic when conditions are met. Senior employees doing simple tasks receive diminished XP — real growth requires real challenges.
+
+### Evolution Is Self-Driving
+
+Rules don't just get passively demoted — low-scoring rules automatically generate improved versions (self-evolution), and improved rules cascade updates to related skill packs and assets (linked evolution). The system automatically identifies which knowledge domains need the most reflection (reflection priority queue), and prevents evolution overfitting: saturation in one domain is capped, stale rules are deprioritized, and 20% of injection time is spent exploring unknown domains.
+
+High-quality experience flows across teams through quality gates, while low-trust teams' rules are filtered by trust scoring (multi-team evolution federation). The system knows its own capability boundaries — which domains are high-confidence, which are blind spots (capability boundary awareness) — and proactively seeks external help when operating in unfamiliar territory.
+
+Human feedback isn't "seen and forgotten" — structured review comments are automatically converted into experience rules that directly influence the digital employee's next performance. Skill direction guidance from humans affects task assignment and XP allocation (human-in-the-loop feedback).
+
+---
 
 ## Core Capabilities
 
@@ -31,6 +68,9 @@ A full-domain multi-agent collaboration system built with React + Python FastAPI
 | 🧪 LLM Judge Gating | Templates/artifacts pass deterministic checks + LLM judge evaluation (fail-closed) + benchmark with CI gate |
 | 📊 Reuse Visibility | Injection metrics (`/api/assets/reuse-metrics`) + frontend asset browser panel (`🧠 Assets` tab) |
 | 📝 Meeting Minutes Pipeline | Intent-recognition doc mode → minutes DAG workflow (extract/draft/proofread) → artifact output + email delivery |
+| 📈 Rule Effectiveness Tracking | Injected rules auto-track task success rate, low-score rules auto-demoted |
+| 🚀 Digital Employee Careers | AgentProfile persistent archive + XP system + 42 skill trees + 10 department career paths + auto-promotion |
+| 🤝 Cross-Team Skill Sharing | Quality gates (score ≥ 0.6 + usage ≥ 2) + approval flow + shared experience pool |
 | 🧭 Routing-Aware Skill Levels | DynamicRouter 5-dimension weighted routing, agent skill levels influence department selection and task assignment |
 | 🎯 Promotion-Driven Assignment | Simple tasks prefer junior agents (XP accumulation), complex tasks prefer senior agents (capability matching) |
 | 🧠 Agent Persistent Memory | Cross-project personal memory + auto-summary + memory injection + aging |
@@ -39,44 +79,6 @@ A full-domain multi-agent collaboration system built with React + Python FastAPI
 | 🤝 Team Synergy Optimization | Synergy analysis + bottleneck detection + optimal team matching |
 | 🔌 Webhook Integration | 5 event types notify external systems + HMAC signature verification |
 | 🤖 Multi-Model Support | DeepSeek/OpenAI/Anthropic/Gemini/Ollama + model routing + auto fallback |
-
-## What is MDH
-
-MDH is an **operating system for digital employees**. It is not another AI chat tool — it is a collaboration platform where AI agents work, learn, and grow like real employees.
-
-In MDH, digital employees form a team: a CEO analyzes requirements, an architect designs solutions, developers write code, QA reviews quality, and a project manager coordinates progress. They meet in a 3D virtual office, discuss, vote, and execute tasks — just like a real company.
-
-### They Accumulate Experience
-
-Every task produces artifacts that are automatically stored as assets. Insights from team discussions are distilled into skill rules. When a similar task comes up next time, the system retrieves the most relevant experience and injects it into the agent's context — mistakes made once are not made twice.
-
-### They Self-Purify
-
-Not all experience is good experience. Every rule carries an effectiveness score: +1 when the task succeeds after injection, -1 when it fails. Rules used 3+ times with a success rate below 40% are automatically demoted for re-review. Bad experience is eliminated; good experience stays and gets shared across teams through quality gates.
-
-Digital employees develop an immune system.
-
-### They Have Careers
-
-42 skills form a dependency tree spanning engineering, design, content, data, and management. Each digital employee has a persistent career profile that survives across projects. Completing tasks earns XP; skills level up from beginner to intermediate to advanced.
-
-Each of 10 departments has independent promotion criteria — engineering requires `backend_dev` and `testing`, video requires `video_editing`, data requires `data_analysis`. Promotion is automatic when conditions are met. Senior employees doing simple tasks receive diminished XP — real growth requires real challenges.
-
-### The Core Loop
-
-```
-Task → Execute → Produce Assets → Distill Experience → Evolve Skills → Next Task More Efficient
-```
-
-This loop transforms digital employees from one-shot tools into continuously evolving colleagues. They carry their own memory, experience, skill trees, and career paths — and they get stronger with every task.
-
-### Evolution Is Self-Driving
-
-Rules don't just get passively demoted — low-scoring rules automatically generate improved versions (self-evolution), and improved rules cascade updates to related skill packs and assets (linked evolution). The system automatically identifies which knowledge domains need the most reflection (reflection priority queue), and prevents evolution overfitting: saturation in one domain is capped, stale rules are deprioritized, and 20% of injection time is spent exploring unknown domains.
-
-High-quality experience flows across teams through quality gates, while low-trust teams' rules are filtered by trust scoring (multi-team evolution federation). The system knows its own capability boundaries — which domains are high-confidence, which are blind spots (capability boundary awareness) — and proactively seeks external help when operating in unfamiliar territory.
-
-Human feedback isn't "seen and forgotten" — structured review comments are automatically converted into experience rules that directly influence the digital employee's next performance. Skill direction guidance from humans affects task assignment and XP allocation (human-in-the-loop feedback).
 
 ## Quick Start
 
@@ -109,49 +111,6 @@ Backend runs at `ws://localhost:8765/ws`
 
 ```bash
 docker compose up -d
-```
-
-## Project Structure
-
-```
-├── src/                          # React + TypeScript frontend
-│   ├── components/
-│   │   ├── techtower/            # 3D tech tower
-│   │   ├── office-team/          # Office team panels
-│   │   │   ├── VotingPanel.tsx   # Voting panel
-│   │   │   ├── ApprovalPanel.tsx # Approval panel
-│   │   │   ├── CeoChatPanel.tsx  # CEO chat + Per-Agent Location selector
-│   │   │   └── ...
-│   │   ├── skill-evolution/      # Skill evolution
-│   │   └── cyberpunk/            # Cyberpunk visual effects
-│   ├── hooks/
-│   │   ├── useMeetingSocket.ts   # WebSocket meeting communication
-│   │   ├── useAgentSystem.ts     # TS agent system (incl. bridge)
-│   │   └── useApproval.ts        # Approval queue
-│   └── modules/                  # 45+ core modules
-│       ├── webSocketBridge.ts    # TS-Python bridge
-│       ├── agentCoordinator.ts   # Agent coordinator
-│       └── ...
-├── backend/                      # Python backend (port 8765)
-│   ├── server.py                 # FastAPI + WebSocket service
-│   ├── meeting_coordinator.py    # Meeting coordinator (core)
-│   ├── ceo_agent.py              # CEO agent
-│   ├── agent_bridge.py           # TS-Python bridge
-│   ├── roles_config.yaml         # Role config (25+ roles)
-│   └── tests/                    # Python tests (1142 tests)
-├── orchestrator/                 # TS orchestrator (user-local Node.js)
-│   └── src/
-│       ├── cli.ts                # CLI entry
-│       ├── server.ts             # HTTP + WebSocket service
-│       ├── team/                 # Team management
-│       ├── llm/                  # LLM integration
-│       ├── toolkit/              # Toolkit routing (local/remote/hybrid)
-│       └── loop/                 # Loop execution engine
-├── loop-engineering/             # Loop engineering optimization (standalone product)
-├── skill_packs/                  # Skill packs
-├── protocol/                     # Bridge protocol docs
-├── docs/                         # Documentation
-└── .env                          # Environment variables (API Key)
 ```
 
 ## Tech Stack
@@ -211,8 +170,6 @@ Tool execution supports local/remote routing:
 - **Remote execution**: HTTP POST to Python Executor (for server-side operations)
 - **Per-Agent selection**: each agent independently chooses its execution location
 
-Detailed docs: [docs/agent-tools.md](docs/agent-tools.md)
-
 ## Role Configuration
 
 Roles are configured in `backend/roles_config.yaml`:
@@ -239,122 +196,52 @@ custom_roles:
     name: "Security Developer"
 ```
 
-Roles can be managed via the role editor in the frontend `🗳️ Vote` tab.
+## Digital Employee Careers
 
-## WebSocket Message Protocol
+Each digital employee has a persistent career profile, accumulating experience across projects:
 
-### Frontend → Backend
+| Capability | Description |
+|------|------|
+| 🧬 Skill Tree | 42 skills, 5 categories (engineering/design/content/data/management), prerequisite chains |
+| ⚡ XP System | Task success +XP, review bonus, XP decay anti-farming |
+| 🏢 Department Paths | 10 departments with independent promotion criteria |
+| 🎖️ Auto Promotion | Meets skill conditions → auto-promoted (Junior→Mid→Senior→Lead) |
+| 📊 Frontend Panels | Department card grid + promotion timeline + skill progress bars + skill tree visualization |
+| 🧭 Routing Awareness | Agent skill levels influence routing decisions, upgrades drive department routing bonuses |
 
-| Message Type | Description |
-|---|---|
-| `start_meeting` | Start meeting (provider/model/api_key/max_iterations) |
-| `meeting_message` | Send meeting message |
-| `task_assign` | Manually assign task |
-| `end_meeting` | End meeting |
-| `create_proposal` | Create proposal |
-| `cast_vote` | Cast vote |
-| `evaluate_consensus` | Evaluate consensus |
-| `request_approval` | Request human approval |
-| `human_approval_response` | Approval response |
-| `checkpoint_save` | Save checkpoint |
-| `checkpoint_restore` | Restore checkpoint |
-| `save_meeting_snapshot` | Save meeting snapshot |
-| `restore_meeting_snapshot` | Restore meeting snapshot |
-| `critical_blocker` | Report critical blocker |
-| `log_audit` | Log audit event |
-| `bridge_register_agent` | Register TS agent to Python |
-| `bridge_message` | TS↔Python agent message |
-| `set_max_iterations` | Set max iteration rounds |
-| `adjust_agent_weight` | Adjust agent voting weight |
+## Production Ready (v1.6)
 
-### Backend → Frontend
-
-| Message Type | Description |
-|---|---|
-| `meeting_started` | Meeting started |
-| `meeting_ended` | Meeting ended |
-| `agent_message` | Agent message (incl. delta streaming) |
-| `task_assigned` | Task assigned |
-| `task_auto_assigned` | Task auto-assigned |
-| `agenda_update` | Agenda status update |
-| `proposal` | Proposal pushed |
-| `vote` | Vote pushed |
-| `vote_result` | Vote result |
-| `human_approval_request` | Approval request |
-| `checkpoint_saved` | Checkpoint saved |
-| `checkpoint_restored` | Checkpoint restored |
-| `meeting_snapshot_saved` | Snapshot saved |
-| `meeting_snapshot_restored` | Snapshot restored |
-| `critical_blocker` | Critical blocker notification |
-| `audit_log` | Audit log pushed |
-| `bridge_agent_registered` | TS agent registered |
-| `bridge_message` | Python→TS agent message |
-
-## REST API
-
-### Workflow Engine
-
-| Endpoint | Description |
-|---|---|
-| `POST /api/workflow/create` | Create workflow |
-| `POST /api/workflow/execute/{id}` | Execute workflow |
-| `POST /api/workflow/pause/{id}` | Pause workflow |
-| `POST /api/workflow/resume/{id}` | Resume workflow |
-| `POST /api/workflow/cancel/{id}` | Cancel workflow |
-| `POST /api/workflow/retry/{id}/{nodeId}` | Retry node |
-| `GET /api/workflow/status/{id}` | Get status |
-| `GET /api/workflow/visualization/{id}` | Get visualization |
-
-### Role Management
-
-| Endpoint | Description |
-|---|---|
-| `GET /api/roles/config` | Get role config |
-| `GET /api/roles/{id}` | Get single role |
-| `POST /api/roles/{id}` | Create role |
-| `PUT /api/roles/{id}` | Update role |
-| `DELETE /api/roles/{id}` | Delete role |
-
-### History
-
-| Endpoint | Description |
-|---|---|
-| `GET /api/history/sessions` | List history sessions |
-| `GET /api/history/sessions/{id}/messages` | Get history messages |
-
-### Monitoring
-
-| Endpoint | Description |
-|---|---|
-| `GET /health` | Health check |
-| `GET /metrics` | Prometheus metrics |
+| Capability | Description |
+|------|------|
+| 💾 SQLite Storage | All data migrated to SQLite (WAL mode, concurrent-safe) |
+| 🔐 RBAC Permissions | API key three-tier roles (admin/agent/viewer) |
+| 📊 Health Checks | Database/disk/module status + auto backup |
+| ⚡ LLM Cache | Semantic caching (SQLite persistence + tiered TTL + normalization) |
+| 🔌 Webhooks | 5 event types notify external systems |
+| 📈 Benchmark Suite | 16 tasks + CI gate + baseline comparison + regression detection |
+| ⏱️ Perf Benchmarks | Real API/cache/DB/artifact latency and throughput measurement |
 
 ## Testing
 
 ```bash
-# Frontend tests (1657 tests)
+# Frontend tests (1726 tests)
 npx vitest run
 
-# Backend tests (1142 tests)
+# Backend tests (1732 tests)
 cd backend && python -m pytest tests/ --timeout=60
 
-# Orchestrator tests
-cd orchestrator && npx vitest run
+# Orchestrator tests (216 tests)
+cd orchestrator && npm test
 
-# LLM integration tests
-export $(cat .env | grep -v '^#' | xargs)
-python backend/test_llm_integration.py
+# E2E verification (31 checks)
+cd backend && python e2e_verify.py
 
-# LLM judge benchmark CI gate (deterministic self-check without a key)
-python backend/asset_benchmark_gate.py
+# Performance benchmarks
+cd backend && python perf_real.py
+
+# Evaluation benchmarks
+cd backend && python benchmark_cli.py --analyze
 ```
-
-## Coverage
-
-| Directory | Stmts | Branch | Funcs |
-|---|---|---|---|
-| src/modules | 84.39% | 87.85% | 85.02% |
-| src/hooks | 92.86% | 75.36% | 91.66% |
 
 ## Documentation
 
@@ -364,12 +251,7 @@ python backend/asset_benchmark_gate.py
 - [Design](docs/design.md)
 - [User Guide](docs/user-guide.md)
 - [Docker Deployment Guide](DOCKER_README.md)
-- [Project Rules](project_rules.md)
-- [Benchmark CI Gate Guide](docs/compose/plans/2026-08-15-hybrid-team-platform-benchmark-ci-guide.md)
-
-## Version History
-
-Full change history in [CHANGELOG.md](CHANGELOG.md).
+- [Performance Test Guide](docs/PERF_TEST_GUIDE.md)
 
 ## License
 
