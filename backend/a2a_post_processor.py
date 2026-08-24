@@ -28,12 +28,14 @@ class A2APostProcessor:
         agent_memory=None,
         dynamic_router=None,
         webhook_manager=None,
+        team_synergy=None,
     ):
         self._experience = experience_extractor
         self._profiles = agent_profile_manager
         self._memory = agent_memory
         self._router = dynamic_router
         self._webhooks = webhook_manager
+        self._synergy = team_synergy
 
     async def process(
         self,
@@ -75,6 +77,10 @@ class A2APostProcessor:
         # 5. Webhook 触发
         if self._webhooks:
             self._fire_webhook(task_description, success, xp_target, task_id)
+
+        # 6. 团队协同记录
+        if self._synergy:
+            self._record_synergy(xp_target, task_description, success)
 
     def _distill_experience(self, task_description: str, result_text: str, agent_id: str):
         """从 A2A 任务结果中提炼经验规则"""
@@ -185,3 +191,14 @@ class A2APostProcessor:
             })
         except Exception as e:
             logger.warning("Webhook 触发失败: %s", e)
+
+    def _record_synergy(self, agent_id: str, task_description: str, success: bool):
+        """记录团队协同数据"""
+        try:
+            self._synergy.record_team_task(
+                agent_ids=[agent_id],
+                task_type=task_description[:50],
+                success=success,
+            )
+        except Exception as e:
+            logger.warning("团队协同记录失败: %s", e)
