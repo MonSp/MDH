@@ -43,6 +43,11 @@ from routers import marketplace as marketplace_router
 from routers import mcp_config as mcp_router
 from routers import community as community_router
 
+# ── A2A 协议（Agent-to-Agent 执行节点管理）──
+from a2a_registry import A2ARegistry, AgentCard, AgentSkill
+from a2a_client import A2AClient
+from a2a_task_router import A2ATaskRouter
+
 # ── 请求模型 ──
 from schemas import (
     SkillRegisterRequest, SkillCloneRequest,
@@ -240,6 +245,11 @@ simple_executor = SimpleExecutor(project_manager=project_manager)
 
 # Agent 池（全局单例，支持复用和负载均衡）
 key_manager = KeyManager()
+# ── A2A 执行节点管理 ──
+a2a_registry = A2ARegistry(persist_path=os.path.join(_DATA_DIR, "a2a_agents.json"))
+a2a_client = A2AClient()
+a2a_task_router = A2ATaskRouter(a2a_registry)
+
 agent_pool = AgentPool(
     key_manager=key_manager,
     max_instances_per_role=2,
@@ -316,6 +326,134 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"success": False, "data": None, "error": str(exc)},
     )
+
+
+# ── A2A 执行节点管理 API ──
+
+@app.post("/api/a2a/register")
+async def a2a_register_agent(body: dict = Body(...)):
+    """注册 A2A 执行节点
+
+    请求体: { "agent_id": "ts-orchestrator", "card": { "name": "...", "url": "...", ... } }
+    """
+    agent_id = body.get("agent_id")
+    card_data = body.get("card", {})
+    if not agent_id or not card_data.get("url"):
+        raise HTTPException(400, "agent_id 和 card.url 必填")
+
+    skills = [AgentSkill(**s) for s in card_data.get("skills", [])]
+    card = AgentCard(
+        name=card_data.get("name", agent_id),
+        description=card_data.get("description", ""),
+        url=card_data["url"],
+        skills=skills,
+        capabilities=card_data.get("capabilities", {}),
+        version=card_data.get("version", "1.0.0"),
+    )
+    agent = a2a_registry.register(agent_id, card)
+    return {"success": True, "agent_id": agent_id, "status": agent.status}
+
+
+@app.post("/api/a2a/unregister/{agent_id}")
+async def a2a_unregister_agent(agent_id: str):
+    """注销 A2A 执行节点"""
+    ok = a2a_registry.unregister(agent_id)
+    return {"success": ok}
+
+
+@app.post("/api/a2a/heartbeat/{agent_id}")
+async def a2a_heartbeat(agent_id: str):
+    """执行节点心跳"""
+    ok = a2a_registry.heartbeat(agent_id)
+    return {"success": ok}
+
+
+@app.get("/api/a2a/agents")
+async def a2a_list_agents():
+    """列出所有已注册的 A2A 执行节点"""
+    agents = a2a_registry.list_active()
+    return {
+        "success": True,
+        "agents": [
+            {
+                "agent_id": a.agent_id,
+                "name": a.card.name,
+                "description": a.card.description,
+                "url": a.card.url,
+                "skills": [asdict(s) for s in a.card.skills],
+                "status": a.status,
+                "task_count": a.task_count,
+                "success_rate": a.success_rate,
+            }
+            for a in agents
+        ],
+    }
+
+
+@app.get("/api/a2a/route")
+async def a2a_route_task(task_description: str):
+    """查询任务应该路由到哪个执行节点"""
+    decision = a2a_task_router.route(task_description)
+    if not decision:
+        return {"success": True, "decision": None, "reason": "无可用执行节点"}
+    return {
+        "success": True,
+        "decision": {
+            "agent_id": decision.agent.agent_id,
+            "skill_id": decision.skill_id,
+            "confidence": decision.confidence,
+            "reason": decision.reason,
+            "matched_tags": decision.matched_tags,
+        },
+    }
+
+
+@app.post("/api/a2a/dispatch")
+async def a2a_dispatch_task(body: dict = Body(...)):
+    """向 A2A 执行节点发送任务
+
+    请求体: {
+        "task_description": "读取 config.yaml 并修改端口",
+        "metadata": { "experience_rules": [...], ... },
+        "prefer_agent_id": "ts-orchestrator"  (可选)
+    }
+    """
+    task_desc = body.get("task_description")
+    metadata = body.get("metadata", {})
+    prefer_agent = body.get("prefer_agent_id")
+
+    if not task_desc:
+        raise HTTPException(400, "task_description 必填")
+
+    # 选择执行节点
+    if prefer_agent:
+        agent = a2a_registry.get(prefer_agent)
+        if not agent or agent.status != "active":
+            raise HTTPException(404, f"执行节点 {prefer_agent} 不可用")
+    else:
+        decision = a2a_task_router.route(task_desc)
+        if not decision:
+            raise HTTPException(503, "无可用执行节点")
+        agent = decision.agent
+
+    # 发送任务
+    event = await a2a_client.send_task(agent, task_desc, metadata)
+
+    # 记录结果
+    success = event.status and event.status.state == "completed"
+    a2a_registry.record_task(agent.agent_id, success)
+
+    return {
+        "success": success,
+        "agent_id": agent.agent_id,
+        "task_id": event.task_id,
+        "status": event.status.state if event.status else "unknown",
+        "artifact": {
+            "name": event.artifact.name,
+            "text": event.artifact.parts[0].text if event.artifact and event.artifact.parts else "",
+        } if event.artifact else None,
+        "error": event.status.message if event.status and event.status.state == "failed" else None,
+    }
 
 
 @app.exception_handler(HTTPException)

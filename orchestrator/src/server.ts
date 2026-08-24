@@ -9,6 +9,7 @@ import type { ExecutionProfile } from './toolkit/hybrid.js';
 import { LLMConfig } from './llm/types.js';
 import { resolveConfig } from './llm/openai.js';
 import { getAvailableRoles } from './team/templates.js';
+import { createA2AHandler } from './a2a/server.js';
 
 interface ClientSession {
   config: Partial<LLMConfig>;
@@ -31,7 +32,28 @@ const CONTENT_TYPES: Record<string, string> = {
 export async function startServer(port: number, routerFactory: RouterFactory, defaultRouter: IToolkitRouter, defaultWorkspace: string, defaultLlmConfig?: Partial<LLMConfig>, executorUrl?: string, executorToken?: string, hybridProfile?: ExecutionProfile) {
   const distDir = process.env.DIST_DIR || resolve(process.cwd(), '../dist');
 
-  const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
+  // A2A handler — serves /.well-known/agent.json and POST /a2a/tasks/send
+  const handleA2A = createA2AHandler({
+    llmConfig: defaultLlmConfig ? resolveConfig(defaultLlmConfig) : resolveConfig({ provider: 'deepseek' }),
+    workspace: defaultWorkspace,
+    router: defaultRouter,
+  });
+
+  const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    // A2A routes — delegate if matched
+    try {
+      const handled = await handleA2A(req, res);
+      if (handled) return;
+    } catch (err: unknown) {
+      // A2A handler threw before writing a response — return 500
+      if (!res.headersSent) {
+        const msg = err instanceof Error ? err.message : String(err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: msg }));
+      }
+      return;
+    }
+
     const url = req.url || '/';
 
     // API endpoints
