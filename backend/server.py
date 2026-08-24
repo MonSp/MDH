@@ -236,8 +236,52 @@ project_manager = ProjectManager(
     skill_registry=skill_registry,
     skill_packager=skill_packager,
 )
+def _make_llm_distill_caller():
+    """Create an LLM caller for experience distillation (DeepSeek API via httpx).
+
+    Returns a callable (prompt: str) -> str, or None if API key not configured.
+    """
+    import httpx
+    from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
+    api_key = DEEPSEEK_API_KEY
+    if not api_key:
+        return None
+    base_url = DEEPSEEK_BASE_URL.rstrip("/")
+    # Normalize: strip /v1 suffix for chat/completions endpoint
+    if base_url.endswith("/v1"):
+        base_url = base_url[:-3]
+
+    def _call(prompt: str) -> str:
+        payload = {
+            "model": DEEPSEEK_MODEL,
+            "messages": [
+                {"role": "system", "content": "你是经验提炼专家，只输出 JSON。"},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.3,
+            "max_tokens": 1024,
+        }
+        resp = httpx.post(
+            f"{base_url}/v1/chat/completions",
+            json=payload,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+    return _call
+
+
+from evolution_events import EvolutionEventStore, ABTracker
+evolution_event_store = EvolutionEventStore(os.path.join(_DATA_DIR, "evolution.db"))
+ab_tracker = ABTracker(evolution_event_store._conn)
+
 experience_extractor = ExperienceExtractor(
     incremental_dir=os.path.join(_DATA_DIR, "experience"),
+    llm_caller=_make_llm_distill_caller(),
+    event_store=evolution_event_store,
 )
 skills_router.init(skill_registry, skill_packager, experience_extractor)
 dynamic_router = DynamicRouter(
@@ -254,7 +298,7 @@ a2a_registry = A2ARegistry(persist_path=os.path.join(_DATA_DIR, "a2a_agents.json
 a2a_client = A2AClient()
 a2a_task_router = A2ATaskRouter(a2a_registry)
 a2a_memory = AgentMemory(data_dir=_DATA_DIR)
-a2a_profile_manager = AgentProfileManager(profiles_dir=os.path.join(_DATA_DIR, "agent_profiles"))
+a2a_profile_manager = AgentProfileManager(profiles_dir=os.path.join(_DATA_DIR, "agent_profiles"), event_store=evolution_event_store)
 a2a_webhook_manager = WebhookManager(_DATA_DIR)
 from team_synergy import TeamSynergy
 from capability_boundary import CapabilityBoundary
@@ -272,6 +316,7 @@ a2a_post_processor = A2APostProcessor(
     agent_profile_manager=a2a_profile_manager,
     webhook_manager=a2a_webhook_manager,
     team_synergy=a2a_team_synergy,
+    ab_tracker=ab_tracker,
 )
 
 simple_executor = SimpleExecutor(
@@ -280,6 +325,7 @@ simple_executor = SimpleExecutor(
     a2a_client=a2a_client,
     state_sync=state_sync,
     a2a_post_processor=a2a_post_processor,
+    ab_tracker=ab_tracker,
 )
 
 agent_pool = AgentPool(
@@ -1019,6 +1065,58 @@ def _now_iso() -> str:
 def _now_iso_24h_ago() -> str:
     from datetime import datetime, timezone, timedelta
     return (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+
+
+# ── Evolution Events API ──
+
+
+@app.get("/api/evolution/timeline")
+async def get_evolution_timeline(
+    agent_id: str = "",
+    event_type: str = "",
+    since: str = "",
+    limit: int = 50,
+):
+    """获取进化事件时间线"""
+    try:
+        events = evolution_event_store.get_timeline(
+            agent_id=agent_id or None,
+            event_type=event_type or None,
+            since=since or None,
+            limit=limit,
+        )
+        return _ok({"events": events, "total": len(events)})
+    except Exception as e:
+        logger.exception("get_evolution_timeline 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/evolution/timeline/summary")
+async def get_evolution_summary(agent_id: str = "", period: int = 7):
+    """获取进化事件聚合统计"""
+    try:
+        summary = evolution_event_store.get_summary(
+            agent_id=agent_id or None,
+            period_days=period,
+        )
+        return _ok(summary)
+    except Exception as e:
+        logger.exception("get_evolution_summary 失败")
+        return _fail(str(e))
+
+
+@app.get("/api/evolution/ab-stats")
+async def get_ab_stats(task_type: str = "", period: int = 30):
+    """获取 A/B 任务类型成功率统计"""
+    try:
+        stats = ab_tracker.get_stats(
+            task_type=task_type or None,
+            period_days=period,
+        )
+        return _ok({"stats": stats, "total": len(stats)})
+    except Exception as e:
+        logger.exception("get_ab_stats 失败")
+        return _fail(str(e))
 
 
 # ── Agent Profile API ──

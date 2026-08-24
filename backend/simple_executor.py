@@ -48,6 +48,7 @@ class SimpleExecutor:
         a2a_client=None,
         state_sync=None,
         a2a_post_processor=None,
+        ab_tracker=None,
     ):
         """
         Args:
@@ -58,6 +59,7 @@ class SimpleExecutor:
             a2a_client: A2A 协议客户端（可选）
             state_sync: 双层状态同步管理器（可选）
             a2a_post_processor: A2A 后处理器（可选，启用完整经验闭环）
+            ab_tracker: ABTracker 实例（可选，A/B 任务类型成功率追踪）
         """
         self._project_manager = project_manager
         self._workflow_engine = workflow_engine
@@ -66,6 +68,7 @@ class SimpleExecutor:
         self._a2a_client = a2a_client
         self._state_sync = state_sync
         self._post_processor = a2a_post_processor
+        self._ab_tracker = ab_tracker
 
     async def execute(
         self,
@@ -134,6 +137,17 @@ class SimpleExecutor:
                     )
                 except Exception as e:
                     logger.warning("简单路径后处理失败（不阻塞结果）: %s", e)
+
+            # 6. A/B 任务类型成功率追踪
+            if self._ab_tracker:
+                try:
+                    self._ab_tracker.record_task(
+                        task_type=self._infer_task_type(content),
+                        success=review.passed,
+                        has_rules=self._post_processor is not None,
+                    )
+                except Exception:
+                    pass
 
             return SimpleResult(
                 success=True,
@@ -246,6 +260,20 @@ class SimpleExecutor:
         # A2A 执行失败，降级到 Python 内部执行
         logger.warning("A2A 执行失败，降级: %s", event.status.message if event.status else "unknown")
         return None
+
+    @staticmethod
+    def _infer_task_type(description: str) -> str:
+        """从任务描述推断任务类型"""
+        desc = description.lower()
+        if any(kw in desc for kw in ['前端', 'frontend', 'react', 'vue', 'css']):
+            return 'frontend'
+        if any(kw in desc for kw in ['后端', 'backend', 'api', '数据库']):
+            return 'backend'
+        if any(kw in desc for kw in ['测试', 'test', 'spec']):
+            return 'testing'
+        if any(kw in desc for kw in ['部署', 'deploy', 'docker']):
+            return 'devops'
+        return 'general'
 
     def _create_lightweight_project(self, content: str):
         """创建轻量项目容器"""

@@ -30,6 +30,7 @@ class A2APostProcessor:
         dynamic_router=None,
         webhook_manager=None,
         team_synergy=None,
+        ab_tracker=None,
     ):
         self._experience = experience_extractor
         self._profiles = agent_profile_manager
@@ -37,6 +38,7 @@ class A2APostProcessor:
         self._router = dynamic_router
         self._webhooks = webhook_manager
         self._synergy = team_synergy
+        self._ab_tracker = ab_tracker
 
     async def process(
         self,
@@ -82,6 +84,31 @@ class A2APostProcessor:
         # 6. 团队协同记录
         if self._synergy:
             self._record_synergy(xp_target, task_description, success)
+
+        # 7. A/B 任务类型成功率追踪
+        if self._ab_tracker:
+            try:
+                self._ab_tracker.record_task(
+                    task_type=self._infer_task_type(task_description),
+                    success=success,
+                    has_rules=self._experience is not None,
+                )
+            except Exception:
+                pass
+
+    @staticmethod
+    def _infer_task_type(description: str) -> str:
+        """从任务描述推断任务类型"""
+        desc = description.lower()
+        if any(kw in desc for kw in ['前端', 'frontend', 'react', 'vue', 'css']):
+            return 'frontend'
+        if any(kw in desc for kw in ['后端', 'backend', 'api', '数据库']):
+            return 'backend'
+        if any(kw in desc for kw in ['测试', 'test', 'spec']):
+            return 'testing'
+        if any(kw in desc for kw in ['部署', 'deploy', 'docker']):
+            return 'devops'
+        return 'general'
 
     def _distill_experience(self, task_description: str, result_text: str, agent_id: str):
         """从 A2A 任务结果中提炼经验规则"""

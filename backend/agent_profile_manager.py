@@ -38,13 +38,14 @@ class AgentProfile:
 
 
 class AgentProfileManager:
-    def __init__(self, profiles_dir: str):
+    def __init__(self, profiles_dir: str, event_store=None):
         self._dir = profiles_dir
         self._db_path = os.path.join(profiles_dir, "profiles.db")
         os.makedirs(self._dir, exist_ok=True)
         self._locks: Dict[str, threading.Lock] = {}
         self._locks_lock = threading.Lock()
         self._db = get_db(self._db_path)
+        self._event_store = event_store
 
     def _get_lock(self, agent_id: str) -> threading.Lock:
         with self._locks_lock:
@@ -96,6 +97,26 @@ class AgentProfileManager:
 
     def save_profile(self, profile: AgentProfile) -> None:
         with self._get_lock(profile.agent_id):
+            # 检测 career_stage 变化 → 记录 career_promotion 事件
+            if self._event_store:
+                try:
+                    old_profile = self._get_profile_db(profile.agent_id)
+                    if old_profile and old_profile.career_stage != profile.career_stage:
+                        from evolution_events import EvolutionEvent, new_event_id, _now_iso
+                        self._event_store.record_event(EvolutionEvent(
+                            event_id=new_event_id(),
+                            event_type="career_promotion",
+                            agent_id=profile.agent_id,
+                            timestamp=_now_iso(),
+                            details={
+                                "old_stage": old_profile.career_stage,
+                                "new_stage": profile.career_stage,
+                            },
+                            before_state={"career_stage": old_profile.career_stage},
+                            after_state={"career_stage": profile.career_stage},
+                        ))
+                except Exception:
+                    pass
             self._save_profile_db(profile)
 
     def _save_profile_db(self, profile: AgentProfile) -> None:
@@ -220,10 +241,43 @@ class AgentProfileManager:
         profile.total_xp = sum(s.get("xp", 0) for s in profile.skill_progress.values())
         self._save_profile_db(profile)
 
+        leveled_up = sp["level"] > old_level
+
+        # ── 记录进化事件 ──
+        if self._event_store and xp_gained > 0:
+            try:
+                from evolution_events import EvolutionEvent, new_event_id, _now_iso
+                self._event_store.record_event(EvolutionEvent(
+                    event_id=new_event_id(),
+                    event_type="xp_granted",
+                    agent_id=agent_id,
+                    timestamp=_now_iso(),
+                    details={"xp_gained": xp_gained, "skill_id": skill_id, "new_total_xp": profile.total_xp},
+                    before_state={"total_xp": profile.total_xp - xp_gained},
+                    after_state={"total_xp": profile.total_xp},
+                ))
+            except Exception:
+                pass
+
+        if self._event_store and leveled_up:
+            try:
+                from evolution_events import EvolutionEvent, new_event_id, _now_iso
+                self._event_store.record_event(EvolutionEvent(
+                    event_id=new_event_id(),
+                    event_type="skill_level_up",
+                    agent_id=agent_id,
+                    timestamp=_now_iso(),
+                    details={"skill_id": skill_id, "old_level": old_level, "new_level": sp["level"]},
+                    before_state={"level": old_level},
+                    after_state={"level": sp["level"]},
+                ))
+            except Exception:
+                pass
+
         return {
             "xp_gained": xp_gained,
             "new_level": sp["level"],
-            "leveled_up": sp["level"] > old_level,
+            "leveled_up": leveled_up,
             "skill_id": skill_id,
         }
 

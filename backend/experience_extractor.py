@@ -4,6 +4,8 @@
 支持规则审核流程和基于关键词的检索。
 """
 
+import asyncio
+import json as _json_stdlib
 import logging
 import os
 import re
@@ -11,7 +13,7 @@ import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import yaml
 
@@ -126,13 +128,17 @@ class ExperienceExtractor:
     将通过审核的规则写入技能增量区。
     """
 
-    def __init__(self, incremental_dir: str):
+    def __init__(self, incremental_dir: str, llm_caller: Optional[Callable] = None, event_store=None):
         """初始化经验提炼器
 
         Args:
             incremental_dir: 技能增量区根目录
+            llm_caller: 可选的 LLM 调用函数 (prompt: str) -> str。
+                        提供后启用 LLM 蒸馏；为 None 时跳过 LLM 蒸馏。
+            event_store: 可选的 EvolutionEventStore 实例，用于记录进化事件
         """
         self._incremental_dir = incremental_dir
+        self._llm_caller = llm_caller
         self._rules_dir = os.path.join(incremental_dir, "rules")
         self._demotion_log_path = os.path.join(incremental_dir, "demotion_log.json")
         os.makedirs(self._rules_dir, exist_ok=True)
@@ -141,6 +147,7 @@ class ExperienceExtractor:
         self._db_path = os.path.join(incremental_dir, "rules.db")
         self._db = get_db(self._db_path)
         self._lock = threading.Lock()
+        self._event_store = event_store
 
     # ──────────────────── 规则存储 (SQLite) ────────────────────
 
@@ -212,16 +219,151 @@ class ExperienceExtractor:
         rows = self._db.execute("SELECT rule_id FROM experience_rules").fetchall()
         return [r["rule_id"] for r in rows]
 
+    # ──────────────────── LLM 蒸馏 ────────────────────
+
+    async def _llm_distill(
+        self, task_description: str, result_text: str, context: str = ""
+    ) -> List[ExperienceRule]:
+        """Use LLM to extract reusable experience rules from task execution.
+
+        Args:
+            task_description: 任务描述
+            result_text: 执行结果文本
+            context: 额外上下文（如讨论、审查反馈等）
+
+        Returns:
+            LLM 蒸馏出的经验规则列表；失败时返回空列表。
+        """
+        if self._llm_caller is None:
+            return []
+
+        prompt = (
+            "你是一位经验提炼专家。请从以下任务执行记录中提炼出可复用的经验规则。\n\n"
+            f"## 任务描述\n{task_description}\n\n"
+            f"## 执行结果\n{result_text[:2000]}\n"
+        )
+        if context:
+            prompt += f"\n## 额外上下文\n{context[:1000]}\n"
+
+        prompt += (
+            "\n请提取 1-5 条经验规则，输出严格的 JSON 数组（不要 markdown 代码块），"
+            "每条规则格式：\n"
+            '{"trigger_condition": "触发条件", "action": "建议动作", '
+            '"note": "补充说明", "rule_type": "success_pattern|failure_avoidance|correction_tip", '
+            '"keywords": ["关键词1", "关键词2"]}\n\n'
+            "规则应尽可能通用、可跨项目复用。只输出 JSON 数组，不要其他内容。"
+        )
+
+        try:
+            if asyncio.iscoroutinefunction(self._llm_caller):
+                raw = await asyncio.wait_for(self._llm_caller(prompt), timeout=30)
+            else:
+                loop = asyncio.get_running_loop()
+                raw = await asyncio.wait_for(
+                    loop.run_in_executor(None, self._llm_caller, prompt), timeout=30
+                )
+        except Exception:
+            logger.debug("LLM distillation call failed", exc_info=True)
+            return []
+
+        # 解析 LLM 响应
+        return self._parse_llm_rules(raw)
+
+    def _parse_llm_rules(self, raw: str) -> List[ExperienceRule]:
+        """Parse LLM JSON response into ExperienceRule objects.
+
+        Handles markdown code blocks and malformed JSON gracefully.
+        """
+        text = raw.strip()
+        # 剥离 markdown 代码块
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*\n?", "", text)
+            text = re.sub(r"\n?```\s*$", "", text)
+            text = text.strip()
+
+        try:
+            items = _json_stdlib.loads(text)
+        except _json_stdlib.JSONDecodeError:
+            # 尝试提取第一个 JSON 数组
+            m = re.search(r"\[.*\]", text, re.DOTALL)
+            if not m:
+                logger.debug("LLM distillation: no JSON array found in response")
+                return []
+            try:
+                items = _json_stdlib.loads(m.group())
+            except _json_stdlib.JSONDecodeError:
+                logger.debug("LLM distillation: failed to parse JSON from response")
+                return []
+
+        if not isinstance(items, list):
+            return []
+
+        rules: List[ExperienceRule] = []
+        task_type = self._infer_task_type(task_description="")
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            trigger = item.get("trigger_condition", "")
+            action = item.get("action", "")
+            if not trigger or not action:
+                continue
+            rules.append(
+                ExperienceRule(
+                    rule_id=_new_rule_id(),
+                    trigger_condition=str(trigger)[:300],
+                    action=str(action)[:300],
+                    note=str(item.get("note", ""))[:200],
+                    source_task_id="llm_distill",
+                    source_task_type=str(item.get("rule_type", "success_pattern")),
+                    rule_type=str(item.get("rule_type", "success_pattern")),
+                    status="pending_review",
+                    keywords=item.get("keywords", []) if isinstance(item.get("keywords"), list) else [],
+                    created_at=_now_iso(),
+                    source_agent_id="llm_distill",
+                )
+            )
+        return rules
+
+    def _try_llm_distill_sync(
+        self, task_description: str, result_text: str, context: str = ""
+    ) -> List[ExperienceRule]:
+        """Sync wrapper to try LLM distillation. Returns empty list on any failure."""
+        if self._llm_caller is None:
+            return []
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        try:
+            if loop and loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(
+                        asyncio.run,
+                        self._llm_distill(task_description, result_text, context),
+                    )
+                    return future.result(timeout=35)
+            else:
+                return asyncio.run(
+                    self._llm_distill(task_description, result_text, context)
+                )
+        except Exception:
+            logger.debug("LLM distillation sync wrapper failed", exc_info=True)
+            return []
+
     # ──────────────────── 经验提炼 ────────────────────
 
     def extract_from_success(self, log: ExecutionLog) -> List[ExperienceRule]:
         """从成功执行日志中提炼经验
 
         提炼逻辑：
-        1. 提取任务类型和关键步骤
-        2. 识别"关键决策点"（如选择特定方案）
-        3. 生成"当遇到 [条件] 时，执行 [动作]"的规则
-        4. 提取关键词标签
+        1. 尝试 LLM 蒸馏（优先，更通用的规则）
+        2. 若 LLM 失败，回退到模板提取
+        3. 提取任务类型和关键步骤
+        4. 识别"关键决策点"（如选择特定方案）
+        5. 生成"当遇到 [条件] 时，执行 [动作]"的规则
+        6. 提取关键词标签
 
         Args:
             log: 执行日志
@@ -230,6 +372,32 @@ class ExperienceExtractor:
         """
         if log.status not in ("success", "revision_success"):
             return []
+
+        # 尝试 LLM 蒸馏
+        result_text = log.final_output or ""
+        if log.steps:
+            step_parts = []
+            for s in log.steps:
+                if isinstance(s, dict):
+                    cmd = s.get("command") or s.get("action", "")
+                    if cmd:
+                        step_parts.append(cmd)
+            if step_parts:
+                result_text += "\nSteps: " + " -> ".join(step_parts[:10])
+
+        llm_rules = self._try_llm_distill_sync(log.task_description, result_text)
+        if llm_rules:
+            # 保存 LLM 蒸馏规则
+            for rule in llm_rules:
+                self._save_rule(rule)
+            logger.info(
+                "LLM distillation produced %d rules for task %s",
+                len(llm_rules),
+                log.task_id,
+            )
+            return llm_rules
+
+        # 回退到模板提取
 
         rules: List[ExperienceRule] = []
         keywords = _extract_keywords_from_steps(log.steps, log.task_type)
@@ -419,6 +587,20 @@ class ExperienceExtractor:
         rule.status = "pending_review"
         self._save_rule(rule)
         logger.info("Rule %s submitted for review", rule.rule_id)
+        # 记录 rule_created 事件
+        if self._event_store:
+            try:
+                from evolution_events import EvolutionEvent, new_event_id
+                self._event_store.record_event(EvolutionEvent(
+                    event_id=new_event_id(),
+                    event_type="rule_created",
+                    agent_id=rule.source_agent_id or "",
+                    timestamp=_now_iso(),
+                    details={"rule_id": rule.rule_id, "rule_type": rule.rule_type},
+                    task_id=rule.source_task_id,
+                ))
+            except Exception:
+                pass
         return rule.rule_id
 
     def approve_rule(self, rule_id: str, reviewer_comment: str = "") -> bool:
@@ -440,6 +622,21 @@ class ExperienceExtractor:
             rule.note = f"{rule.note}\n[审核意见] {reviewer_comment}"
         self._save_rule(rule)
         logger.info("Rule %s approved", rule_id)
+        # 记录 rule_approved 事件
+        if self._event_store:
+            try:
+                from evolution_events import EvolutionEvent, new_event_id
+                self._event_store.record_event(EvolutionEvent(
+                    event_id=new_event_id(),
+                    event_type="rule_approved",
+                    agent_id=rule.source_agent_id or "",
+                    timestamp=_now_iso(),
+                    details={"rule_id": rule_id, "rule_type": rule.rule_type},
+                    before_state={"status": "pending_review"},
+                    after_state={"status": "approved"},
+                ))
+            except Exception:
+                pass
         return True
 
     def reject_rule(self, rule_id: str, reason: str) -> bool:
@@ -672,6 +869,27 @@ class ExperienceExtractor:
         logger.info("Rule %s 进化为 %s (evolution_count=%d)",
                      rule.rule_id, evolved.rule_id, evolved.evolution_count)
 
+        # 记录 rule_evolved 事件
+        if self._event_store:
+            try:
+                from evolution_events import EvolutionEvent, new_event_id
+                self._event_store.record_event(EvolutionEvent(
+                    event_id=new_event_id(),
+                    event_type="rule_evolved",
+                    agent_id=rule.source_agent_id or "",
+                    timestamp=_now_iso(),
+                    details={
+                        "original_rule_id": rule.rule_id,
+                        "evolved_rule_id": evolved.rule_id,
+                        "original_score": rule.effectiveness_score,
+                        "evolution_count": evolved.evolution_count,
+                    },
+                    before_state={"rule_id": rule.rule_id, "action": rule.action},
+                    after_state={"rule_id": evolved.rule_id, "action": evolved.action},
+                ))
+            except Exception:
+                pass
+
         # 记录进化日志
         self._append_evolution_log(rule, evolved, failure_reason)
 
@@ -903,6 +1121,21 @@ class ExperienceExtractor:
             reason = f"score={rule.effectiveness_score:.2f} ({rule.success_count}/{rule.usage_count}) < {self.DEMOTION_THRESHOLD:.0%} threshold"
             logger.warning("Rule %s auto-demoted: %s", rule_id, reason)
             self._append_demotion_log(rule, reason)
+            # 记录 rule_demoted 事件
+            if self._event_store:
+                try:
+                    from evolution_events import EvolutionEvent, new_event_id
+                    self._event_store.record_event(EvolutionEvent(
+                        event_id=new_event_id(),
+                        event_type="rule_demoted",
+                        agent_id=rule.source_agent_id or "",
+                        timestamp=_now_iso(),
+                        details={"rule_id": rule_id, "reason": reason, "score": rule.effectiveness_score},
+                        before_state={"status": "approved"},
+                        after_state={"status": "pending_review"},
+                    ))
+                except Exception:
+                    pass
         # 规则自进化：低分规则自动生成改进版（独立于降级检查）
         if rule.effectiveness_score < self.EVOLUTION_MIN_SCORE and rule.usage_count >= self.EVOLUTION_MIN_USAGE:
             self._evolve_rule_impl(rule)
@@ -930,6 +1163,21 @@ class ExperienceExtractor:
                 reason = f"batch scan: score={rule.effectiveness_score:.2f} ({rule.success_count}/{rule.usage_count})"
                 logger.warning("Rule %s batch-demoted: %s", rule_id, reason)
                 self._append_demotion_log(rule, reason)
+                # 记录 rule_demoted 事件
+                if self._event_store:
+                    try:
+                        from evolution_events import EvolutionEvent, new_event_id
+                        self._event_store.record_event(EvolutionEvent(
+                            event_id=new_event_id(),
+                            event_type="rule_demoted",
+                            agent_id=rule.source_agent_id or "",
+                            timestamp=_now_iso(),
+                            details={"rule_id": rule_id, "reason": reason, "score": rule.effectiveness_score},
+                            before_state={"status": "approved"},
+                            after_state={"status": "pending_review"},
+                        ))
+                    except Exception:
+                        pass
         return demoted
 
     # ──────────────────── 写入增量区 ────────────────────
@@ -1276,9 +1524,47 @@ class ExperienceExtractor:
                     )
                     rules.append(rule)
 
+        # 3. LLM 蒸馏：在模板提取后尝试，成功则替换模板规则
+        result_text = ""
+        for exec_result in execution_results:
+            output = exec_result.get("output", exec_result.get("final_output", ""))
+            if output:
+                result_text += str(output) + "\n"
+        review_context = ""
+        if review_result.get("reviewer_feedback"):
+            review_context += f"审查反馈: {review_result['reviewer_feedback'][:500]}\n"
+        if review_result.get("monitor_feedback"):
+            review_context += f"监控反馈: {review_result['monitor_feedback'][:500]}\n"
+
+        llm_rules = self._try_llm_distill_sync(task_description, result_text, review_context)
+        if llm_rules:
+            logger.info(
+                "LLM distillation produced %d rules for project %s, replacing %d template rules",
+                len(llm_rules), project_id, len(rules),
+            )
+            rules = llm_rules
+
         # 保存规则
         for rule in rules:
             self._save_rule(rule)
+            # 记录 rule_created 事件
+            if self._event_store:
+                try:
+                    from evolution_events import EvolutionEvent, new_event_id
+                    self._event_store.record_event(EvolutionEvent(
+                        event_id=new_event_id(),
+                        event_type="rule_created",
+                        agent_id=rule.source_agent_id or "",
+                        timestamp=_now_iso(),
+                        details={
+                            "rule_id": rule.rule_id,
+                            "rule_type": rule.rule_type,
+                            "source_task_type": rule.source_task_type,
+                        },
+                        task_id=rule.source_task_id,
+                    ))
+                except Exception:
+                    pass
 
         logger.info("从项目 %s 提取了 %d 条经验规则", project_id, len(rules))
         return rules
