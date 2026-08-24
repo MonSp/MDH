@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1731%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-1759%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
 
 [中文版](README.md) | **English**
@@ -57,6 +57,7 @@ Human feedback isn't "seen and forgotten" — structured review comments are aut
 | 🔧 18 Tools | File, Git, search, testing, documents, web, etc. |
 | 🤖 TS-Python Bridge | Frontend custom agents interoperate with backend AgentScope agents |
 | 🖥️ Local/Remote Hybrid Execution | Each agent independently chooses to execute tools locally (Node.js in browser) or remotely (Python Executor) |
+| 🔗 A2A Execution Node Protocol | Agent-to-Agent protocol for external execution nodes (TS Orchestrator, Claude Code, etc.) — centralized scheduling + distributed execution |
 | 🗳️ Voting Decisions | Proposal → vote → consensus evaluation (multiple strategies) |
 | ✅ Human Approval | Approval flow for high-risk operations (incl. DAG node gate control) |
 | 📸 Checkpoints | Save & restore task execution state |
@@ -121,37 +122,44 @@ docker compose up -d
 | Backend | Python 3.11 + FastAPI + WebSocket |
 | Orchestrator | Node.js + TypeScript (runs user-local) |
 | AI | AgentScope + DeepSeek API |
+| Protocol | A2A (Agent-to-Agent) — centralized scheduling + distributed execution |
 | Tools | Custom tool execution framework (local/remote routing) |
 | Testing | Vitest (TS) + pytest (Python) |
 
 ## System Architecture
 
 ```
-User Browser (Chrome Side Panel)
+User Browser
 ┌─────────────────────────────────────────────────┐
-│  React Frontend (port 8080)                     │
-│  3D virtual office + WebSocket client           │
-└─────────────────────────────────────────────────┘
-        │ WebSocket                    │ HTTP
-        ▼                              ▼
-┌───────────────────┐        ┌───────────────────┐
-│  TS Orchestrator  │        │  Python Backend   │
-│  (port 9090)      │        │  (port 8765)      │
-│  - TeamCoordinator│        │  - CEO Agent      │
-│  - LLM calls      │        │  - Voting/Approval│
-│  - Local tools    │        │  - Skill evolution│
-│  - Remote routing │        │                   │
-└────────┬──────────┘        └───────────────────┘
-         │ HTTP POST /execute
-         ▼
-┌───────────────────┐
-│  Python Executor  │
-│  (port 8767)      │
-│  - 18 built-in    │
-│    tools          │
-│  - Workspace      │
-│    isolation      │
-└───────────────────┘
+│  React Frontend                                  │
+│  3D virtual office + WebSocket client            │
+└────────────────────────┬─────────────────────────┘
+                         │ WebSocket + REST
+                         ▼
+┌──────────────────────────────────────────────────────────────┐
+│              Python Backend (Agent OS Brain)                   │
+│                                                               │
+│  CEO Agent │ Skill Evo │ Careers │ Assets │ A2A Task Router  │
+│  Meetings  │ Skills    │ Memory  │ Monitor │ State Sync Mgr   │
+│                                                               │
+│  147 REST API endpoints + 41 WebSocket message types          │
+└───────────────────────────┬──────────────────────────────────┘
+                            │ A2A Protocol (HTTP/SSE)
+               ┌────────────┼────────────┐
+               ▼            ▼            ▼
+      ┌──────────────┐ ┌──────────┐ ┌──────────┐
+      │TS Orchestrator│ │Claude Code│ │ Other    │
+      │(A2A Server)  │ │ Adapter  │ │ Adapters │
+      │· Local tools  │ │· CLI wrap│ │          │
+      │· 9 LLM       │ │· Local   │ │          │
+      └──────┬───────┘ └──────────┘ └──────────┘
+             │ HTTP POST
+             ▼
+      ┌──────────────┐
+      │Python Executor│
+      │  (port 8767)  │
+      │  Remote tools │
+      └──────────────┘
 ```
 
 ## Agent Tool System
@@ -227,7 +235,7 @@ Each digital employee has a persistent career profile, accumulating experience a
 # Frontend tests (1726 tests)
 npx vitest run
 
-# Backend tests (1731 tests)
+# Backend tests (1759 tests)
 cd backend && python -m pytest tests/ --timeout=60
 
 # Orchestrator tests (214 tests)

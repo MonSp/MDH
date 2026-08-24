@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1731%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-1759%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
 
 **中文** | [English](README.en.md)
@@ -63,6 +63,7 @@ MDH 是一个**数字员工操作系统**。它不是又一个 AI 聊天工具�
 | 🔧 18 种工具 | 文件、Git、搜索、测试、文档、Web 等 |
 | 🤖 TS-Python 桥接 | 前端自定义智能体与后端 AgentScope 智能体互通 |
 | 🖥️ 本地/远端混合执行 | 每个智能体可独立选择在用户浏览器本地(Node.js)或远端(Python Executor)执行工具 |
+| 🔗 A2A 执行节点协议 | Agent-to-Agent 协议接入外部执行节点（TS Orchestrator、Claude Code 等），中心调度 + 分布式执行 |
 | 🗳️ 投票决策 | 提案 → 投票 → 共识评估（支持多种策略） |
 | ✅ 人工审批 | 高危操作的人工审批流程（含 DAG 节点把关门禁） |
 | 📸 检查点 | 任务执行状态的保存与恢复 |
@@ -127,35 +128,44 @@ docker compose up -d
 | 后端 | Python 3.11 + FastAPI + WebSocket |
 | 编排器 | Node.js + TypeScript（用户本地运行） |
 | AI | AgentScope + DeepSeek API |
+| 协议 | A2A (Agent-to-Agent) — 中心调度 + 分布式执行 |
 | 工具 | 自研工具执行框架（支持本地/远端路由） |
 | 测试 | Vitest (TS) + pytest (Python) |
 
 ## 系统架构
 
 ```
-用户浏览器 (Chrome Side Panel)
+用户浏览器
 ┌─────────────────────────────────────────────────┐
-│  React 前端 (端口 8080)                          │
+│  React 前端                                      │
 │  3D 虚拟办公室 + WebSocket 客户端                │
-└─────────────────────────────────────────────────┘
-        │ WebSocket                    │ HTTP
-        ▼                              ▼
-┌───────────────────┐        ┌───────────────────┐
-│  TS Orchestrator  │        │  Python Backend   │
-│  (端口 9090)      │        │  (端口 8765)      │
-│  - TeamCoordinator│        │  - CEO Agent      │
-│  - LLM 调用       │        │  - 投票/审批      │
-│  - 本地工具执行    │        │  - 技能进化       │
-│  - 远端工具路由    │        │                   │
-└────────┬──────────┘        └───────────────────┘
-         │ HTTP POST /execute
-         ▼
-┌───────────────────┐
-│  Python Executor  │
-│  (端口 8767)      │
-│  - 18 种内置工具  │
-│  - 工作区隔离     │
-└───────────────────┘
+└────────────────────────┬────────────────────────┘
+                         │ WebSocket + REST
+                         ▼
+┌──────────────────────────────────────────────────────────────┐
+│                  Python 后端（Agent OS 大脑）                  │
+│                                                               │
+│  CEO Agent │ 经验进化 │ 职业发展 │ 资产管理 │ A2A Task Router │
+│  会议协调   │ 技能管理 │ 记忆系统 │ 监控告警 │ 状态同步管理器  │
+│                                                               │
+│  147 REST API + 41 WebSocket 消息类型                         │
+└───────────────────────────┬──────────────────────────────────┘
+                            │ A2A 协议 (HTTP/SSE)
+               ┌────────────┼────────────┐
+               ▼            ▼            ▼
+      ┌──────────────┐ ┌──────────┐ ┌──────────┐
+      │TS Orchestrator│ │Claude Code│ │ 其他     │
+      │(A2A Server)  │ │ Adapter  │ │ Adapter  │
+      │· 本地工具执行 │ │· CLI 包装 │ │          │
+      │· 9 LLM 提供商│ │· 本地状态 │ │          │
+      └──────┬───────┘ └──────────┘ └──────────┘
+             │ HTTP POST
+             ▼
+      ┌──────────────┐
+      │Python Executor│
+      │  (端口 8767)  │
+      │  远端工具执行  │
+      └──────────────┘
 ```
 
 ## Agent 工具系统
@@ -231,7 +241,7 @@ custom_roles:
 # 前端测试 (1726 tests)
 npx vitest run
 
-# 后端测试 (1731 tests)
+# 后端测试 (1759 tests)
 cd backend && python -m pytest tests/ --timeout=60
 
 # Orchestrator 测试 (214 tests)
