@@ -256,6 +256,8 @@ a2a_task_router = A2ATaskRouter(a2a_registry)
 a2a_memory = AgentMemory(data_dir=_DATA_DIR)
 a2a_profile_manager = AgentProfileManager(profiles_dir=os.path.join(_DATA_DIR, "agent_profiles"))
 a2a_webhook_manager = WebhookManager(_DATA_DIR)
+from team_synergy import TeamSynergy
+a2a_team_synergy = TeamSynergy(_DATA_DIR)
 state_sync = StateSyncManager(
     experience_extractor=experience_extractor,
     memory_manager=a2a_memory,
@@ -266,6 +268,7 @@ a2a_post_processor = A2APostProcessor(
     dynamic_router=dynamic_router,
     agent_profile_manager=a2a_profile_manager,
     webhook_manager=a2a_webhook_manager,
+    team_synergy=a2a_team_synergy,
 )
 
 simple_executor = SimpleExecutor(
@@ -345,11 +348,11 @@ _init_ws_ctx()
 # ── 后台定时任务 ──
 
 @app.on_event("startup")
-async def _start_a2a_health_check():
-    """每 60 秒检查 A2A 节点健康状态，超时节点标记为 unhealthy"""
+async def _start_background_tasks():
+    """后台定时任务：A2A 健康检查 + 主动式监控"""
     import asyncio
 
-    async def _loop():
+    async def _a2a_health_loop():
         while True:
             try:
                 a2a_registry.check_health(timeout_seconds=120)
@@ -357,7 +360,18 @@ async def _start_a2a_health_check():
                 logger.warning("A2A 健康检查异常: %s", e)
             await asyncio.sleep(60)
 
-    asyncio.create_task(_loop())
+    async def _proactive_monitor_loop():
+        from proactive_monitor import ProactiveMonitor
+        while True:
+            try:
+                monitor = ProactiveMonitor(_DATA_DIR)
+                monitor.run_health_check()
+            except Exception as e:
+                logger.warning("主动式监控异常: %s", e)
+            await asyncio.sleep(300)  # 每 5 分钟
+
+    asyncio.create_task(_a2a_health_loop())
+    asyncio.create_task(_proactive_monitor_loop())
 
 
 # ── 统一异常处理 ──
