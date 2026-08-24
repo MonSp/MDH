@@ -207,6 +207,7 @@ class CeoAgent:
         send_message: Callable[[Dict[str, Any]], Awaitable[None]],
         selected_roles: Optional[list] = None,
         role_locations: Optional[Dict[str, str]] = None,
+        execution_preference: str = "auto",
     ) -> Dict[str, Any]:
         """
         CEO处理用户消息的完整流程
@@ -254,7 +255,7 @@ class CeoAgent:
         await send_message({"type": "path_selected", "path": "simple"})
 
         send_progress = self._send_fn(send_message)
-        result = await self._simple_executor.execute(self._session, content, send_progress)
+        result = await self._simple_executor.execute(self._session, content, send_progress, execution_preference=execution_preference)
 
         if result.retry_with_complex:
             # 升级到复杂路径

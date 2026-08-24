@@ -72,6 +72,7 @@ class SimpleExecutor:
         session,
         content: str,
         on_progress: Callable[[str, str, str], Awaitable[None]],
+        execution_preference: str = "auto",
     ) -> SimpleResult:
         """
         执行简单任务
@@ -97,7 +98,7 @@ class SimpleExecutor:
         # A2A 路由：检查是否有可用的执行节点
         if self._a2a_router and self._a2a_client:
             try:
-                a2a_result = await self._try_a2a_routing(content, on_progress)
+                a2a_result = await self._try_a2a_routing(content, on_progress, execution_preference)
                 if a2a_result:
                     return a2a_result
             except Exception as e:
@@ -141,15 +142,38 @@ class SimpleExecutor:
                 tool_calls=tool_calls,
             )
 
-    async def _try_a2a_routing(self, content: str, on_progress) -> Optional[SimpleResult]:
+    async def _try_a2a_routing(self, content: str, on_progress, execution_preference: str = "auto") -> Optional[SimpleResult]:
         """尝试通过 A2A 协议路由任务到外部执行节点
+
+        路由策略:
+        - execution_preference='python' → 不路由，直接 Python 内部执行
+        - execution_preference='local'/'claude-code' → 强制路由到指定节点
+        - execution_preference='auto' → 仅路由需要本地执行能力的任务（file/git/shell）
 
         Returns:
             SimpleResult 如果成功路由并执行，None 如果需要降级到 Python 内部执行
         """
-        decision = self._a2a_router.route(content)
-        if not decision or decision.confidence < 0.6:
+        # 用户明确要求 Python 内部执行
+        if execution_preference == "python":
             return None
+
+        # 用户强制指定执行节点
+        if execution_preference in ("local", "claude-code"):
+            target_tag = "file" if execution_preference == "local" else "code"
+            decision = self._a2a_router.route(content, prefer_tags=[target_tag])
+        else:
+            # 自动模式：只路由需要本地执行能力的任务
+            decision = self._a2a_router.route(content)
+
+        if not decision or decision.confidence < 0.7:
+            return None
+
+        # 自动模式下，只路由匹配本地执行标签的任务
+        if execution_preference == "auto":
+            local_tags = {"file", "git", "shell", "search", "browser"}
+            if not (set(decision.matched_tags) & local_tags):
+                logger.info("A2A 路由跳过: 任务不需要本地执行能力 (%s)", decision.matched_tags)
+                return None
 
         agent = decision.agent
         logger.info("A2A 路由: %s -> %s (置信度=%.2f, 匹配=%s)",

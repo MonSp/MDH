@@ -132,6 +132,7 @@ async def handle_unified_message(msg, session, ctx):
 
     selected_roles = msg.get("selected_roles", [])
     role_locations = msg.get("role_locations", {})
+    execution_preference = msg.get("execution_preference", "auto")
 
     from approval_manager import ApprovalManager
     from ceo_agent import CeoAgent
@@ -152,7 +153,7 @@ async def handle_unified_message(msg, session, ctx):
     ceo = session._ceo_agent
     async def _run_ceo():
         try:
-            result = await ceo.process_message(content, session.ws.send_json, selected_roles=selected_roles, role_locations=role_locations)
+            result = await ceo.process_message(content, session.ws.send_json, selected_roles=selected_roles, role_locations=role_locations, execution_preference=execution_preference)
             if result:
                 logger.info("CEO处理完成: type=%s path=%s", result.get("type"), result.get("path_used"))
         except Exception as e:
