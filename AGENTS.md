@@ -75,6 +75,7 @@
 | **1.8.3** | 2026-08-26 | A2A 经验闭环修复（AgentProfileManager 接入 + XP 授予目标修正） |
 | **1.8.4** | 2026-08-26 | 集成差距修复（SimpleExecutor 进化管线 + A2A API 签名修正 + Webhook 接入） |
 | **1.8.5** | 2026-08-26 | 集成差距修复续（TeamSynergy 自动记录 + ProactiveMonitor 后台调度） |
+| **1.8.6** | 2026-08-26 | 集成差距修复终章（AssetInjection 接入 MeetingCoordinator + CapabilityBoundary 接入任务流） |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 

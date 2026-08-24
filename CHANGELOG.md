@@ -2,6 +2,14 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.6] - 2026-08-26
+
+### Fixed
+
+**集成差距修复终章（最后 2 个 P2 模块）**
+- **资产注入接入**: `ws_handlers.py` 创建 `build_asset_context` 闭包（绑定 AssetStore + ExperienceExtractor），作为 `asset_context_builder` 传入 MeetingCoordinator
+- **能力边界感知接入**: `StateSyncManager` 新增 `capability_boundary` 参数，`prepare_task_metadata()` 调用 `detect_unknown_domain()` 检测未知领域并注入 metadata 警告
+
 ## [1.8.5] - 2026-08-26
 
 ### Fixed
