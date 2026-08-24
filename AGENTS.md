@@ -1346,44 +1346,50 @@ EXECUTOR_TOKEN=
 
 ## 运行时进程架构
 
-系统运行时包含 3 个独立进程：
+系统采用 **Agent OS 架构**：Python 后端作为中心大脑，通过 A2A 协议调度分布式执行节点。
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  用户浏览器 (Chrome Side Panel)                               │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  React 前端 (端口 8080)                              │    │
-│  │  - 3D 虚拟办公室                                     │    │
-│  │  - WebSocket 客户端                                  │    │
-│  │  - Per-Agent Location 选择 UI                        │    │
-│  └─────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-        │ WebSocket                          │ HTTP
-        ▼                                    ▼
-┌───────────────────────┐          ┌───────────────────────┐
-│  TS Orchestrator      │          │  Python Backend       │
-│  (端口 9090)          │          │  (端口 8765)          │
-│  - TeamCoordinator    │          │  - MeetingCoordinator │
-│  - LLM 调用           │          │  - CEO Agent          │
-│  - 本地工具执行        │          │  - 投票/审批          │
-│  - 远端工具路由        │          │  - 技能进化           │
-└───────────┬───────────┘          └───────────────────────┘
-            │ HTTP POST /execute
-            ▼
-┌───────────────────────┐
-│  Python Executor      │
-│  (端口 8767)          │
-│  - ToolExecutor       │
-│  - 18 种内置工具      │
-│  - 工作区隔离         │
-└───────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  用户浏览器                                                    │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │  React 前端                                           │    │
+│  │  - 3D 虚拟办公室 + A2A 管理面板                       │    │
+│  │  - WebSocket 客户端（只连 Python 后端）               │    │
+│  └──────────────────────────┬───────────────────────────┘    │
+└─────────────────────────────┼────────────────────────────────┘
+                              │ WebSocket + REST
+                              ▼
+┌──────────────────────────────────────────────────────────────┐
+│              Python 后端（Agent OS 大脑）:8765                 │
+│                                                               │
+│  CEO Agent │ 经验进化 │ 职业发展 │ A2A Task Router           │
+│  会议协调   │ 技能管理 │ 记忆系统 │ State Sync Manager        │
+│  147 REST API + 41 WebSocket 消息类型                         │
+└───────────────────────────┬──────────────────────────────────┘
+                            │ A2A 协议 (HTTP/SSE)
+               ┌────────────┼────────────┐
+               ▼            ▼            ▼
+      ┌──────────────┐ ┌──────────┐ ┌──────────┐
+      │TS Orchestrator│ │Claude Code│ │ 其他     │
+      │  :9090       │ │ Adapter  │ │ Adapter  │
+      │· 本地工具执行 │ │  :9091   │ │          │
+      │· 9 LLM 提供商│ │· CLI 包装 │ │          │
+      └──────┬───────┘ └──────────┘ └──────────┘
+             │ HTTP POST
+             ▼
+      ┌──────────────┐
+      │Python Executor│
+      │  (端口 8767)  │
+      │  远端工具执行  │
+      └──────────────┘
 ```
 
-| 进程 | 技术 | 端口 | 职责 |
+| 组件 | 技术 | 端口 | 职责 |
 |------|------|------|------|
-| **React 前端** | React + TypeScript | 8080 | UI、WebSocket 客户端 |
-| **TS Orchestrator** | Node.js + TypeScript | 9090 | 本地 LLM 调用、团队管理、本地工具执行 |
-| **Python Backend** | Python + FastAPI | 8765 | 智能体协调（CEO 拆解/团队组装/审查）、投票审批（辅助）、技能进化 |
+| **React 前端** | React + TypeScript | 8080/5173 | UI、WebSocket 客户端、A2A 管理面板 |
+| **Python 后端** | Python + FastAPI | 8765 | Agent OS 大脑：智能体协调、经验进化、职业发展、A2A 任务路由 |
+| **TS Orchestrator** | Node.js + TypeScript | 9090 | A2A 执行节点：本地工具执行、多提供商 LLM 路由 |
+| **Claude Code Adapter** | Node.js | 9091 | A2A 执行节点：Claude Code CLI 包装 |
 | **Python Executor** | Python + FastAPI | 8767 | 远端工具执行、工作区隔离 |
 
 ---
@@ -1439,113 +1445,58 @@ cd backend && python -m pytest tests/ --timeout=10
 - 通过 WebSocket 复用现有连接，新增 `bridge_*` 消息类型
 - 维护 TS_ID ↔ PY_ID 双向映射
 
-### 2. 本地/远端智能体混合执行架构
+### 2. Agent OS + A2A 执行节点架构（v1.7.0+）
 
-MDH 支持每个智能体实例独立选择工具执行位置，实现灵活的本地/远端混合执行：
+MDH 采用 Agent OS 架构：Python 后端作为中心大脑，通过 A2A 协议调度分布式执行节点。
 
-#### 架构概览
+#### 架构
 
 ```
-用户浏览器 (Chrome Side Panel)
-┌─────────────────────────────────────────────────────────────┐
-│  TS Orchestrator (Node.js, 端口 9090)                        │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  TeamCoordinator                                    │    │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐            │    │
-│  │  │ Agent A │  │ Agent B │  │ Agent C │  ...        │    │
-│  │  │ local   │  │ remote  │  │ local   │            │    │
-│  │  └────┬────┘  └────┬────┘  └────┬────┘            │    │
-│  │       │            │            │                  │    │
-│  │  ┌────▼────┐  ┌────▼────┐  ┌────▼────┐            │    │
-│  │  │ Local   │  │ Router  │  │ Local   │            │    │
-│  │  │ Toolkit │  │ Factory │  │ Toolkit │            │    │
-│  │  └─────────┘  └────┬────┘  └─────────┘            │    │
-│  └─────────────────────┼───────────────────────────────┘    │
-│                        │                                     │
-└────────────────────────┼─────────────────────────────────────┘
-                         │ HTTP POST /execute
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Python Executor (端口 8767)                                  │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  RemoteToolkitRouter → ToolExecutor                 │    │
-│  │  (文件操作、Git、搜索、测试等)                         │    │
-│  └─────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
+Python 后端（大脑）
+  │ A2A 协议 (HTTP/SSE)
+  ├── TS Orchestrator (:9090) — 本地工具执行 + 9 LLM 提供商
+  ├── Claude Code Adapter (:9091) — Claude Code CLI 包装
+  └── 其他 Adapter — 可扩展
 ```
 
 #### 核心组件
 
 | 组件 | 文件 | 职责 |
 |------|------|------|
-| **IToolkitRouter** | `orchestrator/src/toolkit/router.ts` | 工具路由接口 + RouterFactory 工厂 |
-| **LocalToolkitRouter** | `orchestrator/src/toolkit/local.ts` | 本地 Node.js 执行 (child_process) |
+| **A2A Registry** | `backend/a2a_registry.py` | 执行节点注册中心，心跳检测，JSON 持久化 |
+| **A2A Client** | `backend/a2a_client.py` | 向执行节点发送任务，SSE 流式接收结果 |
+| **A2A Task Router** | `backend/a2a_task_router.py` | 按技能标签+成功率路由任务到最优节点 |
+| **State Sync** | `backend/state_sync.py` | 任务前经验注入 + 任务后记忆回传 |
+| **A2A Server (TS)** | `orchestrator/src/a2a/server.ts` | Agent Card + SSE 任务端点 |
+| **Claude Code Adapter** | `adapters/claude-code/src/` | Claude Code CLI A2A 包装 |
+
+#### 工具路由
+
+TS Orchestrator 内部仍保留工具路由能力：
+
+| 路由器 | 文件 | 说明 |
+|--------|------|------|
+| **LocalToolkitRouter** | `orchestrator/src/toolkit/local.ts` | 本地 Node.js 执行 |
 | **RemoteToolkitRouter** | `orchestrator/src/toolkit/remote.ts` | 远端 Python Executor HTTP 调用 |
-| **HybridToolkitRouter** | `orchestrator/src/toolkit/hybrid.ts` | 混合路由策略 |
-| **ExecutorClient** | `orchestrator/src/executor/client.ts` | Python Executor HTTP 客户端 |
+| **HybridToolkitRouter** | `orchestrator/src/toolkit/hybrid.ts` | 按工具类型混合路由 |
 
-#### Per-Agent 路由机制
-
-每个 TeamMember 独立标记 `location: 'local' | 'remote'`，RouterFactory 按 `member.location` 返回对应 router：
-
-```typescript
-// orchestrator/src/toolkit/router.ts
-interface IToolkitRouter {
-  executeToolCall(call: ToolCall): Promise<ToolResult>;
-}
-
-class RouterFactory {
-  constructor(
-    private localRouter: LocalToolkitRouter,
-    private remoteRouter: RemoteToolkitRouter
-  ) {}
-
-  getRouterForMember(member: TeamMember): IToolkitRouter {
-    return member.location === 'local' 
-      ? this.localRouter 
-      : this.remoteRouter;
-  }
-}
-```
-
-#### 前端 UI 集成
-
-CeoChatPanel.tsx 提供 Per-Agent Location 选择：
-
-- `roleLocations` state: `Record<string, 'local' | 'remote'>`
-- 每个已选角色旁有独立 💻(本地) / ☁️(远端) 徽章
-- WebSocket 发送 `role_locations` alongside meeting start
-- 用户可任意组合 team 成员的执行位置
-
-#### 执行流程
+#### 执行流程（v1.7.0+）
 
 ```
-1. 用户在前端选择角色 + 位置 (local/remote)
-2. 前端发送 start_meeting + role_locations
-3. Orchestrator 创建 Team，每个 member 带 location 标记
-4. Coordinator 调用工具时:
-   - local → LocalToolkitRouter → Node.js child_process 执行
-   - remote → RemoteToolkitRouter → HTTP POST 到 Python Executor
-5. 结果统一返回给 LLM 继续推理
-```
-
-#### 配置方式
-
-```bash
-# CLI 启动时指定默认路由
-node orchestrator/src/cli.ts --executor=http://localhost:8767
-
-# 环境变量
-EXECUTOR_URL=http://localhost:8767
-EXECUTOR_TOKEN=your_token_here
+1. 用户发送任务到 Python 后端（WebSocket）
+2. CeoAgent 分析意图，决定执行路径
+3. 如需本地执行：A2A Task Router 选择最优执行节点
+4. State Sync 注入相关经验规则
+5. A2A Client 发送任务到执行节点（SSE 流式）
+6. 执行节点完成任务，结果回传
+7. State Sync 写入记忆，更新经验有效性
 ```
 
 #### 安全机制
 
+- **SSRF 防护**: 注册端点禁止内网/回环地址
 - **API Token 认证**: Executor 通过 Bearer token 验证请求
-- **工作区隔离**: 每个智能体独立工作区目录
-- **路径遍历保护**: 所有文件操作限制在工作区内
-- **Shell 命令白名单**: 只允许预定义的安全命令
+- **心跳健康检查**: 每 60 秒检查节点状态，超时标记为 unhealthy
 
 ### 3. 讨论与投票决策系统（辅助机制）
 

@@ -17,6 +17,7 @@ import RoleEditorPanel from '../office-team/RoleEditorPanel'
 import HistoryPanel from '../office-team/HistoryPanel'
 import SkillMarketplace from '../office-team/SkillMarketplace'
 import AssetBrowserPanel from '../office-team/AssetBrowserPanel'
+import A2AAgentPanel from '../office-team/A2AAgentPanel'
 import SkillEvolutionPanel from '../skill-evolution/SkillEvolutionPanel'
 import TaskList from './TaskList'
 
@@ -37,7 +38,7 @@ interface MeetingPanelProps {
   restoredState: any
   auditLog: any[]
   taskInput: string
-  meetingTab: 'chat' | 'files' | 'skills' | 'vote' | 'assets'
+  meetingTab: 'chat' | 'files' | 'skills' | 'vote' | 'assets' | 'a2a'
   wsRef: React.MutableRefObject<WebSocket | null>
   onEndMeeting: () => void
   onSetMeetingTab: (tab: 'chat' | 'files' | 'skills' | 'vote' | 'assets') => void
@@ -103,7 +104,7 @@ export default function MeetingPanel(props: MeetingPanelProps) {
 
         {/* Tab 栏 */}
         <div style={styles.meetingTabBar}>
-          {([['chat', '💬 对话'], ['files', '📄 文件'], ['skills', '🧬 技能进化'], ['vote', '🗳️ 投票'], ['assets', '🧠 资产']] as const).map(([key, label]) => (
+          {([['chat', '💬 对话'], ['files', '📄 文件'], ['skills', '🧬 技能进化'], ['vote', '🗳️ 投票'], ['assets', '🧠 资产'], ['a2a', '🔗 执行节点']] as const).map(([key, label]) => (
             <button
               key={key}
               onClick={() => onSetMeetingTab(key)}
@@ -173,6 +174,8 @@ export default function MeetingPanel(props: MeetingPanelProps) {
             </div>
           ) : meetingTab === 'assets' ? (
             <AssetBrowserPanel />
+          ) : meetingTab === 'a2a' ? (
+            <A2AAgentPanel />
           ) : (
             <SkillEvolutionPanel />
           )}
