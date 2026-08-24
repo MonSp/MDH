@@ -2,6 +2,16 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.8.2] - 2026-08-26
+
+### Fixed
+
+**A2A 路由质量提升**
+- 路由置信度阈值从 0.6 提升到 0.7
+- 自动模式下只路由需要本地执行能力的任务（file/git/shell/search/browser 标签匹配），纯编码任务留在 Python 内部执行
+- `execution_preference` 字段端到端传递：前端 → ws_handlers → ceo_agent → simple_executor → A2A 路由决策
+- 支持 4 种模式：auto（智能路由）/ local（强制本地）/ claude-code（强制 Claude Code）/ python（禁用 A2A）
+
 ## [1.8.1] - 2026-08-26
 
 ### Added
