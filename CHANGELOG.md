@@ -2,6 +2,35 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.5.2] - 2026-08-27
+
+### Fixed
+
+**代码审查 Critical + Important 修复（14 项）**
+
+Critical (4):
+- 修复 `meeting_coordinator.py` 未定义 `status_value` 导致的 NameError（删除死代码）
+- 修复 3 个文档/工作区端点的路径穿越漏洞（`os.path.realpath` 校验）
+- 移除启动日志中的 token 前缀泄露
+- 全局异常处理器返回通用错误信息，不泄露内部细节
+
+Important 后端 (4):
+- 消除 `get_evolution_chain` 的 N+1 查询（单条 SQL 替代逐条加载）
+- 复用 ExperienceExtractor 实例（3 处 per-call 实例化 → 懒初始化单例）
+- ApprovalManager 在 Session 构造时初始化一次（消除 6 处重复实例化）
+- 替换 `__import__("datetime")` 反模式
+
+Important 前端 (6):
+- OnboardingWizard 使用 STORAGE_KEYS 常量替代硬编码
+- OnboardingWizard 加载时显示 spinner
+- App.tsx 定义 WsMessage 判别联合类型
+- App.tsx toolSteps 不可变更新（消除 mutation）
+- CeoChatPanel textarea 添加 aria-label
+- useMeetingSocket console.log 加 DEV 守卫
+
+### Tests
+- 后端 2035 passed，前端 1726 passed，0 failures
+
 ## [0.5.1] - 2026-08-27
 
 ### Fixed

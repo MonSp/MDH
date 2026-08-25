@@ -93,6 +93,7 @@
 | **0.4.1** | 2026-08-27 | 收束修复（flaky test 修复 + 全量零失败 2013 passed） |
 | **0.5.0** | 2026-08-27 | 任务模板库（10 预置模板 + CRUD + 前端集成 + CeoChatPanel 模板按钮） |
 | **0.5.1** | 2026-08-27 | 收束修复（flaky regression test + 全量验证 3977 passed） |
+| **0.5.2** | 2026-08-27 | 代码审查 Critical+Important 修复（14 项：路径穿越/Token泄露/N+1查询/类型安全等） |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
