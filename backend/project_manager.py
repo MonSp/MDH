@@ -83,6 +83,7 @@ class Project:
     brief: dict                 # 项目简报（用户偏好、约束条件）
     created_at: str
     category: str = ""          # 项目分类（如 "软件开发", "AI影视", "数据分析" 等）
+    tenant_id: str = ""         # 所属租户（多租户隔离）
     tasks: list = field(default_factory=list)             # ProjectTask 列表
     skill_packages: list = field(default_factory=list)    # 关联的技能包信息
     employees: list = field(default_factory=list)         # EmployeeInstance 列表
@@ -595,7 +596,7 @@ class ProjectManager:
         """返回所有项目列表。
 
         Returns:
-            项目摘要列表，每个元素包含 project_id、name、status、created_at、category。
+            项目摘要列表，每个元素包含 project_id、name、status、created_at、category、tenant_id。
         """
         return [
             {
@@ -604,6 +605,7 @@ class ProjectManager:
                 "status": p.status,
                 "created_at": p.created_at,
                 "category": p.category,
+                "tenant_id": p.tenant_id,
             }
             for p in self._projects.values()
         ]

@@ -81,9 +81,15 @@ class TenantManager:
             created_at=row["created_at"], api_key=row["api_key"], is_active=bool(row["is_active"]),
         )
 
-    def get_tenant_by_api_key(self, api_key: str) -> Optional[Tenant]:
-        """通过 API key 获取租户（含旧 key 宽限期检查）"""
-        row = self._db.execute("SELECT * FROM tenants WHERE api_key = ? AND is_active = 1", (api_key,)).fetchone()
+    def get_tenant_by_api_key(self, api_key: str, include_inactive: bool = False) -> Optional[Tenant]:
+        """通过 API key 获取租户（含旧 key 宽限期检查）
+
+        Args:
+            api_key: 租户 API key
+            include_inactive: 若为 True，也返回已停用的租户（用于中间件区分 401/403）
+        """
+        active_filter = "" if include_inactive else " AND is_active = 1"
+        row = self._db.execute(f"SELECT * FROM tenants WHERE api_key = ?{active_filter}", (api_key,)).fetchone()
         if row:
             return Tenant(
                 tenant_id=row["tenant_id"], name=row["name"], description=row["description"] or "",
@@ -95,7 +101,7 @@ class TenantManager:
         if prev:
             tenant_id, expires_at = prev
             if time.time() < expires_at:
-                row = self._db.execute("SELECT * FROM tenants WHERE tenant_id = ? AND is_active = 1", (tenant_id,)).fetchone()
+                row = self._db.execute(f"SELECT * FROM tenants WHERE tenant_id = ?{active_filter}", (tenant_id,)).fetchone()
                 if row:
                     return Tenant(
                         tenant_id=row["tenant_id"], name=row["name"], description=row["description"] or "",
