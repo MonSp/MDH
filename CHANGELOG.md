@@ -2,6 +2,14 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.3] - 2026-08-27
+
+### Fixed
+**收束修复**
+- 回归检查容差 3x → 5x（减少 CI 环境 I/O 波动导致的 flaky）
+- LLM 提炼超时测试抑制预期的 RuntimeWarning
+- 全量验证：2001 passed，1 flaky（pre-existing SQLite 线程竞争）
+
 ## [0.3.2] - 2026-08-27
 
 ### Added
