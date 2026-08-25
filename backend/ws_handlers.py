@@ -136,12 +136,9 @@ async def handle_unified_message(msg, session, ctx):
     role_locations = msg.get("role_locations", {})
     execution_preference = msg.get("execution_preference", "auto")
 
-    from approval_manager import ApprovalManager
     from ceo_agent import CeoAgent
 
     if session._ceo_agent is None:
-        if not session._approval_manager:
-            session._approval_manager = ApprovalManager()
         session._ceo_agent = CeoAgent(
             session=session,
             project_manager=ctx.project_manager,
@@ -239,7 +236,6 @@ async def handle_generate_skill_summary(msg, session, ctx):
 
 async def handle_start_meeting(msg, session, ctx):
     from meeting import MeetingSession, MeetingAgentStatus
-    from approval_manager import ApprovalManager
     from ceo_agent import CeoAgent
     from meeting_coordinator import MeetingCoordinator
 
@@ -273,9 +269,6 @@ async def handle_start_meeting(msg, session, ctx):
     workspace = workspace_mgr.create_workspace(task_id=meeting_id, workspace_type=WorkspaceType.STANDALONE)
     session._workspace_manager = workspace_mgr
     session._workspace = workspace
-
-    if not session._approval_manager:
-        session._approval_manager = ApprovalManager()
 
     try:
         await ctx.agent_pool.health_check(timeout=3.0)
@@ -312,8 +305,6 @@ async def handle_start_meeting(msg, session, ctx):
     ctx.active_coordinator = coordinator
 
     if session._ceo_agent is None:
-        if not session._approval_manager:
-            session._approval_manager = ApprovalManager()
         session._ceo_agent = CeoAgent(
             session=session,
             project_manager=ctx.project_manager,
@@ -743,12 +734,9 @@ async def handle_bridge_message(msg, session, ctx):
 
 
 async def handle_human_approval_response(msg, session, ctx):
-    from approval_manager import ApprovalManager
     request_id = msg.get("requestId", "")
     approved = msg.get("approved", False)
     reason = msg.get("reason", "")
-    if not session._approval_manager:
-        session._approval_manager = ApprovalManager()
     success = await session._approval_manager.handle_response(request_id, approved, reason, session.send_and_buffer)
     if not success:
         await session.send_error(f"审批请求 {request_id} 不存在或已处理")
@@ -756,9 +744,6 @@ async def handle_human_approval_response(msg, session, ctx):
 
 
 async def handle_get_pending_approvals(msg, session, ctx):
-    from approval_manager import ApprovalManager
-    if not session._approval_manager:
-        session._approval_manager = ApprovalManager()
     pending = session._approval_manager.get_pending_requests()
     await session.ws.send_json({
         "type": "pending_approvals",
@@ -768,10 +753,7 @@ async def handle_get_pending_approvals(msg, session, ctx):
 
 
 async def handle_request_approval(msg, session, ctx):
-    from approval_manager import ApprovalManager
     from protocol import RiskLevel
-    if not session._approval_manager:
-        session._approval_manager = ApprovalManager()
     risk_map = {"low": RiskLevel.LOW, "medium": RiskLevel.MEDIUM, "high": RiskLevel.HIGH, "critical": RiskLevel.CRITICAL}
     requester_id = msg.get("requesterId", "agent-executor")
     operation = msg.get("operation", "unknown_operation")

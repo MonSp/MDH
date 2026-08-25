@@ -107,6 +107,8 @@ class MeetingCoordinator:
         self._approval_manager = approval_manager
         self._approval_timeout = approval_timeout
         self._asset_context_builder = asset_context_builder
+        self._data_dir = data_dir
+        self._experience_extractor = None  # lazy init
         self.meeting = meeting_session
         self.provider = provider
         self.model_name = model_name
@@ -203,6 +205,14 @@ class MeetingCoordinator:
         if workspace and workspace.root_path:
             from artifact_store import ArtifactStore
             self._artifact_store = ArtifactStore(workspace.root_path)
+
+    def _get_experience_extractor(self):
+        """懒初始化 ExperienceExtractor 实例（复用，避免每次调用新建）"""
+        if self._experience_extractor is None:
+            from experience_extractor import ExperienceExtractor
+            exp_dir = os.path.join(self._data_dir, "experience")
+            self._experience_extractor = ExperienceExtractor(incremental_dir=exp_dir)
+        return self._experience_extractor
 
     # ── 持久化辅助 ──
 
@@ -383,16 +393,6 @@ class MeetingCoordinator:
         """工作流节点状态变化回调（委托给 coordinator_workflow）"""
         from coordinator_workflow import on_workflow_node_status_change
         await on_workflow_node_status_change(self, execution, node_id)
-
-        if self._on_message:
-            ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
-            status_text = f"工作流节点 {node_id} 状态变更: {status_value}"
-            await self._on_message(
-                ceo_id, status_text, "",
-                msg_type="workflow_node_status_update",
-                node_id=node_id,
-                status=status_value,
-            )
 
     def _create_model(self, role: AgentRole) -> Agent:
         """委托给 ModelManager"""
@@ -817,9 +817,7 @@ class MeetingCoordinator:
     ) -> None:
         """根据审查结果更新已注入规则的有效性评分，降级时发出告警"""
         try:
-            from experience_extractor import ExperienceExtractor
-            data_dir = os.path.join(os.path.dirname(__file__), "data")
-            extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
+            extractor = self._get_experience_extractor()
             structured = review_result.get("structured_feedback", {})
             task_success = structured.get("status", "approved") == "approved"
             demoted_rules = []
@@ -1643,11 +1641,9 @@ class MeetingCoordinator:
         injected_rule_ids = []
         mentor_rule_ids = []
         try:
-            from experience_extractor import ExperienceExtractor
             from agent_profile_manager import AgentProfileManager
-            data_dir = os.path.join(os.path.dirname(__file__), "data")
-            extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
-            profile_mgr = AgentProfileManager(os.path.join(data_dir, "agent_profiles"))
+            extractor = self._get_experience_extractor()
+            profile_mgr = AgentProfileManager(os.path.join(self._data_dir, "agent_profiles"))
 
             task_type = extractor._infer_task_type(original_description)
             content_kw = extractor._extract_content_keywords(original_description)
@@ -1695,7 +1691,7 @@ class MeetingCoordinator:
                 "from_agent": from_agent,
                 "to_agent": to_agent,
                 "rule_ids": rule_ids,
-                "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             log = []
             if os.path.isfile(log_path):
@@ -1885,9 +1881,7 @@ class MeetingCoordinator:
 
     async def _run_skill_evolution(self, coordinator_id, user_message, discussion_results, review_result, execution_results):
         try:
-            from experience_extractor import ExperienceExtractor
-            data_dir = os.path.join(os.path.dirname(__file__), "data")
-            extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
+            extractor = self._get_experience_extractor()
             evolution_rules = extractor.extract_from_meeting(
                 project_id=self.meeting.meeting_id, task_description=user_message,
                 discussion_results=discussion_results, review_result=review_result, execution_results=execution_results,

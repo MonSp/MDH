@@ -358,6 +358,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
             ...(isMobile ? { fontSize: 16, padding: '10px 12px' } : {}),
           }}
           placeholder="描述你的任务..."
+          aria-label="任务描述输入框"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}

@@ -1,15 +1,15 @@
 {
   "version": "v0.3.1",
-  "timestamp": "2026-08-25T14:39:20Z",
+  "timestamp": "2026-08-25T15:43:25Z",
   "python_version": "3.13.13 | packaged by Anaconda, Inc. | (main, Apr 14 2026, 06:19:41) [GCC 14.3.0]",
   "benchmarks": {
     "routing": {
       "name": "routing",
       "iterations": 80,
-      "avg_ms": 0.039,
-      "p95_ms": 0.059,
+      "avg_ms": 0.038,
+      "p95_ms": 0.06,
       "min_ms": 0.015,
-      "max_ms": 0.889,
+      "max_ms": 0.932,
       "threshold_avg_ms": 50,
       "threshold_p95_ms": 100
     },
@@ -19,7 +19,7 @@
       "avg_ms": 0.0,
       "p95_ms": 0.001,
       "min_ms": 0.0,
-      "max_ms": 0.004,
+      "max_ms": 0.003,
       "threshold_avg_ms": 5,
       "threshold_p95_ms": 10
     },
@@ -29,27 +29,27 @@
       "avg_ms": 0.005,
       "p95_ms": 0.006,
       "min_ms": 0.003,
-      "max_ms": 0.023,
+      "max_ms": 0.07,
       "threshold_avg_ms": 10,
       "threshold_p95_ms": 20
     },
     "evolution_event_recording": {
       "name": "evolution_event_recording",
       "iterations": 200,
-      "avg_ms": 0.183,
-      "p95_ms": 0.048,
-      "min_ms": 0.015,
-      "max_ms": 26.945,
+      "avg_ms": 0.089,
+      "p95_ms": 0.065,
+      "min_ms": 0.016,
+      "max_ms": 9.437,
       "threshold_avg_ms": 5,
       "threshold_p95_ms": 10
     },
     "ab_tracking": {
       "name": "ab_tracking",
       "iterations": 200,
-      "avg_ms": 37.326,
-      "p95_ms": 49.298,
-      "min_ms": 16.612,
-      "max_ms": 59.163,
+      "avg_ms": 8.909,
+      "p95_ms": 9.965,
+      "min_ms": 6.951,
+      "max_ms": 42.069,
       "threshold_avg_ms": 50,
       "threshold_p95_ms": 75
     },
@@ -57,9 +57,9 @@
       "name": "prometheus_metrics_generation",
       "iterations": 100,
       "avg_ms": 0.214,
-      "p95_ms": 0.288,
-      "min_ms": 0.179,
-      "max_ms": 0.608,
+      "p95_ms": 0.292,
+      "min_ms": 0.183,
+      "max_ms": 0.597,
       "threshold_avg_ms": 10,
       "threshold_p95_ms": 20
     },
@@ -67,9 +67,9 @@
       "name": "ws_rate_limiter_check",
       "iterations": 1000,
       "avg_ms": 0.0,
-      "p95_ms": 0.001,
+      "p95_ms": 0.0,
       "min_ms": 0.0,
-      "max_ms": 0.015,
+      "max_ms": 0.028,
       "threshold_avg_ms": 1,
       "threshold_p95_ms": 2
     }
