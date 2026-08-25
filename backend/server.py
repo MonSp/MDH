@@ -2479,6 +2479,12 @@ async def ws_handler(ws: WebSocket):
             new_task = await ws_handlers.dispatch(msg_type, msg, session, _ws_ctx)
             if new_task is not None:
                 agent_task = new_task
+            # Prometheus: 发送消息计数（handler 执行即视为响应周期完成）
+            try:
+                from prometheus_metrics import WS_MESSAGES
+                WS_MESSAGES.labels(direction="send").inc()
+            except ImportError:
+                pass
             continue
 
     except WebSocketDisconnect:
@@ -3163,38 +3169,25 @@ async def restore_backup(request: Request):
 
 @app.get("/metrics")
 async def metrics():
-    """Prometheus 格式指标"""
+    """Prometheus 格式指标 — 使用 prometheus_client 标准 registry + 补充自定义指标"""
     from llm_cache import llm_cache
     from fastapi.responses import PlainTextResponse
-    cache_stats = llm_cache.stats
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_metrics import WS_CONNECTIONS
 
-    lines = [
-        "# HELP mdh_sessions_active Number of active sessions",
-        "# TYPE mdh_sessions_active gauge",
-        f"mdh_sessions_active {len(sessions)}",
-        "",
-        "# HELP mdh_llm_cache_hits LLM cache hit count",
-        "# TYPE mdh_llm_cache_hits counter",
-        f"mdh_llm_cache_hits {cache_stats['hits']}",
-        "",
-        "# HELP mdh_llm_cache_misses LLM cache miss count",
-        "# TYPE mdh_llm_cache_misses counter",
-        f"mdh_llm_cache_misses {cache_stats['misses']}",
-        "",
-        "# HELP mdh_llm_cache_size LLM cache current size",
-        "# TYPE mdh_llm_cache_size gauge",
-        f"mdh_llm_cache_size {cache_stats['size']}",
-        "",
-        "# HELP mdh_llm_cache_hit_rate LLM cache hit rate",
-        "# TYPE mdh_llm_cache_hit_rate gauge",
-        f"mdh_llm_cache_hit_rate {cache_stats['hit_rate']:.4f}",
-    ]
+    # 更新实时 gauge 指标
+    WS_CONNECTIONS.set(len(sessions))
 
-    # A2A 执行节点指标
+    # A2A 执行节点指标（自定义 gauge，非 prometheus_client 注册）
     a2a_agents = a2a_registry.list_active()
     total_tasks = sum(a.task_count for a in a2a_agents)
     total_success = sum(a.success_count for a in a2a_agents)
-    lines.extend([
+
+    # 从 prometheus_client registry 生成标准指标
+    output = generate_latest().decode("utf-8")
+
+    # 追加自定义 A2A 指标（registry 外的手工行）
+    extra_lines = [
         "",
         "# HELP mdh_a2a_agents_active Number of active A2A execution nodes",
         "# TYPE mdh_a2a_agents_active gauge",
@@ -3211,7 +3204,7 @@ async def metrics():
         "# HELP mdh_a2a_success_rate A2A task success rate",
         "# TYPE mdh_a2a_success_rate gauge",
         f"mdh_a2a_success_rate {(total_success / total_tasks) if total_tasks > 0 else 0:.4f}",
-    ])
+    ]
 
     # A2A 任务耗时统计
     task_logs = a2a_client.get_task_log()
@@ -3220,7 +3213,7 @@ async def metrics():
         if durations:
             avg_duration = sum(durations) / len(durations)
             max_duration = max(durations)
-            lines.extend([
+            extra_lines.extend([
                 "",
                 "# HELP mdh_a2a_task_duration_avg_seconds Average A2A task duration",
                 "# TYPE mdh_a2a_task_duration_avg_seconds gauge",
@@ -3234,14 +3227,15 @@ async def metrics():
     for sid, session in sessions.items():
         meeting = getattr(session, 'meeting_session', None)
         if meeting:
-            lines.extend([
+            extra_lines.extend([
                 "",
                 f'mdh_meeting_agents{{session="{sid}"}} {len(meeting.agents)}',
                 f'mdh_meeting_tasks{{session="{sid}"}} {len(meeting.tasks)}',
                 f'mdh_meeting_messages{{session="{sid}"}} {len(meeting.messages)}',
             ])
 
-    return PlainTextResponse("\n".join(lines))
+    output += "\n".join(extra_lines) + "\n"
+    return PlainTextResponse(output, media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/api/sessions/{session_id}")

@@ -69,6 +69,17 @@ class A2APostProcessor:
         if self._profiles:
             self._grant_xp(xp_target, task_description, success)
 
+        # Prometheus: 任务成功/失败计数
+        try:
+            from prometheus_metrics import TASK_SUCCESS, TASK_FAILURE
+            task_type = self._infer_task_type(task_description)
+            if success:
+                TASK_SUCCESS.labels(task_type=task_type).inc()
+            else:
+                TASK_FAILURE.labels(task_type=task_type).inc()
+        except ImportError:
+            pass
+
         # 3. 记忆写入（归属于数字员工）
         if self._memory:
             self._write_memory(xp_target, task_description, result_text, success, task_id)

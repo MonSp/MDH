@@ -243,6 +243,20 @@ class AgentProfileManager:
 
         leveled_up = sp["level"] > old_level
 
+        # ── Prometheus 计数器 ──
+        if xp_gained > 0:
+            try:
+                from prometheus_metrics import XP_GRANTED
+                XP_GRANTED.inc(xp_gained)
+            except ImportError:
+                pass
+        if leveled_up:
+            try:
+                from prometheus_metrics import SKILL_LEVEL_UPS
+                SKILL_LEVEL_UPS.inc()
+            except ImportError:
+                pass
+
         # ── 记录进化事件 ──
         if self._event_store and xp_gained > 0:
             try:

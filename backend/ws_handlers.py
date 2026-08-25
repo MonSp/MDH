@@ -1041,6 +1041,13 @@ HANDLER_REGISTRY: Dict[str, Callable] = {
 
 async def dispatch(msg_type: str, msg: dict, session, ctx: WSContext) -> Optional[asyncio.Task]:
     """分发 WebSocket 消息到对应的 handler。返回 handler 创建的 Task（如有）。"""
+    # ── Prometheus: 接收消息计数 ──
+    try:
+        from prometheus_metrics import WS_MESSAGES
+        WS_MESSAGES.labels(direction="receive").inc()
+    except ImportError:
+        pass
+
     # ── WebSocket 速率限制 ──
     client_id = session.session_id
     if not ws_limiter.allow(client_id):
