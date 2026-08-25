@@ -11,6 +11,7 @@ import { SkillEvolutionDashboard } from './components/skill-evolution';
 import ApprovalDialog from './components/ApprovalDialog';
 import OfficeTeamMode from './components/OfficeTeamMode/index'
 import ErrorBoundary from './components/ErrorBoundary';
+import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import type { ToolStep } from './components/ToolTree';
 
 import { useWebSocket } from './hooks/useWebSocket';
@@ -47,6 +48,7 @@ function AppContent() {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [pageCtx] = useState({ url: '', title: '' });
   const [ssoUsername] = useState(localStorage.getItem(SSO_KEYS.USERNAME) || '');
+  const [guardKey, setGuardKey] = useState(0); // force re-mount to replay onboarding
   const appMode: AppMode = isTeamMode ? 'team' : 'single';
   const [settingsCfg, setSettingsCfg] = useState<SettingsConfig>({
     agentUrl: AGENT_URL_DEFAULT,
@@ -59,6 +61,7 @@ function AppContent() {
   });
 
   const activeConvRef = useRef<Conversation | null>(null);
+  const onboardingTaskResolver = useRef<((ok: boolean) => void) | null>(null);
 
   const { containerRef: streamRef, scrollToBottom, forceScrollToBottom } = useScroll();
 
@@ -162,6 +165,10 @@ function AppContent() {
         activeConvRef.current = null;
         setConversations(prev => [...prev]);
         scrollToBottom();
+        if (onboardingTaskResolver.current) {
+          onboardingTaskResolver.current(true);
+          onboardingTaskResolver.current = null;
+        }
         break;
       }
       case 'error': {
@@ -172,6 +179,10 @@ function AppContent() {
         activeConvRef.current = null;
         setConversations(prev => [...prev]);
         scrollToBottom();
+        if (onboardingTaskResolver.current) {
+          onboardingTaskResolver.current(false);
+          onboardingTaskResolver.current = null;
+        }
         break;
       }
       case 'skill_list':
@@ -351,7 +362,55 @@ function AppContent() {
     ));
   }, []);
 
+  const executeTaskForOnboarding = useCallback((description: string): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      onboardingTaskResolver.current = resolve;
+
+      const conv: Conversation = {
+        id: 'conv_' + Date.now(),
+        userMessage: description,
+        status: 'running',
+        thinking: '',
+        replyText: '',
+        toolSteps: [],
+        errorMessage: '',
+        thinkCollapsed: false,
+      };
+      activeConvRef.current = conv;
+      setIsProcessing(true);
+      setConversations(prev => [...prev, conv]);
+      forceScrollToBottom();
+
+      if (!send({
+        type: 'user_message',
+        content: description,
+        provider: localStorage.getItem(STORAGE_KEYS.PROVIDER) || undefined,
+        model_name: localStorage.getItem(STORAGE_KEYS.MODEL_NAME) || undefined,
+        api_key: localStorage.getItem(STORAGE_KEYS.API_KEY) || undefined,
+        base_url: localStorage.getItem(STORAGE_KEYS.BASE_URL) || undefined,
+        multimodal: localStorage.getItem(STORAGE_KEYS.MULTIMODAL) !== 'false',
+      })) {
+        conv.status = 'error';
+        conv.errorMessage = '未连接到 AgentScope 后端';
+        setIsProcessing(false);
+        activeConvRef.current = null;
+        setConversations(prev => [...prev]);
+        onboardingTaskResolver.current = null;
+        resolve(false);
+      }
+    });
+  }, [send, forceScrollToBottom]);
+
+  const replayOnboarding = useCallback(() => {
+    // Reset onboarding state on backend and force guard re-mount
+    import('./services/apiFetch').then(({ apiPost }) => {
+      apiPost('/onboarding/reset').catch(() => { /* best-effort */ });
+    });
+    setGuardKey(k => k + 1);
+  }, []);
+
   return (
+    <OnboardingGuard key={guardKey} onExecuteTask={executeTaskForOnboarding}>
     <div className="app-shell">
       <AppHeader
         wsStatus={wsStatus}
@@ -364,6 +423,7 @@ function AppContent() {
         onOpenEvolution={() => setEvolutionDashboardOpen(true)}
         onNewSession={newSession}
         onLogout={logout}
+        onReplayOnboarding={replayOnboarding}
       />
 
       <ErrorBoundary>
@@ -469,6 +529,7 @@ function AppContent() {
         </div>
       )}
     </div>
+    </OnboardingGuard>
   );
 }
 
