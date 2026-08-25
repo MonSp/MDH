@@ -17,6 +17,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 # ── 速率限制 ──
 from rate_limiter import limiter, rate_limit_exceeded_handler, RATE_LIMITS
 from slowapi.errors import RateLimitExceeded
+from tenant_manager import TenantManager
+from tenant_middleware import TenantMiddleware
 
 from config import SKILLS_DIR
 from session import Session
@@ -227,14 +229,20 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse({"detail": "Invalid token"}, status_code=403)
 
 
-app.add_middleware(AuthMiddleware)
-
 sessions: dict[str, Session] = {}
 
 # ──────────────────── 服务实例初始化 ────────────────────
 
 _BASE_DIR = os.path.dirname(__file__)
 _DATA_DIR = os.path.join(_BASE_DIR, "data")
+os.makedirs(_DATA_DIR, exist_ok=True)
+
+# ── 租户管理（全局单例，供中间件和端点共用）──
+tenant_mgr = TenantManager(_DATA_DIR)
+
+# ── 租户上下文中间件（在 Auth 之后添加，请求流经时 Auth 先执行）──
+app.add_middleware(TenantMiddleware, tenant_manager=tenant_mgr)
+app.add_middleware(AuthMiddleware)
 
 skill_registry = SkillRegistry(base_dir=os.path.join(_DATA_DIR, "skill_packages"))
 skill_packager = SkillPackager(
@@ -679,7 +687,11 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @limiter.limit(RATE_LIMITS["read"])
 async def list_projects(request: Request):
     try:
-        return _ok(project_manager.list_projects())
+        tenant_id = getattr(request.state, "tenant_id", None)
+        projects = project_manager.list_projects()
+        if tenant_id:
+            projects = [p for p in projects if p.get("tenant_id") == tenant_id]
+        return _ok(projects)
     except (KeyError, ValueError) as e:
         logger.warning("list_projects 失败 预期错误: %s", e)
         return _fail(str(e))
@@ -694,6 +706,11 @@ async def create_project(request: Request, body: ProjectCreateRequest):
     try:
         brief = {"name": body.name, "description": body.description, "category": body.category}
         project = project_manager.create_project(body.name, brief)
+        # 租户上下文注入
+        tenant_id = getattr(request.state, "tenant_id", None)
+        if tenant_id:
+            project.tenant_id = tenant_id
+            project_manager._save_project(project)
         return _ok(asdict(project))
     except ValueError as e:
         return _fail(str(e))
@@ -888,6 +905,9 @@ def _rule_to_dict(rule) -> dict:
 async def get_all_rules(request: Request):
     try:
         rules = experience_extractor.get_all_rules()
+        tenant_id = getattr(request.state, "tenant_id", None)
+        if tenant_id:
+            rules = [r for r in rules if getattr(r, "team_id", "") == tenant_id]
         return _ok([_rule_to_dict(r) for r in rules])
     except (KeyError, ValueError) as e:
         logger.warning("get_all_rules 失败 预期错误: %s", e)
@@ -1813,6 +1833,10 @@ async def submit_human_feedback(request: Request):
     """提交人类结构化反馈"""
     try:
         body = await request.json()
+        # 租户上下文注入
+        tenant_id = getattr(request.state, "tenant_id", None)
+        if tenant_id:
+            body["tenant_id"] = tenant_id
         from human_feedback import HumanFeedbackManager
         mgr = HumanFeedbackManager(_DATA_DIR, experience_extractor=experience_extractor)
         result = mgr.submit_feedback(body)
@@ -2599,13 +2623,18 @@ async def api_hybrid_team(body: dict):
 
 
 @app.get("/api/employees")
-async def api_employees():
+async def api_employees(request: Request):
     """演示：员工目录列表（employee_id → 显示名/邮箱/职位）。"""
     from employee_directory import get_directory
-    return _ok([
+    tenant_id = getattr(request.state, "tenant_id", None)
+    employees = [
         {"employeeId": e.employee_id, "name": e.name, "email": e.email, "position": e.position}
         for e in get_directory().all()
-    ])
+    ]
+    if tenant_id:
+        # 附加租户上下文（员工目录为全局共享，但响应标识调用者所属租户）
+        return _ok({"employees": employees, "tenant_id": tenant_id})
+    return _ok(employees)
 
 
 @app.post("/api/minutes")
@@ -2966,9 +2995,7 @@ async def create_tenant(request: Request):
     """创建租户"""
     try:
         body = await request.json()
-        from tenant_manager import TenantManager
-        mgr = TenantManager(_DATA_DIR)
-        tenant = mgr.create_tenant(body.get("name", ""), body.get("description", ""))
+        tenant = tenant_mgr.create_tenant(body.get("name", ""), body.get("description", ""))
         return _ok(asdict(tenant), code="TENANT_CREATED")
     except Exception as e:
         logger.exception("create_tenant 失败")
@@ -2980,9 +3007,7 @@ async def create_tenant(request: Request):
 async def list_tenants(request: Request):
     """列出所有租户"""
     try:
-        from tenant_manager import TenantManager
-        mgr = TenantManager(_DATA_DIR)
-        tenants = mgr.list_tenants()
+        tenants = tenant_mgr.list_tenants()
         return _ok({"tenants": [asdict(t) for t in tenants], "total": len(tenants)})
     except Exception as e:
         logger.exception("list_tenants 失败")
@@ -2993,9 +3018,7 @@ async def list_tenants(request: Request):
 async def get_tenant(tenant_id: str):
     """获取租户详情"""
     try:
-        from tenant_manager import TenantManager
-        mgr = TenantManager(_DATA_DIR)
-        tenant = mgr.get_tenant(tenant_id)
+        tenant = tenant_mgr.get_tenant(tenant_id)
         if tenant:
             return _ok(asdict(tenant))
         return _fail("租户不存在", code="TENANT_NOT_FOUND")
@@ -3008,9 +3031,7 @@ async def get_tenant(tenant_id: str):
 async def deactivate_tenant(tenant_id: str):
     """停用租户"""
     try:
-        from tenant_manager import TenantManager
-        mgr = TenantManager(_DATA_DIR)
-        success = mgr.deactivate_tenant(tenant_id)
+        success = tenant_mgr.deactivate_tenant(tenant_id)
         if success:
             return _ok({"deactivated": True}, code="TENANT_DEACTIVATED")
         return _fail("租户不存在", code="TENANT_NOT_FOUND")
