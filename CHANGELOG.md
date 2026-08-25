@@ -2,6 +2,21 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.0] - 2026-08-27
+
+### Added
+
+**可观测性栈**
+- **Prometheus** 接入 Docker Compose（port 9092，30 天数据保留）
+- **11 个新 Prometheus 指标**：LLM 调用/token/缓存、任务成功/失败、进化事件、XP/升级、WS 连接/消息
+- **Grafana** 接入 Docker Compose（port 3000，自动配置 Prometheus 数据源）
+- **4 个预配置仪表盘**：后端健康（6 面板）、Agent 性能（5 面板）、LLM 成本（5 面板）、路由准确率（4 面板）— 共 20 个面板
+- **7 条告警规则**：后端不可用、高错误率、高延迟、LLM 故障、A2A 全离线、成功率低、WS 连接异常
+
+### Tests
+- 新增 15 个 Prometheus 指标测试
+- 后端 1954 passed
+
 ## [0.2.3] - 2026-08-27
 
 ### Fixed
