@@ -58,6 +58,8 @@ from agent_memory import AgentMemory
 from agent_profile_manager import AgentProfileManager
 from webhook_manager import WebhookManager
 from a2a_post_processor import A2APostProcessor
+from onboarding_manager import OnboardingManager
+from onboarding_tasks import get_onboarding_tasks
 
 # ── 请求模型 ──
 from schemas import (
@@ -321,6 +323,7 @@ from team_synergy import TeamSynergy
 from capability_boundary import CapabilityBoundary
 a2a_team_synergy = TeamSynergy(_DATA_DIR)
 a2a_capability_boundary = CapabilityBoundary(data_dir=_DATA_DIR)
+onboarding_mgr = OnboardingManager(_DATA_DIR)
 state_sync = StateSyncManager(
     experience_extractor=experience_extractor,
     memory_manager=a2a_memory,
@@ -3465,6 +3468,44 @@ async def browser_pool_health_check():
     except Exception as e:
         logger.warning("browser_pool_health_check 失败: %s", e)
         return _fail(str(e))
+
+
+# ──────────────────── Onboarding ────────────────────
+
+@app.get("/api/onboarding/state")
+async def onboarding_get_state():
+    """获取引导状态"""
+    return onboarding_mgr.get_state()
+
+
+@app.post("/api/onboarding/step")
+async def onboarding_update_step(body: dict = Body(...)):
+    """更新引导步骤"""
+    step = body.get("step")
+    if not isinstance(step, int):
+        raise HTTPException(status_code=422, detail="step must be an integer")
+    onboarding_mgr.update_step(step)
+    return onboarding_mgr.get_state()
+
+
+@app.post("/api/onboarding/complete")
+async def onboarding_complete():
+    """完成引导"""
+    onboarding_mgr.complete()
+    return onboarding_mgr.get_state()
+
+
+@app.post("/api/onboarding/reset")
+async def onboarding_reset():
+    """重置引导"""
+    onboarding_mgr.reset()
+    return onboarding_mgr.get_state()
+
+
+@app.get("/api/onboarding/tasks")
+async def onboarding_tasks():
+    """获取引导任务列表"""
+    return get_onboarding_tasks()
 
 
 if __name__ == "__main__":

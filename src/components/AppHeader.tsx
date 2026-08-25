@@ -11,6 +11,7 @@ interface AppHeaderProps {
   onOpenEvolution: () => void;
   onNewSession: () => void;
   onLogout: () => void;
+  onReplayOnboarding?: () => void;
 }
 
 const wsStatusMap = {
@@ -31,6 +32,7 @@ export default function AppHeader({
   onOpenEvolution,
   onNewSession,
   onLogout,
+  onReplayOnboarding,
 }: AppHeaderProps) {
   const [isMobile, setIsMobile] = useState(() => {
     try { return window.matchMedia('(max-width: 768px)').matches } catch { return false }
@@ -98,6 +100,11 @@ export default function AppHeader({
               <button className="mobile-menu-btn" onClick={() => { onNewSession(); setMenuOpen(false) }}>
                 ＋ 新建对话
               </button>
+              {onReplayOnboarding && (
+                <button className="mobile-menu-btn" onClick={() => { onReplayOnboarding(); setMenuOpen(false) }}>
+                  🎯 重新体验引导
+                </button>
+              )}
               <button className="mobile-menu-btn" onClick={() => { window.location.href = 'test.html'; setMenuOpen(false) }}>
                 🧪 协议测试
               </button>
@@ -123,6 +130,9 @@ export default function AppHeader({
           <button className="icon-btn" onClick={onOpenSkills} title="Skill 模板">📋</button>
           <button className="icon-btn" onClick={onOpenEvolution} title="技能进化">🧬</button>
           <button className="icon-btn" onClick={onNewSession} title="新建对话">＋</button>
+          {onReplayOnboarding && (
+            <button className="icon-btn" onClick={onReplayOnboarding} title="重新体验引导">🎯</button>
+          )}
           <button className="icon-btn" onClick={() => { window.location.href = 'test.html'; }} title="协议测试">🧪</button>
         </div>
       )}
