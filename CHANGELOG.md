@@ -2,6 +2,19 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.1] - 2026-08-27
+
+### Added
+
+**功能验证 + 性能基准**
+- **22 个 E2E 子系统验证测试**：覆盖全部 20 个核心子系统（DynamicRouter/ComplexityClassifier/SemanticAnalyzer/SimpleExecutor/MeetingCoordinator/WorkflowEngine/ExperienceExtractor/SkillEvolution/AgentProfileManager/A2A 全链路/CapabilityBoundary/StateSync/EvolutionEvent/ABTracker/TenantMiddleware/RateLimiter/Prometheus）
+- **7 个性能基准**：路由(0.038ms) / 缓存(0.000ms) / DB(0.005ms) / 进化事件(0.364ms) / AB追踪(36.2ms) / Prometheus(0.202ms) / WS限流(0.000ms)
+- 基准结果保存至 `backend/data/benchmark_baseline_v0.3.1.json`
+
+### Tests
+- 新增 22 个验证测试 + 7 个基准测试
+- 后端 1983 passed, 1 skipped
+
 ## [0.3.0] - 2026-08-27
 
 ### Added
