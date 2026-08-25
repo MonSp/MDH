@@ -27,3 +27,4 @@ tree_sitter_bash==0.25.1
 jsonschema==4.26.0
 typing-extensions>=4.0.0
 pyyaml>=6.0.0
+slowapi>=0.1.9

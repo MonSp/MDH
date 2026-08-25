@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface AppHeaderProps {
   wsStatus: 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -32,6 +32,23 @@ export default function AppHeader({
   onNewSession,
   onLogout,
 }: AppHeaderProps) {
+  const [isMobile, setIsMobile] = useState(() => {
+    try { return window.matchMedia('(max-width: 768px)').matches } catch { return false }
+  })
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  useEffect(() => {
+    try {
+      const mq = window.matchMedia('(max-width: 768px)')
+      const handler = (e: MediaQueryListEvent) => {
+        setIsMobile(e.matches)
+        if (!e.matches) setMenuOpen(false)
+      }
+      mq.addEventListener('change', handler)
+      return () => mq.removeEventListener('change', handler)
+    } catch { /* test env */ }
+  }, [])
+
   return (
     <header className="header">
       <div className="header-left">
@@ -44,26 +61,71 @@ export default function AppHeader({
           </div>
         )}
       </div>
-      <div className="header-right">
-        <div className="header-status">
-          <span style={{ color: wsStatus === 'connected' ? 'var(--accent)' : '#f88' }}>●</span>
-          {wsStatusMap[wsStatus]}
-        </div>
-        {username && (
-          <div className="user-info">
-            <span>👤</span> {username}
-            <button className="logout-btn" onClick={onLogout}>退出</button>
+      {isMobile ? (
+        <>
+          <button
+            className="icon-btn mobile-hamburger"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="菜单"
+            style={{ fontSize: '1rem' }}
+          >
+            {menuOpen ? '✕' : '☰'}
+          </button>
+          {menuOpen && (
+            <div className="mobile-menu">
+              <div className="mobile-menu-item">
+                <span style={{ color: wsStatus === 'connected' ? 'var(--accent)' : '#f88' }}>●</span>
+                {wsStatusMap[wsStatus]}
+              </div>
+              {username && (
+                <div className="mobile-menu-item">
+                  <span>👤</span> {username}
+                  <button className="logout-btn" onClick={() => { onLogout(); setMenuOpen(false) }}>退出</button>
+                </div>
+              )}
+              <button className="mobile-menu-btn" onClick={() => { onToggleTheme(); setMenuOpen(false) }}>
+                {theme === 'dark' ? '☀' : '🌙'} {theme === 'dark' ? '浅色模式' : '深色模式'}
+              </button>
+              <button className="mobile-menu-btn" onClick={() => { onOpenSettings(); setMenuOpen(false) }}>
+                ⚙ 配置
+              </button>
+              <button className="mobile-menu-btn" onClick={() => { onOpenSkills(); setMenuOpen(false) }}>
+                📋 Skill 模板
+              </button>
+              <button className="mobile-menu-btn" onClick={() => { onOpenEvolution(); setMenuOpen(false) }}>
+                🧬 技能进化
+              </button>
+              <button className="mobile-menu-btn" onClick={() => { onNewSession(); setMenuOpen(false) }}>
+                ＋ 新建对话
+              </button>
+              <button className="mobile-menu-btn" onClick={() => { window.location.href = 'test.html'; setMenuOpen(false) }}>
+                🧪 协议测试
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="header-right">
+          <div className="header-status">
+            <span style={{ color: wsStatus === 'connected' ? 'var(--accent)' : '#f88' }}>●</span>
+            {wsStatusMap[wsStatus]}
           </div>
-        )}
-        <button className="icon-btn" onClick={onToggleTheme} title={theme === 'dark' ? '切换到浅色' : '切换到深色'}>
-          {theme === 'dark' ? '☀' : '🌙'}
-        </button>
-        <button className="icon-btn" onClick={onOpenSettings} title="配置">⚙</button>
-        <button className="icon-btn" onClick={onOpenSkills} title="Skill 模板">📋</button>
-        <button className="icon-btn" onClick={onOpenEvolution} title="技能进化">🧬</button>
-        <button className="icon-btn" onClick={onNewSession} title="新建对话">＋</button>
-        <button className="icon-btn" onClick={() => { window.location.href = 'test.html'; }} title="协议测试">🧪</button>
-      </div>
+          {username && (
+            <div className="user-info">
+              <span>👤</span> {username}
+              <button className="logout-btn" onClick={onLogout}>退出</button>
+            </div>
+          )}
+          <button className="icon-btn" onClick={onToggleTheme} title={theme === 'dark' ? '切换到浅色' : '切换到深色'}>
+            {theme === 'dark' ? '☀' : '🌙'}
+          </button>
+          <button className="icon-btn" onClick={onOpenSettings} title="配置">⚙</button>
+          <button className="icon-btn" onClick={onOpenSkills} title="Skill 模板">📋</button>
+          <button className="icon-btn" onClick={onOpenEvolution} title="技能进化">🧬</button>
+          <button className="icon-btn" onClick={onNewSession} title="新建对话">＋</button>
+          <button className="icon-btn" onClick={() => { window.location.href = 'test.html'; }} title="协议测试">🧪</button>
+        </div>
+      )}
     </header>
   );
 }

@@ -53,6 +53,26 @@ MDH 是一个**数字员工操作系统**。它不是又一个 AI 聊天工具�
 
 ---
 
+## 30秒快速体验
+
+```bash
+# 1. 克隆并配置
+git clone https://github.com/MonSp/MDH.git && cd MDH
+cp .env.example .env
+# 编辑 .env 填入 DEEPSEEK_API_KEY
+
+# 2. Docker 一键启动
+docker compose up -d
+
+# 3. 打开浏览器
+open http://localhost:8080
+
+# 4. 在 CEO Chat 中输入你的第一个任务
+# 例如: '分析当前项目的代码质量并给出改进建议'
+```
+
+---
+
 ## 核心能力
 
 | 能力 | 说明 |
@@ -230,7 +250,7 @@ custom_roles:
 | 📊 前端面板 | 部门卡片网格 + 晋升时间线 + 技能进度条 + 技能树可视化 |
 | 🧭 路由感知 | agent 技能等级影响路由决策，升级驱动部门路由加成（正反馈循环） |
 
-## 生产就绪 (v1.6)
+## 生产就绪 (v0.2.0)
 
 | 能力 | 说明 |
 |------|------|

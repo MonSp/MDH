@@ -9,6 +9,19 @@ import { AGENT_NAMES, AGENT_COLORS, PHASE_LABELS, PHASE_ORDER } from './ceo-cons
 const isElectronMode = isElectron()
 
 export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, onClose }: CeoChatPanelProps) {
+  const [isMobile, setIsMobile] = useState(() => {
+    try { return window.matchMedia('(max-width: 768px)').matches } catch { return false }
+  })
+
+  useEffect(() => {
+    try {
+      const mq = window.matchMedia('(max-width: 768px)')
+      const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+      mq.addEventListener('change', handler)
+      return () => mq.removeEventListener('change', handler)
+    } catch { /* test env */ }
+  }, [])
+
   const [messages, setMessages] = useState<CeoMessage[]>([{
     role: 'ceo',
     content: '你好，我是公司CEO。请告诉我你需要完成什么任务，我会分析需求并组建合适的团队。',
@@ -144,8 +157,18 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
     if (auto) setSelectedRoles([])
   }, [])
 
+  const panelStyle: React.CSSProperties = isMobile
+    ? { ...styles.panel, position: 'fixed', top: 0, right: 0, left: 0, bottom: 0, width: '100%', height: '100%', borderRadius: 0 }
+    : styles.panel
+
+  const inputAreaStyle: React.CSSProperties = isMobile
+    ? { ...styles.inputArea, position: 'sticky', bottom: 0, paddingBottom: 'env(safe-area-inset-bottom, 8px)' }
+    : styles.inputArea
+
+  const msgBubbleMobile: React.CSSProperties = isMobile ? { maxWidth: '95%', fontSize: 14 } : {}
+
   return (
-    <div style={styles.panel}>
+    <div style={panelStyle}>
       <div style={styles.header}>
         <div style={styles.headerLeft}>
           <span style={styles.avatar}>🧠</span>
@@ -205,6 +228,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
               )}
               <div style={{
                 ...styles.msgBubble,
+                ...msgBubbleMobile,
                 ...(msg.role === 'user' ? styles.userBubble : {}),
                 ...(msg.role === 'system' ? styles.systemBubble : {}),
                 ...(msg.role === 'agent' && msg.agentId ? {
@@ -320,9 +344,12 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
         onToggleShow={() => setShowRoleSelector(!showRoleSelector)}
       />
 
-      <div style={styles.inputArea}>
+      <div style={inputAreaStyle}>
         <textarea
-          style={styles.input}
+          style={{
+            ...styles.input,
+            ...(isMobile ? { fontSize: 16, padding: '10px 12px' } : {}),
+          }}
           placeholder="描述你的任务..."
           value={input}
           onChange={e => setInput(e.target.value)}

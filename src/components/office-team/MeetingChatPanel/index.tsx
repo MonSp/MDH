@@ -32,6 +32,18 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
   const chatEndRef = useRef<HTMLDivElement>(null)
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const scrollRaf = useRef<number>(0)
+  const [isMobile, setIsMobile] = useState(() => {
+    try { return window.matchMedia('(max-width: 768px)').matches } catch { return false }
+  })
+
+  useEffect(() => {
+    try {
+      const mq = window.matchMedia('(max-width: 768px)')
+      const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+      mq.addEventListener('change', handler)
+      return () => mq.removeEventListener('change', handler)
+    } catch { /* test env */ }
+  }, [])
   const [feedbackGiven, setFeedbackGiven] = useState<Set<string>>(new Set())
   const [agentProfiles, setAgentProfiles] = useState<Record<string, { skills: Record<string, { level: number }>; department: string }>>({})
   const [feedbackInput, setFeedbackInput] = useState<string | null>(null)
@@ -188,6 +200,14 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
     )
   }
 
+  const chatMessagesStyle: React.CSSProperties = isMobile
+    ? { ...styles.chatMessages, padding: '10px 8px', gap: '8px' }
+    : styles.chatMessages
+
+  const chatHeaderStyle: React.CSSProperties = isMobile
+    ? { ...styles.chatHeader, padding: '8px 10px', flexWrap: 'wrap', gap: '6px' }
+    : styles.chatHeader
+
   const renderMessage = (msg: ChatMessage, index: number) => {
     const agent = getAgentById(msg.agentId)
     const isBoss = msg.role === 'boss'
@@ -239,8 +259,8 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
         }}
       >
         {!isBoss && !isCeo && msg.agentId && (
-          <div style={styles.msgAvatar}>
-            <RoleAvatar role={agent?.role || AgentRole.Planner} size={28} />
+          <div style={{ ...styles.msgAvatar, ...(isMobile ? { width: 22, height: 22 } : {}) }}>
+            <RoleAvatar role={agent?.role || AgentRole.Planner} size={isMobile ? 22 : 28} />
             {agentProfiles[msg.agentId] && (() => {
               const skills = agentProfiles[msg.agentId].skills
               const entries = Object.entries(skills) as [string, { level: number }][]
@@ -255,6 +275,8 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
         )}
         <div style={{
           ...styles.msgBubble,
+          maxWidth: isMobile ? '92%' : '75%',
+          ...(isMobile ? { padding: '6px 10px' } : {}),
           background: isBoss
             ? 'linear-gradient(135deg, #4d9fff 0%, #3b82f6 100%)'
             : isCeo
@@ -338,10 +360,10 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
   }
 
   return (
-    <div style={styles.chatPanel}>
+    <div style={{ ...styles.chatPanel, ...(isMobile ? { minHeight: 0 } : {}) }}>
       {toast && <div style={styles.toast}>{toast}</div>}
-      <div style={styles.chatHeader}>
-        <h3 style={styles.chatTitle}>💬 会议讨论</h3>
+      <div style={chatHeaderStyle}>
+        <h3 style={{ ...styles.chatTitle, ...(isMobile ? { fontSize: '13px' } : {}) }}>💬 会议讨论</h3>
         {agendaPhase && (
           <span style={{
             padding: '2px 8px',
@@ -375,7 +397,7 @@ export default function MeetingChatPanel({ agents, messages, onEndMeeting, agend
           <button style={styles.endMeetingBtn} onClick={onEndMeeting}>结束会议</button>
         </div>
       </div>
-      <div style={styles.chatMessages}>
+      <div style={chatMessagesStyle}>
         {messages.map((msg, index) => renderMessage(msg, index))}
         <div ref={chatEndRef} />
       </div>
