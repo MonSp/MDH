@@ -2,6 +2,25 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.0] - 2026-08-27
+
+### Added
+
+**生产加固**
+- 25 处关键路径 bare except 修复（server.py/meeting_coordinator/simple_executor）
+- HTTP 分组限流（slowapi，6 组：read/write/llm/feedback/admin/websocket）
+- WebSocket 输入校验（37 Pydantic 模型，42 消息类型，64 测试）
+
+**产品体验**
+- README v0.2.0 + 30 秒快速体验
+- API 参考文档（23 类 147+ 端点）
+- CONTRIBUTING.md
+- 前端 4 页面移动端适配（375px）
+
+### Tests
+- 新增 82 个测试（rate_limiter 18 + ws_schemas 64）
+- 后端 1923 passed，前端 1726 passed
+
 ## [0.1.9.0] - 2026-08-27
 
 ### Added
