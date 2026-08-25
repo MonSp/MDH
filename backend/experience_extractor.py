@@ -587,6 +587,12 @@ class ExperienceExtractor:
         rule.status = "pending_review"
         self._save_rule(rule)
         logger.info("Rule %s submitted for review", rule.rule_id)
+        # Prometheus 计数器
+        try:
+            from prometheus_metrics import EVOLUTION_EVENTS
+            EVOLUTION_EVENTS.labels(event_type="rule_created").inc()
+        except ImportError:
+            pass
         # 记录 rule_created 事件
         if self._event_store:
             try:
@@ -622,6 +628,12 @@ class ExperienceExtractor:
             rule.note = f"{rule.note}\n[审核意见] {reviewer_comment}"
         self._save_rule(rule)
         logger.info("Rule %s approved", rule_id)
+        # Prometheus 计数器
+        try:
+            from prometheus_metrics import EVOLUTION_EVENTS
+            EVOLUTION_EVENTS.labels(event_type="rule_approved").inc()
+        except ImportError:
+            pass
         # 记录 rule_approved 事件
         if self._event_store:
             try:
@@ -868,6 +880,13 @@ class ExperienceExtractor:
         self._save_rule(evolved)
         logger.info("Rule %s 进化为 %s (evolution_count=%d)",
                      rule.rule_id, evolved.rule_id, evolved.evolution_count)
+
+        # Prometheus 计数器
+        try:
+            from prometheus_metrics import EVOLUTION_EVENTS
+            EVOLUTION_EVENTS.labels(event_type="rule_evolved").inc()
+        except ImportError:
+            pass
 
         # 记录 rule_evolved 事件
         if self._event_store:

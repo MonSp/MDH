@@ -186,6 +186,12 @@ class LLMCache:
             if now - entry["created_at"] <= entry["ttl"]:
                 entry["hit_count"] += 1
                 self._hits += 1
+                # Prometheus 计数器
+                try:
+                    from prometheus_metrics import LLM_CACHE_HITS
+                    LLM_CACHE_HITS.inc()
+                except ImportError:
+                    pass
                 # 异步更新 DB hit_count（不阻塞）
                 self._update_db_hit_count(key)
                 return entry["response"]
@@ -194,6 +200,12 @@ class LLMCache:
                 self._delete_db_entry(key)
 
         self._misses += 1
+        # Prometheus 计数器
+        try:
+            from prometheus_metrics import LLM_CACHE_MISSES
+            LLM_CACHE_MISSES.inc()
+        except ImportError:
+            pass
         return None
 
     def put(self, prompt: str, response: Any, role: str = "", model: str = "") -> None:
