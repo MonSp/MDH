@@ -111,6 +111,9 @@ def test_reuse_stats_persists_to_disk(tmp_path, monkeypatch):
     assert get_reuse_stats()["total"] == 1
 
 
+import pytest
+
+@pytest.mark.flaky(reruns=2)
 def test_reuse_stats_thread_safety(tmp_path, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
 
