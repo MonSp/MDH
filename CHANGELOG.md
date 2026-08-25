@@ -2,6 +2,21 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.5.0] - 2026-08-27
+
+### Added
+
+**任务模板库**
+- **TaskTemplateManager** 后端（CRUD + 使用统计 + JSON 持久化）
+- **10 个预置模板**：代码审查 / API 设计 / 单元测试 / 文档生成 / Bug 修复 / 代码重构 / 数据库设计 / 部署配置 / 性能优化 / 安全审计
+- **6 个 REST 端点**：GET/POST/PUT/DELETE /api/templates + /use
+- **TaskTemplatePanel** 前端（卡片网格 + 类别过滤 + 搜索 + 展开详情）
+- **CeoChatPanel 集成**：📋 模板按钮 + 下拉面板 + 自动填入输入框
+
+### Tests
+- 新增 22 个模板测试
+- 后端 2035 passed，前端 1726 passed
+
 ## [0.4.1] - 2026-08-27
 
 ### Fixed
