@@ -2,6 +2,13 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.5.1] - 2026-08-27
+
+### Fixed
+**收束修复**
+- 修复 `test_04_evolution_event_no_regression` flaky test（pytest.mark.flaky reruns=2）
+- 全量验证：2035 + 1726 + 216 = 3977 passed, 0 failures
+
 ## [0.5.0] - 2026-08-27
 
 ### Added
