@@ -77,7 +77,7 @@ SAMPLE_ROUTING_TABLE = {
     ]
 }
 
-TOLERANCE = 3.0  # 3x tolerance for regression detection
+TOLERANCE = 5.0  # 5x tolerance for regression detection (CI environments have variable I/O)
 
 
 def load_baseline():

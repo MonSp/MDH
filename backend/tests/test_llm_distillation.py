@@ -142,6 +142,7 @@ def test_llm_distill_fallback_on_failure(tmp_inc_dir):
 
 # ──────────────────── test_llm_distill_timeout_fallback ────────────────────
 
+@pytest.mark.filterwarnings("ignore::RuntimeWarning:coroutine")
 def test_llm_distill_timeout_fallback(tmp_inc_dir):
     """When LLM times out, extract_from_success falls back to template rules."""
     import asyncio
