@@ -60,6 +60,7 @@ from webhook_manager import WebhookManager
 from a2a_post_processor import A2APostProcessor
 from onboarding_manager import OnboardingManager
 from onboarding_tasks import get_onboarding_tasks
+from task_template_manager import TaskTemplateManager
 
 # ── 请求模型 ──
 from schemas import (
@@ -125,6 +126,7 @@ app = FastAPI(
         {"name": "admin", "description": "RBAC 管理"},
         {"name": "ops", "description": "生产运维"},
         {"name": "introspection", "description": "系统自省"},
+        {"name": "templates", "description": "任务模板管理"},
     ],
 )
 _cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:8080,http://localhost:9090").split(",")
@@ -324,6 +326,7 @@ from capability_boundary import CapabilityBoundary
 a2a_team_synergy = TeamSynergy(_DATA_DIR)
 a2a_capability_boundary = CapabilityBoundary(data_dir=_DATA_DIR)
 onboarding_mgr = OnboardingManager(_DATA_DIR)
+task_template_mgr = TaskTemplateManager(_DATA_DIR)
 state_sync = StateSyncManager(
     experience_extractor=experience_extractor,
     memory_manager=a2a_memory,
@@ -3468,6 +3471,57 @@ async def browser_pool_health_check():
     except Exception as e:
         logger.warning("browser_pool_health_check 失败: %s", e)
         return _fail(str(e))
+
+
+# ──────────────────── Task Templates ────────────────────
+
+@app.get("/api/templates")
+async def templates_list(category: Optional[str] = None):
+    """列出任务模板，可选按 category 过滤"""
+    return task_template_mgr.list_templates(category=category)
+
+
+@app.get("/api/templates/{template_id}")
+async def templates_get(template_id: str):
+    """获取单个任务模板"""
+    t = task_template_mgr.get_template(template_id)
+    if t is None:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return t
+
+
+@app.post("/api/templates")
+async def templates_create(body: dict = Body(...)):
+    """创建自定义任务模板"""
+    return task_template_mgr.create_template(body)
+
+
+@app.put("/api/templates/{template_id}")
+async def templates_update(template_id: str, body: dict = Body(...)):
+    """更新自定义任务模板（预置模板不可修改）"""
+    t = task_template_mgr.update_template(template_id, body)
+    if t is None:
+        raise HTTPException(status_code=404, detail="Template not found or is preset")
+    return t
+
+
+@app.delete("/api/templates/{template_id}")
+async def templates_delete(template_id: str):
+    """删除自定义任务模板（预置模板不可删除）"""
+    ok = task_template_mgr.delete_template(template_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Template not found or is preset")
+    return {"success": True}
+
+
+@app.post("/api/templates/{template_id}/use")
+async def templates_use(template_id: str):
+    """递增模板使用次数"""
+    t = task_template_mgr.get_template(template_id)
+    if t is None:
+        raise HTTPException(status_code=404, detail="Template not found")
+    task_template_mgr.increment_usage(template_id)
+    return {"success": True}
 
 
 # ──────────────────── Onboarding ────────────────────

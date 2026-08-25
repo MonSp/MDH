@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import WorkspaceConfirmPanel from './WorkspaceConfirmPanel'
 import RoleSelector from './RoleSelector'
+import TaskTemplatePanel, { type Template } from './TaskTemplatePanel'
 import { useCeoCommunication } from './useCeoCommunication'
 import { isElectron, getMdH, STORAGE_KEYS } from '../../constants'
 import type { CeoMessage, WorkspaceConfirmRequest, MeetingPhase, CeoChatPanelProps } from './ceo-types'
@@ -40,6 +41,7 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
   const [wsRepoPath, setWsRepoPath] = useState('')
   const [wsBranchName, setWsBranchName] = useState('')
   const [wsOutputDir, setWsOutputDir] = useState('')
+  const [showTemplates, setShowTemplates] = useState(false)
   const [meetingPhase, setMeetingPhase] = useState<MeetingPhase>('idle')
   const [meetingStartTime, setMeetingStartTime] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
@@ -155,6 +157,11 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
   const handleAutoModeChange = useCallback((auto: boolean) => {
     setAutoMode(auto)
     if (auto) setSelectedRoles([])
+  }, [])
+
+  const handleTemplateSelect = useCallback((template: Template) => {
+    setInput(template.task_prompt)
+    setShowTemplates(false)
   }, [])
 
   const panelStyle: React.CSSProperties = isMobile
@@ -359,6 +366,16 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
         />
         <button
           style={{
+            ...styles.templateBtn,
+            ...(showTemplates ? { background: 'rgba(139, 92, 246, 0.3)', borderColor: 'rgba(139, 92, 246, 0.5)' } : {}),
+          }}
+          onClick={() => setShowTemplates(!showTemplates)}
+          title="使用模板"
+        >
+          📋
+        </button>
+        <button
+          style={{
             ...styles.sendBtn,
             opacity: isProcessing || !input.trim() ? 0.5 : 1,
           }}
@@ -368,6 +385,13 @@ export default function CeoChatPanel({ wsRef, onEnterProject, onProjectCreated, 
           发送
         </button>
       </div>
+
+      {/* Template panel overlay */}
+      {showTemplates && (
+        <div style={styles.templateOverlay}>
+          <TaskTemplatePanel onSelect={handleTemplateSelect} />
+        </div>
+      )}
     </div>
   )
 }
@@ -538,6 +562,32 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     fontFamily: 'inherit',
     alignSelf: 'flex-end',
+  },
+  templateBtn: {
+    padding: '8px 10px',
+    borderRadius: 8,
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    background: 'rgba(255, 255, 255, 0.06)',
+    color: '#9ca3af',
+    fontSize: 14,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    alignSelf: 'flex-end',
+    transition: 'all 0.15s',
+    lineHeight: 1,
+  },
+  templateOverlay: {
+    position: 'absolute',
+    bottom: '100%',
+    left: 0,
+    right: 0,
+    maxHeight: 360,
+    background: 'rgba(8, 8, 24, 0.98)',
+    borderTop: '1px solid rgba(139, 92, 246, 0.3)',
+    borderRadius: '12px 12px 0 0',
+    boxShadow: '0 -4px 24px rgba(0, 0, 0, 0.5)',
+    overflow: 'hidden',
+    zIndex: 101,
   },
   wsConfirmBtn: {
     width: '100%',
