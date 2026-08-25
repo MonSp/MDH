@@ -2,6 +2,33 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.3] - 2026-08-27
+
+### Fixed
+**Docker 生产优化**
+- 5 个服务全部添加 CPU + 内存资源限制
+- 日志轮转（json-file，10-50MB/文件，3-5 文件）
+- Orchestrator 健康检查（Agent Card 端点）
+- 依赖排序：frontend→backend(healthy), orchestrator→executor(healthy), adapter→backend(healthy)
+- 内存预留保证最低分配
+
+## [0.2.2] - 2026-08-27
+
+### Fixed
+**CI 覆盖率门禁**
+- pytest-cov 集成，75% 最低行覆盖率门禁
+- 当前覆盖率：78%（38038 语句，8516 未覆盖）
+
+## [0.2.1] - 2026-08-27
+
+### Fixed
+**多租户全路径强制**
+- TenantMiddleware 从 API key 提取 tenant_id 注入请求上下文
+- 5 端点强制租户过滤：projects（CRUD）、rules、feedback、employees
+- 租户隔离：A 租户看不到 B 租户的数据
+- 停用租户返回 403
+- 15 个新测试
+
 ## [0.2.0] - 2026-08-27
 
 ### Added
