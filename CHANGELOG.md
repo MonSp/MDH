@@ -2,7 +2,7 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [1.9.0] - 2026-08-27
+## [0.1.9.0] - 2026-08-27
 
 ### Added
 
@@ -34,7 +34,7 @@
 - 编排器: 216 passed, 4 skipped
 - 新增测试: 36 个（T1: 12, T2: 3, T3: 12, T4: 5, T5: 4）
 
-## [1.8.10] - 2026-08-26
+## [0.1.8.10] - 2026-08-26
 
 ### Fixed
 
@@ -57,7 +57,7 @@
 - `hybrid.test.ts`: ToolCall 字面量补 `type: 'function'`
 - `local.test.ts`: `.ts` 导入 → `.js`
 
-## [1.8.9] - 2026-08-26
+## [0.1.8.9] - 2026-08-26
 
 ### Fixed
 
@@ -67,7 +67,7 @@
 - 保留 JSON 文件回退（无 extractor 时向后兼容）
 - `server.py` 3 个 feedback 端点传入全局 `experience_extractor` 单例
 
-## [1.8.8] - 2026-08-26
+## [0.1.8.8] - 2026-08-26
 
 ### Fixed
 
@@ -78,7 +78,7 @@
 - 提取 `state_sync.extract_keywords()` 模块级工具函数，消除 a2a_post_processor 中的重复代码
 - Claude Code Adapter: `buildAgentCard()` 导出并复用，消除 index.ts 中的重复定义
 
-## [1.8.7] - 2026-08-26
+## [0.1.8.7] - 2026-08-26
 
 ### Fixed
 
@@ -89,7 +89,7 @@
 - **I12 agent_id 可配置**: `adapters/claude-code/src/index.ts` 支持 `--agent-id` 参数和 `MDH_AGENT_ID` 环境变量，默认 `claude-code-{port}` 避免多实例 ID 碰撞
 - **I13 A2A 调用重试**: `backend/a2a_client.py` `send_task()` 添加 3 次指数退避重试（1s/2s/4s），仅对 5xx 和超时重试，4xx 不重试
 
-## [1.8.6] - 2026-08-26
+## [0.1.8.6] - 2026-08-26
 
 ### Fixed
 
@@ -97,7 +97,7 @@
 - **资产注入接入**: `ws_handlers.py` 创建 `build_asset_context` 闭包（绑定 AssetStore + ExperienceExtractor），作为 `asset_context_builder` 传入 MeetingCoordinator
 - **能力边界感知接入**: `StateSyncManager` 新增 `capability_boundary` 参数，`prepare_task_metadata()` 调用 `detect_unknown_domain()` 检测未知领域并注入 metadata 警告
 
-## [1.8.5] - 2026-08-26
+## [0.1.8.5] - 2026-08-26
 
 ### Fixed
 
@@ -105,7 +105,7 @@
 - `TeamSynergy.record_team_task()` 接入 `A2APostProcessor`：每次任务完成后自动记录协同数据
 - `ProactiveMonitor.run_health_check()` 接入 FastAPI startup 后台调度：每 5 分钟自动执行健康巡检
 
-## [1.8.4] - 2026-08-26
+## [0.1.8.4] - 2026-08-26
 
 ### Fixed
 
@@ -114,7 +114,7 @@
 - **P0-2**: A2A post-processor API 签名修正 — `extract_from_meeting()` 改为 5 个位置参数，`grant_xp()` 改为正确的 keyword 参数
 - **P1-1**: Webhook 触发接入 — `WebhookManager` 初始化并注入 `A2APostProcessor`，任务完成后触发 `task.completed` webhook
 
-## [1.8.3] - 2026-08-26
+## [0.1.8.3] - 2026-08-26
 
 ### Fixed
 
@@ -123,7 +123,7 @@
 - XP 授予目标修正：XP 和记忆归属于发起任务的数字员工（`xp_target="executor"`），而非 A2A 执行节点
 - `AgentProfileManager` 构造函数参数修正：`profiles_dir` 而非 `data_dir`
 
-## [1.8.2] - 2026-08-26
+## [0.1.8.2] - 2026-08-26
 
 ### Fixed
 
@@ -133,7 +133,7 @@
 - `execution_preference` 字段端到端传递：前端 → ws_handlers → ceo_agent → simple_executor → A2A 路由决策
 - 支持 4 种模式：auto（智能路由）/ local（强制本地）/ claude-code（强制 Claude Code）/ python（禁用 A2A）
 
-## [1.8.1] - 2026-08-26
+## [0.1.8.1] - 2026-08-26
 
 ### Added
 
@@ -146,7 +146,7 @@
 - `simple_executor.py`: `_try_a2a_routing()` 任务完成后调用 `A2APostProcessor.process()`
 - 8 项新测试，34 项 A2A 测试全部通过
 
-## [1.8.0] - 2026-08-26
+## [0.1.8.0] - 2026-08-26
 
 ### Added
 
@@ -160,7 +160,7 @@
 
 - `a2a_client.py`: SSE 解析保留 artifact — 最终 status 事件不再丢失前序 artifact
 
-## [1.7.7] - 2026-08-26
+## [0.1.7.7] - 2026-08-26
 
 ### Fixed
 
@@ -171,7 +171,7 @@
 - **M13**: A2AAgentPanel WS handler 加载守卫，防止并发 `load()` 调用
 - **I8**: 文档化 Python (bigram) vs TS (stop-word) 关键词提取的有意差异
 
-## [1.7.6] - 2026-08-26
+## [0.1.7.6] - 2026-08-26
 
 ### Fixed
 
@@ -184,7 +184,7 @@
 - **I9**: A2AClient 错误路径测试 — 超时/连接拒绝/日志验证（+3 测试）
 - **I11**: 认证调用者跳过 SSRF — 携带有效 BACKEND_TOKEN 时放行
 
-## [1.7.5] - 2026-08-26
+## [0.1.7.5] - 2026-08-26
 
 ### Added
 
@@ -195,7 +195,7 @@
 **E2E 验证增强**
 - `e2e_verify.py`: 新增 9 项 A2A 协议检查（注册、路由、客户端、状态同步），总检查项 31→40
 
-## [1.7.4] - 2026-08-26
+## [0.1.7.4] - 2026-08-26
 
 ### Added
 
@@ -213,7 +213,7 @@
 - `team/templates.ts`: 添加 `@deprecated` 标记
 - `cli.ts`: 移除未使用的 `routerFactory` 变量和 `RouterFactory` 导入
 
-## [1.7.3] - 2026-08-26
+## [0.1.7.3] - 2026-08-26
 
 ### Added
 
@@ -232,7 +232,7 @@
 - `server.ts`: 移除 `startServer()` 中未使用的参数（routerFactory, executorUrl, executorToken, hybridProfile）
 - `cli.ts`: 更新调用签名匹配简化后的 `startServer()`
 
-## [1.7.2] - 2026-08-26
+## [0.1.7.2] - 2026-08-26
 
 ### Added
 
@@ -252,7 +252,7 @@
 
 - AGENTS.md 架构链更新：L6 Toolkit 层新增 A2A 执行节点调度说明
 
-## [1.7.1] - 2026-08-26
+## [0.1.7.1] - 2026-08-26
 
 ### Added
 
@@ -279,7 +279,7 @@
 - HTTP 客户端复用：`A2AClient` 共享 `httpx.AsyncClient` 连接池，避免每次请求新建连接
 - 死代码清理：移除未使用的 `session.teamId`、未使用的 `readFileSync` 导入
 
-## [1.7.0] - 2026-08-26
+## [0.1.7.0] - 2026-08-26
 
 ### Added
 
@@ -309,7 +309,7 @@
 - README.md/README.en.md/AGENTS.md: 修正测试计数（后端 1732→1731，Orchestrator 216→214）
 - README.md/README.en.md: 补充多模型支持为 9 个提供商
 
-## [1.6.12] - 2026-08-24
+## [0.1.6.12] - 2026-08-24
 
 ### Fixed
 
@@ -350,7 +350,7 @@
 - 性能基准测试（真实数据测量 + E2E 验证脚本）
 - 系统集成测试（31 项 E2E 验证）
 
-## [1.6.11] - 2026-08-22
+## [0.1.6.11] - 2026-08-22
 
 ### Fixed
 
@@ -358,7 +358,7 @@
 - 标准错误码（`_ok`/`_fail` 新增 `code` 字段）
 - 静默异常修复（关键路径 try/except 不再吞掉异常）
 
-## [1.6.10] - 2026-08-22
+## [0.1.6.10] - 2026-08-22
 
 ### Added
 
@@ -366,7 +366,7 @@
 - 5 条关键路径 14 个端到端测试
 - 覆盖任务执行、技能进化、路由、协作、监控
 
-## [1.6.9] - 2026-08-22
+## [0.1.6.9] - 2026-08-22
 
 ### Added
 
@@ -374,7 +374,7 @@
 - v1.6 全链路端到端测试
 - README/AGENTS.md 同步 v1.6.x 能力
 
-## [1.6.8] - 2026-08-22
+## [0.1.6.8] - 2026-08-22
 
 ### Added
 
@@ -385,7 +385,7 @@
 - 投递日志记录 + 投递统计
 - API：POST/GET/DELETE `/api/webhooks`, GET `/api/webhooks/stats`
 
-## [1.6.7] - 2026-08-22
+## [0.1.6.7] - 2026-08-22
 
 ### Added
 
@@ -396,7 +396,7 @@
 - Ollama 本地模型支持（零成本）
 - API：GET `/api/models`, GET `/api/models/{id}`, GET `/api/models/{id}/fallback`
 
-## [1.6.6] - 2026-08-22
+## [0.1.6.6] - 2026-08-22
 
 ### Added
 
@@ -406,7 +406,7 @@
 - 租户可停用（API key 立即失效）
 - API：POST/GET/DELETE `/api/tenants`
 
-## [1.6.5] - 2026-08-22
+## [0.1.6.5] - 2026-08-22
 
 ### Added
 
@@ -414,7 +414,7 @@
 - `Makefile`：一键启动（make dev）、全量测试（make test）、备份（make db-backup）
 - `docs/ARCHITECTURE.md`：架构总览图、14 个核心模块、数据流图、数据库表、API 端点分组
 
-## [1.6.4] - 2026-08-22
+## [0.1.6.4] - 2026-08-22
 
 ### Added
 
@@ -424,7 +424,7 @@
 - 缓存管理 API：GET `/api/ops/cache`, POST `/api/ops/cache/clear`
 - conftest.py 每个测试自动清空缓存
 
-## [1.6.3] - 2026-08-22
+## [0.1.6.3] - 2026-08-22
 
 ### Added
 
@@ -433,7 +433,7 @@
 - OpenAPI 标签分组：100+ 端点分为 13 个功能组
 - API 描述：Matrix DaHuang — 数字员工操作系统 API
 
-## [1.6.2] - 2026-08-22
+## [0.1.6.2] - 2026-08-22
 
 ### Added
 
@@ -445,7 +445,7 @@
 - 性能基准：100 次写入 <5s、100 条查询 <1s、备份 <1s
 - 安全防护：SQL 注入/超大输入不崩溃
 
-## [1.6.1] - 2026-08-22
+## [0.1.6.1] - 2026-08-22
 
 ### Added
 
@@ -456,7 +456,7 @@
 - 备份管理：自动备份 + 列出 + 恢复 + 清理旧备份
 - API：POST `/api/ops/backup`, GET `/api/ops/backups`, POST `/api/ops/restore`
 
-## [1.6.0] - 2026-08-22
+## [0.1.6.0] - 2026-08-22
 
 ### Added
 
@@ -479,7 +479,7 @@
 - `_ok`/`_fail` 新增 `code` 字段
 - API：POST `/api/admin/create-key`, GET `/api/admin/keys`, DELETE `/api/admin/keys/{hash}`
 
-## [1.5.24] - 2026-08-22
+## [0.1.5.24] - 2026-08-22
 
 ### Added
 
@@ -490,7 +490,7 @@
 - 交付链路：记忆写入→检索→Git 交付→通知→报告
 - 监控链路：健康巡检→告警→反思优先级→自省分析
 
-## [1.5.23] - 2026-08-22
+## [0.1.5.23] - 2026-08-22
 
 ### Added
 
@@ -501,7 +501,7 @@
 - 任务匹配：基于历史数据推荐最优 agent 组合
 - API：GET `/api/team/synergy`, POST `/api/team/synergy/record`, GET `/api/team/synergy/recommend`
 
-## [1.5.22] - 2026-08-22
+## [0.1.5.22] - 2026-08-22
 
 ### Added
 
@@ -513,7 +513,7 @@
 - 告警分级：critical/warning/info
 - API：GET `/api/monitor/health`, GET `/api/monitor/alerts`
 
-## [1.5.21] - 2026-08-22
+## [0.1.5.21] - 2026-08-22
 
 ### Added
 
@@ -524,7 +524,7 @@
 - 优化建议：弱项练习/技能拓展/晋升提示/强项挑战
 - API：GET `/api/agents/{id}/optimize`, GET `/api/agents/optimize/all`
 
-## [1.5.20] - 2026-08-22
+## [0.1.5.20] - 2026-08-22
 
 ### Added
 
@@ -535,7 +535,7 @@
 - 文档交付：自动生成任务报告 JSON
 - API：POST `/api/delivery/deliver`, GET `/api/delivery/log`
 
-## [1.5.19] - 2026-08-22
+## [0.1.5.19] - 2026-08-22
 
 ### Added
 
@@ -545,7 +545,7 @@
 - `recall_for_task`：合并检索+格式化，用于任务前注入
 - 标准路径和简单路径都已接入
 
-## [1.5.18] - 2026-08-22
+## [0.1.5.18] - 2026-08-22
 
 ### Added
 
@@ -557,7 +557,7 @@
 - `age_memories`：超过 30 天未引用的记忆重要性减半
 - API：GET/POST `/api/memory/{agent_id}`, GET `/api/memory/{agent_id}/recall`, GET `/api/memory/{agent_id}/context`
 
-## [1.5.17] - 2026-08-22
+## [0.1.5.17] - 2026-08-22
 
 ### Added
 
@@ -569,7 +569,7 @@
 - 冲突检测：`detect_conflict` 检测 5 分钟内并发编辑
 - API：GET `/api/workspace/analyze`, POST `/api/workspace/analyze-dataset`, GET `/api/workspace/artifacts`, GET `/api/workspace/conflicts`
 
-## [1.5.16] - 2026-08-22
+## [0.1.5.16] - 2026-08-22
 
 ### Added
 
@@ -580,7 +580,7 @@
 - 上下文构建：为任务自动检索相关文档注入 agent 上下文
 - API：POST `/api/documents/parse`, GET `/api/documents/search`, GET `/api/documents/context`, GET `/api/documents/stats`
 
-## [1.5.15] - 2026-08-22
+## [0.1.5.15] - 2026-08-22
 
 ### Added
 
@@ -592,7 +592,7 @@
 - `FeedbackPanel`：人类反馈统计面板（评分分布/高频优势/高频改进点）
 - `SkillEvolutionDashboard` 新增「💬 反馈」tab
 
-## [1.5.14] - 2026-08-22
+## [0.1.5.14] - 2026-08-22
 
 ### Added
 
@@ -607,7 +607,7 @@
 
 - README 产品叙事新增「进化是自驱动的」章节（中英文同步）
 
-## [1.5.13] - 2026-08-22
+## [0.1.5.13] - 2026-08-22
 
 ### Added
 
@@ -618,7 +618,7 @@
 - 改进提案生成：基于利用率/健康度/回归数据自动生成改进建议
 - API：GET `/api/introspection/features`, `/health`, `/proposals`
 
-## [1.5.12] - 2026-08-22
+## [0.1.5.12] - 2026-08-22
 
 ### Added
 
@@ -630,7 +630,7 @@
 - 能力边界报告：置信度排序 + 边界转折点 + 改进建议
 - API：GET `/api/capability/boundary`, GET `/api/capability/detect`
 
-## [1.5.11] - 2026-08-22
+## [0.1.5.11] - 2026-08-22
 
 ### Added
 
@@ -639,7 +639,7 @@
 - GitHub Actions 工作流 `evolution-guard.yml`：每天自动运行 + PR 修改进化文件时触发 + 手动触发
 - 退出码：0=通过，1=关注项，2=紧急问题（阻塞合并）
 
-## [1.5.10] - 2026-08-22
+## [0.1.5.10] - 2026-08-22
 
 ### Added
 
@@ -651,7 +651,7 @@
 - 信任评分：默认 0.5，成功 +0.01，失败 -0.05，<0.3 不可订阅
 - API：GET `/api/federation/stats`, GET `/api/federation/feed`
 
-## [1.5.9] - 2026-08-22
+## [0.1.5.9] - 2026-08-22
 
 ### Added
 
@@ -661,7 +661,7 @@
 - 探索/利用平衡：`retrieve_with_aging` 方法，80% 高分规则 + 20% 随机规则
 - `ExperienceRule` 新增 `last_used_at` 字段
 
-## [1.5.8] - 2026-08-22
+## [0.1.5.8] - 2026-08-22
 
 ### Added
 
@@ -671,7 +671,7 @@
 - 优先级队列：critical 领域(100) → 进化失败领域(80) → 低分规则(60) → 进化未改善(40)
 - API：GET `/api/reflection/priority-queue`
 
-## [1.5.7] - 2026-08-22
+## [0.1.5.7] - 2026-08-22
 
 ### Added
 
@@ -681,7 +681,7 @@
 - 联动进化日志：记录每次级联更新的传播路径
 - API：GET `/api/knowledge/network-stats`
 
-## [1.5.6] - 2026-08-22
+## [0.1.5.6] - 2026-08-22
 
 ### Added
 
@@ -692,7 +692,7 @@
 - `ExperienceRule` 新增 `parent_rule_id`, `evolution_count` 字段
 - 单条规则最多进化 3 次（防无限循环）
 
-## [1.5.5] - 2026-08-21
+## [0.1.5.5] - 2026-08-21
 
 ### Added
 
@@ -702,7 +702,7 @@
 - `SkillEvolutionDashboard` 新增「📊 性能仪表盘」tab
 - API：GET `/api/dashboard/performance`
 
-## [1.5.4] - 2026-08-21
+## [0.1.5.4] - 2026-08-21
 
 ### Added
 
@@ -712,7 +712,7 @@
 - `_build_peer_context`：多 agent 并行时共享已完成工作上下文，避免重复
 - 证据不通过 → 标记 revision_required
 
-## [1.5.3] - 2026-08-21
+## [0.1.5.3] - 2026-08-21
 
 ### Added
 
@@ -723,7 +723,7 @@
 - `_setup_agent_isolation`：每个 agent 独立 workspace/memory/notes 目录
 - API：GET `/api/llm/costs`, GET `/api/llm/costs/records`
 
-## [1.5.2] - 2026-08-21
+## [0.1.5.2] - 2026-08-21
 
 ### Added
 
@@ -735,7 +735,7 @@
 - `ExperienceRule` 新增 `source_agent_id` 字段
 - API：GET `/api/agents/knowledge-flow`
 
-## [1.5.1] - 2026-08-21
+## [0.1.5.1] - 2026-08-21
 
 ### Added
 
@@ -747,7 +747,7 @@
 - 前端 SkillMarketplace 新增「排行榜」tab
 - API：GET `/api/marketplace/experience/recommendations`, `/leaderboard`, POST `/update-fork-effectiveness`
 
-## [1.5.0] - 2026-08-21
+## [0.1.5.0] - 2026-08-21
 
 ### Added
 
@@ -769,7 +769,7 @@
 - 真实 AI 闭环验证：2 个 DeepSeek 任务后 agent-executor 获得 120 XP，backend_dev 升至 Lv.1
 - 随机模拟验证：100 轮 × 4 agent，6 次晋升（含 Beta→Lead），研发部 boost 满额 0.30
 
-## [1.4.1] - 2026-08-20
+## [0.1.4.1] - 2026-08-20
 
 ### Added
 
@@ -780,7 +780,7 @@
 - `SkillEvolutionDashboard` 新增「🚀 职业发展」tab
 - `careerDevelopment` API 模块 + 类型定义
 
-## [1.4.0] - 2026-08-20
+## [0.1.4.0] - 2026-08-20
 
 ### Added
 
@@ -793,7 +793,7 @@
 - API 端点：GET/POST agent profile, grant-xp, promotion, career-path, skills-tree, departments
 - 集成到 `process_user_message`：任务完成后自动 grant-xp + 晋升检查
 
-## [1.3.6] - 2026-08-20
+## [0.1.3.6] - 2026-08-20
 
 ### Added
 
@@ -809,7 +809,7 @@
 - 移除 `TaskOrchestrator._execute_sequential` 中两处无效的 `router.update_stats` 调用（Dict B 在串行流中永远为空）
 - 路由统计统一由 `_update_routing_stats_safe` 消费 Dict A，消除双字典断链
 
-## [1.3.5] - 2026-08-20
+## [0.1.3.5] - 2026-08-20
 
 ### Added
 
@@ -828,7 +828,7 @@
 - 经验规则注入目录断链：`write_to_incremental_area` 写入 `approved/` 但双端注入读取 `rules/`
 - `agent_pool.py` 和 `loader.ts` 注入时过滤 `status=approved`（旧规则默认 approved 兼容）
 
-## [1.3.4] - 2026-08-20
+## [0.1.3.4] - 2026-08-20
 
 ### Added
 
@@ -844,7 +844,7 @@
 - Python 端增量区 + 资产注入到智能体 system prompt（`AgentPool._inject_incremental_context` + `coordinator_workflow`）
 - 审批后写入增量区 + 类型提取修复
 
-## [1.3.3] - 2026-08-20
+## [0.1.3.3] - 2026-08-20
 
 ### Fixed
 
@@ -855,7 +855,7 @@
 - `useMeetingSocket` 类型安全：`BridgeMessage` 类型化
 - `useRolesConfig` / `RolePanel` / `SkillPanel` / `ToolPanel` any 清零
 
-## [1.3.2] - 2026-08-20
+## [0.1.3.2] - 2026-08-20
 
 ### Added
 
@@ -888,7 +888,7 @@
 - Code review 修复：SidePanel 重复导入、导出缺失、类型不匹配
 - `setMeetingPhase` 类型 `string` → `MeetingPhase`
 
-## [1.3.1] - 2026-08-19
+## [0.1.3.1] - 2026-08-19
 
 ### Added
 
@@ -899,7 +899,7 @@
 - OfficeTeamMode 重构：提取 `MeetingPanel` + `TaskList`
 - Handler 单元测试 52 个
 
-## [1.3.0] - 2026-08-19
+## [0.1.3.0] - 2026-08-19
 
 ### Added
 
@@ -911,7 +911,7 @@
 - `BrowserRecordingPanel`：录制/回放 UI
 - 批量浏览器任务 API 端点
 
-## [1.2.2] - 2026-08-19
+## [0.1.2.2] - 2026-08-19
 
 ### Added
 
@@ -940,7 +940,7 @@
 
 - 移除对专有浏览器的依赖（禁用 browser automation tools）
 
-## [1.2.1] - 2026-08-18
+## [0.1.2.1] - 2026-08-18
 
 ### Fixed
 - `clone_skill` 端点重复 `except ValueError`（不可达代码）
@@ -955,7 +955,7 @@
 - `.env.example` 补充 `EXECUTOR_WORKSPACE`、`EXECUTOR_STORAGE`、`CORS_ORIGINS`
 - 路由模块 `init()` 调用已就绪（路由器暂未启用，待行为验证后逐个激活）
 
-## [1.2.0] - 2026-08-17
+## [0.1.2.0] - 2026-08-17
 
 ### Added
 
@@ -1010,7 +1010,7 @@
 - `docs/compose/spec/agent-skills-alignment-evaluation.md`：Agent Skills 标准对齐评估
 - `docs/compose/spec/skill-marketplace.md`：技能市场设计文档
 
-## [1.1.0] - 2026-08-16
+## [0.1.1.0] - 2026-08-16
 
 ### Added
 
@@ -1078,7 +1078,7 @@
 
 - （无破坏性移除）
 
-## [1.0.0] - 2026-08-14
+## [0.1.0.0] - 2026-08-14
 
 初始版本基线：项目启动（2026-05-22）至产品定型与 P3 阶段交付（2026-08-14）的全部开发历史（commits 至 2f91173）。按功能模块整理。
 
