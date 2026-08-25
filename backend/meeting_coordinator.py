@@ -152,8 +152,8 @@ class MeetingCoordinator:
         try:
             from agent_profile_manager import AgentProfileManager
             self.router.set_profile_manager(AgentProfileManager(os.path.join(data_dir, "agent_profiles")))
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("AgentProfileManager 注入跳过: %s", e)
 
         # RoutingStatsManager：路由统计管理
         from routing_stats_manager import RoutingStatsManager
@@ -291,8 +291,8 @@ class MeetingCoordinator:
                 current_tool=current_tool,
                 artifact_count=artifact_count,
             )
-        except Exception:
-            pass  # 通知失败不阻断流程
+        except Exception as e:
+            self.logger.debug("agent 状态通知发送失败: %s", e)  # 通知失败不阻断流程
 
     async def _notify_artifact_created(self, agent_id: str, files_count: int, file_types: list, summary: str = "") -> None:
         """发送 artifact 创建通知到前端（用于 3D 场景可视化）"""
@@ -307,8 +307,8 @@ class MeetingCoordinator:
                 file_types=file_types,
                 summary=summary[:200],
             )
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("artifact 创建通知发送失败: %s", e)
 
     # ── Agent 隔离工作区 ──
 
@@ -536,8 +536,8 @@ class MeetingCoordinator:
             from agent_profile_manager import AgentProfileManager
             data_dir = os.path.join(os.path.dirname(__file__), "data")
             profile_mgr = AgentProfileManager(os.path.join(data_dir, "agent_profiles"))
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("AgentProfileManager 初始化跳过: %s", e)
 
         candidates = []
         for agent in self.meeting.agents:
@@ -590,8 +590,8 @@ class MeetingCoordinator:
                         else:
                             # 中等任务：正常技能等级加权
                             score += max_skill_level * 3
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("技能等级查询跳过: %s", e)
 
             candidates.append((agent, score))
 
@@ -1500,8 +1500,8 @@ class MeetingCoordinator:
                     },
                 }
                 await on_message(coordinator_id, "", "", msg_type="discussion_summary", **summary_data)
-            except Exception:
-                pass  # 结构化消息失败不阻断流程
+            except Exception as e:
+                self.logger.debug("讨论摘要发送失败: %s", e)  # 结构化消息失败不阻断流程
 
         original_description = analysis.task_description or user_message
         enhanced_description = self._enhance_task_description(original_description, discussion_results)
@@ -1852,8 +1852,8 @@ class MeetingCoordinator:
                                      monitor_feedback=monitor_feedback[:200],
                                      coordinator_summary=coordinator_summary[:200],
                                      issues=structured.get("issues", []))
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("审查摘要发送失败: %s", e)
 
             critic_result = review_result.get("critic_result", {})
             grounding_result = review_result.get("grounding_result", {})

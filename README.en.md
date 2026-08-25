@@ -47,6 +47,26 @@ Human feedback isn't "seen and forgotten" — structured review comments are aut
 
 ---
 
+## 30-Second Quick Start
+
+```bash
+# 1. Clone and configure
+git clone https://github.com/MonSp/MDH.git && cd MDH
+cp .env.example .env
+# Edit .env and fill in your DEEPSEEK_API_KEY
+
+# 2. One-command Docker start
+docker compose up -d
+
+# 3. Open your browser
+open http://localhost:8080
+
+# 4. Type your first task in CEO Chat
+# e.g.: 'Analyze the code quality of this project and suggest improvements'
+```
+
+---
+
 ## Core Capabilities
 
 | Capability | Description |
@@ -217,7 +237,7 @@ Each digital employee has a persistent career profile, accumulating experience a
 | 📊 Frontend Panels | Department card grid + promotion timeline + skill progress bars + skill tree visualization |
 | 🧭 Routing Awareness | Agent skill levels influence routing decisions, upgrades drive department routing bonuses |
 
-## Production Ready (v1.6)
+## Production Ready (v0.2.0)
 
 | Capability | Description |
 |------|------|

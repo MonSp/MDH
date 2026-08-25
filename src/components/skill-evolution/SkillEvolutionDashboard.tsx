@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { SkillRegistryPanel } from './SkillRegistryPanel'
 import { ProjectListPanel } from './ProjectListPanel'
 import { ExperienceRulePanel } from './ExperienceRulePanel'
@@ -34,25 +34,42 @@ const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
 export default function SkillEvolutionDashboard() {
   const [activeTab, setActiveTab] = useState<TabKey>('skills')
   const [lineageRuleId, setLineageRuleId] = useState('')
+  const [isMobile, setIsMobile] = useState(() => {
+    try { return window.matchMedia('(max-width: 768px)').matches } catch { return false }
+  })
+
+  useEffect(() => {
+    try {
+      const mq = window.matchMedia('(max-width: 768px)')
+      const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+      mq.addEventListener('change', handler)
+      return () => mq.removeEventListener('change', handler)
+    } catch { /* test env */ }
+  }, [])
+
+  const tabBarStyle: React.CSSProperties = isMobile
+    ? { ...styles.tabBar, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', padding: '0 4px', scrollbarWidth: 'none' as any, msOverflowStyle: 'none' as any }
+    : styles.tabBar
+
+  const tabStyle = (isActive: boolean): React.CSSProperties => isMobile
+    ? { ...styles.tab, ...(isActive ? styles.tabActive : {}), padding: '6px 10px', fontSize: '12px', flexShrink: 0 }
+    : { ...styles.tab, ...(isActive ? styles.tabActive : {}) }
 
   return (
     <div style={styles.container}>
-      <div style={styles.tabBar}>
+      <div style={tabBarStyle}>
         {tabs.map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            style={{
-              ...styles.tab,
-              ...(activeTab === tab.key ? styles.tabActive : {}),
-            }}
+            style={tabStyle(activeTab === tab.key)}
           >
             <span>{tab.icon}</span>
-            <span>{tab.label}</span>
+            <span>{isMobile ? '' : tab.label}</span>
           </button>
         ))}
       </div>
-      <div style={styles.content}>
+      <div style={{ ...styles.content, ...(isMobile ? { overflow: 'auto', WebkitOverflowScrolling: 'touch' } : {}) }}>
         {activeTab === 'skills' && <SkillRegistryPanel />}
         {activeTab === 'projects' && <ProjectListPanel />}
         {activeTab === 'rules' && <ExperienceRulePanel />}

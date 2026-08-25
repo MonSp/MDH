@@ -146,8 +146,8 @@ class SimpleExecutor:
                         success=review.passed,
                         has_rules=self._post_processor is not None,
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("A/B 任务追踪记录失败: %s", e)
 
             return SimpleResult(
                 success=True,

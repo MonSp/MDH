@@ -14,6 +14,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+# ── 速率限制 ──
+from rate_limiter import limiter, rate_limit_exceeded_handler, RATE_LIMITS
+from slowapi.errors import RateLimitExceeded
+
 from config import SKILLS_DIR
 from session import Session
 import ws_handlers
@@ -128,6 +132,10 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
+# ── 速率限制集成 ──
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 # API 版本化中间件
 @app.middleware("http")
 async def api_version_middleware(request, call_next):
@@ -213,7 +221,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 from starlette.responses import JSONResponse
                 return JSONResponse({"detail": f"Role '{role}' cannot {request.method} {path}"}, status_code=403)
             return await call_next(request)
-        except Exception:
+        except Exception as e:
+            logger.warning("RBAC 认证检查异常: %s", e)
             from starlette.responses import JSONResponse
             return JSONResponse({"detail": "Invalid token"}, status_code=403)
 
@@ -449,6 +458,7 @@ async def _broadcast_a2a_update(event_type: str, agent_data: dict):
         try:
             await session.ws.send_text(message)
         except Exception:
+            logger.debug("A2A 广播发送失败: session=%s", sid)
             dead.append(sid)
     for sid in dead:
         sessions.pop(sid, None)
@@ -479,6 +489,7 @@ def _validate_a2a_url(url: str) -> str:
     return url
 
 @app.post("/api/a2a/register")
+@limiter.limit(RATE_LIMITS["write"])
 async def a2a_register_agent(body: dict = Body(...), request: Request = None):
     """注册 A2A 执行节点
 
@@ -537,7 +548,8 @@ async def a2a_heartbeat(agent_id: str):
 
 
 @app.get("/api/a2a/agents")
-async def a2a_list_agents():
+@limiter.limit(RATE_LIMITS["read"])
+async def a2a_list_agents(request: Request):
     """列出所有已注册的 A2A 执行节点"""
     agents = a2a_registry.list_active()
     return {
@@ -577,7 +589,8 @@ async def a2a_route_task(task_description: str):
 
 
 @app.post("/api/a2a/dispatch")
-async def a2a_dispatch_task(body: dict = Body(...)):
+@limiter.limit(RATE_LIMITS["write"])
+async def a2a_dispatch_task(request: Request, body: dict = Body(...)):
     """向 A2A 执行节点发送任务（异步）
 
     立即返回 task_id，任务在后台执行，结果可通过 _task_log 查询。
@@ -663,7 +676,8 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 
 @app.get("/api/projects")
-async def list_projects():
+@limiter.limit(RATE_LIMITS["read"])
+async def list_projects(request: Request):
     try:
         return _ok(project_manager.list_projects())
     except (KeyError, ValueError) as e:
@@ -675,7 +689,8 @@ async def list_projects():
 
 
 @app.post("/api/projects")
-async def create_project(body: ProjectCreateRequest):
+@limiter.limit(RATE_LIMITS["write"])
+async def create_project(request: Request, body: ProjectCreateRequest):
     try:
         brief = {"name": body.name, "description": body.description, "category": body.category}
         project = project_manager.create_project(body.name, brief)
@@ -699,7 +714,8 @@ async def get_project_categories():
 
 
 @app.post("/api/projects/classify-all")
-async def classify_all_projects():
+@limiter.limit(RATE_LIMITS["llm"])
+async def classify_all_projects(request: Request):
     """批量自动分类所有未分类项目。"""
     try:
         results = []
@@ -726,7 +742,8 @@ async def get_project(project_id: str):
 
 
 @app.delete("/api/projects/{project_id}")
-async def delete_project(project_id: str):
+@limiter.limit(RATE_LIMITS["write"])
+async def delete_project(project_id: str, request: Request):
     try:
         project_manager.delete_project(project_id)
         return _ok({"project_id": project_id, "message": "项目已删除"})
@@ -756,7 +773,8 @@ async def get_project_status(project_id: str):
 
 
 @app.post("/api/projects/{project_id}/instantiate")
-async def instantiate_project(project_id: str, body: dict = Body(...)):
+@limiter.limit(RATE_LIMITS["write"])
+async def instantiate_project(project_id: str, request: Request, body: dict = Body(...)):
     try:
         dag = body["dag"]
         employees = project_manager.instantiate_project(project_id, dag)
@@ -779,7 +797,8 @@ async def set_project_category(project_id: str, body: dict = Body(...)):
 
 
 @app.post("/api/projects/{project_id}/classify")
-async def classify_project(project_id: str):
+@limiter.limit(RATE_LIMITS["llm"])
+async def classify_project(project_id: str, request: Request):
     """自动分类项目。"""
     try:
         category = project_manager.auto_classify_project(project_id)
@@ -865,7 +884,8 @@ def _rule_to_dict(rule) -> dict:
 
 
 @app.get("/api/experience/rules")
-async def get_all_rules():
+@limiter.limit(RATE_LIMITS["read"])
+async def get_all_rules(request: Request):
     try:
         rules = experience_extractor.get_all_rules()
         return _ok([_rule_to_dict(r) for r in rules])
@@ -902,7 +922,8 @@ async def get_rule_evolution_chain(rule_id: str):
 
 
 @app.post("/api/experience/rules/{rule_id}/approve")
-async def approve_rule(rule_id: str, body: dict = Body(...)):
+@limiter.limit(RATE_LIMITS["feedback"])
+async def approve_rule(rule_id: str, request: Request, body: dict = Body(...)):
     try:
         comment = body.get("comment", "")
         success = experience_extractor.approve_rule(rule_id, comment)
@@ -922,7 +943,8 @@ async def approve_rule(rule_id: str, body: dict = Body(...)):
 
 
 @app.post("/api/experience/rules/{rule_id}/reject")
-async def reject_rule(rule_id: str, body: dict = Body(...)):
+@limiter.limit(RATE_LIMITS["feedback"])
+async def reject_rule(rule_id: str, request: Request, body: dict = Body(...)):
     try:
         reason = body.get("reason", "")
         success = experience_extractor.reject_rule(rule_id, reason)
@@ -938,7 +960,8 @@ async def reject_rule(rule_id: str, body: dict = Body(...)):
 
 
 @app.put("/api/experience/rules/{rule_id}")
-async def modify_rule(rule_id: str, body: dict = Body(...)):
+@limiter.limit(RATE_LIMITS["write"])
+async def modify_rule(rule_id: str, request: Request, body: dict = Body(...)):
     try:
         updates = body.get("updates", body)
         success = experience_extractor.modify_rule(rule_id, updates)
@@ -1139,7 +1162,8 @@ def _get_promotion_engine():
 
 
 @app.get("/api/agents/{agent_id}/profile")
-async def get_agent_profile(agent_id: str):
+@limiter.limit(RATE_LIMITS["read"])
+async def get_agent_profile(agent_id: str, request: Request):
     try:
         mgr = _get_agent_profile_manager()
         profile = mgr.get_or_create(agent_id, agent_id)
@@ -1255,7 +1279,8 @@ async def get_knowledge_flow():
 
 
 @app.get("/api/llm/costs")
-async def get_llm_costs():
+@limiter.limit(RATE_LIMITS["read"])
+async def get_llm_costs(request: Request):
     """LLM 成本追踪汇总"""
     try:
         from llm_cost_tracker import get_tracker
@@ -1279,7 +1304,8 @@ async def get_llm_cost_records(limit: int = 100):
 
 
 @app.get("/api/dashboard/performance")
-async def get_performance_dashboard():
+@limiter.limit(RATE_LIMITS["read"])
+async def get_performance_dashboard(request: Request):
     """全局性能仪表盘 — 聚合所有子系统数据"""
     try:
         from performance_dashboard import PerformanceDashboard
@@ -1302,11 +1328,13 @@ async def list_benchmark_tasks():
             "tags": t.tags,
         } for t in tasks])
     except Exception as e:
+        logger.warning("list_benchmark_tasks 失败: %s", e)
         return _fail(str(e))
 
 
 @app.post("/api/benchmark/run")
-async def run_benchmark_endpoint(body: dict):
+@limiter.limit(RATE_LIMITS["llm"])
+async def run_benchmark_endpoint(request: Request, body: dict):
     """运行评测基准"""
     try:
         from benchmark.runner import run_benchmark, format_report
@@ -1652,6 +1680,7 @@ async def get_memory_stats():
 
 
 @app.post("/api/delivery/deliver")
+@limiter.limit(RATE_LIMITS["write"])
 async def deliver_task(request: Request):
     """自主交付"""
     try:
@@ -1709,7 +1738,8 @@ async def optimize_all_agents():
 
 
 @app.get("/api/monitor/health")
-async def run_health_check():
+@limiter.limit(RATE_LIMITS["read"])
+async def run_health_check(request: Request):
     """主动健康巡检"""
     try:
         from proactive_monitor import ProactiveMonitor
@@ -1778,6 +1808,7 @@ async def recommend_team(task_type: str = "", agents: str = ""):
 
 
 @app.post("/api/feedback/submit")
+@limiter.limit(RATE_LIMITS["feedback"])
 async def submit_human_feedback(request: Request):
     """提交人类结构化反馈"""
     try:
@@ -1792,7 +1823,8 @@ async def submit_human_feedback(request: Request):
 
 
 @app.get("/api/feedback/summary")
-async def get_feedback_summary():
+@limiter.limit(RATE_LIMITS["feedback"])
+async def get_feedback_summary(request: Request):
     """反馈汇总"""
     try:
         from human_feedback import HumanFeedbackManager
@@ -1816,6 +1848,7 @@ async def get_skill_guidance(agent_id: str):
 
 
 @app.post("/api/admin/create-key")
+@limiter.limit(RATE_LIMITS["admin"])
 async def create_api_key(request: Request):
     """创建 API key（admin 权限）"""
     try:
@@ -1835,7 +1868,8 @@ async def create_api_key(request: Request):
 
 
 @app.get("/api/admin/keys")
-async def list_api_keys():
+@limiter.limit(RATE_LIMITS["admin"])
+async def list_api_keys(request: Request):
     """列出 API key（不含 key 值）"""
     try:
         from rbac import RBACManager
@@ -1847,7 +1881,8 @@ async def list_api_keys():
 
 
 @app.delete("/api/admin/keys/{key_hash}")
-async def delete_api_key(key_hash: str):
+@limiter.limit(RATE_LIMITS["admin"])
+async def delete_api_key(key_hash: str, request: Request):
     """删除 API key"""
     try:
         from rbac import RBACManager
@@ -1921,7 +1956,8 @@ async def preview_package(base_skill_path: str, incremental_path: str):
 
 
 @app.post("/api/skills/evolve")
-async def evolve_skills(body: dict = Body(...)):
+@limiter.limit(RATE_LIMITS["llm"])
+async def evolve_skills(request: Request, body: dict = Body(...)):
     """从项目结果中提取经验规则，触发技能进化"""
     try:
         project_id = body.get("project_id", "")
@@ -2264,7 +2300,8 @@ async def list_role_skills():
 
 
 @app.post("/api/roles/skills/generate")
-async def generate_skill(body: dict = Body(...)):
+@limiter.limit(RATE_LIMITS["llm"])
+async def generate_skill(request: Request, body: dict = Body(...)):
     """用AI根据需求描述生成技能配置"""
     try:
         from skill_generator import SkillGenerator
@@ -2557,6 +2594,7 @@ async def api_hybrid_team(body: dict):
             ],
         }
     except Exception as exc:
+        logger.warning("api_hybrid_team 失败: %s", exc)
         return _fail(str(exc))
 
 
@@ -2611,6 +2649,7 @@ async def api_minutes_plan(body: dict):
             "plan": "把关经 /api/gates 完成；纪要经 mailer seam 分发",
         }
     except Exception as exc:
+        logger.warning("api_minutes_plan 失败: %s", exc)
         return _fail(str(exc))
 
 
@@ -2737,6 +2776,7 @@ async def api_asset_artifacts(body: dict):
     except Exception as exc:
         # T6 评审 Important：非法/畸形 team_id（非字符串或 ../ 路径遍历）及磁盘
         # 错误不得以 500 传播，包装为 _fail（与 experience 端点一致）
+        logger.warning("api_asset_artifacts 失败: %s", exc)
         return _fail(str(exc))
 
 
@@ -2758,6 +2798,7 @@ async def api_asset_templates(body: dict):
         return _fail("缺少必填字段: team_id")
     except Exception as exc:
         # T6 评审 Important：与 experience 端点一致，异常不得以 500 传播
+        logger.warning("api_asset_templates 失败: %s", exc)
         return _fail(str(exc))
 
 
@@ -2769,6 +2810,7 @@ async def api_asset_search(team_id: str, q: str = "", type: str = "", task_type:
         return _ok(_get_asset_search().search(team_id, query=q, asset_type=type, task_type=task_type, keywords=kw))
     except Exception as exc:
         # T6 评审 Important：畸形 team_id（如 ../ 路径遍历）不得以 500 传播
+        logger.warning("api_asset_search 失败: %s", exc)
         return _fail(str(exc))
 
 
@@ -2791,6 +2833,7 @@ async def api_asset_experience(body: dict):
         return _fail("缺少必填字段: team_id")
     except Exception as exc:
         # T4 评审建议：磁盘错误等不得以 500 传播，包装为 _fail
+        logger.warning("api_asset_experience 失败: %s", exc)
         return _fail(str(exc))
 
 
@@ -2801,6 +2844,7 @@ async def api_asset_list(team_id: str, status: str = ""):
         return _ok(_get_asset_store().list_assets(team_id, status=status or None))
     except Exception as exc:
         # T6 评审 Important：畸形 team_id（如 ../ 路径遍历）不得以 500 传播
+        logger.warning("api_asset_list 失败: %s", exc)
         return _fail(str(exc))
 
 
@@ -2817,6 +2861,7 @@ async def api_asset_update(asset_id: str, body: dict = Body(...)):
             return _fail("资产不存在")
         return _ok(result)
     except Exception as exc:
+        logger.warning("api_asset_update 失败: %s", exc)
         return _fail(str(exc))
 
 
@@ -2828,7 +2873,8 @@ async def api_asset_reuse_metrics():
 
 
 @app.get("/health")
-async def health():
+@limiter.limit(RATE_LIMITS["read"])
+async def health(request: Request):
     """健康检查增强版：数据库 + 磁盘 + 模块状态"""
     try:
         from ops import OpsManager
@@ -2838,11 +2884,13 @@ async def health():
         result["sessions"] = len(sessions)
         return result
     except Exception:
+        logger.warning("health 检查异常，降级返回")
         return {"status": "ok", "sessions": len(sessions)}
 
 
 @app.post("/api/ops/backup")
-async def backup_database(label: str = ""):
+@limiter.limit(RATE_LIMITS["admin"])
+async def backup_database(request: Request, label: str = ""):
     """备份数据库"""
     try:
         from ops import OpsManager
@@ -2928,7 +2976,8 @@ async def create_tenant(request: Request):
 
 
 @app.get("/api/tenants")
-async def list_tenants():
+@limiter.limit(RATE_LIMITS["read"])
+async def list_tenants(request: Request):
     """列出所有租户"""
     try:
         from tenant_manager import TenantManager
@@ -2971,7 +3020,8 @@ async def deactivate_tenant(tenant_id: str):
 
 
 @app.get("/api/models")
-async def list_models(tier: str = ""):
+@limiter.limit(RATE_LIMITS["read"])
+async def list_models(request: Request, tier: str = ""):
     """列出可用模型"""
     try:
         from model_registry import ModelRegistry
@@ -3064,7 +3114,8 @@ async def delete_webhook(sub_id: str):
 
 
 @app.get("/api/webhooks/stats")
-async def get_webhook_stats():
+@limiter.limit(RATE_LIMITS["read"])
+async def get_webhook_stats(request: Request):
     """Webhook 投递统计"""
     try:
         from webhook_manager import WebhookManager
@@ -3076,6 +3127,7 @@ async def get_webhook_stats():
 
 
 @app.post("/api/ops/restore")
+@limiter.limit(RATE_LIMITS["admin"])
 async def restore_backup(request: Request):
     """恢复备份"""
     try:
@@ -3225,6 +3277,7 @@ async def list_history_sessions():
                 "saved_at": state.get("saved_at"),
             })
         except Exception:
+            logger.debug("读取历史会话失败: %s", f.stem)
             continue
     return sorted(result, key=lambda x: x.get("saved_at") or "", reverse=True)
 
@@ -3294,6 +3347,7 @@ async def _ensure_browser():
 
 
 @app.post("/api/browser/submit")
+@limiter.limit(RATE_LIMITS["write"])
 async def browser_submit_task(request: Request):
     """提交浏览器任务到队列"""
     try:
@@ -3310,6 +3364,7 @@ async def browser_submit_task(request: Request):
         await _task_queue.submit(task)
         return {"success": True, "task_id": task_id}
     except Exception as e:
+        logger.warning("browser_submit_task 失败: %s", e)
         return _fail(str(e))
 
 
@@ -3371,6 +3426,7 @@ async def browser_start_queue():
         await _task_queue.start()
         return {"success": True, "message": "任务队列已启动"}
     except Exception as e:
+        logger.warning("browser_start_queue 失败: %s", e)
         return _fail(str(e))
 
 
@@ -3381,6 +3437,7 @@ async def browser_stop_queue():
         await _task_queue.stop()
         return {"success": True, "message": "任务队列已停止"}
     except Exception as e:
+        logger.warning("browser_stop_queue 失败: %s", e)
         return _fail(str(e))
 
 
@@ -3391,6 +3448,7 @@ async def browser_pool_health_check():
         await _browser_pool.health_check()
         return {"success": True, "stats": _browser_pool.get_stats()}
     except Exception as e:
+        logger.warning("browser_pool_health_check 失败: %s", e)
         return _fail(str(e))
 
 

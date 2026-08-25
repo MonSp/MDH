@@ -18,6 +18,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional
 
+from rate_limiter import ws_limiter
+
 logger = logging.getLogger("ws_handlers")
 
 
@@ -1039,9 +1041,27 @@ HANDLER_REGISTRY: Dict[str, Callable] = {
 
 async def dispatch(msg_type: str, msg: dict, session, ctx: WSContext) -> Optional[asyncio.Task]:
     """分发 WebSocket 消息到对应的 handler。返回 handler 创建的 Task（如有）。"""
+    # ── WebSocket 速率限制 ──
+    client_id = session.session_id
+    if not ws_limiter.allow(client_id):
+        logger.warning("WebSocket 速率限制: session=%s msg_type=%s", client_id, msg_type)
+        await session.ws.send_json({
+            "type": "rate_limited",
+            "error": "消息发送过于频繁，请稍后重试",
+            "retry_after": 60,
+        })
+        return None
+
     handler = HANDLER_REGISTRY.get(msg_type)
-    if handler:
-        return await handler(msg, session, ctx)
-    else:
+    if not handler:
         logger.warning("未知消息类型: %s (session=%s)", msg_type, session.session_id)
         return None
+
+    # 输入验证（已知类型的字段校验失败仅记录警告，不阻塞 handler 执行，保持向后兼容）
+    try:
+        from ws_schemas import validate_ws_message
+        validate_ws_message(msg)
+    except Exception as e:
+        logger.warning("消息验证警告: %s (session=%s)", e, session.session_id)
+
+    return await handler(msg, session, ctx)
