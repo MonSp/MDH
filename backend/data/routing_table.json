@@ -1,0 +1,246 @@
+{
+  "departments": [
+    {
+      "dept_id": "dept-frontend",
+      "dept_name": "前端开发组",
+      "capability_desc": "React/Vue/Angular 组件开发、HTML/CSS/JS、响应式布局、前端性能优化、浏览器兼容性",
+      "capability_keywords": [
+        "前端",
+        "frontend",
+        "react",
+        "vue",
+        "angular",
+        "html",
+        "css",
+        "javascript",
+        "typescript",
+        "组件",
+        "页面",
+        "UI",
+        "界面",
+        "样式"
+      ],
+      "tools": [
+        "code_generator",
+        "linter",
+        "webpack",
+        "vite"
+      ],
+      "success_rate": 0.88,
+      "total_tasks": 0,
+      "successful_tasks": 0,
+      "last_active": "",
+      "priority": 10,
+      "skill_level_boost": 0.0
+    },
+    {
+      "dept_id": "dept-backend",
+      "dept_name": "后端开发组",
+      "capability_desc": "Python/Java/Go 后端服务开发、RESTful API 设计、数据库设计与优化、微服务架构",
+      "capability_keywords": [
+        "后端",
+        "backend",
+        "api",
+        "python",
+        "java",
+        "go",
+        "数据库",
+        "database",
+        "服务",
+        "server",
+        "接口",
+        "微服务"
+      ],
+      "tools": [
+        "code_generator",
+        "test_runner",
+        "linter",
+        "docker"
+      ],
+      "success_rate": 0.85,
+      "total_tasks": 0,
+      "successful_tasks": 0,
+      "last_active": "",
+      "priority": 10,
+      "skill_level_boost": 0.0
+    },
+    {
+      "dept_id": "dept-fullstack",
+      "dept_name": "全栈开发组",
+      "capability_desc": "全栈 Web 应用开发、前后端联调、项目脚手架搭建、技术选型与集成",
+      "capability_keywords": [
+        "全栈",
+        "fullstack",
+        "web",
+        "开发",
+        "应用",
+        "项目",
+        "脚手架",
+        "搭建"
+      ],
+      "tools": [
+        "code_generator",
+        "test_runner",
+        "linter",
+        "webpack",
+        "docker"
+      ],
+      "success_rate": 0.82,
+      "total_tasks": 0,
+      "successful_tasks": 0,
+      "last_active": "",
+      "priority": 9,
+      "skill_level_boost": 0.0
+    },
+    {
+      "dept_id": "dept-qa",
+      "dept_name": "质量保障组",
+      "capability_desc": "单元测试、集成测试、E2E 测试、代码审查、性能测试、安全测试",
+      "capability_keywords": [
+        "测试",
+        "test",
+        "QA",
+        "质量",
+        "审查",
+        "review",
+        "bug",
+        "缺陷",
+        "安全",
+        "性能测试"
+      ],
+      "tools": [
+        "test_runner",
+        "coverage_tool",
+        "linter",
+        "security_scanner"
+      ],
+      "success_rate": 0.92,
+      "total_tasks": 0,
+      "successful_tasks": 0,
+      "last_active": "",
+      "priority": 8,
+      "skill_level_boost": 0.0
+    },
+    {
+      "dept_id": "dept-devops",
+      "dept_name": "DevOps 运维组",
+      "capability_desc": "Docker 容器化、CI/CD 流水线、Kubernetes 部署、监控告警、日志分析",
+      "capability_keywords": [
+        "部署",
+        "deploy",
+        "docker",
+        "kubernetes",
+        "k8s",
+        "ci",
+        "cd",
+        "运维",
+        "devops",
+        "监控",
+        "日志"
+      ],
+      "tools": [
+        "docker",
+        "kubernetes",
+        "terraform",
+        "monitoring"
+      ],
+      "success_rate": 0.87,
+      "total_tasks": 0,
+      "successful_tasks": 0,
+      "last_active": "",
+      "priority": 7,
+      "skill_level_boost": 0.0
+    },
+    {
+      "dept_id": "dept-data",
+      "dept_name": "数据分析部",
+      "capability_desc": "数据清洗、统计分析、机器学习、数据挖掘、数据可视化",
+      "capability_keywords": [
+        "数据",
+        "分析",
+        "统计",
+        "机器学习",
+        "模型",
+        "预测",
+        "可视化",
+        "挖掘"
+      ],
+      "tools": [
+        "data_cleaner",
+        "statistical_analyzer",
+        "ml_trainer"
+      ],
+      "success_rate": 0.8,
+      "total_tasks": 0,
+      "successful_tasks": 0,
+      "last_active": "",
+      "priority": 7,
+      "skill_level_boost": 0.0
+    },
+    {
+      "dept_id": "dept-security",
+      "dept_name": "安全审计组",
+      "capability_desc": "安全漏洞扫描、代码安全审计、渗透测试、安全加固",
+      "capability_keywords": [
+        "安全",
+        "security",
+        "漏洞",
+        "审计",
+        "渗透",
+        "加密",
+        "认证",
+        "授权"
+      ],
+      "tools": [
+        "security_scanner",
+        "linter"
+      ],
+      "success_rate": 0.9,
+      "total_tasks": 0,
+      "successful_tasks": 0,
+      "last_active": "",
+      "priority": 8,
+      "skill_level_boost": 0.0
+    },
+    {
+      "dept_id": "dept-content",
+      "dept_name": "内容演示部",
+      "capability_desc": "PPT 制作、文档撰写、数据可视化、演示材料准备",
+      "capability_keywords": [
+        "ppt",
+        "演示",
+        "文档",
+        "报告",
+        "图表",
+        "可视化",
+        "内容"
+      ],
+      "tools": [
+        "ppt_generator",
+        "chart_maker",
+        "doc_writer"
+      ],
+      "success_rate": 0.9,
+      "total_tasks": 0,
+      "successful_tasks": 0,
+      "last_active": "",
+      "priority": 8,
+      "skill_level_boost": 0.0
+    },
+    {
+      "dept_id": "dept-test",
+      "dept_name": "测试部门",
+      "capability_desc": "",
+      "capability_keywords": [
+        "test"
+      ],
+      "tools": [],
+      "success_rate": 0.0,
+      "total_tasks": 0,
+      "successful_tasks": 0,
+      "last_active": "",
+      "priority": 0.5,
+      "skill_level_boost": 0.0
+    }
+  ]
+}
