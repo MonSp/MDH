@@ -44,7 +44,8 @@ class Session:
         self._workspace = None
         self._agenda = None
         self._agent_bridge = None  # AgentBridge 实例
-        self._approval_manager = None  # ApprovalManager 实例
+        from approval_manager import ApprovalManager
+        self._approval_manager = ApprovalManager()  # 会话级实例，一次创建
         self._checkpoint_manager = None  # CheckpointManager 实例
 
     def add_to_buffer(self, msg: dict) -> None:

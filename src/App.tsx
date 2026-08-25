@@ -29,6 +29,19 @@ import {
   type AppMode,
 } from './constants';
 
+/** Discriminated union for WebSocket messages received from the backend. */
+type WsMessage =
+  | { type: 'connected' }
+  | { type: 'thinking'; delta: string | unknown }
+  | { type: 'reply_text'; delta: string | unknown }
+  | { type: 'tool_call'; call_id: string; name: string; args: Record<string, unknown> }
+  | { type: 'confirm_request'; call_id: string; name: string; args: Record<string, unknown> & { risk_level?: string; description?: string; reason?: string; confidence?: number } }
+  | { type: 'done'; message?: string | unknown }
+  | { type: 'error'; message?: string | unknown }
+  | { type: 'skill_list'; skills: SkillInfo[] }
+  | { type: 'skill_saved' }
+  | { type: 'skill_deleted' };
+
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -67,7 +80,7 @@ function AppContent() {
 
   const { currentRequest, pendingCount, addRequest, approve, reject, close, waitForDecision, queueRef } = useApproval();
 
-  const handleWsMessage = useCallback((msg: any) => {
+  const handleWsMessage = useCallback((msg: WsMessage) => {
     switch (msg.type) {
       case 'connected': break;
       case 'thinking': {
@@ -100,7 +113,7 @@ function AppContent() {
           resultText: '',
           startTime: stepStart,
         };
-        activeConvRef.current.toolSteps.push(step);
+        activeConvRef.current = { ...activeConvRef.current, toolSteps: [...activeConvRef.current.toolSteps, step] };
         setConversations(prev => [...prev]);
         scrollToBottom();
         break;
@@ -131,7 +144,7 @@ function AppContent() {
           resultText: '',
           startTime: Date.now(),
         };
-        activeConvRef.current.toolSteps.push(step);
+        activeConvRef.current = { ...activeConvRef.current, toolSteps: [...activeConvRef.current.toolSteps, step] };
         setConversations(prev => [...prev]);
         scrollToBottom();
 

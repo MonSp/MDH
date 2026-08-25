@@ -81,7 +81,7 @@ logger = logging.getLogger("server")
 BACKEND_TOKEN = os.environ.get("BACKEND_TOKEN", "")
 if not BACKEND_TOKEN:
     BACKEND_TOKEN = secrets.token_urlsafe(32)
-    logger.warning("BACKEND_TOKEN not set, generated: %s...", BACKEND_TOKEN[:8])
+    logger.warning("BACKEND_TOKEN not set, using auto-generated token")
 
 
 async def verify_backend_token(authorization: str = Header(None)):
@@ -454,7 +454,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("未处理的异常: %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
-        content={"success": False, "data": None, "error": str(exc)},
+        content={"success": False, "data": None, "error": "Internal server error"},
     )
 
 
@@ -1541,6 +1541,11 @@ async def parse_document(request: Request):
         body = await request.json()
         file_path = body.get("file_path", "")
         team_id = body.get("team_id", "")
+        if file_path:
+            real_path = os.path.realpath(file_path)
+            allowed_base = os.path.realpath(_DATA_DIR)
+            if not real_path.startswith(allowed_base + os.sep) and real_path != allowed_base:
+                return _fail("路径不允许")
         from document_parser import DocumentParser
         parser = DocumentParser(_DATA_DIR)
         result = parser.parse_file(file_path, team_id=team_id)
@@ -1595,6 +1600,11 @@ async def get_document_stats():
 async def analyze_workspace(path: str = ""):
     """分析代码仓库结构"""
     try:
+        if path:
+            real_path = os.path.realpath(path)
+            allowed_base = os.path.realpath(_DATA_DIR)
+            if not real_path.startswith(allowed_base + os.sep) and real_path != allowed_base:
+                return _fail("路径不允许")
         from live_document import LiveDocumentManager
         mgr = LiveDocumentManager(_DATA_DIR)
         return _ok(mgr.analyze_codebase(path))
@@ -1609,6 +1619,11 @@ async def analyze_dataset(request: Request):
     try:
         body = await request.json()
         file_path = body.get("file_path", "")
+        if file_path:
+            real_path = os.path.realpath(file_path)
+            allowed_base = os.path.realpath(_DATA_DIR)
+            if not real_path.startswith(allowed_base + os.sep) and real_path != allowed_base:
+                return _fail("路径不允许")
         from live_document import LiveDocumentManager
         mgr = LiveDocumentManager(_DATA_DIR)
         return _ok(mgr.analyze_dataset(file_path))

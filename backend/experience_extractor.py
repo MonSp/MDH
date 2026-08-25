@@ -1024,9 +1024,13 @@ class ExperienceExtractor:
             current_id = rule.parent_rule_id
 
         # 向后查找（找到进化后的规则）
-        for rid in self._list_rule_ids():
-            rule = self._load_rule(rid)
-            if rule and rule.parent_rule_id == rule_id and rid not in visited:
+        rows = self._db.execute(
+            "SELECT * FROM experience_rules WHERE parent_rule_id = ?",
+            (rule_id,),
+        ).fetchall()
+        for row in rows:
+            rid = row["rule_id"]
+            if rid not in visited:
                 chain.extend(self.get_evolution_chain(rid))
 
         return chain

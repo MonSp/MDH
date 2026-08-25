@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiGet, apiPost } from '../../services/apiFetch';
+import { STORAGE_KEYS } from '../../constants';
 
 interface OnboardingState {
   completed: boolean;
@@ -459,13 +460,13 @@ export default function OnboardingWizard({ onComplete, onExecuteTask }: Onboardi
     }
     setApiKeyError('');
     // Persist the key to localStorage for the rest of the app
-    localStorage.setItem('deepseek_api_key', apiKey.trim());
+    localStorage.setItem(STORAGE_KEYS.API_KEY, apiKey.trim());
     goNext();
   }, [apiKey, goNext]);
 
   const handleConfirmModel = useCallback(() => {
-    localStorage.setItem('llm_provider', selectedModel.startsWith('gpt') ? 'openai' : 'deepseek');
-    localStorage.setItem('llm_model_name', selectedModel);
+    localStorage.setItem(STORAGE_KEYS.PROVIDER, selectedModel.startsWith('gpt') ? 'openai' : 'deepseek');
+    localStorage.setItem(STORAGE_KEYS.MODEL_NAME, selectedModel);
     goNext();
   }, [selectedModel, goNext]);
 
@@ -676,7 +677,15 @@ export default function OnboardingWizard({ onComplete, onExecuteTask }: Onboardi
   const canGoNext = isTaskStep ? currentTaskResult === 'done' : true;
   const isLastTaskStep = step === 3 + tasks.length - 1 && tasks.length > 0;
 
-  if (loading) return null;
+  if (loading) return (
+    <div style={styles.overlay}>
+      <SpinnerStyle />
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+        <div style={{ ...styles.spinner, width: 36, height: 36 }} />
+        <div style={{ color: '#94a3b8', fontSize: 14 }}>加载中...</div>
+      </div>
+    </div>
+  );
 
   return (
     <div style={styles.overlay}>
