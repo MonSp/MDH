@@ -2,6 +2,22 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] - 2026-08-27
+
+### Added
+
+**交互式引导 Onboarding**
+- **OnboardingManager** 后端状态追踪（JSON 持久化，5 个 REST 端点）
+- **3 个递增示例任务**：探索项目结构(简单) / 代码生成(中等) / 团队协作(高级)
+- **OnboardingWizard** 前端 6 步向导（欢迎 → API Key → 模型选择 → 3 个任务 → 完成）
+- **OnboardingGuard** 首次访问自动触发，完成后不再显示
+- **App.tsx 集成**：WebSocket 任务执行桥接，向导中可真实发送任务
+- **AppHeader** "重新体验引导"按钮
+
+### Tests
+- 新增 11 个 onboarding 测试
+- 后端 2012 passed，前端 1726 passed
+
 ## [0.3.3] - 2026-08-27
 
 ### Fixed
