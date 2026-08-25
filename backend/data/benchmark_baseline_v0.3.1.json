@@ -1,25 +1,25 @@
 {
   "version": "v0.3.1",
-  "timestamp": "2026-08-25T13:20:15Z",
+  "timestamp": "2026-08-25T14:39:20Z",
   "python_version": "3.13.13 | packaged by Anaconda, Inc. | (main, Apr 14 2026, 06:19:41) [GCC 14.3.0]",
   "benchmarks": {
     "routing": {
       "name": "routing",
       "iterations": 80,
-      "avg_ms": 0.04,
-      "p95_ms": 0.066,
+      "avg_ms": 0.039,
+      "p95_ms": 0.059,
       "min_ms": 0.015,
-      "max_ms": 0.898,
+      "max_ms": 0.889,
       "threshold_avg_ms": 50,
       "threshold_p95_ms": 100
     },
     "cache_read_write": {
       "name": "cache_read_write",
       "iterations": 400,
-      "avg_ms": 0.001,
+      "avg_ms": 0.0,
       "p95_ms": 0.001,
       "min_ms": 0.0,
-      "max_ms": 0.03,
+      "max_ms": 0.004,
       "threshold_avg_ms": 5,
       "threshold_p95_ms": 10
     },
@@ -29,37 +29,37 @@
       "avg_ms": 0.005,
       "p95_ms": 0.006,
       "min_ms": 0.003,
-      "max_ms": 0.025,
+      "max_ms": 0.023,
       "threshold_avg_ms": 10,
       "threshold_p95_ms": 20
     },
     "evolution_event_recording": {
       "name": "evolution_event_recording",
       "iterations": 200,
-      "avg_ms": 0.078,
-      "p95_ms": 0.04,
-      "min_ms": 0.014,
-      "max_ms": 8.209,
+      "avg_ms": 0.183,
+      "p95_ms": 0.048,
+      "min_ms": 0.015,
+      "max_ms": 26.945,
       "threshold_avg_ms": 5,
       "threshold_p95_ms": 10
     },
     "ab_tracking": {
       "name": "ab_tracking",
       "iterations": 200,
-      "avg_ms": 9.849,
-      "p95_ms": 16.329,
-      "min_ms": 7.033,
-      "max_ms": 22.961,
+      "avg_ms": 37.326,
+      "p95_ms": 49.298,
+      "min_ms": 16.612,
+      "max_ms": 59.163,
       "threshold_avg_ms": 50,
       "threshold_p95_ms": 75
     },
     "prometheus_metrics_generation": {
       "name": "prometheus_metrics_generation",
       "iterations": 100,
-      "avg_ms": 0.218,
-      "p95_ms": 0.298,
-      "min_ms": 0.182,
-      "max_ms": 0.582,
+      "avg_ms": 0.214,
+      "p95_ms": 0.288,
+      "min_ms": 0.179,
+      "max_ms": 0.608,
       "threshold_avg_ms": 10,
       "threshold_p95_ms": 20
     },
@@ -69,7 +69,7 @@
       "avg_ms": 0.0,
       "p95_ms": 0.001,
       "min_ms": 0.0,
-      "max_ms": 0.011,
+      "max_ms": 0.015,
       "threshold_avg_ms": 1,
       "threshold_p95_ms": 2
     }
