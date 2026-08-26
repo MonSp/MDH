@@ -29,6 +29,7 @@ def _fail(error: str):
 
 
 @router.get("")
+@router.get("/list")
 async def list_skills():
     try:
         return _ok(_skill_registry.list_skills())
