@@ -95,6 +95,7 @@
 | **0.5.1** | 2026-08-27 | 收束修复（flaky regression test + 全量验证 3977 passed） |
 | **0.5.2** | 2026-08-27 | 代码审查 Critical+Important 修复（14 项：路径穿越/Token泄露/N+1查询/类型安全等） |
 | **0.5.3** | 2026-08-27 | Minor 代码审查修复（冗余导入 + meeting_coordinator 17 单元测试） |
+| **0.5.4** | 2026-08-27 | CI/CD 增强（ruff/pip-audit/eslint/orchestrator-tests + README 徽章更新） |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 

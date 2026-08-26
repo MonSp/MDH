@@ -2,6 +2,23 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.5.4] - 2026-08-27
+
+### Added
+
+**CI/CD 增强**
+- **backend-lint** job: ruff check + format 静态分析
+- **backend-security** job: pip-audit 依赖漏洞扫描
+- **frontend-lint** job: eslint TypeScript 代码检查
+- **orchestrator-tests** job: vitest 编排器测试纳入 CI
+- Docker build 依赖新增 orchestrator-tests
+- 前端测试启用 --coverage 覆盖率
+
+**README 修正**
+- 后端测试徽章：1759 → 2052
+- 新增编排器测试徽章：216 passed
+- 双语 README 测试数同步
+
 ## [0.5.3] - 2026-08-27
 
 ### Fixed
