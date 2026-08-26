@@ -2,8 +2,9 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1759%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-2052%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
+[![Orchestrator Tests](https://img.shields.io/badge/orchestrator-216%20passed-brightgreen)]()
 
 **中文** | [English](README.en.md)
 
@@ -268,10 +269,10 @@ custom_roles:
 # 前端测试 (1726 tests)
 npx vitest run
 
-# 后端测试 (1759 tests)
+# 后端测试 (2052 tests)
 cd backend && python -m pytest tests/ --timeout=60
 
-# Orchestrator 测试 (214 tests)
+# Orchestrator 测试 (216 tests)
 cd orchestrator && npm test
 
 # E2E 功能验证 (31 项)

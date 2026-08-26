@@ -2,8 +2,9 @@
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Backend Tests](https://img.shields.io/badge/backend-1759%20passed-brightgreen)]()
+[![Backend Tests](https://img.shields.io/badge/backend-2052%20passed-brightgreen)]()
 [![Frontend Tests](https://img.shields.io/badge/frontend-1726%20passed-brightgreen)]()
+[![Orchestrator Tests](https://img.shields.io/badge/orchestrator-216%20passed-brightgreen)]()
 
 [中文版](README.md) | **English**
 
@@ -255,10 +256,10 @@ Each digital employee has a persistent career profile, accumulating experience a
 # Frontend tests (1726 tests)
 npx vitest run
 
-# Backend tests (1759 tests)
+# Backend tests (2052 tests)
 cd backend && python -m pytest tests/ --timeout=60
 
-# Orchestrator tests (214 tests)
+# Orchestrator tests (216 tests)
 cd orchestrator && npm test
 
 # E2E verification (31 checks)
