@@ -45,11 +45,8 @@ type WsMessage =
 function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
-  // Electron 模式默认进入团队视图，浏览器模式保留单智能体
-  const isElectronMode = isElectron();
-  const isTeamMode = isElectronMode
-    ? !location.pathname.startsWith('/single')  // Electron: 默认团队，/single 才切回单智能体
-    : location.pathname.startsWith('/team');     // 浏览器: /team 切团队
+  // 所有模式默认进入团队视图（与 Electron 一致）
+  const isTeamMode = !location.pathname.startsWith('/single');
   const [chatText, setChatText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -440,48 +437,13 @@ function AppContent() {
       />
 
       <ErrorBoundary>
-        {appMode === 'single' ? (
-          <>
-            <div className="conv-stream" ref={streamRef}>
-              <ConversationStream
-                conversations={conversations}
-                onOpenSkillEditor={openSkillEditor}
-                onToggleThinkCollapse={toggleThinkCollapse}
-              />
-            </div>
-
-            <div className="input-bar">
-              <Sender
-                value={chatText}
-                onChange={setChatText}
-                onSubmit={sendMessage}
-                disabled={isProcessing}
-                loading={isProcessing}
-                placeholder="输入指令，例如：打开 GitHub 搜索 react..."
-                submitType="enter"
-              />
-              <div className="mode-switcher">
-                <button className={`mode-btn ${!isTeamMode ? 'active' : ''}`} onClick={() => navigate(isElectronMode ? '/single' : '/')}>
-                  <span className="mode-icon">🤖</span>
-                  <span className="mode-label">单智能体</span>
-                </button>
-                <button className={`mode-btn ${isTeamMode ? 'active' : ''}`} onClick={() => navigate(isElectronMode ? '/' : '/team')}>
-                  <span className="mode-icon">👥</span>
-                  <span className="mode-label">多智能体团队</span>
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <OfficeTeamMode
-            wsRef={wsRef}
-            onBackToSingle={() => navigate('/')}
-            pendingApprovalCount={pendingCount}
-            onOpenApproval={() => {
-              if (currentRequest) close();
-            }}
-          />
-        )}
+        <OfficeTeamMode
+          wsRef={wsRef}
+          pendingApprovalCount={pendingCount}
+          onOpenApproval={() => {
+            if (currentRequest) close();
+          }}
+        />
       </ErrorBoundary>
 
       {currentRequest && (

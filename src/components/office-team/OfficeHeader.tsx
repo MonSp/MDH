@@ -12,7 +12,7 @@ interface OfficeHeaderProps {
   viewState: string
   tasks: Task[]
   hasMessages: boolean
-  onBackToSingle: () => void
+  onBackToSingle?: () => void
   onBackToTower: () => void
   onStartMeeting: () => void
   meetingPhase?: MeetingPhase
@@ -60,14 +60,9 @@ export default function OfficeHeader({
 
   return (
     <div style={styles.header}>
-      {!isElectronMode && (
-        <button style={styles.backButton} onClick={viewState === 'meeting' ? onBackToTower : onBackToSingle}>
-          {viewState === 'meeting' ? '← 返回对话' : '← 返回'}
-        </button>
-      )}
-      {isElectronMode && viewState === 'meeting' && (
+      {viewState === 'meeting' && (
         <button style={styles.backButton} onClick={onBackToTower}>
-          ← 返回大厦
+          ← 返回对话
         </button>
       )}
       <div style={styles.headerCenter}>

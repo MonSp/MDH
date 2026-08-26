@@ -19,7 +19,7 @@ const TechTowerView = React.lazy(() => import('../TechTowerView'))
 
 interface OfficeTeamModeProps {
   wsRef: React.MutableRefObject<WebSocket | null>
-  onBackToSingle: () => void
+  onBackToSingle?: () => void
   pendingApprovalCount?: number
   onOpenApproval?: () => void
 }

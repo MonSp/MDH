@@ -22,7 +22,7 @@ interface TechTowerViewProps {
   wsRef: React.MutableRefObject<WebSocket | null>
   onStartMeeting: () => void
   onSendTask: (description: string) => void
-  onBackToSingle: () => void
+  onBackToSingle?: () => void
   onEnterProject?: (projectId: string, projectName: string) => void
   refreshKey?: number
 }
@@ -229,9 +229,6 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
               ))}
             </div>
             <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              {!isElectronMode && (
-                <button onClick={onBackToSingle} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#9ca3af', cursor: 'pointer', fontSize: 12 }}>← 返回单智能体</button>
-              )}
             </div>
           </div>
         }
@@ -373,7 +370,7 @@ export default function TechTowerView({ wsRef, onStartMeeting, onSendTask, onBac
 
       <ViewBookmarks onNavigate={handleNavigate} />
       <SidePanel panel={panel} onClose={handleClose} onCreateTeam={handleDoCreateTeam} onCreateProject={handleCreateProject} onEnterProject={onEnterProject} isMobile={isMobile} depts={DEFAULT_DEPTS} />
-      <OverlayButtons onStartMeeting={onStartMeeting} onBackToSingle={onBackToSingle} />
+      <OverlayButtons onStartMeeting={onStartMeeting} />
 
       {/* CEO对话入口按钮 */}
       {!showCeoChat && (
