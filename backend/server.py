@@ -146,12 +146,11 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 @app.middleware("http")
 async def api_version_middleware(request, call_next):
     """API 版本化 + 请求追踪"""
-    import uuid as _uuid
     path = request.url.path
     if path.startswith("/api/v1/"):
         request.scope["path"] = path[3:]
     # 请求追踪
-    trace_id = _uuid.uuid4().hex[:12]
+    trace_id = uuid.uuid4().hex[:12]
     request.scope["trace_id"] = trace_id
     try:
         from logging_config import set_trace_id
