@@ -2,6 +2,14 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.5.3] - 2026-08-27
+
+### Fixed
+**Minor 代码审查修复**
+- 移除 `server.py` api_version_middleware 中冗余的 `import uuid as _uuid`
+- 新增 `test_meeting_coordinator.py`：17 个单元测试（_estimate_task_complexity / _verify_delivery / _triage_task）
+- 后端 2052 passed, 0 failures
+
 ## [0.5.2] - 2026-08-27
 
 ### Fixed
