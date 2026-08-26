@@ -68,9 +68,7 @@ logger = logging.getLogger("server")
 
 # ──────────────────── 认证配置 ────────────────────
 BACKEND_TOKEN = os.environ.get("BACKEND_TOKEN", "")
-if not BACKEND_TOKEN:
-    BACKEND_TOKEN = secrets.token_urlsafe(32)
-    logger.warning("BACKEND_TOKEN not set, using auto-generated token")
+# 不自动生成：未设置时认证绕过（本地开发模式）
 
 
 async def verify_backend_token(authorization: str = Header(None)):
@@ -236,7 +234,7 @@ tenant_mgr = TenantManager(_DATA_DIR)
 app.add_middleware(TenantMiddleware, tenant_manager=tenant_mgr)
 app.add_middleware(AuthMiddleware)
 
-skill_registry = SkillRegistry(base_dir=os.path.join(_DATA_DIR, "skill_packages"))
+skill_registry = SkillRegistry(base_dir=os.path.join(_BASE_DIR, "..", "skill_packs"))
 skill_packager = SkillPackager(
     output_dir=os.path.join(_DATA_DIR, "packages"),
 )
