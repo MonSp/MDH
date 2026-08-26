@@ -1,7 +1,6 @@
 """Tests for TTLCache — 性能缓存"""
 import time
-import pytest
-from cache import TTLCache, get_cache, cached
+from cache import TTLCache, get_cache
 
 
 class TestTTLCache:

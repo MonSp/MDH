@@ -16,13 +16,13 @@ import os
 import secrets
 import threading
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
-from db import get_db, get_write_lock
+from db import get_db
 
 logger = logging.getLogger("webhook")
 

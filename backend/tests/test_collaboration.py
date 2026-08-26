@@ -1,13 +1,11 @@
-import asyncio
 import pytest
 from collaboration.communication import (
-    CommunicationInterface,
     InMemoryCommunication,
     CommunicationManager,
     Message,
     MessageType,
 )
-from collaboration.planner_agent import PlannerAgent, TaskStatus, TaskPlan
+from collaboration.planner_agent import PlannerAgent, TaskStatus
 from collaboration.executor_agent import ExecutorAgent, AgentStatus
 from collaboration.collaborative_agent import CollaborativeAgent
 

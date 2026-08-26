@@ -5,11 +5,14 @@
 """
 
 import json
+import logging
 import os
 import threading
 import time
 
 from asset_search import AssetSearch
+
+logger = logging.getLogger("asset_injection")
 
 _MAX_TEMPLATES = 3
 _MAX_ARTIFACTS = 3

@@ -264,7 +264,6 @@ def test_get_asset_judge_respects_env_switch(monkeypatch):
 
 def test_reuse_metrics_endpoint(tmp_path, monkeypatch):
     from asset_store import AssetStore
-    from asset_injection import get_reuse_stats
     stats = {"total": 3, "by_team": {"team-x": 2}, "by_type": {"templates": 1, "artifacts": 1, "rules": 1}, "last_at": "t"}
     monkeypatch.setattr("server._get_asset_store", lambda: AssetStore(str(tmp_path)))
     monkeypatch.setattr("asset_injection.get_reuse_stats", lambda: stats)  # 或以真实统计为准

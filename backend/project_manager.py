@@ -8,7 +8,6 @@ import datetime
 import json
 import logging
 import os
-import shutil
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -17,7 +16,7 @@ from typing import Optional
 
 from skill_registry import SkillRegistry
 from skill_packager import SkillPackager
-from team import Team, TeamRuntime, RuntimeType, TeamStatus
+from team import Team, TeamRuntime, RuntimeType
 from team_assembler import TeamAssembler
 
 logger = logging.getLogger(__name__)

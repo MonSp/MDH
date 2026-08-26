@@ -1,16 +1,14 @@
 """Tests for protocol.py — data structures and serialization functions"""
-import pytest
 from protocol import (
     # Enums
     WorkflowNodeStatus, WorkflowExecutionStatus, AgentRole, MeetingAgentStatus,
     AgendaPhase, Stance, ConsensusStrategy, ApprovalStatus, RiskLevel,
     # Dataclasses
-    WorkflowNode, WorkflowEdge, WorkflowDefinition, WorkflowExecution,
-    MeetingAgentInfo, MeetingTaskInfo, MeetingSummary, TraceContext,
+    WorkflowNode, WorkflowEdge, MeetingAgentInfo, MeetingTaskInfo, MeetingSummary, TraceContext,
     AgendaState, Proposal, Vote, VoteResult,
     ApprovalRequest, Checkpoint,
     # Serialization
-    semantic_analysis_to_dict, meeting_agent_to_dict, meeting_task_to_dict,
+    meeting_agent_to_dict, meeting_task_to_dict,
     meeting_summary_to_dict, trace_context_to_dict, agenda_state_to_dict,
     proposal_to_dict, vote_to_dict, vote_result_to_dict,
     approval_request_to_dict, checkpoint_to_dict,

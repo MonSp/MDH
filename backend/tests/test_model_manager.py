@@ -1,6 +1,6 @@
 """Tests for model_manager — model lifecycle management"""
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from protocol import AgentRole
 
 

@@ -12,7 +12,7 @@ import logging
 import os
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 logger = logging.getLogger("proactive_monitor")
 

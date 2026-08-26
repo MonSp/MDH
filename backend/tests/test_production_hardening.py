@@ -1,11 +1,9 @@
 """生产加固测试 — 并发安全 + 错误恢复 + 性能基准 + 安全防护"""
 
-import json
 import os
 import sqlite3
 import threading
 import time
-import pytest
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -209,7 +207,6 @@ class TestPerformanceBenchmark:
             mgr.get_or_create(f"agent-{i}", f"Agent-{i}")
 
         # 创建一个 db 文件
-        import sqlite3
         db_path = tmp_path / "test.db"
         conn = sqlite3.connect(str(db_path))
         conn.execute("CREATE TABLE t (id INTEGER)")

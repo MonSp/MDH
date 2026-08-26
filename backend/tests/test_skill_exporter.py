@@ -1,6 +1,5 @@
 """Tests for SkillExporter — import/export"""
 import pytest
-import tempfile
 import zipfile
 from pathlib import Path
 

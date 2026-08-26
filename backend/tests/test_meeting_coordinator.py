@@ -2,7 +2,6 @@
 
 Focused on static/pure methods that can be tested without LLM or WebSocket setup.
 """
-import pytest
 
 from meeting_coordinator import MeetingCoordinator
 

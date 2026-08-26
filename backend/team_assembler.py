@@ -8,7 +8,7 @@ import uuid
 from typing import Optional
 
 from employee_directory import get_directory
-from team import Team, TeamMember, TeamRuntime, AgentLocation, TeamStatus
+from team import Team, TeamMember, TeamRuntime, AgentLocation
 
 logger = logging.getLogger(__name__)
 

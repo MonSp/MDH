@@ -1,5 +1,4 @@
 """把关点引擎：request_gate/handle_gate_response 成对审计 + task/gate 关联"""
-import pytest
 from approval_manager import ApprovalManager
 
 

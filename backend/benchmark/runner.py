@@ -170,7 +170,6 @@ def run_single_task(task: BenchmarkTask, workspace: str) -> TaskResult:
         result.success = len(files_written) >= task.expected_min_files
         if not result.success:
             result.error = f"文件数不足: {len(files_written)} < {task.expected_min_files}"
-        collector.restore()
 
     except Exception as e:
         result.error = str(e)
@@ -297,7 +296,7 @@ def format_report(report: BenchmarkReport) -> str:
     """格式化评测报告"""
     lines = [
         f"{'='*60}",
-        f"MDH 评测基准报告",
+        "MDH 评测基准报告",
         f"{'='*60}",
         f"时间: {report.timestamp}",
         f"总计: {report.total} | 通过: {report.passed} | 失败: {report.failed}",

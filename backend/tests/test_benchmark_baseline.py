@@ -9,7 +9,6 @@ import os
 import sqlite3
 import sys
 import time
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -261,9 +260,10 @@ def test_05_ab_tracking_benchmark(tmp_path):
 # ══════════════════════════════════════════════════════════════════════
 
 def test_06_prometheus_metrics_benchmark():
+    from prometheus_client import generate_latest
     from prometheus_metrics import (
-        LLM_CALLS, TASK_SUCCESS, TASK_FAILURE, EVOLUTION_EVENTS,
-        WS_CONNECTIONS, generate_latest,
+        LLM_CALLS, TASK_SUCCESS, EVOLUTION_EVENTS,
+        WS_CONNECTIONS,
     )
 
     # Pre-populate some metrics

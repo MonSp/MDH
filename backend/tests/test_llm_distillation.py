@@ -12,14 +12,13 @@ Verifies:
 import json
 import shutil
 import tempfile
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from experience_extractor import (
     ExecutionLog,
     ExperienceExtractor,
-    ExperienceRule,
     _now_iso,
 )
 

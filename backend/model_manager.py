@@ -5,7 +5,7 @@ ModelManager — 模型生命周期管理
 """
 
 import logging
-from typing import Dict, Optional
+from typing import Dict
 
 from agentscope.agent import Agent
 

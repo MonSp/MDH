@@ -5,16 +5,16 @@ Spec Tree 数据结构与校验器测试
 import pytest
 from spec_tree import (
     SpecTree, SpecTreeNode, SpecTreeNodeType,
-    SuccessCriterion, Provenance, SpecTreeValidator, ValidationResult
+    SuccessCriterion, Provenance, SpecTreeValidator
 )
 
 
 class TestSpecTreeValidator:
     """SpecTreeValidator测试类"""
-    
+
     def setup_method(self):
         self.validator = SpecTreeValidator()
-    
+
     def _create_valid_tree(self) -> SpecTree:
         """创建合法的规格树"""
         return SpecTree(
@@ -66,18 +66,18 @@ class TestSpecTreeValidator:
             ],
             provenance=Provenance(generationSource="llm"),
         )
-    
+
     # ============ 合法树测试 ============
-    
+
     def test_valid_tree(self):
         """合法规格树应通过校验"""
         tree = self._create_valid_tree()
         result = self.validator.validate(tree)
         assert result.passed is True
         assert len(result.violations) == 0
-    
+
     # ============ 结构校验测试 ============
-    
+
     def test_too_few_nodes(self):
         """节点数不足"""
         tree = SpecTree(
@@ -107,7 +107,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("节点数不足" in v for v in result.violations)
-    
+
     def test_duplicate_ids(self):
         """ID不唯一"""
         tree = self._create_valid_tree()
@@ -115,7 +115,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("ID不唯一" in v for v in result.violations)
-    
+
     def test_empty_id(self):
         """空ID"""
         tree = self._create_valid_tree()
@@ -123,7 +123,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("空ID" in v for v in result.violations)
-    
+
     def test_no_root(self):
         """无根节点"""
         tree = self._create_valid_tree()
@@ -131,7 +131,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("根节点数量不为1" in v for v in result.violations)
-    
+
     def test_multiple_roots(self):
         """多个根节点"""
         tree = self._create_valid_tree()
@@ -139,7 +139,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("根节点数量不为1" in v for v in result.violations)
-    
+
     def test_root_id_mismatch(self):
         """rootNodeId与实际根节点不匹配"""
         tree = self._create_valid_tree()
@@ -147,7 +147,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("rootNodeId" in v for v in result.violations)
-    
+
     def test_root_not_requirement(self):
         """根节点类型不是requirement"""
         tree = self._create_valid_tree()
@@ -155,7 +155,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("根节点类型必须为requirement" in v for v in result.violations)
-    
+
     def test_parent_not_found(self):
         """父节点不存在"""
         tree = self._create_valid_tree()
@@ -163,7 +163,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("父节点" in v and "不存在" in v for v in result.violations)
-    
+
     def test_cycle_detection(self):
         """循环依赖检测"""
         tree = self._create_valid_tree()
@@ -171,7 +171,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("循环依赖" in v for v in result.violations)
-    
+
     def test_depth_exceeded(self):
         """深度超过限制"""
         tree = SpecTree(
@@ -193,9 +193,9 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("树深度超过限制" in v for v in result.violations)
-    
+
     # ============ 来源诚实校验测试 ============
-    
+
     def test_invalid_source(self):
         """来源不合法"""
         tree = self._create_valid_tree()
@@ -203,9 +203,9 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("来源不合法" in v for v in result.violations)
-    
+
     # ============ 成功标准覆盖测试 ============
-    
+
     def test_empty_criteria(self):
         """成功标准为空"""
         tree = self._create_valid_tree()
@@ -213,7 +213,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("成功标准列表为空" in v for v in result.violations)
-    
+
     def test_uncovered_criteria(self):
         """成功标准未被覆盖"""
         tree = self._create_valid_tree()
@@ -221,7 +221,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("未被覆盖" in v for v in result.violations)
-    
+
     def test_criteria_collapse(self):
         """需求节点塌缩"""
         tree = SpecTree(
@@ -250,9 +250,9 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("需求节点塌缩" in v for v in result.violations)
-    
+
     # ============ EARS验收测试 ============
-    
+
     def test_missing_acceptance(self):
         """需求节点缺少acceptance"""
         tree = self._create_valid_tree()
@@ -260,7 +260,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("缺少acceptance" in v for v in result.violations)
-    
+
     def test_invalid_ears(self):
         """acceptance不符合EARS句式"""
         tree = self._create_valid_tree()
@@ -268,9 +268,9 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("不符合EARS" in v for v in result.violations)
-    
+
     # ============ 证据贯穿测试 ============
-    
+
     def test_missing_evidence_refs(self):
         """需求节点缺少evidenceRefs"""
         tree = self._create_valid_tree()
@@ -278,7 +278,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("缺少evidenceRefs" in v for v in result.violations)
-    
+
     def test_evidence_not_found(self):
         """引用的证据节点不存在"""
         tree = self._create_valid_tree()
@@ -286,7 +286,7 @@ class TestSpecTreeValidator:
         result = self.validator.validate(tree)
         assert result.passed is False
         assert any("不存在" in v for v in result.violations)
-    
+
     def test_evidence_missing_source(self):
         """证据节点缺少source"""
         tree = self._create_valid_tree()
@@ -298,10 +298,10 @@ class TestSpecTreeValidator:
 
 class TestValidateFromDict:
     """从字典校验测试"""
-    
+
     def setup_method(self):
         self.validator = SpecTreeValidator()
-    
+
     def test_valid_dict(self):
         """合法字典"""
         data = {
@@ -352,7 +352,7 @@ class TestValidateFromDict:
         }
         result = self.validator.validate_from_dict(data)
         assert result.passed is True
-    
+
     def test_invalid_json(self):
         """非法JSON结构"""
         data = {"invalid": "data"}

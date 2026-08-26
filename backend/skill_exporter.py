@@ -19,13 +19,12 @@ SkillExporter — 技能包导入导出器（技能市场 Stage 2）
 
 import json
 import logging
-import os
 import re
 import time
 import zipfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import yaml
 

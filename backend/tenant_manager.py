@@ -6,16 +6,15 @@
 - 每个 tenant 有独立的 API key
 """
 
-import json
 import logging
 import os
 import secrets
 import threading
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from db import get_db, get_write_lock
+from db import get_db
 
 logger = logging.getLogger("tenant")
 

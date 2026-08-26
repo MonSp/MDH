@@ -11,11 +11,9 @@ Additional benchmarks for subsystems not covered by v0.3.1 baseline:
 
 import json
 import os
-import sqlite3
 import sys
 import threading
 import time
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -336,11 +334,11 @@ def test_04_prometheus_metrics_under_load():
     Generate 1000 LLM calls + 1000 task completions worth of metrics.
     Target: < 5ms for generate_latest().
     """
+    from prometheus_client import generate_latest
     from prometheus_metrics import (
         LLM_CALLS, LLM_TOKENS, LLM_CACHE_HITS, LLM_CACHE_MISSES,
         TASK_SUCCESS, TASK_FAILURE, EVOLUTION_EVENTS,
         XP_GRANTED, SKILL_LEVEL_UPS, WS_CONNECTIONS, WS_MESSAGES,
-        generate_latest,
     )
 
     # Simulate 1000 LLM calls with various providers/models

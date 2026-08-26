@@ -1,6 +1,5 @@
 """Tests for llm_cache.py — LLM response caching (SQLite + 语义规范化 + 分层 TTL)"""
 import time
-import pytest
 from llm_cache import LLMCache, normalize_prompt, classify_prompt_type, TTL_PRESETS
 
 

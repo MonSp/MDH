@@ -6,7 +6,6 @@ _TempSession 模式和 provider registry 调用。
 """
 
 import logging
-from typing import Optional
 
 from agentscope.agent import Agent
 

@@ -5,7 +5,7 @@ import zipfile
 import pytest
 import yaml
 
-from skill_packager import DesensitizeIssue, PackageResult, SkillPackager
+from skill_packager import PackageResult, SkillPackager
 
 
 # ──────────────────── 测试辅助 ────────────────────

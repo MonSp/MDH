@@ -1,6 +1,6 @@
 """Tests for ModelRegistry — 多模型支持"""
 import pytest
-from model_registry import ModelRegistry, ModelConfig, DEFAULT_MODELS
+from model_registry import ModelRegistry
 
 
 @pytest.fixture

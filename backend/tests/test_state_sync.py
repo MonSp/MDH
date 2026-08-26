@@ -1,7 +1,7 @@
 """State Sync 模块测试"""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from state_sync import StateSyncManager
 

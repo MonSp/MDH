@@ -9,9 +9,9 @@ import json
 import os
 import statistics
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
-from benchmark.tasks import BENCHMARK_TASKS, get_benchmark_tasks
+from benchmark.tasks import BENCHMARK_TASKS
 
 
 @dataclass

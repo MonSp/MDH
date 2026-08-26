@@ -6,12 +6,11 @@
 3. 求助机制：低置信领域自动触发跨团队知识请求
 """
 
-import json
 import logging
 import math
 import os
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("capability_boundary")
 

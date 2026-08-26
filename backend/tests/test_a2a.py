@@ -1,13 +1,10 @@
 """A2A 协议模块测试"""
 
-import json
-import os
-import tempfile
 import pytest
 
 from a2a_registry import A2ARegistry, AgentCard, AgentSkill, RegisteredAgent
 from a2a_task_router import A2ATaskRouter
-from a2a_client import A2AClient, A2ATaskEvent
+from a2a_client import A2AClient
 
 
 @pytest.fixture

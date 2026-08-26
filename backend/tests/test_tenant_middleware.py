@@ -9,15 +9,14 @@
 - 租户隔离：A 看不到 B 的项目
 """
 import pytest
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock
 from starlette.applications import Starlette
-from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from tenant_middleware import TenantMiddleware
-from tenant_manager import Tenant, TenantManager
+from tenant_manager import TenantManager
 
 
 # ────────────────────── fixtures ──────────────────────

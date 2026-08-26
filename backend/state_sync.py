@@ -7,7 +7,7 @@ State Sync — 双层状态同步
 
 import logging
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from experience_extractor import ExperienceExtractor
 from agent_memory import AgentMemory

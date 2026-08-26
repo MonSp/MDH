@@ -4,12 +4,9 @@ Each test instantiates the real module under test and only mocks external
 dependencies (LLM calls, HTTP requests, filesystem where needed).
 """
 
-import asyncio
 import json
 import os
 import sys
-import tempfile
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -463,7 +460,7 @@ def test_11_a2a_registry(tmp_path):
 
 @pytest.mark.asyncio
 async def test_12_a2a_client():
-    from a2a_client import A2AClient, A2ATaskEvent, A2ATaskStatus
+    from a2a_client import A2AClient
     from a2a_registry import RegisteredAgent, AgentCard
 
     client = A2AClient(timeout=10)
@@ -694,7 +691,6 @@ def test_17_ab_tracker(tmp_path):
 @pytest.mark.asyncio
 async def test_18_tenant_middleware(tmp_path):
     from tenant_manager import TenantManager
-    from tenant_middleware import TenantMiddleware
 
     data_dir = str(tmp_path / "data")
     os.makedirs(data_dir, exist_ok=True)
@@ -759,11 +755,10 @@ def test_19_rate_limiter():
 # ══════════════════════════════════════════════════════════════════════
 
 def test_20_prometheus_metrics():
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
     from prometheus_metrics import (
         LLM_CALLS, TASK_SUCCESS, TASK_FAILURE,
-        EVOLUTION_EVENTS, XP_GRANTED, SKILL_LEVEL_UPS,
-        WS_CONNECTIONS, WS_MESSAGES,
-        generate_latest, CONTENT_TYPE_LATEST,
+        WS_CONNECTIONS,
     )
 
     # Increment some counters

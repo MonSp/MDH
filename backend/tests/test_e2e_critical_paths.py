@@ -3,7 +3,6 @@
 每条路径测试一个完整的用户可见功能链，不使用 mock。
 """
 
-import json
 import os
 import sys
 import pytest
@@ -84,7 +83,6 @@ class TestMeetingFlowPath:
         """技能升级触发路由加成"""
         from dynamic_router import DynamicRouter
         from agent_profile_manager import AgentProfileManager
-        import json
 
         routing_path = os.path.join(data_dir, "routing_table.json")
         router = DynamicRouter(routing_path)
@@ -108,7 +106,6 @@ class TestEvolutionPath:
 
     def test_rule_lifecycle_create_to_evolution(self, data_dir):
         """规则从创建到自进化的完整生命周期"""
-        import yaml
         from experience_extractor import ExperienceExtractor, ExperienceRule
 
         ext = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))

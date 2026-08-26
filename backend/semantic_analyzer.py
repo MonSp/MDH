@@ -10,7 +10,6 @@ import logging
 import re
 from typing import Optional
 
-from agentscope.agent import Agent
 from agentscope.message import Msg
 from llm_guard import safe_llm_reply
 
@@ -24,7 +23,7 @@ logger = logging.getLogger("semantic_analyzer")
 
 class SemanticAnalyzer:
     """语义分析器"""
-    
+
     def __init__(self, router: DynamicRouter, get_model_fn, meeting_agents=None):
         """
         Args:
@@ -36,19 +35,19 @@ class SemanticAnalyzer:
         self._get_model = get_model_fn
         self._meeting_agents = meeting_agents or []
         self._last_routing_decision: Optional[RoutingDecision] = None
-    
+
     @property
     def last_routing_decision(self) -> Optional[RoutingDecision]:
         return self._last_routing_decision
-    
+
     async def analyze(self, user_message: str, team_id: str = "") -> SemanticAnalysisResult:
         """
         语义分析用户消息
-        
+
         Args:
             user_message: 用户消息
             team_id: 团队标识（非空时透传到文档模式工作流节点 input_spec）
-            
+
         Returns:
             SemanticAnalysisResult
         """
@@ -71,12 +70,11 @@ class SemanticAnalyzer:
             "DynamicRouter 路由: dept=%s confidence=%.4f reason=%s",
             routing_decision.selected_dept, routing_decision.confidence, routing_decision.reason,
         )
-        
+
         # 2. 检测是否为复杂任务
         is_complex = self._detect_complex_task(user_message)
         if is_complex:
             logger.info("检测到复杂任务，生成工作流定义")
-            from workflow_engine import WorkflowEngine
             workflow_definition = await self._generate_workflow_definition(user_message, routing_decision)
             return SemanticAnalysisResult(
                 is_task=True,
@@ -87,12 +85,12 @@ class SemanticAnalyzer:
                 reason="检测到跨部门复杂任务，生成工作流",
                 workflow_definition=workflow_definition,
             )
-        
+
         # 3. LLM 分析
         ceo_model = self._get_model(AgentRole.CEO)
         agent_list = self._build_agent_capability_list()
         routing_context = self._build_routing_context(routing_decision)
-        
+
         prompt = (
             f"你是会议的CEO和组织者。请分析以下用户消息，判断其意图。\n\n"
             f"用户消息：{user_message}\n"
@@ -113,19 +111,19 @@ class SemanticAnalyzer:
             f"5. 只返回JSON，不要其他内容"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        
+
         # 尝试调用LLM，如果失败则使用回退策略
         try:
             response = await safe_llm_reply(ceo_model, msg, timeout=60)
             text = _extract_text(response)
-            
+
             json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
             if json_match:
                 try:
                     data = json.loads(json_match.group())
                     llm_is_task = bool(data.get("is_task", False))
                     llm_confidence = float(data.get("confidence", 0.5))
-                    
+
                     discussion_topic = data.get("discussion_topic") or ""
                     task_description = data.get("task_description") or ""
                     return SemanticAnalysisResult(
@@ -140,7 +138,7 @@ class SemanticAnalyzer:
                     pass
         except Exception as e:
             logger.warning("LLM 调用失败，使用回退策略: %s", e)
-        
+
         # 回退：如果路由置信度足够高，直接使用路由结果
         if routing_decision.selected_dept and routing_decision.confidence >= 0.6:
             logger.info("LLM 解析失败，回退到路由结果: %s", routing_decision.selected_dept)
@@ -151,13 +149,13 @@ class SemanticAnalyzer:
                 target_agent_id=routing_decision.selected_dept,
                 reason=f"动态路由推荐: {routing_decision.reason}",
             )
-        
+
         return SemanticAnalysisResult(
             is_task=False,
             intent="discussion",
             discussion_topic=user_message,
         )
-    
+
     def _detect_minutes_task(self, user_message: str) -> bool:
         """文档任务检测：纪要家族关键词 + 产出动词双匹配（确定性规则，命中即短路）。
 
@@ -184,18 +182,18 @@ class SemanticAnalyzer:
             r'流程',
             r'步骤.*顺序',
         ]
-        
+
         for pattern in complex_patterns:
             if re.search(pattern, user_message, re.IGNORECASE):
                 return True
-        
+
         verbs = ['设计', '开发', '实现', '测试', '部署', '分析', '创建', '编写', '优化', '修复']
         verb_count = sum(1 for verb in verbs if verb in user_message)
         if verb_count >= 3:
             return True
-        
+
         return False
-    
+
     def _build_agent_capability_list(self) -> str:
         """构建agent能力列表"""
         lines = []
@@ -205,7 +203,7 @@ class SemanticAnalyzer:
             caps = ", ".join(agent.capabilities) if agent.capabilities else "通用"
             lines.append(f"- {agent.id} ({agent.name}, 角色:{agent.role.value}): 能力=[{caps}]")
         return "\n".join(lines)
-    
+
     def _build_routing_context(self, decision: RoutingDecision) -> str:
         """构建路由上下文"""
         if not decision.selected_dept:
@@ -217,7 +215,7 @@ class SemanticAnalyzer:
             f"- 理由：{decision.reason}\n"
             f"- 匹配关键词：{', '.join(decision.matched_keywords) or '无'}\n"
         )
-    
+
     async def _generate_workflow_definition(self, user_message: str, routing_decision: RoutingDecision):
         """根据用户消息生成工作流定义
 
@@ -225,7 +223,7 @@ class SemanticAnalyzer:
         依赖关系始终由确定性推断保证 DAG 结构正确性。
         """
         import uuid
-        from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowNodeStatus
+        from protocol import WorkflowDefinition, WorkflowNode, WorkflowNodeStatus
 
         workflow_id = str(uuid.uuid4())[:8]
 

@@ -11,9 +11,9 @@ import os
 import re
 import threading
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import yaml
 
@@ -1058,7 +1058,6 @@ class ExperienceExtractor:
 
     def get_demotion_stats(self) -> Dict:
         """降级统计报表：按类型/团队/时间聚合，含复审率"""
-        import json
         from collections import Counter
         log = self.get_demotion_log()  # 倒序（最近在前）
         if not log:

@@ -3,7 +3,7 @@ import shutil
 import tempfile
 import pytest
 from tool_executor import ToolExecutor
-from tool_registry import ToolRegistry, ToolDefinition, ToolParameter, ToolCall
+from tool_registry import ToolRegistry, ToolCall
 
 
 @pytest.fixture

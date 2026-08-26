@@ -9,20 +9,18 @@ execute_assigned_tasks() 提取。
 import json
 import logging
 import uuid
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from agentscope.agent import Agent
 from agentscope.message import Msg
 from llm_guard import safe_llm_reply
 
 from agent import _extract_text
-from agent_toolset import AgentToolset
 from code_extractor import extract_code_blocks
 from protocol import AgentRole, MeetingAgentStatus
 from dynamic_router import DynamicRouter
 from spec_manager import SpecManager
 from evidence_chain import EvidenceChain, Evidence
-from fallback_chain import FallbackChain, FallbackExecutor, RoutingFallbackBuilder
+from fallback_chain import FallbackExecutor, RoutingFallbackBuilder
 from experience_extractor import ExperienceExtractor
 
 logger = logging.getLogger("task_orchestrator")
@@ -30,7 +28,7 @@ logger = logging.getLogger("task_orchestrator")
 
 class TaskOrchestrator:
     """任务编排器"""
-    
+
     def __init__(
         self,
         get_model_fn,
@@ -54,14 +52,14 @@ class TaskOrchestrator:
         self._workspace_root = workspace_root
         self._executor_url = executor_url
         self._on_agent_status_change = on_agent_status_change
-    
+
     async def decompose(self, task_description: str) -> List[Dict[str, Any]]:
         """
         分解任务
-        
+
         Args:
             task_description: 任务描述
-            
+
         Returns:
             子任务列表
         """
@@ -76,7 +74,7 @@ class TaskOrchestrator:
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
         response = await safe_llm_reply(planner, msg, timeout=60)
         text = _extract_text(response)
-        
+
         try:
             subtasks = json.loads(text)
         except (json.JSONDecodeError, TypeError):
@@ -86,12 +84,12 @@ class TaskOrchestrator:
                 "priority": "high",
                 "dependencies": [],
             }]
-        
+
         for subtask in subtasks:
             subtask["id"] = str(uuid.uuid4())[:8]
-        
+
         self._tasks = subtasks
-        
+
         # 记录证据
         self._evidence_chain.add_evidence(str(uuid.uuid4())[:8], Evidence(
             stage="decomposition",
@@ -99,30 +97,30 @@ class TaskOrchestrator:
             inputs={"task_description": task_description},
             outputs={"subtasks": [s["name"] for s in subtasks]},
         ))
-        
+
         return subtasks
-    
+
     async def assign(self, subtasks: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
         """
         分配任务
-        
+
         Args:
             subtasks: 子任务列表
-            
+
         Returns:
             分配结果
         """
         if subtasks is None:
             subtasks = self._tasks
-        
+
         assignments = []
-        
+
         for subtask in subtasks:
             task_text = (subtask.get("name", "") + " " + subtask.get("description", "")).lower()
-            
+
             # 使用DynamicRouter路由
             routing_decision = self._router.route(task_text)
-            
+
             # 构建回退链
             if routing_decision.candidate_depts:
                 fallback_chain = RoutingFallbackBuilder.build_from_candidates(
@@ -131,7 +129,7 @@ class TaskOrchestrator:
                 target_dept = fallback_chain.primary
             else:
                 target_dept = routing_decision.selected_dept or "dept-fullstack"
-            
+
             # 映射到agent
             dept_to_agent = {
                 "dept-frontend": "agent-executor",
@@ -143,36 +141,36 @@ class TaskOrchestrator:
                 "dept-docs": "agent-coordinator",
             }
             agent_id = dept_to_agent.get(target_dept, "agent-executor")
-            
+
             task = self._meeting.add_task(agent_id, subtask.get("description", ""))
             self._meeting.update_task_status(task.id, "assigned")
             self._meeting.update_agent_status(agent_id, MeetingAgentStatus.WORKING)
-            
+
             self._task_routing[task.id] = target_dept
-            
+
             assignments.append({
                 "task_id": task.id,
                 "agent_id": agent_id,
                 "subtask": subtask,
                 "dept_id": target_dept,
             })
-        
+
         self._tasks = subtasks or self._tasks
         return assignments
-    
+
     async def execute(self, on_progress: Callable = None, parallel: bool = False) -> List[Dict[str, Any]]:
         """
         执行已分配的任务
-        
+
         Args:
             on_progress: 进度回调函数 (agent_id, message, delta) -> None
             parallel: 是否并行执行（默认串行）
-            
+
         Returns:
             执行结果
         """
         assigned_tasks = [t for t in self._meeting.tasks if t.status == "assigned"]
-        
+
         if parallel and len(assigned_tasks) > 1:
             return await self._execute_parallel(assigned_tasks, on_progress)
         return await self._execute_sequential(assigned_tasks, on_progress)
@@ -180,7 +178,6 @@ class TaskOrchestrator:
     async def _execute_one_task(self, task, on_progress=None) -> dict:
         """执行单个任务（含工具循环、环境检查、验证）— 串行和并行共享"""
         from agent_toolset import create_agent_toolset
-        from code_extractor import extract_code_blocks
 
         agent_info = self._meeting.get_agent(task.agent_id)
         if agent_info is None:

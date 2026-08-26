@@ -2,7 +2,6 @@ import logging
 import os
 import re
 import subprocess
-from typing import Any, Dict
 
 from doc_tools.seam import DocSpec, get_doc_builder
 from tool_registry import (
@@ -364,7 +363,7 @@ class ToolExecutor:
         with open(resolved, "r", encoding="utf-8") as f:
             content = f.read()
         if old_text not in content:
-            return ToolResult(success=False, error=f"未找到要替换的文本", call_id=tool_call.call_id)
+            return ToolResult(success=False, error="未找到要替换的文本", call_id=tool_call.call_id)
         new_content = content.replace(old_text, new_text, 1)
         with open(resolved, "w", encoding="utf-8") as f:
             f.write(new_content)

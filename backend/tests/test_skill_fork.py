@@ -1,6 +1,5 @@
 """Tests for SkillForkManager"""
 import pytest
-from pathlib import Path
 
 from skill_fork_manager import SkillForkManager
 

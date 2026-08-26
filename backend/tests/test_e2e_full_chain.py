@@ -13,7 +13,6 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from team import Team, TeamStatus
-from team_assembler import TeamAssembler
 from skill_registry import SkillRegistry
 from project_manager import ProjectManager
 from ceo_agent import team_to_meeting_template, _build_dag

@@ -12,9 +12,7 @@
 import json
 import logging
 import os
-import shutil
-from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List
 
 logger = logging.getLogger("knowledge_network")
 

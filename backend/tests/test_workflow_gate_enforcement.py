@@ -5,7 +5,6 @@ import os
 # 添加backend目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-import pytest
 from protocol import WorkflowDefinition, WorkflowEdge, WorkflowNode, WorkflowNodeStatus, WorkflowExecutionStatus
 from workflow_engine import WorkflowEngine
 

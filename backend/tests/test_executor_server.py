@@ -1,7 +1,6 @@
 """Tests for executor_server.py — all 18 tools + /tools endpoint"""
 import os
 import sys
-import tempfile
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,7 +8,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(__file__))
 os.environ["EXECUTOR_TOKEN"] = "test-token"
 
-from executor_server import app, TOOL_HANDLERS
+from executor_server import app
 
 client = TestClient(app)
 HEADERS = {"Authorization": "Bearer test-token"}

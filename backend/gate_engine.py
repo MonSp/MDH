@@ -6,7 +6,7 @@ GateEngine — 确定性门禁引擎
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("gate_engine")
 

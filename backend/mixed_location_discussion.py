@@ -21,8 +21,8 @@ from agentscope.message import Msg
 from agent import _extract_text
 from agenda import AgendaStateMachine
 from discussion_utils import is_coordinator_agent, strip_stance_tags
-from negotiation import NegotiationEngine, ConsensusStrategy, Stance
-from protocol import AgentRole, MeetingAgentStatus, LLM_FALLBACK_TEMPLATE
+from negotiation import NegotiationEngine
+from protocol import LLM_FALLBACK_TEMPLATE
 from team import Team, TeamMember, AgentLocation
 
 logger = logging.getLogger("mixed_location_discussion")
@@ -46,14 +46,14 @@ class DiscussionEntry:
 class MixedLocationDiscussion:
     """
     支持混合本地/远端智能体的并行讨论引擎
-    
+
     特性：
     - 并行调用所有Agent的LLM
     - 感知Agent的location，优化调用策略
     - 支持混合团队讨论
     - 流式推送讨论进度
     """
-    
+
     def __init__(
         self,
         team: Team,
@@ -66,7 +66,7 @@ class MixedLocationDiscussion:
     ):
         """
         初始化混合位置讨论引擎
-        
+
         Args:
             team: Team实例，包含成员的location信息
             agenda: 议程状态机
@@ -84,15 +84,15 @@ class MixedLocationDiscussion:
         self._max_concurrent = max_concurrent
         self._timeout = timeout
         self._semaphore = asyncio.Semaphore(max_concurrent)
-        
+
         # 构建成员信息索引
         self._member_info: Dict[str, TeamMember] = {}
         for member in team.members:
             self._member_info[member.agent_id] = member
-        
-        logger.info("MixedLocationDiscussion 初始化完成 (成员数=%d, max_concurrent=%d)", 
+
+        logger.info("MixedLocationDiscussion 初始化完成 (成员数=%d, max_concurrent=%d)",
                     len(team.members), max_concurrent)
-    
+
     async def run(
         self,
         topic: str,
@@ -101,42 +101,42 @@ class MixedLocationDiscussion:
     ) -> List[Dict[str, Any]]:
         """
         运行并行讨论
-        
+
         Args:
             topic: 讨论主题
             on_message: 消息回调
             max_rounds: 最大轮数
-            
+
         Returns:
             讨论结果列表
         """
         self._agenda.open_topic(topic)
         self._agenda.start_discussion()
-        
+
         all_discussions: List[Dict[str, Any]] = []
-        
+
         # 过滤出可讨论的成员（排除CEO和Coordinator）
         discussable_members = [
             m for m in self._team.members
             if m.team_role in ['Planner', 'Executor', 'Reviewer', 'Monitor']
         ]
-        
+
         if not discussable_members:
             logger.warning("没有可讨论的成员")
             return all_discussions
-        
+
         # 按location分组统计
         local_count = sum(1 for m in discussable_members if m.location == 'local')
         remote_count = sum(1 for m in discussable_members if m.location == 'remote')
         logger.info("讨论团队组成: 本地=%d, 远端=%d", local_count, remote_count)
-        
+
         for current_round in range(1, max_rounds + 1):
             logger.info("开始第 %d 轮讨论", current_round)
             round_start_time = time.time()
-            
+
             # 构建上下文
             previous_context = self._build_previous_context(all_discussions)
-            
+
             # 并行调用所有成员
             tasks = [
                 self._ask_member(
@@ -147,15 +147,15 @@ class MixedLocationDiscussion:
                 )
                 for member in discussable_members
             ]
-            
+
             # 使用asyncio.gather并行执行
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            
+
             # 处理结果
             round_results = []
             for member, result in zip(discussable_members, results):
                 if isinstance(result, Exception):
-                    logger.error("成员 %s 在第 %d 轮讨论中失败: %s", 
+                    logger.error("成员 %s 在第 %d 轮讨论中失败: %s",
                                member.agent_id, current_round, result)
                     entry = DiscussionEntry(
                         agent_id=member.agent_id,
@@ -182,15 +182,15 @@ class MixedLocationDiscussion:
                         round=current_round,
                         duration_ms=duration_ms,
                     )
-                    
+
                     # 推送消息到前端
                     if on_message:
                         try:
-                            await on_message(member.agent_id, text, "", 
+                            await on_message(member.agent_id, text, "",
                                           stance=stance, confidence=confidence)
                         except Exception as e:
                             logger.error("消息推送失败: %s", e)
-                
+
                 round_results.append(entry.__dict__)
                 all_discussions.append(entry.__dict__)
 
@@ -202,10 +202,10 @@ class MixedLocationDiscussion:
                         self._meeting.add_message("agent", entry.content, member.agent_id)
                     except Exception as e:
                         logger.warning("讨论发言写入会议事件流失败: %s", e)
-            
+
             round_elapsed = time.time() - round_start_time
             logger.info("第 %d 轮讨论完成，耗时 %.2f 秒", current_round, round_elapsed)
-            
+
             # 检查是否达成共识
             if current_round < max_rounds:
                 should_continue = await self._evaluate_convergence(
@@ -214,15 +214,15 @@ class MixedLocationDiscussion:
                 if not should_continue:
                     logger.info("讨论已在第 %d 轮达成共识", current_round)
                     break
-        
+
         # 协调者总结
         await self._coordinator_summarize(topic, all_discussions, on_message)
-        
-        logger.info("讨论完成，共 %d 轮，%d 条讨论", 
+
+        logger.info("讨论完成，共 %d 轮，%d 条讨论",
                    max_rounds, len(all_discussions))
-        
+
         return all_discussions
-    
+
     async def _ask_member(
         self,
         member: TeamMember,
@@ -232,22 +232,22 @@ class MixedLocationDiscussion:
     ) -> Tuple[str, str, float, float]:
         """
         向单个成员提问
-        
+
         Args:
             member: TeamMember实例
             topic: 讨论主题
             round_num: 当前轮数
             previous_context: 之前的讨论上下文
-            
+
         Returns:
             (text, stance, confidence, duration_ms) 元组
         """
         async with self._semaphore:
             start_time = time.time()
-            
+
             # 获取模型
             model = self._get_model(member.role_name)
-            
+
             # 构建提示词
             role_desc = f"{member.role_name}（{member.team_role}）"
             if round_num == 1:
@@ -266,28 +266,28 @@ class MixedLocationDiscussion:
                     f"你可以引用或回应其他同事的观点，提出补充建议或修正意见（2-3句话）。"
                     f"请在回复末尾用 [STANCE:support/oppose/modify/neutral] 和 [CONFIDENCE:0.0-1.0] 标注你的立场和置信度。"
                 )
-            
+
             # 发送消息并等待响应
             msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-            
+
             try:
                 response = await asyncio.wait_for(
                     model.reply(msg),
                     timeout=self._timeout
                 )
                 text = _extract_text(response)
-                
+
                 # 解析立场和置信度
                 stance, confidence = self._parse_stance(text)
-                
+
                 duration_ms = (time.time() - start_time) * 1000
                 return text, stance, confidence, duration_ms
-                
+
             except asyncio.TimeoutError:
                 raise RuntimeError(f"成员 {member.agent_id} ({member.role_name}) 响应超时")
             except Exception as e:
                 raise RuntimeError(f"成员 {member.agent_id} ({member.role_name}) 响应失败: {str(e)}")
-    
+
     def _parse_stance(self, text: str) -> Tuple[str, float]:
         """
         从响应中解析立场和置信度
@@ -299,7 +299,7 @@ class MixedLocationDiscussion:
         confidence = min(1.0, max(0.0, float(confidence_match.group(1)))) if confidence_match else 0.5
 
         return stance, confidence
-    
+
     def _build_previous_context(self, discussions: List[Dict[str, Any]]) -> str:
         """
         构建之前的讨论上下文
@@ -361,7 +361,7 @@ class MixedLocationDiscussion:
         """既有实现：从讨论结果列表拼装（无事件流时的回退路径）"""
         if not discussions:
             return "（暂无讨论）"
-        
+
         context_parts = []
         for entry in discussions[-10:]:  # 只取最近10条
             agent_name = entry.get("agent_name", entry.get("role", "未知"))
@@ -375,9 +375,9 @@ class MixedLocationDiscussion:
             if len(core) > 80:
                 core = core[:80] + "..."
             context_parts.append(f"[第{round_num}轮] {location_icon} {agent_name}: {core}")
-        
+
         return "\n".join(context_parts)
-    
+
     async def _evaluate_convergence(
         self,
         topic: str,
@@ -388,36 +388,36 @@ class MixedLocationDiscussion:
         """
         if len(discussions) < 2:
             return True
-        
+
         # 获取最近一轮的讨论
         recent_round = max(d.get("round", 0) for d in discussions)
         recent_discussions = [
             d for d in discussions if d.get("round") == recent_round
         ]
-        
+
         if len(recent_discussions) < 2:
             return True
-        
+
         # 检查立场一致性
         stances = [d.get("stance", "neutral") for d in recent_discussions]
         unique_stances = set(stances)
-        
+
         # 如果所有立场相同，认为达成共识
         if len(unique_stances) == 1:
             logger.info("所有成员立场一致: %s", unique_stances.pop())
             return False
-        
+
         # 检查置信度
         confidences = [d.get("confidence", 0.5) for d in recent_discussions]
         avg_confidence = sum(confidences) / len(confidences)
-        
+
         # 如果平均置信度很高，认为达成共识
         if avg_confidence > 0.8:
             logger.info("平均置信度很高: %.2f", avg_confidence)
             return False
-        
+
         return True
-    
+
     async def _coordinator_summarize(
         self,
         topic: str,
@@ -433,11 +433,11 @@ class MixedLocationDiscussion:
             if member.team_role == 'Coordinator':
                 coordinator_member = member
                 break
-        
+
         if not coordinator_member:
             logger.warning("没有找到Coordinator成员，跳过总结")
             return
-        
+
         model = self._get_model(coordinator_member.role_name)
         discussion_summary = self._build_previous_context(discussions)
         prompt = (
@@ -446,7 +446,7 @@ class MixedLocationDiscussion:
             f"请综合各方观点，给出简洁的总结和最终结论（3-4句话）。"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        
+
         try:
             response = await asyncio.wait_for(
                 model.reply(msg),
@@ -456,14 +456,14 @@ class MixedLocationDiscussion:
         except Exception as e:
             logger.warning("Coordinator总结失败: %s", e)
             summary_text = LLM_FALLBACK_TEMPLATE.format(role="coordinator", content_type="总结")
-        
+
         # 推送总结到前端
         if on_message:
             try:
                 await on_message(coordinator_member.agent_id, summary_text, "")
             except Exception as e:
                 logger.error("总结推送失败: %s", e)
-        
+
         # 记录到讨论结果
         discussions.append({
             "agent_id": coordinator_member.agent_id,
@@ -476,7 +476,7 @@ class MixedLocationDiscussion:
             "round": 0,
             "duration_ms": 0,
         })
-        
+
         # 协商共识：按 agent_id 去重（取最后一次发言的立场），避免多轮讨论重复投票
         # 排除协调者——其角色是总结者，不应投票
         proposal = self._negotiation.create_proposal(

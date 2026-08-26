@@ -1,6 +1,5 @@
 """Tests for TaskOrchestrator _build_prompt and ExperienceExtractor import fix."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 

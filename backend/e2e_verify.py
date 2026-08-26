@@ -4,7 +4,6 @@
 """
 import json
 import os
-import signal
 import subprocess
 import sys
 import time
@@ -131,7 +130,7 @@ def main():
 
         # ── Test 5: LLM Cache ──
         print("\n=== 5. LLM Cache ===")
-        from llm_cache import LLMCache, normalize_prompt
+        from llm_cache import LLMCache
         cache = LLMCache(db_path=os.path.join(BACKEND_DIR, "data", "llm_cache.db"))
 
         # Write and read

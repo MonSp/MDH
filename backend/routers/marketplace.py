@@ -2,7 +2,6 @@
 Marketplace REST API Router
 """
 
-import os
 from dataclasses import asdict
 from fastapi import APIRouter, Request
 

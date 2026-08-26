@@ -1,9 +1,8 @@
-import asyncio
 from typing import Any, Dict, List, Optional
 
 from .communication import CommunicationInterface, CommunicationManager, InMemoryCommunication, Message, MessageType
 from .planner_agent import PlannerAgent, TaskPlan, TaskStatus
-from .executor_agent import ExecutorAgent, AgentStatus
+from .executor_agent import ExecutorAgent
 
 
 class CollaborativeAgent:

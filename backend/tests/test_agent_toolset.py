@@ -36,11 +36,11 @@ def test_reviewer_can_run_tests(temp_workspace):
 def test_write_and_read_file(temp_workspace):
     """测试写入和读取文件"""
     toolset = AgentToolset("agent-4", "executor", temp_workspace)
-    
+
     # 写入文件
     result = toolset.write_file("test.txt", "Hello, World!")
     assert result.success is True
-    
+
     # 读取文件
     result = toolset.read_file("test.txt")
     assert result.success is True
@@ -51,7 +51,7 @@ def test_list_directory(temp_workspace):
     # 创建测试文件
     with open(os.path.join(temp_workspace, "test.txt"), "w") as f:
         f.write("test")
-    
+
     toolset = AgentToolset("agent-5", "executor", temp_workspace)
     result = toolset.list_directory(".")
     assert result.success is True
@@ -67,7 +67,7 @@ def test_run_command(temp_workspace):
 def test_unauthorized_tool(temp_workspace):
     """测试未授权工具调用"""
     toolset = AgentToolset("agent-7", "planner", temp_workspace)
-    
+
     # planner不能写入文件
     result = toolset.write_file("test.txt", "content")
     assert result.success is False
@@ -85,15 +85,15 @@ def test_get_system_prompt(temp_workspace):
 def test_custom_role(temp_workspace):
     """测试自定义角色（安全开发工程师）"""
     toolset = AgentToolset("agent-9", "security_dev", temp_workspace)
-    
+
     # 应该继承executor的工具
     assert "write_file" in toolset.available_tools
     assert "bash" in toolset.available_tools
-    
+
     # 应该有额外的安全工具
     assert "grep_content" in toolset.available_tools
     assert "run_linter" in toolset.available_tools
-    
+
     # 应该有安全技能
     assert "security_audit" in toolset.skills
 
@@ -126,11 +126,11 @@ def test_custom_prompt_injection(temp_workspace):
     """测试自定义提示词注入"""
     toolset = AgentToolset("agent-14", "security_dev", temp_workspace)
     prompt = toolset.get_system_prompt(name="安全专家")
-    
+
     # 应该包含自定义提示词内容
     assert "安全" in prompt
     assert "安全专家" in prompt
-    
+
     # 应该包含工具说明
     assert "grep_content" in prompt
     assert "run_linter" in prompt
@@ -138,8 +138,7 @@ def test_custom_prompt_injection(temp_workspace):
 
 def test_load_roles_config_caching():
     """load_roles_config 应该缓存结果，文件未变化时返回同一对象"""
-    from agent_toolset import load_roles_config, invalidate_roles_config_cache
-    import time
+    from agent_toolset import invalidate_roles_config_cache
 
     invalidate_roles_config_cache()
     config1 = load_roles_config()
@@ -150,7 +149,7 @@ def test_load_roles_config_caching():
 
 def test_load_roles_config_cache_invalidation():
     """invalidate_roles_config_cache 后应重新加载"""
-    from agent_toolset import load_roles_config, invalidate_roles_config_cache
+    from agent_toolset import invalidate_roles_config_cache
 
     invalidate_roles_config_cache()
     config1 = load_roles_config()

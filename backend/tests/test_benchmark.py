@@ -1,9 +1,8 @@
 """Tests for benchmark — 评测基准系统"""
 import json
 import os
-import pytest
 
-from benchmark.tasks import BENCHMARK_TASKS, get_benchmark_tasks, BenchmarkTask
+from benchmark.tasks import BENCHMARK_TASKS, get_benchmark_tasks
 from benchmark.runner import (
     TaskResult, BenchmarkReport, MetricsCollector,
     compare_with_baseline, save_baseline, format_report,
@@ -13,7 +12,7 @@ from benchmark.runner import (
 class TestBenchmarkTasks:
     def test_all_tasks_have_required_fields(self):
         for task in BENCHMARK_TASKS:
-            assert task.id, f"任务缺少 id"
+            assert task.id, "任务缺少 id"
             assert task.task, f"任务 {task.id} 缺少 task"
             assert task.category in ("simple", "standard", "complex"), f"任务 {task.id} 类别无效"
             assert task.expected_path in ("simple", "complex", "workflow"), f"任务 {task.id} 路径无效"

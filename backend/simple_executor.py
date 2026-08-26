@@ -5,7 +5,6 @@ SimpleExecutor - 简单执行引擎
 跳过会议讨论阶段，直接调用 run_agent_stream 执行任务。
 """
 
-import asyncio
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -390,7 +389,7 @@ class SimpleExecutor:
         Returns:
             复杂路径的执行结果
         """
-        from meeting import MeetingSession, DEFAULT_MEETING_AGENTS
+        from meeting import MeetingSession
         from meeting_coordinator import MeetingCoordinator
 
         logger.info("升级到复杂路径: %s", content[:50])

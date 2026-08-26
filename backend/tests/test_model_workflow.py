@@ -1,6 +1,6 @@
 """Tests for model-authored workflow generation"""
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from semantic_analyzer import SemanticAnalyzer
 from dynamic_router import DynamicRouter, RoutingDecision

@@ -450,7 +450,7 @@ def risk_classify(
         for pattern in medium_patterns:
             if re.search(pattern, description, re.IGNORECASE):
                 risk_score += 0.2
-                reasons.append(f"网络/包管理命令")
+                reasons.append("网络/包管理命令")
 
     # 阈值判定
     if risk_score < 0.5:

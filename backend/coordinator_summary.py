@@ -5,7 +5,6 @@ MeetingCoordinator 项目总结子模块
 - generate_project_summary: 生成项目总结报告
 """
 
-from typing import Any, Dict, List
 
 
 def generate_project_summary(

@@ -2,3 +2,6 @@
 asyncio_mode = "auto"
 testpaths = ["tests"]
 collect_ignore = ["tests/legacy"]
+
+[tool.ruff]
+exclude = ["backend/tests/legacy"]

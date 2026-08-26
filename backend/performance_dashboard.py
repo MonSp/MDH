@@ -3,7 +3,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 logger = logging.getLogger("performance_dashboard")
 

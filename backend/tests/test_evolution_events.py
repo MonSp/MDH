@@ -1,13 +1,9 @@
 """Tests for EvolutionEvent data model, EvolutionEventStore, and ABTracker (T1 + T2)."""
 
-import json
 import os
 import sqlite3
-import tempfile
 import threading
-import time
 from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock, patch, call
 
 import pytest
 

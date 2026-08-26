@@ -90,3 +90,4 @@ docs/compose/
 
 # Protocol docs
 .worktrees
+.coverage

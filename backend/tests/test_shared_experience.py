@@ -1,9 +1,8 @@
 """Tests for SharedExperiencePool and cross-project experience retrieval"""
 import pytest
 import tempfile
-from pathlib import Path
 
-from shared_experience_pool import SharedExperiencePool, SharedRule
+from shared_experience_pool import SharedExperiencePool
 
 
 @pytest.fixture
@@ -315,7 +314,6 @@ class TestLeaderboard:
 class TestShareRecommendations:
     def test_high_score_recommendation(self):
         """高分规则被推荐"""
-        import tempfile
         from experience_extractor import ExperienceExtractor
         d = tempfile.mkdtemp()
         ext = ExperienceExtractor(d)
@@ -334,7 +332,6 @@ class TestShareRecommendations:
 
     def test_low_score_not_recommendation(self):
         """低分规则不被推荐"""
-        import tempfile
         from experience_extractor import ExperienceExtractor, ExperienceRule
         d = tempfile.mkdtemp()
         ext = ExperienceExtractor(d)

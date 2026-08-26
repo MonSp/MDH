@@ -7,8 +7,7 @@ WebSocket 消息验证模型测试
 import pytest
 from ws_schemas import (
     validate_ws_message, WSValidationError, MESSAGE_MODELS,
-    UserMessage, MeetingMessage, StartMeeting, TaskAssign,
-    CreateProposal, CastVote, CheckpointSave, CriticalBlocker,
+    UserMessage, StartMeeting,
 )
 
 

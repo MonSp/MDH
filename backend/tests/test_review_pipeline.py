@@ -4,7 +4,7 @@ import types
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 from review_pipeline import ReviewPipeline
-from collaboration.planner_agent import PlannerAgent, SubTask
+from collaboration.planner_agent import PlannerAgent
 from protocol import AgentRole
 
 

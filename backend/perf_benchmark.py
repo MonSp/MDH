@@ -9,7 +9,6 @@
     python perf_benchmark.py --category routing
 """
 
-import json
 import os
 import sqlite3
 import statistics
@@ -17,7 +16,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
-from typing import Callable, Dict, List
+from typing import Callable
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -126,7 +125,7 @@ def bench_cache_with_real_db():
 
 def bench_cache_semantic_normalization():
     """语义规范化对真实 prompt 的效果"""
-    from llm_cache import LLMCache, normalize_prompt
+    from llm_cache import LLMCache
     cache = LLMCache(db_path=os.path.join(DATA_DIR, "llm_cache.db"))
 
     # 真实 prompt 模式：会议中的语义分析

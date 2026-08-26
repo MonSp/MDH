@@ -1,7 +1,7 @@
 """角色晋升引擎 — 根据部门职业路径和技能等级自动晋升 agent 角色"""
 
 import logging
-from typing import Dict, List, Optional
+from typing import List, Optional
 from agent_profile_manager import AgentProfile
 
 logger = logging.getLogger("promotion_engine")

@@ -4,7 +4,7 @@
 使用 prometheus_client 库的标准 Counter/Gauge/Histogram。
 """
 
-from prometheus_client import Counter, Gauge, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import Counter, Gauge
 
 # LLM metrics
 LLM_CALLS = Counter('mdh_llm_calls_total', 'LLM API calls', ['provider', 'model', 'status'])

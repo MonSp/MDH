@@ -92,7 +92,7 @@ class TestPythonIncrementalInjection:
     def test_inject_incremental_context_addon(self, incremental_dir):
         """system_prompt_addon.md 注入到 system prompt。"""
         from agent_pool import AgentPool
-        from key_manager import KeyManager, KeyConfig
+        from key_manager import KeyManager
 
         km = KeyManager()
         pool = AgentPool(key_manager=km, incremental_dir=incremental_dir)
@@ -105,7 +105,7 @@ class TestPythonIncrementalInjection:
     def test_inject_incremental_context_rules(self, incremental_dir):
         """增量区 rules 注入到 system prompt。"""
         from agent_pool import AgentPool
-        from key_manager import KeyManager, KeyConfig
+        from key_manager import KeyManager
 
         km = KeyManager()
         pool = AgentPool(key_manager=km, incremental_dir=incremental_dir)
@@ -158,7 +158,7 @@ class TestPythonIncrementalInjection:
     def test_inject_incremental_context_knowledge(self, incremental_dir):
         """增量区 knowledge_add 注入到 system prompt。"""
         from agent_pool import AgentPool
-        from key_manager import KeyManager, KeyConfig
+        from key_manager import KeyManager
 
         km = KeyManager()
         pool = AgentPool(key_manager=km, incremental_dir=incremental_dir)
@@ -171,7 +171,7 @@ class TestPythonIncrementalInjection:
     def test_inject_preserves_original_prompt(self, incremental_dir):
         """注入保留原始 system prompt 内容。"""
         from agent_pool import AgentPool
-        from key_manager import KeyManager, KeyConfig
+        from key_manager import KeyManager
 
         km = KeyManager()
         pool = AgentPool(key_manager=km, incremental_dir=incremental_dir)
@@ -183,7 +183,7 @@ class TestPythonIncrementalInjection:
     def test_inject_empty_incremental_dir(self, tmp_path):
         """空增量区目录不注入任何内容。"""
         from agent_pool import AgentPool
-        from key_manager import KeyManager, KeyConfig
+        from key_manager import KeyManager
 
         empty_dir = str(tmp_path / "empty")
         os.makedirs(empty_dir, exist_ok=True)
@@ -198,7 +198,7 @@ class TestPythonIncrementalInjection:
     def test_inject_no_incremental_dir(self):
         """incremental_dir 为空时不注入。"""
         from agent_pool import AgentPool
-        from key_manager import KeyManager, KeyConfig
+        from key_manager import KeyManager
 
         km = KeyManager()
         pool = AgentPool(key_manager=km, incremental_dir="")
@@ -259,7 +259,7 @@ class TestPythonEndToEnd:
     def test_full_injection_chain(self, incremental_dir, asset_dir, tmp_path):
         """完整链路: 增量区 + 资产 → system prompt。"""
         from agent_pool import AgentPool
-        from key_manager import KeyManager, KeyConfig
+        from key_manager import KeyManager
         from asset_store import AssetStore
         from asset_injection import build_asset_context
         from experience_extractor import ExperienceExtractor
@@ -286,7 +286,7 @@ class TestPythonEndToEnd:
 
     def test_create_agent_injects_incremental(self, incremental_dir):
         """验证 AgentPool._create_agent 实际将增量区注入到 agent system_prompt。"""
-        from unittest.mock import patch, call
+        from unittest.mock import patch
         from agent_pool import AgentPool, AgentConfig
         from key_manager import KeyManager
 

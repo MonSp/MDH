@@ -13,7 +13,7 @@ import re
 import shutil
 import tempfile
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -275,6 +275,7 @@ class SkillPackager:
         manifest_path = merged_path / "manifest.yaml"
         if manifest_path.is_file():
             try:
+                import yaml
                 with open(manifest_path, encoding="utf-8") as f:
                     manifest = yaml.safe_load(f) or {}
             except Exception:

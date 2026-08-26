@@ -4,13 +4,10 @@
 验证 HTTP 速率限制（slowapi）和 WebSocket 速率限制器的功能。
 """
 
-import sys
-import os
 import time
 import json
 from unittest.mock import MagicMock
 
-import pytest
 
 # backend/ 路径已在 conftest.py 中添加
 

@@ -40,7 +40,7 @@ async def test_docs_node_prompt_includes_asset_context(monkeypatch):
         captured["prompt"] = prompt
         return {"result": "ok", "files_written": [], "tool_outputs": []}
 
-    coord = _make_coordinator(builder=lambda team_id, task_type, keywords: f"\n资产参考：\n- 模板「会议纪要模板」：标题\n要点")
+    coord = _make_coordinator(builder=lambda team_id, task_type, keywords: "\n资产参考：\n- 模板「会议纪要模板」：标题\n要点")
     monkeypatch.setattr(coord, "_get_model", lambda role: object())
     # 实例级 monkeypatch：避免类级替换后 bound-method 注入 self 导致的形参错位
     monkeypatch.setattr(coord, "_run_agent_execution_loop", fake_loop)

@@ -8,9 +8,7 @@ import json
 import logging
 import os
 import sys
-import uuid
 from datetime import datetime, timezone
-from typing import Optional
 
 
 class StructuredFormatter(logging.Formatter):

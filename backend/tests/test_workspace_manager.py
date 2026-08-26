@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import tempfile
 import pytest
-from workspace_manager import WorkspaceManager, Workspace, WorkspaceType
+from workspace_manager import WorkspaceManager, WorkspaceType
 
 @pytest.fixture
 def temp_dir():
@@ -30,7 +30,7 @@ def test_create_standalone(workspace_manager):
         task_id="task-001",
         workspace_type=WorkspaceType.STANDALONE
     )
-    
+
     assert workspace.workspace_id is not None
     assert workspace.workspace_type == WorkspaceType.STANDALONE
     assert os.path.exists(workspace.root_path)
@@ -45,7 +45,7 @@ def test_create_worktree(workspace_manager, temp_dir):
         branch_name="feature/test-002",
         repo_path=temp_dir
     )
-    
+
     assert workspace.workspace_id is not None
     assert workspace.workspace_type == WorkspaceType.GIT_WORKTREE
     assert os.path.exists(workspace.root_path)
@@ -64,7 +64,7 @@ def test_create_worktree_without_repo_path(workspace_manager):
 def test_list_workspaces(workspace_manager):
     workspace_manager.create_workspace(task_id="task-1", workspace_type=WorkspaceType.STANDALONE)
     workspace_manager.create_workspace(task_id="task-2", workspace_type=WorkspaceType.STANDALONE)
-    
+
     workspaces = workspace_manager.list_workspaces()
     assert len(workspaces) == 2
 
@@ -72,9 +72,9 @@ def test_destroy_standalone(workspace_manager):
     workspace = workspace_manager.create_workspace(task_id="task-3", workspace_type=WorkspaceType.STANDALONE)
     workspace_id = workspace.workspace_id
     root_path = workspace.root_path
-    
+
     workspace_manager.destroy_workspace(workspace_id)
-    
+
     assert not os.path.exists(root_path)
     assert workspace_manager.get_workspace(workspace_id) is None
 
@@ -87,15 +87,15 @@ def test_destroy_worktree(workspace_manager, temp_dir):
     )
     workspace_id = workspace.workspace_id
     root_path = workspace.root_path
-    
+
     workspace_manager.destroy_workspace(workspace_id)
-    
+
     assert not os.path.exists(root_path)
     assert workspace_manager.get_workspace(workspace_id) is None
 
 def test_get_workspace(workspace_manager):
     workspace = workspace_manager.create_workspace(task_id="task-5", workspace_type=WorkspaceType.STANDALONE)
-    
+
     retrieved = workspace_manager.get_workspace(workspace.workspace_id)
     assert retrieved is not None
     assert retrieved.task_id == "task-5"

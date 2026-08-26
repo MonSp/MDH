@@ -1,12 +1,11 @@
 import asyncio
-import os
 import shutil
 import tempfile
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from collaboration.executor_agent import ExecutorAgent, AgentStatus
+from collaboration.executor_agent import ExecutorAgent
 from experience_extractor import ExecutionLog, ExperienceExtractor, ExperienceRule
 
 

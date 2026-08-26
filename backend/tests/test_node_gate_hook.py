@@ -2,7 +2,6 @@
 import asyncio
 from types import SimpleNamespace
 
-import pytest
 from approval_manager import ApprovalManager
 from meeting_coordinator import MeetingCoordinator
 from protocol import WorkflowNode

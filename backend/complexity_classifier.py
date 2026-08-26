@@ -5,14 +5,12 @@ ComplexityClassifier - 复杂度判定器
 采用两层策略：规则引擎（快速）+ LLM 语义分析（精确）。
 """
 
-import asyncio
 import json
 import logging
 import re
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from agentscope.agent import Agent
 from agentscope.message import Msg
 
 from agent import _extract_text
@@ -254,7 +252,7 @@ class ComplexityClassifier:
                 reason=f"LLM 调用失败，降级到复杂路径: {str(e)[:50]}",
                 method="fallback"
             )
-        
+
         text = _extract_text(response)
 
         # 解析 JSON

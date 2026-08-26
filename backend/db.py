@@ -6,12 +6,10 @@
 使用 Python 内置 sqlite3，无新依赖。
 """
 
-import json
 import logging
-import os
 import sqlite3
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Dict
 
 logger = logging.getLogger("mdh_db")
 

@@ -74,7 +74,8 @@ def run_smoke_tests():
 
     # 2. Registry
     try:
-        import tempfile, asyncio
+        import tempfile
+        import asyncio
         with tempfile.TemporaryDirectory() as tmp:
             registry = A2ARegistry(persist_path=f"{tmp}/agents.json")
             card = AgentCard(

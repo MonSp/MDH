@@ -5,7 +5,6 @@
 """
 
 import logging
-import uuid
 from typing import Callable, Awaitable, Optional
 
 from protocol import (

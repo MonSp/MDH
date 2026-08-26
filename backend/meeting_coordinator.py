@@ -10,16 +10,15 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from agentscope.agent import Agent
 from agentscope.message import Msg
 
-from agent import PROVIDER_REGISTRY, _extract_text
-from agent_pool import AgentPool, AgentConfig
-from agenda import AgendaStateMachine, AgendaPhase
+from agent import _extract_text
+from agent_pool import AgentPool
+from agenda import AgendaStateMachine
 from approval_manager import ApprovalManager
 from collaboration.planner_agent import PlannerAgent
-from discussion_utils import parse_stance_from_content, resolve_agent_role, strip_stance_tags
 from dynamic_router import DynamicRouter
 from meeting import MeetingSession, SessionEventType
-from negotiation import NegotiationEngine, Stance
-from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict, WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowNodeStatus, LLM_FALLBACK_TEMPLATE
+from negotiation import NegotiationEngine
+from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict, WorkflowDefinition, WorkflowNode, LLM_FALLBACK_TEMPLATE
 from team import Team
 from workflow_engine import WorkflowEngine
 
@@ -196,7 +195,7 @@ class MeetingCoordinator:
             get_model_fn=self._get_model,
             meeting=self.meeting,
         )
-        
+
         # 混合位置讨论引擎（支持本地/远端Agent并行讨论）
         self._mixed_discussion: Optional[MixedLocationDiscussion] = None
 
@@ -469,7 +468,7 @@ class MeetingCoordinator:
             await self._current_on_message(agent_id, text, "")
         self.meeting.add_message("agent", text, agent_id)
 
-    def _resolve_agent(self, agent_id: str) -> Optional['MeetingAgentInfo']:
+    def _resolve_agent(self, agent_id: str) -> Optional['MeetingAgentInfo']:  # noqa: F821
         """解析Agent ID，支持多种格式（直接ID、带前缀、不带前缀）"""
         if not agent_id:
             return None
@@ -1479,7 +1478,7 @@ class MeetingCoordinator:
 
         # 标准任务跳过讨论，直接分派（减少 LLM 调用）
         if triage["level"] == "standard":
-            await self._msg(coordinator_id, f"项目经理：标准任务，跳过讨论直接分派。")
+            await self._msg(coordinator_id, "项目经理：标准任务，跳过讨论直接分派。")
             discussion_results = []
         else:
             await self._msg(coordinator_id, f"项目经理：组织团队讨论「{topic[:30]}...」")
@@ -1891,7 +1890,7 @@ class MeetingCoordinator:
                 self.meeting.add_message("agent", f"项目经理：已从本次项目中提取 {len(evolution_rules)} 条经验规则。", coordinator_id)
 
             from skill_packager import SkillPackager
-            skill_packager = SkillPackager(output_dir=os.path.join(data_dir, "packages"))
+            skill_packager = SkillPackager(output_dir=os.path.join(self._data_dir, "packages"))
             finalize = self._finalize_skill_evolution(extractor, skill_packager, project_id=self.meeting.meeting_id)
             if finalize["written"]:
                 packaged = f"，打包技能包: {', '.join(finalize['packaged'])}" if finalize["packaged"] else ""

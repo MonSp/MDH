@@ -5,7 +5,7 @@
 
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 # 导入agentscope的Task类
 import sys
@@ -15,13 +15,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'third_party', 
 from agentscope.state._task import Task
 
 from protocol import (
-    WorkflowDefinition,
     WorkflowEdge,
     WorkflowExecution,
     WorkflowNode,
     WorkflowNodeStatus,
-    workflow_node_to_dict,
-    dict_to_workflow_node,
 )
 
 logger = logging.getLogger("agentscope_task_bridge")

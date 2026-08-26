@@ -1,7 +1,6 @@
 """Tests for SystemIntrospection — 系统自省"""
 import pytest
 import yaml
-import json
 
 from system_introspection import SystemIntrospection
 

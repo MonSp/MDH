@@ -1,4 +1,3 @@
-import pytest
 from code_extractor import extract_code_blocks
 
 def test_extract_single_code_block():

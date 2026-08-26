@@ -12,7 +12,6 @@ MCP Adapter — MCP 协议集成适配器（MCP 集成 Phase 1）
 import asyncio
 import json
 import logging
-import subprocess
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 

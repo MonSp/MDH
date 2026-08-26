@@ -1,5 +1,4 @@
 """Tests for HITL tiered approval — classify_approval_tier + risk_classify"""
-import pytest
 from approval_manager import classify_approval_tier, risk_classify, WHITELIST_OPERATIONS, HIGH_RISK_OPERATIONS
 
 

@@ -54,7 +54,7 @@ async def test():
             print("[FAIL] 未收到 workspace_confirm_request")
             return False
 
-        print(f"[OK] 收到 workspace_confirm_request")
+        print("[OK] 收到 workspace_confirm_request")
         print(f"     project_id:      {ws_request.get('project_id', '')[:20]}...")
         print(f"     suggested_type:  {ws_request.get('suggested_type', '')}")
 
@@ -99,7 +99,7 @@ async def test():
                 elif t == "complexity_result":
                     print(f"     [复杂度] {data.get('level', '')} ({data.get('confidence', 0):.0%})")
                 elif t == "workspace_confirm_request":
-                    print(f"     [再次收到] workspace_confirm_request (忽略)")
+                    print("     [再次收到] workspace_confirm_request (忽略)")
             except asyncio.TimeoutError:
                 continue
 
@@ -107,8 +107,8 @@ async def test():
         print("=" * 60)
         print("结果")
         print("=" * 60)
-        print(f"  workspace_confirm_request:  OK")
-        print(f"  workspace_confirm_response: OK")
+        print("  workspace_confirm_request:  OK")
+        print("  workspace_confirm_response: OK")
         print(f"  workspace_created:          {'OK' if got_workspace else '未收到（可能API key无效）'}")
         print(f"  meeting_started:            {'OK' if got_meeting else '未收到（可能API key无效）'}")
         print()
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(test())
     except ConnectionRefusedError:
-        print(f"无法连接 ws://localhost:8765，请先启动后端: python backend/server.py")
+        print("无法连接 ws://localhost:8765，请先启动后端: python backend/server.py")
         sys.exit(1)
     except Exception as e:
         print(f"异常: {e}")

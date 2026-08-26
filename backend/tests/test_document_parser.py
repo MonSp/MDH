@@ -1,5 +1,4 @@
 """Tests for DocumentParser — 文档感知协作"""
-import os
 import pytest
 from document_parser import DocumentParser
 

@@ -3,7 +3,7 @@ import json
 import os
 import sys
 import types
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -70,10 +70,8 @@ if "agentscope" not in sys.modules:
 if "fastapi" not in sys.modules:
     _ensure_mock_module("fastapi", {"WebSocket": MagicMock})
 
-from collaboration.planner_agent import PlannerAgent, SubTask
 from meeting import MeetingSession
 from meeting_coordinator import MeetingCoordinator
-from protocol import AgentRole
 
 
 SAMPLE_ROUTING_TABLE = {

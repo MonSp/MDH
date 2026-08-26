@@ -9,7 +9,7 @@ from dataclasses import asdict
 from typing import Optional
 from urllib.parse import parse_qs
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body, Depends, Header, HTTPException, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -23,10 +23,7 @@ from tenant_middleware import TenantMiddleware
 from config import SKILLS_DIR
 from session import Session
 import ws_handlers
-from agent import run_agent_stream
-from meeting import MeetingSession
-from meeting_coordinator import MeetingCoordinator
-from protocol import MeetingAgentStatus, meeting_agent_to_dict, meeting_task_to_dict, meeting_summary_to_dict, semantic_analysis_to_dict, workflow_execution_to_dict, workflow_definition_to_dict
+from protocol import workflow_execution_to_dict
 from skill_registry import SkillRegistry
 from project_manager import ProjectManager
 from experience_extractor import ExperienceExtractor
@@ -64,15 +61,7 @@ from task_template_manager import TaskTemplateManager
 
 # ── 请求模型 ──
 from schemas import (
-    SkillRegisterRequest, SkillCloneRequest,
-    ProjectCreateRequest, TaskCreateRequest,
-    RouteEntryRequest,
-    WorkflowCreateRequest,
-    ApprovalDecisionRequest,
-    SkillForkRequest, ExperiencePublishRequest, ExperienceForkRequest,
-    SkillExportRequest, SkillImportRequest,
-    MCPServerRequest, MCPServerUpdateRequest,
-    CommunityInstallRequest,
+    ProjectCreateRequest,
 )
 
 logger = logging.getLogger("server")
@@ -1073,7 +1062,8 @@ async def get_demotion_stats():
 async def export_demotion_report(format: str = "json"):
     """导出降级报表（json 或 csv）"""
     try:
-        import csv, io
+        import csv
+        import io
         from fastapi.responses import StreamingResponse, JSONResponse
         stats = experience_extractor.get_demotion_stats()
         log = experience_extractor.get_demotion_log()
@@ -1362,7 +1352,7 @@ async def list_benchmark_tasks():
 async def run_benchmark_endpoint(request: Request, body: dict):
     """运行评测基准"""
     try:
-        from benchmark.runner import run_benchmark, format_report
+        from benchmark.runner import run_benchmark
         from dataclasses import asdict
         category = body.get("category")
         report = run_benchmark(category=category)
@@ -2547,7 +2537,7 @@ async def ws_handler(ws: WebSocket):
 # ──────────────────── WorkflowEngine REST API ────────────────────
 
 from workflow_engine import WorkflowEngine
-from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowExecutionStatus, workflow_execution_to_dict, workflow_definition_to_dict
+from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge
 
 workflow_engine = WorkflowEngine(
     persistence_dir=os.path.join(os.path.dirname(__file__), "data", "workflows")
@@ -3190,7 +3180,6 @@ async def restore_backup(request: Request):
 @app.get("/metrics")
 async def metrics():
     """Prometheus 格式指标 — 使用 prometheus_client 标准 registry + 补充自定义指标"""
-    from llm_cache import llm_cache
     from fastapi.responses import PlainTextResponse
     from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
     from prometheus_metrics import WS_CONNECTIONS
@@ -3357,7 +3346,7 @@ marketplace_router.init(_shared_pool, _skill_forks, _skill_exporter)
 
 # ── MCP 配置管理 API ──
 
-from mcp_config import MCPConfigManager, MCPServerEntry
+from mcp_config import MCPConfigManager
 
 _mcp_config = MCPConfigManager(os.path.join(os.path.dirname(__file__), "data", "mcp_servers.json"))
 mcp_router.init(_mcp_config)

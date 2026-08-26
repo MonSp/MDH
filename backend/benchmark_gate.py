@@ -12,7 +12,6 @@
 """
 
 import argparse
-import json
 import os
 import sys
 
@@ -126,7 +125,7 @@ def main():
             print(f"  - {f}")
         sys.exit(1)
     else:
-        print(f"\n✅ 门禁通过")
+        print("\n✅ 门禁通过")
         if not args.with_llm:
             print("   (自检模式：未运行真实 LLM 评测)")
         sys.exit(0)

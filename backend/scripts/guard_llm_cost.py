@@ -77,8 +77,8 @@ def main():
         print(f"\n⚠️  发现 {len(violations)} 个潜在的未追踪 LLM 调用点：\n")
         for v in violations:
             print(f"  {v['file']}:{v['line']} — {v['context'][:50]}")
-        print(f"\n请确保这些调用点接入了 LLMCostTracker.record_call()")
-        print(f"参考: backend/llm_cost_tracker.py")
+        print("\n请确保这些调用点接入了 LLMCostTracker.record_call()")
+        print("参考: backend/llm_cost_tracker.py")
         sys.exit(1)
     else:
         print("✅ 所有 LLM 调用点已接入成本追踪")

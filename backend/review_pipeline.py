@@ -10,7 +10,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from agentscope.agent import Agent
 from agentscope.message import Msg
 
 from agent import _extract_text
@@ -85,7 +84,7 @@ class ReviewReport:
 
 class ReviewPipeline:
     """审查流水线"""
-    
+
     def __init__(
         self,
         get_model_fn,
@@ -111,7 +110,7 @@ class ReviewPipeline:
                 self._on_model_error(role)
         except Exception as e:
             logger.warning("模型失败通知回调异常: %s", e)
-    
+
     async def review(
         self,
         task_description: str,
@@ -123,9 +122,9 @@ class ReviewPipeline:
     ) -> Dict[str, Any]:
         """
         执行审查流水线
-        
+
         流程：CriticAgent自动审查 -> GroundingAgent自动接地 -> 多角色LLM审查
-        
+
         Args:
             task_description: 任务描述
             execution_result: 执行结果
@@ -134,7 +133,7 @@ class ReviewPipeline:
             discussion_context: 团队讨论决策摘要
             gate_result: 确定性门禁结果（测试/lint）。failures 非空时强制 revision_required；
                 工具缺失（基础设施不可用）由门禁记为 skipped，不触发 revision_required
-            
+
         Returns:
             审查结果
         """
@@ -153,7 +152,7 @@ class ReviewPipeline:
         except Exception as e:
             logger.warning("CriticAgent失败，跳过: %s", e, exc_info=True)
             critic_result = CriticResult(severity="unknown", findings=[])
-        
+
         # 2. GroundingAgent 自动接地（失败时跳过，不阻断审查流程）
         try:
             grounding_result = self._grounding.verify(
@@ -169,18 +168,18 @@ class ReviewPipeline:
         except Exception as e:
             logger.warning("GroundingAgent失败，跳过: %s", e, exc_info=True)
             grounding_result = GroundingResult(grounded=False, sources=[])
-        
+
         # 3. 合并审查（Reviewer + Monitor + Coordinator 合并为单次 LLM 调用）
         reviewer_feedback, monitor_feedback, coordinator_summary = await self._combined_review(
             task_description, execution_result, on_message, discussion_context
         )
-        
+
         # 6. 结构化验收反馈（整合 LLM 审查意见 + 确定性门禁结果）
         structured_feedback = self._generate_structured_feedback(
             task_description, execution_result, reviewer_feedback, monitor_feedback,
             gate_result=gate_result,
         )
-        
+
         return {
             "critic_result": {
                 "severity": critic_result.severity,
@@ -195,7 +194,7 @@ class ReviewPipeline:
             "coordinator_summary": coordinator_summary,
             "structured_feedback": structured_feedback,
         }
-    
+
     def _find_agent_id(self, role: AgentRole) -> Optional[str]:
         for a in self._meeting.agents:
             if a.role == role:
@@ -275,10 +274,10 @@ class ReviewPipeline:
         reviewer_id = self._find_agent_id(AgentRole.REVIEWER)
         if not reviewer_id:
             return ""
-        
+
         self._meeting.update_agent_status(reviewer_id, MeetingAgentStatus.SPEAKING)
         model = self._get_model(AgentRole.REVIEWER)
-        
+
         context_block = f"\n\n团队讨论确定的方案：\n{discussion_context}" if discussion_context else ""
         prompt = (
             f"你是团队的审查者。以下是一位同事的工作成果，请审查并提出改进建议。\n\n"
@@ -303,7 +302,7 @@ class ReviewPipeline:
         self._meeting.add_message("agent", feedback, reviewer_id)
         self._meeting.update_agent_status(reviewer_id, MeetingAgentStatus.MEETING)
         return feedback
-    
+
     async def _monitor_evaluate(
         self,
         task_description: str,
@@ -316,10 +315,10 @@ class ReviewPipeline:
         monitor_id = self._find_agent_id(AgentRole.MONITOR)
         if not monitor_id:
             return ""
-        
+
         self._meeting.update_agent_status(monitor_id, MeetingAgentStatus.SPEAKING)
         model = self._get_model(AgentRole.MONITOR)
-        
+
         context_block = f"\n\n团队讨论确定的方案：\n{discussion_context}" if discussion_context else ""
         prompt = (
             f"你是团队的监控者。请评估以下任务的执行情况。\n\n"
@@ -345,7 +344,7 @@ class ReviewPipeline:
         self._meeting.add_message("agent", feedback, monitor_id)
         self._meeting.update_agent_status(monitor_id, MeetingAgentStatus.MEETING)
         return feedback
-    
+
     async def _coordinator_summarize(
         self,
         task_description: str,
@@ -358,7 +357,7 @@ class ReviewPipeline:
         coordinator_id = self._find_agent_id(AgentRole.COORDINATOR)
         if not coordinator_id:
             return ""
-        
+
         self._meeting.update_agent_status(coordinator_id, MeetingAgentStatus.SPEAKING)
         model = self._get_model(AgentRole.COORDINATOR)
         prompt = (
@@ -381,7 +380,7 @@ class ReviewPipeline:
         self._meeting.add_message("agent", summary, coordinator_id)
         self._meeting.update_agent_status(coordinator_id, MeetingAgentStatus.MEETING)
         return summary
-    
+
     def _generate_structured_feedback(
         self,
         task_description: str,

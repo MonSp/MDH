@@ -81,8 +81,8 @@ class SecurityMiddleware:
             "rm -rf /", "rm -rf /*", "mkfs", "dd if=", "> /dev/",
             "chmod 777 /", "shutdown", "reboot", "halt",
             ":(){ :|:& };:",  # fork bomb
-            "curl.*\|.*bash", "wget.*\|.*sh",  # pipe to shell
-            "eval.*\$",  # eval injection
+            r"curl.*\|.*bash", r"wget.*\|.*sh",  # pipe to shell
+            r"eval.*\$",  # eval injection
             "nc -e", "ncat -e",  # reverse shell
             "python -c 'import os;os.system",  # python injection
         ]

@@ -1,9 +1,7 @@
 """SessionEvent 事件流：统一写入口 + JSONL 持久化 + 投影接口"""
 
 import json
-import os
 
-import pytest
 
 from meeting import MeetingSession, SessionEvent, SessionEventType
 

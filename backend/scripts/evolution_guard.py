@@ -15,7 +15,6 @@
   2 = 存在紧急问题（阻塞合并）
 """
 
-import json
 import os
 import sys
 
@@ -53,7 +52,7 @@ def check_reflection_priority():
             print(f"  ⚠️ {needs_attention} 个领域需要关注")
             return 1, result
         else:
-            print(f"  ✅ 所有领域健康")
+            print("  ✅ 所有领域健康")
             return 0, result
     except Exception as e:
         print(f"  ⚠️ 反思优先级检查失败: {e}")
@@ -96,7 +95,7 @@ def check_evolution_diversity():
             print(f"  ⚠️ 进化偏向单一类型（{concentration:.0%} > 50%）")
             return 1
         else:
-            print(f"  ✅ 进化多样性良好")
+            print("  ✅ 进化多样性良好")
             return 0
     except Exception as e:
         print(f"  ⚠️ 多样性检查失败: {e}")
@@ -128,7 +127,7 @@ def check_evolution_success_rate():
             print(f"  ⚠️ 进化成功率偏低（{success_rate:.0%} < 50%）")
             return 1
         else:
-            print(f"  ✅ 进化成功率健康")
+            print("  ✅ 进化成功率健康")
             return 0
     except Exception as e:
         print(f"  ⚠️ 成功率检查失败: {e}")
@@ -158,7 +157,7 @@ def check_federation_health():
             print(f"  ⚠️ 低信任团队: {', '.join(low_trust_teams)}")
             return 1
         else:
-            print(f"  ✅ 联邦健康")
+            print("  ✅ 联邦健康")
             return 0
     except Exception as e:
         print(f"  ⚠️ 联邦检查失败: {e}")

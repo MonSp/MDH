@@ -235,7 +235,7 @@ async def handle_generate_skill_summary(msg, session, ctx):
 # ──────────────────── 会议管理 handlers ────────────────────
 
 async def handle_start_meeting(msg, session, ctx):
-    from meeting import MeetingSession, MeetingAgentStatus
+    from meeting import MeetingSession
     from ceo_agent import CeoAgent
     from meeting_coordinator import MeetingCoordinator
 

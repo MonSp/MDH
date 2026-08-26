@@ -5,7 +5,7 @@ Grounding Agent - 伴随式接地角色
 每次审查结果写入 companion_log.json。
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import json
@@ -25,15 +25,15 @@ class GroundingResult:
 class GroundingAgent:
     """
     伴随式接地角色 - Grounding
-    
+
     职责：
     1. 检查每条结论是否有真实代码/文件/接口出处
     2. 有仓库时读真代码验证
     3. 无仓库时标记降级
-    
+
     按需触发，不常驻。
     """
-    
+
     def __init__(self, companion_log_path: Optional[str] = None):
         """
         Args:
@@ -41,12 +41,12 @@ class GroundingAgent:
         """
         self._companion_log_path = companion_log_path or "companion_log.json"
         self._log_entries: List[Dict[str, Any]] = []
-    
-    def verify(self, task_output: Dict[str, Any], repo_context: Optional[Dict[str, Any]] = None, 
+
+    def verify(self, task_output: Dict[str, Any], repo_context: Optional[Dict[str, Any]] = None,
                stage: str = "review") -> GroundingResult:
         """
         验证任务产出的接地性
-        
+
         Args:
             task_output: 任务产出，包含：
                 - conclusions: 结论列表
@@ -57,30 +57,30 @@ class GroundingAgent:
                 - files: 文件列表
                 - interfaces: 接口列表
             stage: 审查阶段
-            
+
         Returns:
             GroundingResult: 审查结果
         """
         sources = []
         repo_available = repo_context and repo_context.get("repo_available", False)
-        
+
         # 1. 检查结论的证据来源
         sources.extend(self._check_conclusions(task_output, repo_available))
-        
+
         # 2. 检查决策的依据
         sources.extend(self._check_decisions(task_output, repo_available))
-        
+
         # 3. 检查现有证据的有效性
         sources.extend(self._check_evidence_validity(task_output, repo_context))
-        
+
         # 判断是否充分接地
         grounded = len(sources) > 0
-        
+
         # 如果仓库可用，要求至少有一条真实仓库出处
         if repo_available:
             real_repo_sources = [s for s in sources if "repo://" in s or "file://" in s]
             grounded = len(real_repo_sources) > 0
-        
+
         result = GroundingResult(
             sources=sources,
             grounded=grounded,
@@ -92,16 +92,16 @@ class GroundingAgent:
                 "real_repo_sources": len([s for s in sources if "repo://" in s or "file://" in s]),
             },
         )
-        
+
         # 写入companion_log
         self._write_to_log(result)
-        
+
         return result
-    
+
     def _check_conclusions(self, output: Dict[str, Any], repo_available: bool) -> List[str]:
         """检查结论的证据来源"""
         sources = []
-        
+
         conclusions = output.get("conclusions", [])
         for i, conclusion in enumerate(conclusions):
             if isinstance(conclusion, dict):
@@ -115,13 +115,13 @@ class GroundingAgent:
                 # 字符串结论，检查是否包含路径引用
                 if "/" in conclusion or "\\" in conclusion:
                     sources.append(conclusion)
-        
+
         return sources
-    
+
     def _check_decisions(self, output: Dict[str, Any], repo_available: bool) -> List[str]:
         """检查决策的依据"""
         sources = []
-        
+
         decisions = output.get("decisions", [])
         for decision in decisions:
             if isinstance(decision, dict):
@@ -130,19 +130,19 @@ class GroundingAgent:
                     # 检查rationale中是否有代码引用
                     if "repo://" in rationale or "file://" in rationale:
                         sources.append(rationale)
-                
+
                 # 检查是否有依据来源
                 basis = decision.get("basis", "")
                 if basis:
                     sources.append(basis)
-        
+
         return sources
-    
-    def _check_evidence_validity(self, output: Dict[str, Any], 
+
+    def _check_evidence_validity(self, output: Dict[str, Any],
                                   repo_context: Optional[Dict[str, Any]]) -> List[str]:
         """检查现有证据的有效性"""
         sources = []
-        
+
         evidence_list = output.get("evidence", [])
         for evidence in evidence_list:
             if isinstance(evidence, str):
@@ -155,9 +155,9 @@ class GroundingAgent:
                 source = evidence.get("source", "")
                 if source:
                     sources.append(source)
-        
+
         return sources
-    
+
     def _write_to_log(self, result: GroundingResult):
         """写入companion_log.json"""
         entry = {
@@ -167,9 +167,9 @@ class GroundingAgent:
             "sources": result.sources,
             "grounded": result.grounded,
         }
-        
+
         self._log_entries.append(entry)
-        
+
         # 尝试持久化
         try:
             # 读取现有日志
@@ -177,10 +177,10 @@ class GroundingAgent:
             if os.path.exists(self._companion_log_path):
                 with open(self._companion_log_path, 'r', encoding='utf-8') as f:
                     existing = json.load(f)
-            
+
             # 追加新条目
             existing.append(entry)
-            
+
             # 写入文件
             os.makedirs(os.path.dirname(self._companion_log_path) if os.path.dirname(self._companion_log_path) else '.', exist_ok=True)
             with open(self._companion_log_path, 'w', encoding='utf-8') as f:
@@ -188,7 +188,7 @@ class GroundingAgent:
         except Exception:
             # 日志写入失败不影响主流程
             pass
-    
+
     def get_log_entries(self) -> List[Dict[str, Any]]:
         """获取内存中的日志条目"""
         return self._log_entries.copy()
@@ -197,18 +197,18 @@ class GroundingAgent:
 if __name__ == "__main__":
     # 测试
     agent = GroundingAgent()
-    
+
     # 测试用例1：无仓库，无证据
     result = agent.verify({
         "conclusions": ["应该使用JWT认证"],
         "decisions": [],
         "evidence": [],
     }, repo_context=None, stage="review")
-    
+
     print("测试1：无仓库，无证据")
     print(f"  接地：{'是' if result.grounded else '否'}")
     print(f"  来源：{len(result.sources)} 个")
-    
+
     # 测试用例2：有仓库，有代码证据
     result = agent.verify({
         "conclusions": [
@@ -219,7 +219,7 @@ if __name__ == "__main__":
         ],
         "evidence": ["repo://src/auth/jwt.py"],
     }, repo_context={"repo_available": True}, stage="review")
-    
+
     print("\n测试2：有仓库，有代码证据")
     print(f"  接地：{'是' if result.grounded else '否'}")
     print(f"  来源：{len(result.sources)} 个")

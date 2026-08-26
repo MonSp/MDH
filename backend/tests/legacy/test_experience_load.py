@@ -19,7 +19,7 @@ for r in rules:
 
 # 测试2: 构建经验上下文
 context = extractor.build_experience_context(rules)
-print(f"\n=== Experience Context ===")
+print("\n=== Experience Context ===")
 print(context[:500] if context else "(empty)")
 
 # 测试3: 检索无关任务（应该返回空）

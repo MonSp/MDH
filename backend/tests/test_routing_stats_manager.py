@@ -296,7 +296,7 @@ class TestSkillLevelBoost:
 
     def test_update_skill_boost(self, tmp_path):
         """升级后部门加成增加"""
-        from dynamic_router import DynamicRouter, RouteEntry
+        from dynamic_router import DynamicRouter
         import json
         routing_path = str(tmp_path / "routing.json")
         with open(routing_path, "w") as f:

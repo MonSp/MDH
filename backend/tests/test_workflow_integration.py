@@ -11,8 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from protocol import (
     AgentRole,
-    MeetingAgentStatus,
-    SemanticAnalysisResult,
     WorkflowDefinition,
     WorkflowNode,
     WorkflowEdge,
@@ -195,7 +193,7 @@ async def test_execute_workflow_returns_cancelled_on_pause(meeting_coordinator):
     for dept in ("dept-frontend", "dept-backend", "dept-qa"):
         coordinator.workflow_engine.register_node_executor(dept, slow_executor)
 
-    from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge
+    from protocol import WorkflowDefinition, WorkflowNode
     wf = WorkflowDefinition(
         workflow_id="pause-test", name="暂停测试", description="",
         nodes=[

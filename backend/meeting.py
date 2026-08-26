@@ -160,34 +160,34 @@ ROLE_TO_AGENT_ROLE = {
 
 def create_team_from_roles(selected_role_ids: list[str], roles_config: dict) -> list[dict]:
     """根据选中的角色ID创建团队模板
-    
+
     Args:
         selected_role_ids: 选中的角色ID列表，如 ["planner", "executor", "reviewer"]
         roles_config: roles_config.yaml 解析后的配置
-        
+
     Returns:
         团队模板列表，格式同 DEFAULT_MEETING_AGENTS
     """
     base_roles = roles_config.get("base_roles", {})
     custom_roles = roles_config.get("custom_roles", {})
     all_roles = {**base_roles, **custom_roles}
-    
+
     team = []
     for i, role_id in enumerate(selected_role_ids):
         role_config = all_roles.get(role_id)
         if not role_config:
             logger.warning("角色不存在: %s，跳过", role_id)
             continue
-        
+
         # 获取角色名称
         role_name = role_config.get("name", role_id)
-        
+
         # 获取AgentRole
         agent_role = ROLE_TO_AGENT_ROLE.get(role_id, AgentRole.EXECUTOR)
-        
+
         # 获取技能作为capabilities
         skills = role_config.get("skills", [])
-        
+
         agent_def = {
             "id": f"agent-{role_id}",
             "name": role_name,
@@ -196,16 +196,16 @@ def create_team_from_roles(selected_role_ids: list[str], roles_config: dict) -> 
             "role_config_id": role_id,  # 保存角色配置ID，用于后续加载工具和提示词
         }
         team.append(agent_def)
-    
+
     # 确保有CEO/coordinator角色
     has_coordinator = any(
-        t["role"] in (AgentRole.CEO, AgentRole.COORDINATOR) 
+        t["role"] in (AgentRole.CEO, AgentRole.COORDINATOR)
         for t in team
     )
     if not has_coordinator and team:
         # 将第一个角色标记为coordinator
         team[0]["role"] = AgentRole.COORDINATOR
-    
+
     return team
 
 

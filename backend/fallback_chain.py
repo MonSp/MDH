@@ -10,7 +10,6 @@ Fallback Chain - 回退链机制
 
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Callable
-from datetime import datetime
 import logging
 
 logger = logging.getLogger("fallback_chain")
@@ -31,7 +30,7 @@ class FallbackChain:
     fallbacks: List[FallbackStep] = field(default_factory=list)  # 备选路径
     strategy: str = "sequential"  # 回退策略：sequential（依次尝试）/ parallel（并行尝试）
     max_attempts: int = 3  # 最大尝试次数
-    
+
     def get_all_targets(self) -> List[str]:
         """获取所有目标（首选+备选）"""
         return [self.primary] + [f.target_id for f in self.fallbacks]
@@ -51,20 +50,20 @@ class FallbackResult:
 class FallbackExecutor:
     """
     回退执行器
-    
+
     职责：
     1. 按回退链依次尝试执行
     2. 记录每次尝试的结果
     3. 全部失败时触发补偿
     """
-    
+
     def __init__(self, compensation_callback: Optional[Callable] = None):
         """
         Args:
             compensation_callback: 补偿回调函数，签名：async def callback(context) -> bool
         """
         self._compensation_callback = compensation_callback
-    
+
     async def execute_with_fallback(
         self,
         chain: FallbackChain,
@@ -73,12 +72,12 @@ class FallbackExecutor:
     ) -> FallbackResult:
         """
         带回退的执行
-        
+
         Args:
             chain: 回退链
             executor: 执行函数，签名：async def executor(target_id) -> result
             context: 执行上下文
-            
+
         Returns:
             FallbackResult
         """
@@ -86,13 +85,13 @@ class FallbackExecutor:
         attempts = 0
         results = []
         fallback_used = False
-        
+
         for target_id in all_targets:
             if attempts >= chain.max_attempts:
                 break
-            
+
             attempts += 1
-            
+
             try:
                 result = await executor(target_id)
                 results.append({
@@ -101,7 +100,7 @@ class FallbackExecutor:
                     "result": result,
                     "attempt": attempts,
                 })
-                
+
                 # 执行成功
                 return FallbackResult(
                     success=True,
@@ -110,7 +109,7 @@ class FallbackExecutor:
                     results=results,
                     fallback_used=fallback_used,
                 )
-                
+
             except Exception as e:
                 logger.warning("目标 %s 执行失败 (尝试 %d/%d): %s",
                              target_id, attempts, chain.max_attempts, str(e))
@@ -121,7 +120,7 @@ class FallbackExecutor:
                     "attempt": attempts,
                 })
                 fallback_used = True
-        
+
         # 所有目标都失败，尝试补偿
         compensated = False
         if self._compensation_callback and context:
@@ -130,7 +129,7 @@ class FallbackExecutor:
                 logger.info("补偿执行%s", "成功" if compensated else "失败")
             except Exception as e:
                 logger.error("补偿执行异常: %s", str(e))
-        
+
         return FallbackResult(
             success=False,
             target_id=all_targets[-1] if all_targets else "",
@@ -144,10 +143,10 @@ class FallbackExecutor:
 class RoutingFallbackBuilder:
     """
     路由回退链构建器
-    
+
     从 DynamicRouter 的候选列表构建回退链
     """
-    
+
     @staticmethod
     def build_from_candidates(
         candidates: List[Dict[str, Any]],
@@ -155,27 +154,27 @@ class RoutingFallbackBuilder:
     ) -> FallbackChain:
         """
         从候选列表构建回退链
-        
+
         Args:
             candidates: 候选列表，按得分降序排列
             max_fallbacks: 最大备选数
-            
+
         Returns:
             FallbackChain
         """
         if not candidates:
             raise ValueError("候选列表为空")
-        
+
         primary = candidates[0]["dept_id"]
         fallbacks = []
-        
+
         for i, candidate in enumerate(candidates[1:max_fallbacks + 1], 1):
             fallbacks.append(FallbackStep(
                 target_id=candidate["dept_id"],
                 reason=f"备选路径{i}，得分: {candidate.get('score', 0):.4f}",
                 confidence=candidate.get("score", 0),
             ))
-        
+
         return FallbackChain(
             primary=primary,
             fallbacks=fallbacks,
@@ -185,10 +184,10 @@ class RoutingFallbackBuilder:
 class WorkflowFallbackBuilder:
     """
     工作流回退链构建器
-    
+
     为工作流节点构建备选执行器回退链
     """
-    
+
     @staticmethod
     def build_for_node(
         node_dept_id: str,
@@ -196,22 +195,22 @@ class WorkflowFallbackBuilder:
     ) -> FallbackChain:
         """
         为工作流节点构建回退链
-        
+
         Args:
             node_dept_id: 节点的主要部门ID
             alternative_executors: 备选执行器ID列表
-            
+
         Returns:
             FallbackChain
         """
         fallbacks = [
             FallbackStep(
                 target_id=executor_id,
-                reason=f"备选执行器",
+                reason="备选执行器",
             )
             for executor_id in alternative_executors
         ]
-        
+
         return FallbackChain(
             primary=node_dept_id,
             fallbacks=fallbacks,
@@ -221,7 +220,7 @@ class WorkflowFallbackBuilder:
 if __name__ == "__main__":
     # 测试
     import asyncio
-    
+
     async def test():
         # 测试路由回退链构建
         candidates = [
@@ -229,29 +228,29 @@ if __name__ == "__main__":
             {"dept_id": "fullstack", "score": 0.7},
             {"dept_id": "backend", "score": 0.5},
         ]
-        
+
         chain = RoutingFallbackBuilder.build_from_candidates(candidates)
         print(f"首选: {chain.primary}")
         print(f"备选: {[f.target_id for f in chain.fallbacks]}")
         print(f"所有目标: {chain.get_all_targets()}")
-        
+
         # 测试回退执行
         call_count = 0
-        
+
         async def failing_executor(target_id):
             nonlocal call_count
             call_count += 1
             if target_id == "frontend":
                 raise ValueError("前端服务不可用")
             return {"status": "ok", "target": target_id}
-        
+
         executor = FallbackExecutor()
         result = await executor.execute_with_fallback(chain, failing_executor)
-        
-        print(f"\n执行结果:")
+
+        print("\n执行结果:")
         print(f"  成功: {result.success}")
         print(f"  最终目标: {result.target_id}")
         print(f"  尝试次数: {result.attempts}")
         print(f"  使用回退: {result.fallback_used}")
-    
+
     asyncio.run(test())

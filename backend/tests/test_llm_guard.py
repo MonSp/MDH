@@ -1,8 +1,7 @@
 """Tests for llm_guard — safe_llm_reply timeout and retry behavior"""
 import asyncio
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from llm_guard import safe_llm_reply, safe_llm_call, DEFAULT_LLM_TIMEOUT
+from llm_guard import safe_llm_reply, safe_llm_call
 from llm_cache import llm_cache
 
 

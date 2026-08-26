@@ -1,6 +1,6 @@
 # backend/tests/test_agent_profile_manager.py
 import pytest
-from agent_profile_manager import AgentProfileManager, AgentProfile, SkillProgress
+from agent_profile_manager import AgentProfileManager
 
 @pytest.fixture
 def manager(tmp_path):

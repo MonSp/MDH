@@ -1,10 +1,6 @@
 """Tests for RegistryClient and RegistryServer"""
-import json
 import pytest
-import tempfile
 import zipfile
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 from registry_client import RegistryClient, SkillMeta
 from registry_server import RegistryServer

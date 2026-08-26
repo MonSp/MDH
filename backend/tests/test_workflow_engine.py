@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from protocol import (
     WorkflowDefinition,
     WorkflowEdge,
-    WorkflowExecution,
     WorkflowExecutionStatus,
     WorkflowNode,
     WorkflowNodeStatus,

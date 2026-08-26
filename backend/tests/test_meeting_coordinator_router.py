@@ -70,7 +70,7 @@ if "agentscope" not in sys.modules:
 if "fastapi" not in sys.modules:
     _ensure_mock_module("fastapi", {"WebSocket": MagicMock})
 
-from dynamic_router import DynamicRouter, RouteEntry, RoutingDecision
+from dynamic_router import DynamicRouter, RoutingDecision
 from meeting import MeetingSession
 from meeting_coordinator import MeetingCoordinator
 from protocol import (

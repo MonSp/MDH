@@ -3,7 +3,6 @@
 import asyncio
 import json
 
-import pytest
 
 from workflow_engine import WorkflowEngine
 from protocol import (

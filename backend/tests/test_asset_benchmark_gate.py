@@ -1,4 +1,4 @@
-from asset_benchmark_gate import DEFAULT_THRESHOLDS, GateResult, run_gate
+from asset_benchmark_gate import run_gate
 
 
 def _perfect_judge(asset):

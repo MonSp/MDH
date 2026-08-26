@@ -9,9 +9,8 @@ MeetingCoordinator 讨论流程子模块
 
 import logging
 import re
-from typing import Any, Callable, Awaitable, Dict, List, Optional
+from typing import Callable, Awaitable, Dict, List, Optional
 
-from discussion_manager import DiscussionManager
 from mixed_location_discussion import MixedLocationDiscussion
 from discussion_utils import parse_stance_from_content, resolve_agent_role, strip_stance_tags
 from team import Team

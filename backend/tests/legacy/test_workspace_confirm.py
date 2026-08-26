@@ -56,7 +56,7 @@ async def test_workspace_confirm():
 
                     if msg_type == "workspace_confirm_request":
                         ws_confirm_received = True
-                        print(f"\n[3] 收到 workspace_confirm_request:")
+                        print("\n[3] 收到 workspace_confirm_request:")
                         print(f"    project_id: {data.get('project_id', '')}")
                         print(f"    suggested_type: {data.get('suggested_type', '')}")
                         print(f"    options: {json.dumps(data.get('options', {}), ensure_ascii=False)[:200]}")
@@ -73,13 +73,13 @@ async def test_workspace_confirm():
                         print("[4] 已发送 workspace_confirm_response (standalone)")
 
                     elif msg_type == "workspace_created":
-                        print(f"\n[5] 收到 workspace_created:")
+                        print("\n[5] 收到 workspace_created:")
                         print(f"    workspace_id: {data.get('workspace_id', '')}")
                         print(f"    workspace_path: {data.get('workspace_path', '')}")
 
                     elif msg_type == "meeting_started":
                         meeting_started = True
-                        print(f"\n[6] 收到 meeting_started:")
+                        print("\n[6] 收到 meeting_started:")
                         print(f"    meeting_id: {data.get('meeting_id', '')}")
                         agents = data.get("agents", [])
                         print(f"    agents: {len(agents)} 个")

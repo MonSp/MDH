@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { resolve } from 'node:path';
 import { loadSkillPacks, getSkillPack, resetCache, loadSkillContent, loadIncrementalArea, parseYaml } from './loader.js';
 
-const PACKS_DIR = resolve('/home/test/MDH/skill_packs');
+const PACKS_DIR = resolve(import.meta.dirname, '..', '..', '..', 'skill_packs');
 const FIXTURES_DIR = resolve(import.meta.dirname, '__fixtures__');
 
 beforeEach(() => {

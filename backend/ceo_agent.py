@@ -16,17 +16,13 @@ import uuid
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 from agentscope.agent import Agent
-from agent import PROVIDER_REGISTRY
-from meeting import MeetingSession, PERSONAL_ASSISTANT_TEMPLATE
+from meeting import MeetingSession
 from meeting_coordinator import MeetingCoordinator
 from protocol import (
     AgentRole,
-    MeetingAgentStatus,
-    meeting_agent_to_dict,
-    semantic_analysis_to_dict,
 )
 from project_manager import ProjectManager
-from complexity_classifier import ComplexityClassifier, ComplexityResult
+from complexity_classifier import ComplexityClassifier
 from simple_executor import SimpleExecutor
 from agenda import AgendaStateMachine
 from team import Team
@@ -241,7 +237,7 @@ class CeoAgent:
 
         # 2. 根据复杂度选择路径
         if complexity.level == "simple" and complexity.confidence >= 0.7:
-            return await self._execute_simple(content, send_message)
+            return await self._execute_simple(content, send_message, execution_preference=execution_preference)
         else:
             return await self._execute_complex(content, send_message, selected_roles, role_locations)
 
@@ -249,6 +245,7 @@ class CeoAgent:
         self,
         content: str,
         send_message: Callable[[Dict[str, Any]], Awaitable[None]],
+        execution_preference: str = "auto",
     ) -> Dict[str, Any]:
         """简单路径：单人助理直接执行"""
         await self._emit(send_message, "CEO：任务较简单，指派单人助理直接执行。")
@@ -372,7 +369,7 @@ class CeoAgent:
         except DirectoryNotEmptyError as e:
             # 目录非空，需要用户确认
             scan = e.scan
-            await self._emit(send_message, f"CEO：检测到目标目录已有内容，需要您确认。")
+            await self._emit(send_message, "CEO：检测到目标目录已有内容，需要您确认。")
 
             # 发送确认请求给前端
             self._workspace_confirm_event = asyncio.Event()
@@ -634,17 +631,17 @@ class CeoAgent:
                 })
 
             await self._emit(send_message, "CEO：任务执行完成，质量审查已通过。")
-            
+
             # 提取写入的文件信息
             execution_results = result.get("execution_results", [])
             written_files = []
             for exec_result in execution_results:
                 written_files.extend(exec_result.get("written_files", []))
-            
+
             # 如果有文件写入，通知前端
             if written_files:
                 await self._emit(send_message, f"CEO：已将 {len(written_files)} 个文件写入工作区：{', '.join(written_files)}")
-            
+
             task_result = {
                 "type": "task_result",
                 "path_used": "complex",

@@ -96,6 +96,12 @@
 | **0.5.2** | 2026-08-27 | 代码审查 Critical+Important 修复（14 项：路径穿越/Token泄露/N+1查询/类型安全等） |
 | **0.5.3** | 2026-08-27 | Minor 代码审查修复（冗余导入 + meeting_coordinator 17 单元测试） |
 | **0.5.4** | 2026-08-27 | CI/CD 增强（ruff/pip-audit/eslint/orchestrator-tests + README 徽章更新） |
+| **0.5.5** | 2026-08-27 | CI 流水线修复（4 个失败 job：ruff 参数 + flaky 测试 + 硬编码路径 + runner bug） |
+| **0.5.6** | 2026-08-27 | CI 流水线修复续（ruff W503 + pytest-rerunfailures） |
+| **0.5.7** | 2026-08-27 | Ruff 全量修复（1502 auto-fix + 5 F821 bug + CI 规则调优） |
+| **0.5.8** | 2026-08-27 | CI ruff exclude 路径修正（working-directory 上下文） |
+| **0.5.9** | 2026-08-27 | CI 基准回归容差放宽（5x → 15x） |
+| **0.5.10** | 2026-08-27 | 基准文件更新（collector bug 修复后重新生成） |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 

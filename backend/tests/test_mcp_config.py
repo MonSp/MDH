@@ -1,7 +1,5 @@
 """Tests for MCP Config Manager"""
 import pytest
-import json
-from pathlib import Path
 
 from mcp_config import MCPConfigManager, MCPServerEntry
 

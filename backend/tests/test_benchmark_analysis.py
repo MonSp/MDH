@@ -1,11 +1,10 @@
 """Tests for benchmark/analysis.py — 评测结果分析"""
 import json
-import os
 import pytest
 
 from benchmark.analysis import (
     analyze_report, compare_versions, format_analysis,
-    analyze_baseline_file, AnalysisReport, Anomaly,
+    analyze_baseline_file,
 )
 
 

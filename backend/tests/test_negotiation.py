@@ -1,8 +1,7 @@
 """Tests for negotiation.py — NegotiationEngine vote logic"""
 import pytest
 from negotiation import (
-    NegotiationEngine, ConsensusStrategy, Stance,
-    Proposal, Vote, VoteResult, DecisionNode,
+    NegotiationEngine, ConsensusStrategy,
 )
 
 

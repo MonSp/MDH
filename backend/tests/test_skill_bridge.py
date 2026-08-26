@@ -1,9 +1,7 @@
 """Tests for SkillBridge"""
 import pytest
-import tempfile
-from pathlib import Path
 
-from skill_bridge import SkillBridge, SkillDescriptor
+from skill_bridge import SkillBridge
 
 
 # ── Fixtures ──

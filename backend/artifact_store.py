@@ -10,7 +10,7 @@ import logging
 import os
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import List
 
 logger = logging.getLogger("artifact_store")
 

@@ -10,10 +10,8 @@
 import json
 import logging
 import os
-from collections import Counter, defaultdict
 from datetime import datetime, timezone
-from itertools import combinations
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List
 
 logger = logging.getLogger("team_synergy")
 

@@ -22,7 +22,7 @@ import logging
 import os
 import re
 import sys
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List
 
 logger = logging.getLogger("mcp_server")
 

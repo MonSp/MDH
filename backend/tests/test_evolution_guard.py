@@ -1,5 +1,4 @@
 """Tests for evolution_guard.py — CI 进化健康度门禁"""
-import json
 import os
 import subprocess
 import sys

@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-08-24T02:22:37.422931+00:00",
+  "timestamp": "2026-08-26T03:27:24.017353+00:00",
   "total": 16,
   "passed": 16,
   "failed": 0,
   "avg_llm_calls": 1.0,
-  "avg_latency_s": 0.00047853589057922363,
+  "avg_latency_s": 0.0008144229650497437,
   "results": [
     {
       "task_id": "simple-01",
@@ -12,9 +12,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 1,
-      "latency_s": 0.0003495216369628906,
+      "latency_s": 0.0008561611175537109,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -23,9 +23,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 1,
-      "latency_s": 0.00024962425231933594,
+      "latency_s": 0.00047850608825683594,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -34,9 +34,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 1,
-      "latency_s": 0.00018453598022460938,
+      "latency_s": 0.0002124309539794922,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -45,9 +45,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 1,
-      "latency_s": 0.00016570091247558594,
+      "latency_s": 0.0003120899200439453,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -56,9 +56,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 1,
-      "latency_s": 0.00017023086547851562,
+      "latency_s": 0.00032591819763183594,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -67,9 +67,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 1,
-      "latency_s": 0.00017189979553222656,
+      "latency_s": 0.00039958953857421875,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -78,9 +78,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 3,
-      "latency_s": 0.0026721954345703125,
+      "latency_s": 0.0016362667083740234,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -89,9 +89,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 3,
-      "latency_s": 0.0005593299865722656,
+      "latency_s": 0.0010731220245361328,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -100,9 +100,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 2,
-      "latency_s": 0.00023317337036132812,
+      "latency_s": 0.0005214214324951172,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -111,9 +111,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 3,
-      "latency_s": 0.0003173351287841797,
+      "latency_s": 0.0007607936859130859,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -122,9 +122,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 2,
-      "latency_s": 0.00016450881958007812,
+      "latency_s": 0.0006363391876220703,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -133,9 +133,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 4,
-      "latency_s": 0.00040793418884277344,
+      "latency_s": 0.0008075237274169922,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -144,9 +144,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 6,
-      "latency_s": 0.000469207763671875,
+      "latency_s": 0.0016427040100097656,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -155,9 +155,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 5,
-      "latency_s": 0.0004379749298095703,
+      "latency_s": 0.0008182525634765625,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -166,9 +166,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 6,
-      "latency_s": 0.0007574558258056641,
+      "latency_s": 0.0016252994537353516,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     },
     {
@@ -177,9 +177,9 @@
       "llm_calls": 1,
       "tool_calls": 0,
       "files_written": 4,
-      "latency_s": 0.0003459453582763672,
+      "latency_s": 0.0009243488311767578,
       "path_used": "complex",
-      "error": "name 'collector' is not defined",
+      "error": "",
       "details": {}
     }
   ]

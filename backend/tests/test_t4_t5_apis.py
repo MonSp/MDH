@@ -1,6 +1,5 @@
 """Tests for T4 (evolution chain API) and T5 (capability confidence-map API)"""
 import json
-import os
 
 import pytest
 

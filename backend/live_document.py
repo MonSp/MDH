@@ -8,14 +8,12 @@
 """
 
 import csv
-import io
 import json
 import logging
 import os
-import time
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("live_document")
 

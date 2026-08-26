@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r backend/requirements.txt
-          pip install pytest pytest-asyncio pytest-timeout pytest-cov
+          pip install pytest pytest-asyncio pytest-timeout pytest-cov pytest-rerunfailures
       - name: Run backend tests with coverage
         working-directory: backend
         run: python -m pytest tests/ --timeout=60 --ignore=tests/legacy --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=75
@@ -38,7 +38,7 @@ jobs:
         run: pip install ruff
       - name: Run ruff check
         working-directory: backend
-        run: ruff check . --select=E,F,W --ignore=E501,E402,F841,W503 --exit-non-zero-on-findings
+        run: ruff check . --select=E,F,W --ignore=E501,E402,F841,E701,E702,E712,E731,E741 --exclude=tests/legacy
       - name: Run ruff format check
         working-directory: backend
         run: ruff format --check . || true

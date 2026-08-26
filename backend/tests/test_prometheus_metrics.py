@@ -9,7 +9,6 @@ Verifies:
 
 import sys
 import os
-import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -22,8 +21,6 @@ _test_registry = CollectorRegistry()
 
 def _reset_prometheus_metrics():
     """重置所有自定义 Prometheus 计数器（使用独立 registry 隔离）"""
-    from prometheus_client import Counter, Gauge
-    import prometheus_metrics as pm
 
     # 重新创建指标对象使用默认 registry（测试间通过 clear 重置）
     # prometheus_client 不支持 unregister 后重新 register 同名指标，

@@ -1,6 +1,5 @@
 """v1.6 端到端集成测试 — SQLite + 缓存 + RBAC + Webhook 全链路"""
 
-import json
 import os
 import pytest
 import sys
@@ -159,7 +158,6 @@ class TestEvolutionChainIntegration:
 
     def test_rule_evolution_end_to_end(self, data_dir):
         """规则从创建到进化的端到端流程"""
-        import yaml
         from experience_extractor import ExperienceExtractor, ExperienceRule
 
         ext = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))

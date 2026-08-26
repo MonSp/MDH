@@ -219,14 +219,14 @@ def validate_roles(roles_config: dict, role_ids: list) -> bool:
                 s_cat = skill_info.get("category", "?")
                 print(f"    - {s_name} [{s_cat}]")
         else:
-            print(f"  技能包:   (无)")
+            print("  技能包:   (无)")
             all_ok = False
 
         # 验证工具包
         if tools:
             print(f"  工具包({len(tools)}): {', '.join(tools)}")
         else:
-            print(f"  工具包:   (无)")
+            print("  工具包:   (无)")
             all_ok = False
 
         # 验证 AgentToolset 可以正确加载
@@ -334,7 +334,7 @@ def validate_output(workspace_root: str, theme: str) -> bool:
         if matched_keywords:
             print(f"  主题相关关键词命中: {', '.join(matched_keywords[:5])}")
         else:
-            print(f"  [WARN] 未命中主题关键词（可能由LLM创造性发挥）")
+            print("  [WARN] 未命中主题关键词（可能由LLM创造性发挥）")
 
     ok = len(novel_files) > 0
     print(f"\n  结论: {'有实际内容生成' if ok else '无有效内容'}")

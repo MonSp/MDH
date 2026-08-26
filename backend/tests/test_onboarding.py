@@ -1,9 +1,7 @@
 """Tests for OnboardingManager and onboarding tasks."""
-import json
-import os
 import pytest
 
-from onboarding_manager import OnboardingManager, OnboardingState
+from onboarding_manager import OnboardingManager
 from onboarding_tasks import get_onboarding_tasks, ONBOARDING_TASKS
 
 

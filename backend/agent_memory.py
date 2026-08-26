@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from db import get_db
 

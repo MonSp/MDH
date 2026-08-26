@@ -1,7 +1,6 @@
 """Tests for LiveDocumentManager — 活文档协作"""
 import csv
 import json
-import os
 import pytest
 from live_document import LiveDocumentManager
 

@@ -7,7 +7,6 @@
 4. 执行结果回传 + 状态同步
 """
 
-import asyncio
 import json
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -66,7 +65,7 @@ def mock_a2a_server():
 @pytest.fixture
 def a2a_infrastructure(tmp_path):
     """创建 A2A 基础设施"""
-    from a2a_registry import A2ARegistry, AgentCard, AgentSkill
+    from a2a_registry import A2ARegistry
     from a2a_client import A2AClient
     from a2a_task_router import A2ATaskRouter
     from state_sync import StateSyncManager

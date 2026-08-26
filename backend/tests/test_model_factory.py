@@ -1,6 +1,5 @@
 """Tests for model_factory — shared model creation"""
 import pytest
-from unittest.mock import MagicMock, patch
 from model_factory import create_agent, get_default_base_url, _auto_init
 
 

@@ -15,7 +15,6 @@ import os
 import sys
 import threading
 import time
-from unittest.mock import MagicMock, patch
 
 import pytest
 

@@ -11,7 +11,6 @@ import json
 import os
 import subprocess
 import pytest
-import tempfile
 
 sys_path = os.path.join(os.path.dirname(__file__), "..")
 import sys
@@ -52,7 +51,6 @@ class TestEvolutionChain:
 
     def test_rule_lifecycle(self, data_dir):
         """规则从创建到自进化的完整生命周期"""
-        import yaml
         from experience_extractor import ExperienceExtractor
 
         extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
@@ -151,7 +149,6 @@ class TestCollaborationChain:
         """技能等级→路由加成完整流程"""
         from dynamic_router import DynamicRouter
         from agent_profile_manager import AgentProfileManager
-        import json
 
         # 初始化路由表
         routing_path = os.path.join(data_dir, "routing_table.json")

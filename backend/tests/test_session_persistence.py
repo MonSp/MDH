@@ -1,7 +1,5 @@
 """Tests for SessionPersistence — 会话状态持久化"""
-import os
 import pytest
-import tempfile
 
 from session_persistence import SessionPersistence
 

@@ -4,7 +4,6 @@
 """
 import json
 import os
-import signal
 import subprocess
 import statistics
 import sys
@@ -191,7 +190,7 @@ def main():
         print("LLM 缓存（SQLite 持久化）")
         print("=" * 90)
 
-        from llm_cache import LLMCache, normalize_prompt
+        from llm_cache import LLMCache
         import tempfile
         perf_cache_db = os.path.join(tempfile.gettempdir(), "llm_cache_perf.db")
 
@@ -227,7 +226,6 @@ def main():
         print(f"  语义规范化命中: {norm_hits}/100")
 
         # 分层 TTL
-        from llm_cache import TTL_PRESETS
         cache.put("实现一个排序函数", "creative")
         cache.put("审查代码质量", "review")
         cache.put("请判断是否正确", "deterministic")
