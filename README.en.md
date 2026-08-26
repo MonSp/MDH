@@ -73,7 +73,7 @@ open http://localhost:8080
 | Capability | Description |
 |---|---|
 | 🏢 Virtual Office | 3D tech-tower visualization, real-time agent status |
-| 👥 Multi-Role Teams | 6 core roles (CEO, Architect, Developer, QA, DevOps, PM) + 20+ extended roles |
+| 👥 Multi-Role Teams | 6 core roles + 43 roles (25 base + 18 custom) |
 | 🎯 Intelligent Task Dispatch | CEO analyzes requirements → discusses → votes → assigns → executes → reviews |
 | 🔧 18 Tools | File, Git, search, testing, documents, web, etc. |
 | 🤖 TS-Python Bridge | Frontend custom agents interoperate with backend AgentScope agents |
@@ -163,7 +163,7 @@ User Browser
 │  CEO Agent │ Skill Evo │ Careers │ Assets │ A2A Task Router  │
 │  Meetings  │ Skills    │ Memory  │ Monitor │ State Sync Mgr   │
 │                                                               │
-│  147 REST API endpoints + 41 WebSocket message types          │
+│  156 REST API endpoints + 40 WebSocket message types          │
 └───────────────────────────┬──────────────────────────────────┘
                             │ A2A Protocol (HTTP/SSE)
                ┌────────────┼────────────┐
@@ -238,7 +238,7 @@ Each digital employee has a persistent career profile, accumulating experience a
 | 📊 Frontend Panels | Department card grid + promotion timeline + skill progress bars + skill tree visualization |
 | 🧭 Routing Awareness | Agent skill levels influence routing decisions, upgrades drive department routing bonuses |
 
-## Production Ready (v0.2.0)
+## Production Ready
 
 | Capability | Description |
 |------|------|

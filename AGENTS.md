@@ -128,7 +128,7 @@
 | 前端 | React 18 + TypeScript + Vite 6 + Three.js | 3D 虚拟办公室、实时通信 |
 | 后端 | Python 3.11 + FastAPI + WebSocket | 智能体协调、工具执行 |
 | AI 引擎 | AgentScope + DeepSeek API | 多模型支持 (DeepSeek/OpenAI/Anthropic/Gemini/Ollama 等 9 个提供商) |
-| 测试 | Vitest (TS) + pytest (Python) | 1726 TS 测试用例（前端 1726 + orchestrator 214）+ 1759 Python 测试 |
+| 测试 | Vitest (TS) + pytest (Python) | 1726 TS 测试用例（前端 1726 + orchestrator 216）+ 2052 Python 测试 |
 
 ### 项目结构
 
@@ -1397,7 +1397,7 @@ EXECUTOR_TOKEN=
 │                                                               │
 │  CEO Agent │ 经验进化 │ 职业发展 │ A2A Task Router           │
 │  会议协调   │ 技能管理 │ 记忆系统 │ State Sync Manager        │
-│  147 REST API + 41 WebSocket 消息类型                         │
+│  156 REST API + 40 WebSocket 消息类型                         │
 └───────────────────────────┬──────────────────────────────────┘
                             │ A2A 协议 (HTTP/SSE)
                ┌────────────┼────────────┐
