@@ -23,8 +23,11 @@ C++ ECS agent-kernel 是两个产品的 Single Source of Truth：
 
 ## 技能映射
 
-Company 的42个真实技能通过映射表翻译为 Game 世界能力：
-- `backend_dev` → `阵法造诣`
-- `frontend_dev` → `符箓绘制`
-- `testing` → `探查术`
+Company 的42个真实技能通过映射表翻译为 Game 世界能力，命名遵循 Game 世界观规范（功法/炼丹/阵法/符箓/禁制/机关）：
+- `backend_dev` → `阵法`
+- `frontend_dev` → `符箓`
+- `testing` → `试炼`
+- `ml_engineering` → `炼丹`
+- `security_audit` → `禁制`
+- `devops` → `机关`
 - ...详见 `agent-kernel/config/skill-mapping.json`

@@ -16,7 +16,7 @@ commits: 5efdb6e..4f632e2 (Game) / 9ba96c7..773932c (Company)
 
 2. **IPC Bridge**: Unix Socket + JSON 协议层，C++ daemon 进程 + TypeScript 客户端库 + Python 客户端库，支持 10 个 IPC 方法（createAgent/getAgent/updateAgent/deleteAgent/listAgents/addSkillXp/addSkill/addCareerXp/getSkills/syncState）。
 
-3. **Skill Mapping**: 42 个 Company 真实技能（5 大类别）映射到 Game 修仙世界能力（backend_dev→阵法造诣, testing→探查术 等），JSON 配置可热更新。
+3. **Skill Mapping**: 42 个 Company 真实技能（5 大类别）映射到 Game 世界能力（backend_dev→阵法, testing→试炼, ml_engineering→炼丹 等），命名遵循 Game 世界观规范（功法/炼丹/阵法/符箓/禁制/机关），JSON 配置可热更新。
 
 4. **Company Integration**: Python FastAPI 后端双写模式——SQLite 为主，kernel 为辅。新增 `/api/agents/kernel/state` 和 `/api/agents/kernel/sync` 端点。2089 测试通过，0 回归。
 
@@ -148,24 +148,24 @@ Company 的 42 个真实技能通过配置映射表翻译为 Game 世界能力�
 
 | Company 技能 | Game 能力 | 类别 |
 |---|---|---|
-| `backend_dev` | `阵法造诣` | 工程 |
-| `frontend_dev` | `符箓绘制` | 工程 |
-| `testing` | `探查术` | 工程 |
-| `code_review` | `鉴器术` | 工程 |
-| `architecture` | `大阵设计` | 工程 |
-| `devops` | `阵基运维` | 工程 |
-| `security` | `禁制术` | 工程 |
-| `design` | `炼器术` | 设计 |
-| `ui_design` | `符文设计` | 设计 |
-| `ux_research` | `观心术` | 设计 |
-| `data_analysis` | `占卜术` | 数据 |
-| `data_visualization` | `天象图` | 数据 |
-| `content_writing` | `传法` | 内容 |
-| `copywriting` | `经文撰写` | 内容 |
-| `project_mgmt` | `调度术` | 管理 |
-| `team_lead` | `宗主令` | 管理 |
-| `product_mgmt` | `天机推演` | 管理 |
-| ... | ... | ... |
+| `backend_dev` | `阵法` | 工程 |
+| `frontend_dev` | `符箓` | 工程 |
+| `testing` | `试炼` | 工程 |
+| `code_review` | `炼器` | 工程 |
+| `architecture` | `阵法` | 工程 |
+| `devops` | `机关` | 工程 |
+| `security_audit` | `禁制` | 工程 |
+| `monitoring` | `观气术` | 工程 |
+| `data_analysis` | `推演术` | 数据 |
+| `ml_engineering` | `炼丹` | 数据 |
+| `database` | `藏经阁` | 数据 |
+| `graphic_design` | `铭文` | 设计 |
+| `brand_identity` | `炼器` | 设计 |
+| `content_writing` | `经文` | 内容 |
+| `copywriting` | `咒文` | 内容 |
+| `competitive_analysis` | `天机术` | 管理 |
+| `risk_management` | `化劫术` | 管理 |
+| ... | ... | 42个技能全部映射，见 `skill-mapping.json` |
 
 映射存储为 JSON 配置文件，可在不修改代码的情况下调整。
 
