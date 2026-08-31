@@ -27,6 +27,36 @@ from semantic_analyzer import SemanticAnalyzer
 from task_orchestrator import TaskOrchestrator
 from review_pipeline import ReviewPipeline
 from discussion_manager import DiscussionManager
+from coordinator_routing import (
+    AGENT_ROLE_TOOLS, estimate_task_complexity as _estimate_task_complexity_impl,
+    setup_agent_isolation as _setup_agent_isolation_impl,
+    find_agent_id as _find_agent_id_impl, resolve_agent as _resolve_agent_impl,
+    get_agent_tools as _get_agent_tools_impl, agent_can_execute as _agent_can_execute_impl,
+    find_best_agent_for_task as _find_best_agent_for_task_impl,
+    ensure_default_routing_table as _ensure_default_routing_table_impl,
+)
+from coordinator_triage import triage_task as _triage_task_impl, decompose_task as _decompose_task_impl
+from coordinator_experience import (
+    update_injected_rule_effectiveness as _update_injected_rule_effectiveness_impl,
+    recall_agent_memory as _recall_agent_memory_impl, write_task_memory as _write_task_memory_impl,
+    finalize_skill_evolution as _finalize_skill_evolution_impl,
+    log_skill_evolution as _log_skill_evolution_impl,
+    inject_experience as _inject_experience_impl, log_knowledge_flow as _log_knowledge_flow_impl,
+)
+from coordinator_execution import (
+    build_execution_artifact_text as _build_execution_artifact_text_impl,
+    save_execution_artifacts as _save_execution_artifacts_impl,
+    lightweight_review as _lightweight_review_impl,
+    run_simple_path as _run_simple_path_impl,
+    execute_and_review_task as _execute_and_review_task_impl,
+    run_dev_loop as _run_dev_loop_impl,
+    execute_tool_call as _execute_tool_call_impl,
+)
+from coordinator_effects import (
+    notify_agent_status as _notify_agent_status_impl,
+    notify_artifact_created as _notify_artifact_created_impl,
+    grant_task_xp as _grant_task_xp_impl,
+)
 from mixed_location_discussion import MixedLocationDiscussion
 
 AGENT_ROLE_PROMPTS = {
@@ -39,14 +69,7 @@ AGENT_ROLE_PROMPTS = {
 }
 
 # 各AgentRole在协调器中实际可用的工具集（与AgentToolset权限对齐）
-AGENT_ROLE_TOOLS = {
-    AgentRole.CEO: {"read_file", "list_directory", "git_status"},
-    AgentRole.PLANNER: {"read_file", "list_directory", "search_files", "grep_content", "git_status", "git_diff", "git_log"},
-    AgentRole.EXECUTOR: {"read_file", "write_file", "edit_file", "list_directory", "bash", "git_status", "git_commit"},
-    AgentRole.MONITOR: {"read_file", "write_file", "list_directory", "bash", "git_status", "git_commit"},
-    AgentRole.REVIEWER: {"read_file", "list_directory", "bash", "grep_content", "run_tests", "run_linter", "git_status", "git_diff"},
-    AgentRole.COORDINATOR: {"read_file", "list_directory", "git_status", "git_log", "create_document"},
-}
+# AGENT_ROLE_TOOLS moved to coordinator_routing.py
 
 logger = logging.getLogger("meeting_coordinator")
 
@@ -288,65 +311,15 @@ class MeetingCoordinator:
     # ── Agent 状态通知（T13: 3D 场景可视化） ──
 
     async def _notify_agent_status(self, agent_id: str, status: str, current_tool: str = "", artifact_count: int = 0) -> None:
-        """发送 agent 状态变化通知到前端（用于 3D 场景可视化）"""
-        if not self._current_on_message:
-            return
-        try:
-            await self._current_on_message(
-                agent_id, "", "",
-                msg_type="agent_status_update",
-                agent_id=agent_id,
-                status=status,
-                current_tool=current_tool,
-                artifact_count=artifact_count,
-            )
-        except Exception as e:
-            self.logger.debug("agent 状态通知发送失败: %s", e)  # 通知失败不阻断流程
+        await _notify_agent_status_impl(self, agent_id, status, current_tool, artifact_count)
 
     async def _notify_artifact_created(self, agent_id: str, files_count: int, file_types: list, summary: str = "") -> None:
-        """发送 artifact 创建通知到前端（用于 3D 场景可视化）"""
-        if not self._current_on_message:
-            return
-        try:
-            await self._current_on_message(
-                agent_id, "", "",
-                msg_type="artifact_created",
-                agent_id=agent_id,
-                files_count=files_count,
-                file_types=file_types,
-                summary=summary[:200],
-            )
-        except Exception as e:
-            self.logger.debug("artifact 创建通知发送失败: %s", e)
+        await _notify_artifact_created_impl(self, agent_id, files_count, file_types, summary)
 
     # ── Agent 隔离工作区 ──
 
     def _setup_agent_isolation(self) -> Dict[str, str]:
-        """为会议中的每个 agent 创建隔离工作区
-
-        Returns:
-            agent_id → 隔离工作区路径的映射
-        """
-        agent_workspaces = {}
-        if not self._workspace or not self._workspace.root_path:
-            return agent_workspaces
-
-        base = self._workspace.root_path
-        isolation_dir = os.path.join(base, ".agent_isolation")
-        os.makedirs(isolation_dir, exist_ok=True)
-
-        for agent in self.meeting.agents:
-            if agent.role == AgentRole.CEO:
-                continue
-            agent_dir = os.path.join(isolation_dir, agent.id)
-            os.makedirs(agent_dir, exist_ok=True)
-            # 创建标准目录结构
-            for subdir in ["workspace", "memory", "notes"]:
-                os.makedirs(os.path.join(agent_dir, subdir), exist_ok=True)
-            agent_workspaces[agent.id] = agent_dir
-
-        self.logger.info("Agent 隔离工作区已创建: %d 个 agent", len(agent_workspaces))
-        return agent_workspaces
+        return _setup_agent_isolation_impl(self)
 
     @_task_routing.setter
     def _task_routing(self, value):
@@ -410,40 +383,7 @@ class MeetingCoordinator:
         self._model_manager.safe_mark_failed(role)
 
     async def decompose_task(self, task_description: str) -> List[Dict[str, Any]]:
-        planner = self._get_model(AgentRole.PLANNER)
-        prompt = (
-            f"请将以下任务分解为多个子任务，以JSON数组格式返回。"
-            f"每个子任务包含 name(名称)、description(描述)、priority(优先级：high/medium/low)、"
-            f"dependencies(依赖的子任务名称列表)。\n\n"
-            f"任务：{task_description}\n\n"
-            f"请只返回JSON数组，不要其他内容。"
-        )
-        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-        try:
-            response = await planner.reply(msg)
-            text = _extract_text(response)
-        except Exception as e:
-            self.logger.warning("任务分解 LLM 调用失败: %s", e)
-            self._safe_mark_model_failed(AgentRole.PLANNER)
-            text = "[]"
-
-        try:
-            subtasks = json.loads(text)
-        except (json.JSONDecodeError, TypeError):
-            subtasks = [
-                {
-                    "name": task_description[:50],
-                    "description": task_description,
-                    "priority": "high",
-                    "dependencies": [],
-                }
-            ]
-
-        for i, subtask in enumerate(subtasks):
-            subtask["id"] = str(uuid.uuid4())[:8]
-
-        self._tasks = subtasks
-        return subtasks
+        return await _decompose_task_impl(self, task_description)
 
     async def run_discussion(
         self,
@@ -457,10 +397,7 @@ class MeetingCoordinator:
         return await run_discussion(self, topic, on_message, max_rounds, team)
 
     def _find_agent_id(self, role: AgentRole) -> Optional[str]:
-        for a in self.meeting.agents:
-            if a.role == role:
-                return a.id
-        return None
+        return _find_agent_id_impl(self, role)
 
     async def _msg(self, agent_id: str, text: str) -> None:
         """发送消息给前端并记录到会议"""
@@ -469,261 +406,23 @@ class MeetingCoordinator:
         self.meeting.add_message("agent", text, agent_id)
 
     def _resolve_agent(self, agent_id: str) -> Optional['MeetingAgentInfo']:  # noqa: F821
-        """解析Agent ID，支持多种格式（直接ID、带前缀、不带前缀）"""
-        if not agent_id:
-            return None
-        # 直接匹配
-        agent = self.meeting.get_agent(agent_id)
-        if agent:
-            return agent
-        # 尝试加 "agent-" 前缀
-        if not agent_id.startswith("agent-"):
-            agent = self.meeting.get_agent(f"agent-{agent_id}")
-            if agent:
-                return agent
-        # 尝试去掉 "agent-" 前缀
-        if agent_id.startswith("agent-"):
-            agent = self.meeting.get_agent(agent_id[len("agent-"):])
-            if agent:
-                return agent
-        # 按角色名匹配
-        for a in self.meeting.agents:
-            if a.role.value == agent_id:
-                return a
-        return None
+        return _resolve_agent_impl(self, agent_id)
 
     @staticmethod
     def _estimate_task_complexity(task_description: str) -> int:
-        """估算任务复杂度（1-5），用于匹配 agent 技能等级"""
-        lower = task_description.lower()
-        score = 1
-        # 多步骤/跨领域关键词 → 提升复杂度
-        complex_signals = ['首先', '然后', '最后', '前端', '后端', '数据库', '部署',
-                           '架构', '设计', '重构', '优化', 'first', 'then', 'finally',
-                           'frontend', 'backend', 'database', 'deploy', 'architecture']
-        score += sum(1 for kw in complex_signals if kw in lower)
-        # 多文件/多模块信号
-        if any(kw in lower for kw in ['多个', '多个文件', '多个模块', 'all files', 'entire']):
-            score += 1
-        return min(5, max(1, score))
+        return _estimate_task_complexity_impl(task_description)
 
     def _find_best_agent_for_task(self, task_description: str):
-        """根据任务内容和复杂度选择最有能力执行的Agent
-
-        晋升驱动分配策略：
-        - 简单任务（complexity ≤ 2）：倾向分配给初级 agent（需要积累 XP）
-        - 复杂任务（complexity ≥ 4）：倾向分配给高级 agent（能力匹配）
-        - 中等任务：按技能等级加权自然选择
-        """
-        task_lower = task_description.lower()
-        task_complexity = self._estimate_task_complexity(task_description)
-
-        needs_write = any(kw in task_lower for kw in [
-            '写', '创作', '生成', '编写', '撰写', 'write', 'create', 'generate',
-            '文件', '代码', '文章', '小说', '剧本', 'file', 'code',
-        ])
-        needs_review = any(kw in task_lower for kw in [
-            '审查', '审核', '校对', 'review', 'edit', '检查', '质量',
-        ])
-
-        from agent_toolset import load_roles_config
-        config = load_roles_config()
-        all_roles = {**config.get("base_roles", {}), **config.get("custom_roles", {})}
-
-        profile_mgr = None
-        try:
-            from agent_profile_manager import AgentProfileManager
-            data_dir = os.path.join(os.path.dirname(__file__), "data")
-            profile_mgr = AgentProfileManager(os.path.join(data_dir, "agent_profiles"))
-        except Exception as e:
-            self.logger.debug("AgentProfileManager 初始化跳过: %s", e)
-
-        candidates = []
-        for agent in self.meeting.agents:
-            if agent.role == AgentRole.CEO:
-                continue
-            tools = self._get_agent_tools(agent)
-            role_config_id = agent.id.replace("agent-", "") if agent.id.startswith("agent-") else agent.id
-            role_cfg = all_roles.get(role_config_id, {})
-            skills = set(role_cfg.get("skills", []))
-            score = 0
-
-            # 基础能力匹配
-            if needs_write:
-                if "write_file" in tools:
-                    score += 10
-                if "content_writing" in skills or "script_writing" in skills:
-                    score += 5
-                if agent.role == AgentRole.EXECUTOR:
-                    score += 3
-            elif needs_review:
-                if "edit_file" in tools:
-                    score += 5
-                if agent.role == AgentRole.REVIEWER:
-                    score += 5
-            else:
-                if agent.role == AgentRole.EXECUTOR:
-                    score += 5
-
-            # 技能等级加权 + 晋升驱动分配
-            if profile_mgr:
-                try:
-                    profile = profile_mgr.get_profile(agent.id)
-                    if profile:
-                        max_skill_level = 0
-                        for skill_id in skills:
-                            sp = profile.skill_progress.get(skill_id, {})
-                            level = sp.get("level", 0) if isinstance(sp, dict) else 0
-                            if level > max_skill_level:
-                                max_skill_level = level
-
-                        if task_complexity <= 2:
-                            # 简单任务：初级 agent 优先（需要 XP），高级 agent 减分
-                            if max_skill_level <= 1:
-                                score += 5  # 初级 agent 加分
-                            elif max_skill_level >= 3:
-                                score -= 3  # 高级 agent 减分（XP 衰减，不浪费）
-                        elif task_complexity >= 4:
-                            # 复杂任务：高级 agent 优先
-                            score += max_skill_level * 4  # 每级 +4 分（比默认更激进）
-                        else:
-                            # 中等任务：正常技能等级加权
-                            score += max_skill_level * 3
-                except Exception as e:
-                    self.logger.debug("技能等级查询跳过: %s", e)
-
-            candidates.append((agent, score))
-
-        if not candidates:
-            return None
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        best_agent, best_score = candidates[0]
-        self.logger.info("能力匹配: 选择 %s (score=%d, complexity=%d)", best_agent.id, best_score, task_complexity)
-        return best_agent
+        return _find_best_agent_for_task_impl(self, task_description)
 
     def _get_agent_tools(self, agent) -> set:
-        """获取Agent实际可用的工具集。优先使用AGENT_ROLE_TOOLS，回退到角色配置。"""
-        role_tools = AGENT_ROLE_TOOLS.get(agent.role)
-        if role_tools is not None:
-            return role_tools
-        # 仅当AgentRole不在AGENT_ROLE_TOOLS中时，才从角色配置获取
-        from agent_toolset import load_roles_config
-        config = load_roles_config()
-        all_roles = {**config.get("base_roles", {}), **config.get("custom_roles", {})}
-        role_config_id = agent.id.replace("agent-", "") if agent.id.startswith("agent-") else agent.id
-        role_cfg = all_roles.get(role_config_id, {})
-        return set(role_cfg.get("permissions", {}).get("tools", []))
+        return _get_agent_tools_impl(self, agent)
 
     def _agent_can_execute(self, agent, task_description: str) -> bool:
-        """检查Agent是否有能力执行该任务"""
-        task_lower = task_description.lower()
-        needs_write = any(kw in task_lower for kw in [
-            '写', '创作', '生成', '编写', '撰写', 'write', 'create', 'generate',
-            '文件', '代码', '文章', '小说', '剧本', 'file', 'code',
-        ])
-        if not needs_write:
-            return True
-        tools = self._get_agent_tools(agent)
-        return "write_file" in tools
+        return _agent_can_execute_impl(self, agent, task_description)
 
     def _ensure_default_routing_table(self, path: str) -> None:
-        """如果路由表文件不存在，自动创建默认路由表"""
-        if os.path.isfile(path):
-            return
-        dir_name = os.path.dirname(path)
-        if dir_name:
-            os.makedirs(dir_name, exist_ok=True)
-        default_table = {
-            "departments": [
-                {
-                    "dept_id": "dept-frontend",
-                    "dept_name": "前端开发组",
-                    "capability_desc": "React/Vue/Angular 组件开发、HTML/CSS/JS、响应式布局、前端性能优化、浏览器兼容性",
-                    "capability_keywords": ["前端", "frontend", "react", "vue", "angular", "html", "css", "javascript", "typescript", "组件", "页面", "UI", "界面", "样式"],
-                    "tools": ["code_generator", "linter", "webpack", "vite"],
-                    "success_rate": 0.88,
-                    "total_tasks": 0,
-                    "successful_tasks": 0,
-                    "last_active": "",
-                    "priority": 10,
-                },
-                {
-                    "dept_id": "dept-backend",
-                    "dept_name": "后端开发组",
-                    "capability_desc": "Python/Java/Go 后端服务开发、RESTful API 设计、数据库设计与优化、微服务架构",
-                    "capability_keywords": ["后端", "backend", "api", "python", "java", "go", "数据库", "database", "服务", "server", "接口", "微服务"],
-                    "tools": ["code_generator", "test_runner", "linter", "docker"],
-                    "success_rate": 0.85,
-                    "total_tasks": 0,
-                    "successful_tasks": 0,
-                    "last_active": "",
-                    "priority": 10,
-                },
-                {
-                    "dept_id": "dept-fullstack",
-                    "dept_name": "全栈开发组",
-                    "capability_desc": "全栈 Web 应用开发、前后端联调、项目脚手架搭建、技术选型与集成",
-                    "capability_keywords": ["全栈", "fullstack", "web", "开发", "开发", "应用", "项目", "脚手架", "搭建"],
-                    "tools": ["code_generator", "test_runner", "linter", "webpack", "docker"],
-                    "success_rate": 0.82,
-                    "total_tasks": 0,
-                    "successful_tasks": 0,
-                    "last_active": "",
-                    "priority": 9,
-                },
-                {
-                    "dept_id": "dept-qa",
-                    "dept_name": "质量保障组",
-                    "capability_desc": "单元测试、集成测试、E2E 测试、代码审查、性能测试、安全测试",
-                    "capability_keywords": ["测试", "test", "QA", "质量", "审查", "review", "bug", "缺陷", "安全", "性能测试"],
-                    "tools": ["test_runner", "coverage_tool", "linter", "security_scanner"],
-                    "success_rate": 0.92,
-                    "total_tasks": 0,
-                    "successful_tasks": 0,
-                    "last_active": "",
-                    "priority": 8,
-                },
-                {
-                    "dept_id": "dept-devops",
-                    "dept_name": "DevOps 运维组",
-                    "capability_desc": "CI/CD 流水线、Docker 容器化、K8s 部署、监控告警、日志分析、性能调优",
-                    "capability_keywords": ["部署", "deploy", "docker", "k8s", "kubernetes", "CI/CD", "运维", "监控", "日志", "性能", "服务器"],
-                    "tools": ["docker", "k8s", "ci_cd", "monitoring"],
-                    "success_rate": 0.87,
-                    "total_tasks": 0,
-                    "successful_tasks": 0,
-                    "last_active": "",
-                    "priority": 7,
-                },
-                {
-                    "dept_id": "dept-data",
-                    "dept_name": "数据工程组",
-                    "capability_desc": "数据清洗、ETL 流程、数据分析、机器学习模型、数据可视化",
-                    "capability_keywords": ["数据", "data", "分析", "analysis", "机器学习", "ML", "AI", "模型", "可视化", "图表", "统计"],
-                    "tools": ["data_cleaner", "statistical_analyzer", "ml_trainer", "chart_maker"],
-                    "success_rate": 0.80,
-                    "total_tasks": 0,
-                    "successful_tasks": 0,
-                    "last_active": "",
-                    "priority": 7,
-                },
-                {
-                    "dept_id": "dept-docs",
-                    "dept_name": "文档与演示组",
-                    "capability_desc": "技术文档撰写、API 文档生成、README 编写、PPT 制作、演示材料准备",
-                    "capability_keywords": ["文档", "document", "README", "PPT", "演示", "报告", "说明", "教程", "API文档"],
-                    "tools": ["doc_writer", "ppt_generator", "api_doc_gen"],
-                    "success_rate": 0.90,
-                    "total_tasks": 0,
-                    "successful_tasks": 0,
-                    "last_active": "",
-                    "priority": 6,
-                },
-            ]
-        }
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(default_table, f, ensure_ascii=False, indent=2)
-        self.logger.info("已创建默认路由表: %s", path)
+        _ensure_default_routing_table_impl(path)
 
     async def handle_critical_blocker(
         self,
@@ -814,40 +513,7 @@ class MeetingCoordinator:
     async def _update_injected_rule_effectiveness(
         self, coordinator_id: str, injected_rule_ids: List[str], review_result: Dict[str, Any]
     ) -> None:
-        """根据审查结果更新已注入规则的有效性评分，降级时发出告警"""
-        try:
-            extractor = self._get_experience_extractor()
-            structured = review_result.get("structured_feedback", {})
-            task_success = structured.get("status", "approved") == "approved"
-            demoted_rules = []
-            for rule_id in injected_rule_ids:
-                before = extractor._load_rule(rule_id)
-                before_status = before.status if before else None
-                extractor.update_rule_effectiveness(rule_id, task_success)
-                after = extractor._load_rule(rule_id)
-                if before_status == "approved" and after and after.status == "pending_review":
-                    demoted_rules.append(after)
-            self.logger.info("已更新 %d 条注入规则有效性 (success=%s, demoted=%d)",
-                             len(injected_rule_ids), task_success, len(demoted_rules))
-            # 降级告警
-            if demoted_rules:
-                alert_lines = [f"⚠️ 规则自动降级告警（{len(demoted_rules)} 条）："]
-                for r in demoted_rules:
-                    alert_lines.append(
-                        f"  - [{r.rule_id[:8]}] {r.trigger_condition} → {r.action}"
-                        f"  (score={r.effectiveness_score:.0%}, {r.success_count}/{r.usage_count})"
-                    )
-                alert_lines.append("已退回待审核队列，请检查并决定是否重新批准。")
-                alert_text = "\n".join(alert_lines)
-                await self._msg(coordinator_id, alert_text)
-                self.meeting.add_message("agent", alert_text, coordinator_id)
-                self.meeting.append_event(
-                    SessionEventType.RULE_DEMOTION,
-                    content=alert_text,
-                    agent_id=coordinator_id, phase="post_execution",
-                )
-        except Exception as e:
-            self.logger.debug("规则有效性更新跳过: %s", e)
+        await _update_injected_rule_effectiveness_impl(self, coordinator_id, injected_rule_ids, review_result)
 
     # ── 证据驱动交付 ──
 
@@ -919,405 +585,42 @@ class MeetingCoordinator:
 
     @staticmethod
     def _triage_task(user_message: str) -> Dict[str, Any]:
-        """规则引擎分流门（0 token）
+        return _triage_task_impl(user_message)
 
-        Returns:
-            {"level": "simple"|"standard"|"complex", "confidence": 0.0-1.0, "reason": str}
-        """
-        lower = user_message.lower()
-        confidence = 0.5
-        signals = []
-
-        # 简单信号
-        simple_keywords = [
-            '写一个', '帮我写', '实现一个', '创建一个', '写个', '打印',
-            'hello world', '写一段', '实现一个简单的', '创建文件',
-            '读取', '查看', '列出', '搜索', 'find', 'list', 'read', 'print',
-        ]
-        simple_count = sum(1 for kw in simple_keywords if kw in lower)
-        if simple_count > 0:
-            confidence += 0.15
-            signals.append(f"simple_kw={simple_count}")
-
-        # 短描述（≤ 30 字）
-        if len(user_message) <= 30:
-            confidence += 0.15
-            signals.append("short_desc")
-
-        # 单文件操作
-        single_file_patterns = [
-            r'(写|创建|读取|编辑|删除)\s*(一个|一段|一个简单的)?\s*(文件|函数|脚本|组件|类)',
-            r'(write|create|read|edit|delete)\s*(a|an|one)?\s*(file|function|script|component|class)',
-        ]
-        import re
-        for pat in single_file_patterns:
-            if re.search(pat, lower):
-                confidence += 0.1
-                signals.append("single_file_op")
-                break
-
-        # 复杂信号（降低 confidence）
-        complex_keywords = [
-            '前端', '后端', '数据库', '部署', '架构', '设计', '重构',
-            '微服务', '分布式', '首先', '然后', '最后', '多个',
-            'frontend', 'backend', 'database', 'deploy', 'architecture',
-            'first', 'then', 'finally', 'multiple',
-        ]
-        complex_count = sum(1 for kw in complex_keywords if kw in lower)
-        if complex_count >= 3:
-            confidence -= 0.3
-            signals.append(f"complex_kw={complex_count}")
-        elif complex_count >= 2:
-            confidence -= 0.15
-            signals.append(f"complex_kw={complex_count}")
-
-        # 多步骤动词
-        step_verbs = ['设计', '开发', '实现', '测试', '部署', '重构', '优化', '分析',
-                      'design', 'develop', 'implement', 'test', 'deploy', 'refactor']
-        step_count = sum(1 for v in step_verbs if v in lower)
-        if step_count >= 3:
-            confidence -= 0.2
-            signals.append(f"steps={step_count}")
-
-        confidence = max(0.0, min(1.0, round(confidence, 2)))
-
-        if confidence >= 0.8:
-            level = "simple"
-        elif confidence >= 0.5:
-            level = "standard"
-        else:
-            level = "complex"
-
-        return {"level": level, "confidence": confidence, "reason": ", ".join(signals) or "default"}
-
-    async def _run_simple_path(
-        self, user_message: str, ceo_id: str, on_message, team_id: str = ""
-    ) -> Dict[str, Any]:
-        """简单任务路径：单 agent 执行 + 轻量审查（跳过讨论/投票/完整审查）"""
-        executor_id = self._find_agent_id(AgentRole.EXECUTOR) or "agent-executor"
-        reviewer_id = self._find_agent_id(AgentRole.REVIEWER) or "agent-reviewer"
-
-        # 注入经验
-        enhanced_desc, injected_rule_ids = await self._inject_experience(
-            ceo_id, user_message, user_message, [], target_agent_id=executor_id
-        )
-
-        # 记忆注入：检索 agent 历史经验
-        memory_context = self._recall_agent_memory(executor_id, enhanced_desc)
-        if memory_context:
-            enhanced_desc = f"{enhanced_desc}\n\n{memory_context}"
-
-        # 分派给 executor
-        await self._msg(ceo_id, f"CEO：简单任务直接分派给 {executor_id} 执行。")
-        assign_result = await self.auto_assign_task(enhanced_desc, executor_id, "simple path")
-
-        # 执行
-        await self._msg(executor_id, f"开始执行：{user_message[:80]}")
-        try:
-            exec_results = await self.execute_assigned_tasks()
-        except Exception as e:
-            self.logger.warning("简单路径执行失败: %s", e)
-            exec_results = []
-
-        # 轻量审查（单个 reviewer，1 次 LLM 调用）
-        review_result = {"structured_feedback": {"status": "approved"}}
-        if exec_results:
-            try:
-                exec_text = self._build_execution_artifact_text(exec_results)
-                review_result = await self._lightweight_review(
-                    reviewer_id, enhanced_desc, exec_text, on_message
-                )
-            except Exception as e:
-                self.logger.warning("轻量审查失败: %s", e)
-
-        # XP 授予
-        task_complexity = self._estimate_task_complexity(user_message)
-        review_approved = review_result.get("structured_feedback", {}).get("status", "approved") == "approved"
-        review_score = review_result.get("structured_feedback", {}).get("score", 8.0)
-        if not isinstance(review_score, (int, float)):
-            review_score = 8.0
-        for exec_result in exec_results:
-            agent_id = exec_result.get("agent_id", executor_id)
-            bonus_score = review_score if review_approved else max(5.0, review_score - 3.0)
-            self._grant_task_xp(agent_id, "backend_dev", True, bonus_score, task_complexity)
-            # 跨会话记忆：任务完成后写入 agent 记忆
-            self._write_task_memory(agent_id, user_message, review_approved, review_score,
-                                     execution_summary=exec_result.get("result", "")[:200])
-
-        # 更新路由统计
-        self._update_routing_stats_safe()
-
-        # 技能进化（简化版）
-        await self._run_skill_evolution(ceo_id, user_message, [], review_result, exec_results)
-
-        # 更新规则有效性
-        if injected_rule_ids:
-            await self._update_injected_rule_effectiveness(ceo_id, injected_rule_ids, review_result)
-
-        # 持久化：简单路径完成
-        self._save_snapshot()
-
-        return {
-            "type": "simple_completed",
-            "execution_results": exec_results,
-            "review_result": review_result,
-            "injected_rule_ids": injected_rule_ids,
-            "path": "simple",
-        }
+    async def _run_simple_path(self, user_message: str, ceo_id: str, on_message, team_id: str = "") -> Dict[str, Any]:
+        return await _run_simple_path_impl(self, user_message, ceo_id, on_message, team_id)
 
     async def _lightweight_review(self, reviewer_id, task_desc, exec_text, on_message) -> Dict:
-        """轻量审查：单个 reviewer 一次 LLM 调用"""
-        prompt = (
-            f"你是 QA 工程师。请快速审查以下任务执行结果。\n\n"
-            f"任务：{task_desc[:200]}\n\n"
-            f"执行结果：{exec_text[:500]}\n\n"
-            f"请判断：1) 产出是否完整 2) 是否有明显错误\n"
-            f"回复格式：\n"
-            f"status: approved 或 revision_required\n"
-            f"score: 1-10\n"
-            f"issues: 问题列表（如有）"
-        )
-        try:
-            reviewer = self._resolve_agent(reviewer_id)
-            if reviewer:
-                model = self._get_model(reviewer.role)
-                response = await asyncio.wait_for(model.reply(prompt), timeout=60)
-                content = response.content if hasattr(response, 'content') else str(response)
-                # 解析回复
-                status = "approved"
-                score = 7.0
-                for line in content.split("\n"):
-                    line_lower = line.strip().lower()
-                    if "revision_required" in line_lower:
-                        status = "revision_required"
-                    elif line_lower.startswith("status:"):
-                        status = "approved" if "approved" in line_lower else "revision_required"
-                    elif line_lower.startswith("score:"):
-                        try:
-                            score = float(line_lower.split(":")[1].strip())
-                        except ValueError:
-                            pass
-                return {"structured_feedback": {"status": status, "score": score}}
-        except Exception as e:
-            self.logger.debug("轻量审查异常: %s", e)
-        return {"structured_feedback": {"status": "approved", "score": 7.0}}
+        return await _lightweight_review_impl(self, reviewer_id, task_desc, exec_text, on_message)
 
     def _grant_task_xp(self, agent_id, skill_id, task_success, review_score, task_complexity, department: str = ""):
-        """任务完成后授予 XP，含 mentor 奖励"""
-        try:
-            from agent_profile_manager import AgentProfileManager
-            mgr = getattr(self, '_agent_profile_manager', None)
-            if mgr is None:
-                data_dir = os.path.join(os.path.dirname(__file__), "data")
-                mgr = AgentProfileManager(os.path.join(data_dir, "agent_profiles"))
-            profile = mgr.get_or_create(agent_id, agent_id, department=department)
-            from agent_toolset import load_roles_config
-            roles_config = load_roles_config()
-            skill_config = roles_config.get("skills", {}).get(skill_id, {"xp_thresholds": [100, 300, 600]})
-            result = mgr.grant_xp(agent_id, skill_id, task_success, review_score, task_complexity, skill_config)
-            if result.get("leveled_up"):
-                self.logger.info("Agent %s 技能 %s 升级到 Lv.%d", agent_id, skill_id, result["new_level"])
-                dept = department or (profile.department if profile else "")
-                if dept:
-                    self.router.update_skill_boost(dept)
-            # 检查晋升
-            from promotion_engine import PromotionEngine
-            engine = PromotionEngine()
-            profile = mgr.get_profile(agent_id)
-            promotion = engine.check_promotion(profile, roles_config)
-            if promotion:
-                engine.apply_promotion(profile, promotion)
-                mgr.save_profile(profile)
-                result["promoted_to"] = promotion
-                self.logger.info("Agent %s 晋升为 %s (%s)", agent_id, promotion["title"], promotion["stage"])
-            # Mentor 奖励：任务成功时，mentor 获得 20% 的 XP 加成
-            if task_success and result.get("xp_gained", 0) > 0:
-                mentor = mgr.find_mentor(agent_id)
-                if mentor:
-                    bonus_xp = max(1, int(result["xp_gained"] * 0.2))
-                    mentor_skill_config = roles_config.get("skills", {}).get(skill_id, {"xp_thresholds": [100, 300, 600]})
-                    mgr.grant_xp(mentor.agent_id, skill_id, True, review_score, max(1, task_complexity - 1), mentor_skill_config)
-                    self.logger.info("Mentor %s 获得 %d XP 奖励（mentee %s 完成任务）", mentor.agent_id, bonus_xp, agent_id)
-            return result
-        except Exception as e:
-            self.logger.debug("grant-xp 跳过: %s", e)
-            return {"xp_gained": 0}
+        return _grant_task_xp_impl(self, agent_id, skill_id, task_success, review_score, task_complexity, department)
 
     def _recall_agent_memory(self, agent_id: str, task_description: str) -> str:
-        """检索 agent 记忆中与任务相关的经验，返回格式化上下文"""
-        try:
-            from agent_memory import AgentMemory
-            data_dir = os.path.join(os.path.dirname(__file__), "data")
-            memory = AgentMemory(data_dir)
-            return memory.recall_for_task(agent_id, task_description)
-        except Exception as e:
-            self.logger.debug("记忆检索跳过: %s", e)
-            return ""
+        return _recall_agent_memory_impl(self, agent_id, task_description)
 
     def _write_task_memory(self, agent_id: str, task_description: str, task_success: bool, review_score: float, execution_summary: str = ""):
-        """任务完成后自动写入 agent 记忆"""
-        try:
-            from agent_memory import AgentMemory
-            data_dir = os.path.join(os.path.dirname(__file__), "data")
-            memory = AgentMemory(data_dir)
+        _write_task_memory_impl(self, agent_id, task_description, task_success, review_score, execution_summary)
 
-            # 提取关键词
-            import re
-            words = re.findall(r'[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}', task_description)
-            keywords = list(set(w.lower() for w in words if len(w) > 2))[:5]
-
-            # 确定记忆类型和重要性
-            if task_success:
-                content = f"完成任务：{task_description[:100]}"
-                importance = min(1.0, 0.3 + review_score * 0.07)  # review 10 → importance 1.0
-            else:
-                content = f"任务未通过审查：{task_description[:100]}"
-                importance = 0.6  # 失败的经验也重要
-
-            memory.add_memory(agent_id, {
-                "type": "task_summary",
-                "content": content,
-                "keywords": keywords,
-                "importance": importance,
-            })
-            self.logger.info("Agent %s 记忆已写入: %s", agent_id, content[:50])
-        except Exception as e:
-            self.logger.debug("记忆写入跳过: %s", e)
-
-    def _finalize_skill_evolution(
-        self,
-        extractor,
-        packager,
-        project_id: str,
-    ) -> Dict[str, Any]:
-        """技能闭环自动触发：审核 pending 规则 → 写增量区 → 打包升级版技能包
-
-        自动将进化事件记录到 SQLite evolution_log 表。
-
-        Returns:
-            {"approved": int, "written": int, "packaged": List[str]}
-        """
-        result: Dict[str, Any] = {"approved": 0, "written": 0, "packaged": []}
-        # abspath 归一化 __file__（pytest 下可能带 "tests/.." 前缀，需先解析再取上层目录）
-        skill_packs_root = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skill_packs"
-        )
-
-        pending = extractor.get_pending_rules()
-        for rule in pending:
-            source = getattr(rule, "source_task_id", None)
-            if source and source != project_id:
-                continue  # 跳过其他项目的规则，防跨项目污染
-            if not extractor.approve_rule(rule.rule_id):
-                continue
-            result["approved"] += 1
-            approved_rule = extractor._load_rule(rule.rule_id)
-            if approved_rule and extractor.write_to_incremental_area(approved_rule):
-                result["written"] += 1
-                # 记录进化事件到 SQLite
-                self._log_skill_evolution(project_id, approved_rule)
-                for kw in approved_rule.keywords or []:
-                    base_skill = os.path.join(skill_packs_root, kw)
-                    if os.path.isdir(base_skill) and kw not in result["packaged"]:
-                        packager.full_package(
-                            base_skill_path=base_skill,
-                            incremental_path=extractor._incremental_dir,
-                            project_id=project_id,
-                            skill_name=kw,
-                        )
-                        result["packaged"].append(kw)
-        return result
+    def _finalize_skill_evolution(self, extractor, packager, project_id: str) -> Dict[str, Any]:
+        return _finalize_skill_evolution_impl(self, extractor, packager, project_id)
 
     def _log_skill_evolution(self, project_id: str, rule) -> None:
-        """将技能进化事件记录到 SQLite evolution_log 表"""
-        try:
-            from db import get_db
-            db_path = os.path.join(os.path.dirname(__file__), "data", "mdh.db")
-            conn = get_db(db_path)
-            conn.execute(
-                """INSERT INTO evolution_log
-                   (original_rule_id, evolved_rule_id, trigger_condition, original_action,
-                    evolved_action, original_score, usage_count, failure_reason, evolved_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (rule.rule_id, rule.rule_id, rule.trigger_condition,
-                 rule.action, rule.action, rule.effectiveness_score,
-                 rule.usage_count, f"meeting_finalize:{project_id}",
-                 datetime.now(timezone.utc).isoformat()),
-            )
-            conn.commit()
-        except Exception as e:
-            self.logger.warning("记录技能进化事件失败: %s", e)
+        _log_skill_evolution_impl(project_id, rule)
 
     @staticmethod
-    def _build_execution_artifact_text(
-        exec_results: List[Dict[str, Any]],
-        max_summary_len: int = 400,
-    ) -> str:
-        """构建 artifact 模式的执行结果文本：文件清单 + 截断摘要（轻量引用，降低 LLM 上下文放大）"""
-        parts: List[str] = []
-        for r in exec_results:
-            written = r.get("written_files") or []
-            files_line = f"[文件清单] {', '.join(written)}" if written else "[文件清单] (无)"
-            summary = (r.get("result") or "")[:max_summary_len]
-            parts.append(f"{files_line}\n[摘要] {summary}")
-        return "\n\n".join(parts)
+    def _build_execution_artifact_text(exec_results: List[Dict[str, Any]], max_summary_len: int = 400) -> str:
+        return _build_execution_artifact_text_impl(exec_results, max_summary_len)
 
     async def _save_execution_artifacts(self, exec_results: List[Dict[str, Any]]) -> None:
-        """将执行产出的文件保存到 ArtifactStore，并发送通知"""
-        if not self._artifact_store:
-            return
-        for r in exec_results:
-            written = r.get("written_files") or []
-            if written:
-                refs = self._artifact_store.save_artifacts(
-                    task_id=r.get("task_id") or r.get("agent_id", "unknown"),
-                    agent_id=r.get("agent_id", ""),
-                    files_written=written,
-                    result_summary=(r.get("result") or "")[:500],
-                )
-                # T13: 发送 artifact 创建通知
-                file_types = list(set(ref.type for ref in refs))
-                await self._notify_artifact_created(
-                    agent_id=r.get("agent_id", ""),
-                    files_count=len(written),
-                    file_types=file_types,
-                    summary=(r.get("result") or "")[:200],
-                )
+        await _save_execution_artifacts_impl(self, exec_results)
 
     async def execute_and_review_task(
         self,
         task_description: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
     ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        """执行任务并审查（委托给ReviewPipeline）
-
-        WhyBuddy化：审查逻辑委托给ReviewPipeline，自动激活CriticAgent和GroundingAgent。
-
-        本路径同样接入确定性门禁：review 调用前对工作区运行 _run_deterministic_gate，
-        测试/lint 真实失败强制 revision_required；工具缺失（基础设施不可用）由门禁
-        fail-open 记为 skipped，不触发 revision_required。
-
-        Returns:
-            Tuple[审查结果, 执行结果列表]
-        """
-        task_results = await self.execute_assigned_tasks()
-        for task_result in task_results:
-            await on_message(task_result["agent_id"], task_result["result"], "")
-
-        review_result = {}
-        if task_results:
-            execution_result = self._build_execution_artifact_text(task_results)
-            # 确定性门禁：与开发循环一致，门禁内部为同步 subprocess（lint/test），
-            # 通过 asyncio.to_thread 卸载到线程池，避免阻塞事件循环。
-            gate_result = await asyncio.to_thread(
-                self._run_deterministic_gate,
-                self._workspace.root_path if self._workspace else None,
-            )
-            review_result = await self._review_pipeline.review(
-                task_description, execution_result, on_message, gate_result=gate_result
-            )
-
-        return review_result, task_results
+        return await _execute_and_review_task_impl(self, task_description, on_message)
 
     # 工具缺失信号（通道感知 + 工具特定）：门禁只跑 run_linter（pylint）与 run_tests（pytest）
     # 两个工具，故 error 通道只匹配这两个工具的缺失文本，不做通用匹配。
@@ -1632,77 +935,10 @@ class MeetingCoordinator:
         return {"type": "workflow_executed", "analysis": semantic_analysis_to_dict(analysis), "workflow_result": workflow_result}
 
     async def _inject_experience(self, coordinator_id, original_description, enhanced_description, discussion_results, target_agent_id: str = ""):
-        """注入历史经验到任务描述，优先注入 mentor 规则
-
-        Returns:
-            (增强描述, 注入的规则 ID 列表)
-        """
-        injected_rule_ids = []
-        mentor_rule_ids = []
-        try:
-            from agent_profile_manager import AgentProfileManager
-            extractor = self._get_experience_extractor()
-            profile_mgr = AgentProfileManager(os.path.join(self._data_dir, "agent_profiles"))
-
-            task_type = extractor._infer_task_type(original_description)
-            content_kw = extractor._extract_content_keywords(original_description)
-            for dr in discussion_results:
-                content_kw |= extractor._extract_content_keywords(dr.get("content", ""))
-            past_rules = extractor.retrieve_relevant_rules(task_type, sorted(content_kw))
-
-            if past_rules:
-                # 师徒制：优先注入 mentor 的规则
-                mentor = profile_mgr.find_mentor(target_agent_id) if target_agent_id else None
-                mentor_rules = [r for r in past_rules if r.source_agent_id == mentor.agent_id] if mentor else []
-                other_rules = [r for r in past_rules if r.rule_id not in {mr.rule_id for mr in mentor_rules}]
-
-                # mentor 规则优先，再补充其他高分规则
-                prioritized = mentor_rules + other_rules
-                injected = prioritized[:5]
-                injected_rule_ids = [r.rule_id for r in injected]
-                mentor_rule_ids = [r.rule_id for r in mentor_rules if r in injected]
-
-                exp_context = extractor.build_experience_summary(injected)
-                enhanced_description = f"{enhanced_description}\n\n{exp_context}"
-
-                mentor_info = f"（含 {len(mentor_rule_ids)} 条来自 mentor {mentor.agent_id} 的经验）" if mentor_rule_ids else ""
-                await self._msg(coordinator_id, f"项目经理：已注入 {len(injected)} 条历史经验到任务描述{mentor_info}。")
-                self.meeting.add_message("agent", f"项目经理：已注入 {len(injected)} 条历史经验到任务描述{mentor_info}。", coordinator_id)
-                self.meeting.append_event(
-                    SessionEventType.EXPERIENCE_INJECTION,
-                    content=f"注入 {len(injected)} 条经验规则 (task_type={task_type}, mentor_rules={len(mentor_rule_ids)}, rule_ids={injected_rule_ids})",
-                    agent_id=coordinator_id, phase="pre_execution",
-                )
-
-                # 记录知识流动
-                if mentor_rule_ids:
-                    self._log_knowledge_flow(mentor.agent_id if mentor else "", target_agent_id, mentor_rule_ids)
-        except Exception as e:
-            self.logger.debug("历史经验注入跳过: %s", e)
-        return enhanced_description, injected_rule_ids
+        return await _inject_experience_impl(self, coordinator_id, original_description, enhanced_description, discussion_results, target_agent_id)
 
     def _log_knowledge_flow(self, from_agent: str, to_agent: str, rule_ids: List[str]) -> None:
-        """记录知识流动（mentor → mentee）"""
-        try:
-            import json
-            log_path = os.path.join(os.path.dirname(__file__), "data", "knowledge_flow.json")
-            entry = {
-                "from_agent": from_agent,
-                "to_agent": to_agent,
-                "rule_ids": rule_ids,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            log = []
-            if os.path.isfile(log_path):
-                with open(log_path, encoding="utf-8") as f:
-                    log = json.load(f)
-            log.append(entry)
-            tmp = log_path + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(log, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, log_path)
-        except Exception:
-            self.logger.debug("知识流动日志写入失败")
+        _log_knowledge_flow_impl(from_agent, to_agent, rule_ids)
 
     async def _run_voting_phase(self, coordinator_id, enhanced_description, discussion_results, on_message):
         await self._msg(coordinator_id, "项目经理：就讨论结果发起方案投票。")
@@ -1784,99 +1020,7 @@ class MeetingCoordinator:
             self.meeting.add_message("agent", approve_msg, coordinator_id)
 
     async def _run_dev_loop(self, coordinator_id, enhanced_description, discussion_context, on_message):
-        from review_pipeline import ReviewReport, ReviewIteration
-        max_dev_iterations = self._max_iterations
-        review_result = {}
-        execution_results = []
-        review_report = ReviewReport(task_id=coordinator_id)
-
-        for dev_iter in range(1, max_dev_iterations + 1):
-            await self._msg(coordinator_id, f"项目经理：第 {dev_iter} 轮开发，监督任务执行。")
-            self.meeting.add_message("agent", f"项目经理：第 {dev_iter} 轮开发，监督任务执行。", coordinator_id)
-
-            try:
-                exec_results = await self.execute_assigned_tasks()
-                execution_results = exec_results
-                for er in exec_results:
-                    await on_message(er["agent_id"], er["result"], "")
-                    written = er.get("written_files", [])
-                    if written:
-                        await on_message(er["agent_id"], f"[第{dev_iter}轮] 已写入 {len(written)} 个文件: {', '.join(written)}", "")
-            except Exception as e:
-                self.logger.warning("第 %d 轮执行失败: %s", dev_iter, e)
-                exec_results = []
-
-            await self._msg(coordinator_id, f"项目经理：第 {dev_iter} 轮质量审查。")
-            self.meeting.add_message("agent", f"项目经理：第 {dev_iter} 轮质量审查。", coordinator_id)
-            execution_text = self._build_execution_artifact_text(exec_results) if exec_results else ""
-
-            # 保存 artifact 引用
-            if exec_results:
-                await self._save_execution_artifacts(exec_results)
-
-            # Artifact 模式：读取实际文件内容注入审查上下文
-            if self._artifact_store and exec_results:
-                task_ids = [r.get("task_id") or r.get("agent_id", "") for r in exec_results if r.get("written_files")]
-                artifact_context = self._artifact_store.build_artifact_context(task_ids, max_chars_per_file=2000)
-                if artifact_context:
-                    execution_text = f"{execution_text}\n\n[文件内容]\n{artifact_context}"
-
-            try:
-                if exec_results:
-                    gate_result = await asyncio.to_thread(self._run_deterministic_gate, self._workspace.root_path if self._workspace else None)
-                else:
-                    gate_result = None
-                review_result = await self._review_pipeline.review(enhanced_description, execution_text, on_message, discussion_context=discussion_context, gate_result=gate_result)
-            except Exception as e:
-                self.logger.warning("第 %d 轮审查失败: %s", dev_iter, e)
-                review_result = {"status": "skipped", "reason": str(e)}
-
-            reviewer_feedback = review_result.get("reviewer_feedback", "")
-            monitor_feedback = review_result.get("monitor_feedback", "")
-            coordinator_summary = review_result.get("coordinator_summary", "")
-            feedback_text = f"[审查反馈]\n{reviewer_feedback}\n\n[评估反馈]\n{monitor_feedback}\n\n[总结]\n{coordinator_summary}"
-            structured = review_result.get("structured_feedback", {})
-            feedback_status = structured.get("status", "approved")
-
-            # T14: 发送结构化审查摘要（前端可用于格式化展示）
-            if on_message:
-                try:
-                    await on_message(coordinator_id, "", "", msg_type="review_summary",
-                                     iteration=dev_iter, status=feedback_status,
-                                     reviewer_feedback=reviewer_feedback[:200],
-                                     monitor_feedback=monitor_feedback[:200],
-                                     coordinator_summary=coordinator_summary[:200],
-                                     issues=structured.get("issues", []))
-                except Exception as e:
-                    self.logger.debug("审查摘要发送失败: %s", e)
-
-            critic_result = review_result.get("critic_result", {})
-            grounding_result = review_result.get("grounding_result", {})
-            written_files = [f for er in exec_results for f in er.get("written_files", [])] if exec_results else []
-            review_report.add_iteration(ReviewIteration(
-                iteration=dev_iter, status=feedback_status,
-                critic_severity=critic_result.get("severity", "unknown"), critic_findings=critic_result.get("findings", []),
-                grounding_grounded=grounding_result.get("grounded", False), grounding_sources=grounding_result.get("sources", []),
-                issues=structured.get("issues", []), reviewer_feedback=reviewer_feedback, monitor_feedback=monitor_feedback,
-                coordinator_summary=coordinator_summary, gate_passed=gate_result.get("passed") if gate_result else None,
-                gate_failures=[f.get("detail", "") for f in (gate_result or {}).get("failures", [])], files_written=written_files,
-            ))
-
-            if feedback_status == "approved" or dev_iter >= max_dev_iterations:
-                text = f"项目经理：第 {dev_iter} 轮审查通过！" if feedback_status == "approved" else f"项目经理：已达最大迭代次数({max_dev_iterations})，结束开发循环。"
-                await self._msg(coordinator_id, text)
-                self.meeting.add_message("agent", text, coordinator_id)
-                break
-
-            await self._msg(coordinator_id, f"项目经理：第 {dev_iter} 轮审查发现问题，启动修复。")
-            fix_description = f"{enhanced_description}\n\n## 审查反馈（请据此修复）\n{feedback_text}\n\n请根据以上反馈修改已有文件或创建补充文件，修复所有指出的问题。"
-            for task in self.meeting.tasks:
-                if task.status == "completed":
-                    task.status = "assigned"
-                    task.description = fix_description
-            self.logger.info("第 %d 轮审查未通过，启动第 %d 轮修复", dev_iter, dev_iter + 1)
-
-        return execution_results, review_result, review_report
+        return await _run_dev_loop_impl(self, coordinator_id, enhanced_description, discussion_context, on_message)
 
     async def _run_skill_evolution(self, coordinator_id, user_message, discussion_results, review_result, execution_results):
         try:
@@ -1995,28 +1139,7 @@ class MeetingCoordinator:
         )
 
     async def execute_tool_call(self, tool_name: str, arguments: dict) -> dict:
-        if not self._tool_executor:
-            return {"success": False, "error": "工具系统未初始化"}
-
-        from tool_registry import ToolCall
-        tool_call = ToolCall(
-            tool_name=tool_name,
-            arguments=arguments,
-        )
-
-        # 在线程池中执行，避免阻塞事件循环
-        result = await asyncio.to_thread(self._tool_executor.execute, tool_call)
-
-        if self._on_message:
-            ceo_id = self._find_agent_id(AgentRole.CEO) or "agent-ceo"
-            status_text = f"[工具调用] {tool_name}: {'成功' if result.success else '失败'}"
-            await self._on_message(ceo_id, status_text, "")
-
-        return {
-            "success": result.success,
-            "output": result.output,
-            "error": result.error,
-        }
+        return await _execute_tool_call_impl(self, tool_name, arguments)
 
     async def _execute_workflow(
         self,

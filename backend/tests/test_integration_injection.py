@@ -11,6 +11,7 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 
 import server
+from routers import experience as experience_router
 
 
 @pytest.fixture
@@ -68,6 +69,7 @@ def asset_data(tmp_path, monkeypatch):
 
     # server.experience_extractor 使用 _DATA_DIR/experience 作为增量区
     server.experience_extractor = ExperienceExtractor(incremental_dir=str(inc_dir))
+    experience_router.set_experience_extractor(server.experience_extractor)
     # 写入规则到 server.experience_extractor 的 _rules_dir (data/experience/rules)
     rule = ExperienceRule(
         rule_id="int-rule",
