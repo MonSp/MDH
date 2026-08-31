@@ -1,4 +1,4 @@
-# 大荒界 - Matrix DaHuang (MDH)
+# MDH 大荒界 — MDH-Company (数字员工操作系统)
 
 [![CI](https://github.com/MonSp/MDH/actions/workflows/ci.yml/badge.svg)](https://github.com/MonSp/MDH/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
@@ -7,6 +7,15 @@
 [![Orchestrator Tests](https://img.shields.io/badge/orchestrator-216%20passed-brightgreen)]()
 
 **中文** | [English](README.en.md)
+
+## MDH 大荒界 · 智能体世界
+
+MDH 大荒界是一个统一的智能体世界平台，包含两个产品：
+
+- **MDH-Company** (本项目) — 数字员工操作系统。AI agent 团队协作执行任务，技能随用随进化。
+- **MDH-Game** ([太古纪元：霸业](https://github.com/MonSp/MyGame)) — 2.5D 修仙 MMORPG。数字员工在虚拟世界中以 NPC 形式存在，保留全部技能、记忆和经验。
+
+两个产品共享同一套 **C++ ECS 智能体内核** (agent-kernel)，agent 的身份、技能树、经验值、记忆在两个视角下是同一份数据。
 
 ## MDH 是什么
 

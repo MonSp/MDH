@@ -1,4 +1,4 @@
-# AGENTS.md - 大荒界 (Matrix DaHuang) 智能体系统指南
+# AGENTS.md — MDH 大荒界 · MDH-Company
 
 ## 项目概述
 
@@ -12,6 +12,10 @@
 - **技能随用随进化**: 每个领域智能体对自己使用的技能进行总结提升，技能持久进化，下次加载的是提升后的版本，而非重新加载旧技能
 - **虚拟办公室可视化**: 3D 科技大厦场景，实时展示智能体状态
 - **本地/远端智能体混合执行**: 每个智能体可独立选择在用户浏览器本地(Node.js)或远端(Python Executor)执行工具调用
+
+### 统一智能体架构
+
+MDH-Company 是 **MDH 大荒界** 智能体世界的管理后台。所有数字员工的身份、技能树、经验值、记忆由共享的 C++ ECS agent-kernel 维护，与 [MDH-Game（太古纪元：霸业）](https://github.com/MonSp/MyGame) 共享同一份数据。详见 [docs/BRAND.md](docs/BRAND.md)。
 
 ### 版本历史
 
