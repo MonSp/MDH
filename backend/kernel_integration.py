@@ -121,6 +121,29 @@ class KernelIntegration:
             )
             return False
 
+    # ── Career XP ─────────────────────────────────────────────────
+
+    def grant_career_xp_via_kernel(self, agent_id: str, xp: int) -> bool:
+        """Grant career XP through kernel. Returns False if kernel unavailable
+        or the agent is not present in the kernel.
+        """
+        if not self._connected:
+            return False
+        entity_id = self._entity_map.get(agent_id)
+        if entity_id is None:
+            logger.debug(
+                "grant_career_xp_via_kernel: no entity_id for %s, skipping", agent_id
+            )
+            return False
+        try:
+            self._client.add_career_xp(entity_id, xp)
+            return True
+        except (AgentKernelError, ConnectionError, OSError) as e:
+            logger.warning(
+                "grant_career_xp_via_kernel failed for %s: %s", agent_id, e
+            )
+            return False
+
     # ── Query ───────────────────────────────────────────────────────
 
     def get_kernel_state(self) -> List[dict]:

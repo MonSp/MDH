@@ -95,7 +95,7 @@ class AgentKernelClient:
             "params": params or {},
             "id": self._request_id,
         }
-        data = json.dumps(request) + "\n"
+        data = json.dumps(request, ensure_ascii=False) + "\n"
         self._sock.sendall(data.encode("utf-8"))
 
         # Read until we get a complete newline-delimited response.
@@ -196,6 +196,23 @@ class AgentKernelClient:
 
     # ── Skills ─────────────────────────────────────────────────────
 
+    def add_skill(
+        self,
+        entity_id: int,
+        skill_id: str,
+        category: str = "Engineering",
+    ) -> dict:
+        """Add a skill to an agent's skill tree.
+
+        Returns the new skill node dict.
+        """
+        result = self._send("addSkill", {
+            "entityId": entity_id,
+            "skillId": skill_id,
+            "category": category,
+        })
+        return result.get("data", {})
+
     def add_skill_xp(self, entity_id: int, skill_id: str, xp: int) -> dict:
         """Add XP to a specific skill on an agent.
 
@@ -211,6 +228,17 @@ class AgentKernelClient:
     def get_skills(self, entity_id: int) -> Dict[str, dict]:
         """Get all skills for an agent."""
         result = self._send("getSkills", {"entityId": entity_id})
+        return result.get("data", {})
+
+    def add_career_xp(self, entity_id: int, xp: int) -> dict:
+        """Add career XP to an agent.
+
+        Returns the updated career dict.
+        """
+        result = self._send("addCareerXp", {
+            "entityId": entity_id,
+            "xp": xp,
+        })
         return result.get("data", {})
 
     # ── Sync ───────────────────────────────────────────────────────
