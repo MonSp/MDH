@@ -124,8 +124,10 @@ class CeoAgent:
         workflow_engine=None,
         approval_manager=None,
         on_coordinator_created=None,
+        kernel_integration=None,
     ):
         self._session = session
+        self._kernel = kernel_integration
         self._project_manager = project_manager
         self._complexity_classifier = complexity_classifier
         self._simple_executor = simple_executor
@@ -491,6 +493,7 @@ class CeoAgent:
             approval_manager=self._approval_manager,
             executor_url=os.environ.get("MDH_EXECUTOR_URL", ""),
             session_persistence=SessionPersistence(),
+            kernel_integration=self._kernel,
         )
         # 传递Team实例给协调器，用于并行讨论
         coordinator._team = team

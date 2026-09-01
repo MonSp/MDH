@@ -452,6 +452,8 @@ async def _start_background_tasks():
             logger.info("Agent-kernel daemon connected")
             agents_router.set_kernel_integration(_ki)
             app.state.kernel_integration = _ki
+            if _ws_ctx:
+                _ws_ctx.kernel_integration = _ki
         else:
             logger.info("Agent-kernel daemon not available; running without kernel")
     except Exception as e:

@@ -48,6 +48,7 @@ class WSContext:
     skills_dir: str = ""
     sessions: Dict = None
     active_coordinator: Any = None
+    kernel_integration: Any = None
 
     def get_workflow_engine(self):
         """动态获取 workflow_engine（支持测试 fixture 替换）"""
@@ -147,6 +148,7 @@ async def handle_unified_message(msg, session, ctx):
             workflow_engine=ctx.get_workflow_engine(),
             approval_manager=session._approval_manager,
             on_coordinator_created=ctx.register_active_coordinator,
+            kernel_integration=ctx.kernel_integration,
         )
 
     ceo = session._ceo_agent
@@ -300,6 +302,7 @@ async def handle_start_meeting(msg, session, ctx):
         approval_manager=session._approval_manager,
         session_persistence=session_persistence,
         asset_context_builder=asset_context_builder,
+        kernel_integration=ctx.kernel_integration,
     )
     session._meeting_coordinator = coordinator
     ctx.active_coordinator = coordinator
@@ -313,6 +316,7 @@ async def handle_start_meeting(msg, session, ctx):
             workflow_engine=ctx.get_workflow_engine(),
             approval_manager=session._approval_manager,
             on_coordinator_created=ctx.register_active_coordinator,
+            kernel_integration=ctx.kernel_integration,
         )
     session._ceo_agent._meeting_coordinator = coordinator
     session._ceo_agent._agenda = coordinator.agenda

@@ -122,9 +122,11 @@ class MeetingCoordinator:
         asset_context_builder: Optional[Callable[[str, str, list | None], str]] = None,
         executor_url: str = "",
         session_persistence=None,
+        kernel_integration=None,
     ):
         self._max_iterations = max_iterations
         self._executor_url = executor_url
+        self._kernel = kernel_integration
         self._session_persistence = session_persistence
         self._approval_manager = approval_manager
         self._approval_timeout = approval_timeout
@@ -205,6 +207,7 @@ class MeetingCoordinator:
             on_agent_status_change=lambda agent_id, status: asyncio.ensure_future(
                 self._notify_agent_status(agent_id, status)
             ),
+            kernel_integration=kernel_integration,
         )
         self._review_pipeline = ReviewPipeline(
             get_model_fn=self._get_model,

@@ -144,6 +144,66 @@ class KernelIntegration:
             )
             return False
 
+    # ── L4: LLM Decision ──────────────────────────────────────────
+
+    def agent_decide(self, agent_id: str, task: str) -> Optional[dict]:
+        """Ask the kernel's LLM to make a decision for an agent.
+
+        Returns a Decision dict (action, reasoning, confidence, delegateTo, details)
+        or None if kernel unavailable or agent not synced.
+        """
+        if not self._connected:
+            return None
+        entity_id = self._entity_map.get(agent_id)
+        if entity_id is None:
+            return None
+        try:
+            return self._client.agent_decide(entity_id, task)
+        except (AgentKernelError, ConnectionError, OSError) as e:
+            logger.debug("agent_decide failed for %s: %s", agent_id, e)
+            return None
+
+    # ── L5: Agent Tick & Simulation ──────────────────────────────
+
+    def agent_tick(self, agent_id: str, task: str) -> Optional[dict]:
+        """Run a single agent tick: perceive → LLM decide → execute → apply effects.
+
+        Returns a TickResult dict (action, tickNumber, timestamp, decision, effects)
+        or None if kernel unavailable or agent not synced.
+        """
+        if not self._connected:
+            return None
+        entity_id = self._entity_map.get(agent_id)
+        if entity_id is None:
+            return None
+        try:
+            return self._client.agent_tick(entity_id, task)
+        except (AgentKernelError, ConnectionError, OSError) as e:
+            logger.debug("agent_tick failed for %s: %s", agent_id, e)
+            return None
+
+    def run_simulation(
+        self, agent_ids: List[str], ticks: int = 1, tasks: Optional[List[str]] = None
+    ) -> Optional[dict]:
+        """Run a multi-agent batch simulation.
+
+        Returns a SimulationResult dict or None if kernel unavailable.
+        """
+        if not self._connected:
+            return None
+        entity_ids = []
+        for aid in agent_ids:
+            eid = self._entity_map.get(aid)
+            if eid is not None:
+                entity_ids.append(eid)
+        if not entity_ids:
+            return None
+        try:
+            return self._client.run_simulation(entity_ids, ticks, tasks)
+        except (AgentKernelError, ConnectionError, OSError) as e:
+            logger.warning("run_simulation failed: %s", e)
+            return None
+
     # ── Query ───────────────────────────────────────────────────────
 
     def get_kernel_state(self) -> List[dict]:

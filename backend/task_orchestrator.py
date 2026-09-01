@@ -40,6 +40,7 @@ class TaskOrchestrator:
         workspace_root: Optional[str] = None,
         executor_url: str = "",
         on_agent_status_change=None,
+        kernel_integration=None,
     ):
         self._get_model = get_model_fn
         self._meeting = meeting
@@ -52,6 +53,7 @@ class TaskOrchestrator:
         self._workspace_root = workspace_root
         self._executor_url = executor_url
         self._on_agent_status_change = on_agent_status_change
+        self._kernel = kernel_integration
 
     async def decompose(self, task_description: str) -> List[Dict[str, Any]]:
         """
@@ -195,17 +197,47 @@ class TaskOrchestrator:
 
         tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}" if agent_toolset else ""
         experience_context = self._get_experience_context(task.description)
+
+        # Kernel decision context (if available from a prior tick)
+        kernel_context = ""
+        if kernel_decision:
+            action = kernel_decision.get("action", "")
+            reasoning = kernel_decision.get("reasoning", "")
+            confidence = kernel_decision.get("confidence", 0)
+            if reasoning:
+                kernel_context = (
+                    f"\n\n[内核决策建议] 行动: {action}, 置信度: {confidence:.0%}\n"
+                    f"分析: {reasoning}\n"
+                )
+
         prompt = (
             f"请执行以下任务：\n{task.description}\n\n"
             f"重要：直接使用代码块写入文件，格式为：\n```文件路径.扩展名\n文件内容\n```\n"
             f"注意：不要使用bash/mkdir创建目录；每个文件单独一个代码块；代码必须完整可运行"
-            f"{experience_context}{tool_prompt}"
+            f"{kernel_context}{experience_context}{tool_prompt}"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
         conversation = [msg]
 
         try:
             written_files, all_tool_results, last_text = [], [], ""
+
+            # 阶段A0: Kernel agent tick (if available)
+            kernel_decision = None
+            if self._kernel and self._kernel.is_available():
+                try:
+                    tick_result = self._kernel.agent_tick(task.agent_id, task.description)
+                    if tick_result:
+                        kernel_decision = tick_result.get("decision", {})
+                        logger.info(
+                            "Kernel tick for %s: action=%s confidence=%.2f",
+                            task.agent_id,
+                            tick_result.get("action", "?"),
+                            kernel_decision.get("confidence", 0),
+                        )
+                except Exception as e:
+                    logger.debug("Kernel tick failed (non-fatal): %s", e)
+
             # 阶段A: 环境检查
             if agent_toolset:
                 ls = agent_toolset.list_directory(".")
