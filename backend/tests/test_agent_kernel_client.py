@@ -247,6 +247,82 @@ class TestSync:
         assert state["count"] >= 1
 
 
+# ── L4: LLM Decision tests ──────────────────────────────────────
+
+
+class TestAgentDecide:
+    def test_agent_decide(self, client: AgentKernelClient):
+        agent = client.create_agent(
+            name="DecideAgent",
+            department="engineering",
+            company_role="developer",
+            agent_id="py-decide-001",
+        )
+        result = client.agent_decide(agent.entity_id, "Implement a REST API")
+        assert isinstance(result, dict)
+        assert "action" in result
+        assert "reasoning" in result
+        assert "confidence" in result
+
+    def test_agent_decide_invalid_entity(self, client: AgentKernelClient):
+        with pytest.raises(AgentKernelError, match="entity not found"):
+            client.agent_decide(99999, "some task")
+
+
+# ── L5: Agent Tick tests ─────────────────────────────────────────
+
+
+class TestAgentTick:
+    def test_agent_tick(self, client: AgentKernelClient):
+        agent = client.create_agent(
+            name="TickAgent",
+            department="engineering",
+            company_role="developer",
+            agent_id="py-tick-001",
+        )
+        result = client.agent_tick(agent.entity_id, "Write unit tests")
+        assert isinstance(result, dict)
+        assert "action" in result
+        assert "tickNumber" in result
+        assert "timestamp" in result
+        assert "decision" in result
+        assert "effects" in result
+        assert isinstance(result["effects"], list)
+
+    def test_agent_tick_invalid_entity(self, client: AgentKernelClient):
+        with pytest.raises(AgentKernelError, match="entity not found"):
+            client.agent_tick(99999, "some task")
+
+
+class TestRunSimulation:
+    def test_run_simulation(self, client: AgentKernelClient):
+        agent = client.create_agent(
+            name="SimAgent",
+            department="engineering",
+            company_role="developer",
+            agent_id="py-sim-001",
+        )
+        result = client.run_simulation([agent.entity_id], ticks=2, tasks=["task A"])
+        assert isinstance(result, dict)
+        assert "results" in result
+        assert "summary" in result
+        assert len(result["results"]) == 2
+        summary = result["summary"]
+        assert summary["totalTicks"] == 2
+        assert "averageConfidence" in summary
+        assert "actionCounts" in summary
+
+    def test_run_simulation_no_tasks(self, client: AgentKernelClient):
+        agent = client.create_agent(
+            name="SimAgent2",
+            department="engineering",
+            company_role="developer",
+            agent_id="py-sim-002",
+        )
+        result = client.run_simulation([agent.entity_id], ticks=1)
+        assert len(result["results"]) == 1
+
+
 # ── Error handling tests ──────────────────────────────────────────
 
 

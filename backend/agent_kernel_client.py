@@ -254,6 +254,51 @@ class AgentKernelClient:
         agents = [self._parse_agent(a) for a in data.get("agents", [])]
         return {"agents": agents, "count": data.get("count", len(agents))}
 
+    # ── L4: LLM Decision ─────────────────────────────────────────
+
+    def agent_decide(self, entity_id: int, task: str) -> dict:
+        """Ask the kernel's LLM to make a decision for an agent on a task.
+
+        Returns a dict with: action, reasoning, confidence, delegateTo, details.
+        """
+        result = self._send("agentDecide", {
+            "entityId": entity_id,
+            "task": task,
+        })
+        return result.get("data", {})
+
+    # ── L5: Agent Tick & Simulation ──────────────────────────────
+
+    def agent_tick(self, entity_id: int, task: str) -> dict:
+        """Run a single agent tick: perceive → LLM decide → execute action → apply effects.
+
+        Returns a TickResult dict with: action, tickNumber, timestamp, decision, effects.
+        """
+        result = self._send("agentTick", {
+            "entityId": entity_id,
+            "task": task,
+        })
+        return result.get("data", {})
+
+    def run_simulation(
+        self,
+        entity_ids: List[int],
+        ticks: int = 1,
+        tasks: Optional[List[str]] = None,
+    ) -> dict:
+        """Run a multi-agent batch simulation for N ticks.
+
+        Returns a dict with: results (list of TickResult), summary (totalTicks, averageConfidence, actionCounts).
+        """
+        params: Dict[str, Any] = {
+            "entityIds": entity_ids,
+            "ticks": ticks,
+        }
+        if tasks:
+            params["tasks"] = tasks
+        result = self._send("runSimulation", params)
+        return result.get("data", {})
+
     # ── parsing helpers ────────────────────────────────────────────
 
     def _parse_agent(self, data: dict) -> KernelAgent:
