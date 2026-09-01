@@ -6,6 +6,7 @@ execute_assigned_tasks() 提取。
 集成 SpecManager、GateManager、EvidenceChain。
 """
 
+import asyncio
 import json
 import logging
 import uuid
@@ -195,15 +196,33 @@ class TaskOrchestrator:
                 location=getattr(agent_info, 'location', 'local'),
             )
 
+        # 阶段A0: Kernel agent tick (if available)
+        kernel_decision = None
+        if self._kernel and self._kernel.is_available():
+            try:
+                tick_result = await asyncio.to_thread(
+                    self._kernel.agent_tick, task.agent_id, task.description
+                )
+                if tick_result:
+                    kernel_decision = tick_result.get("decision", {})
+                    logger.info(
+                        "Kernel tick for %s: action=%s confidence=%.2f",
+                        task.agent_id,
+                        tick_result.get("action", "?"),
+                        kernel_decision.get("confidence", 0),
+                    )
+            except Exception as e:
+                logger.debug("Kernel tick failed (non-fatal): %s", e)
+
         tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}" if agent_toolset else ""
         experience_context = self._get_experience_context(task.description)
 
-        # Kernel decision context (if available from a prior tick)
+        # Kernel decision context
         kernel_context = ""
         if kernel_decision:
             action = kernel_decision.get("action", "")
             reasoning = kernel_decision.get("reasoning", "")
-            confidence = kernel_decision.get("confidence", 0)
+            confidence = kernel_decision.get("confidence", 0) or 0
             if reasoning:
                 kernel_context = (
                     f"\n\n[内核决策建议] 行动: {action}, 置信度: {confidence:.0%}\n"
@@ -221,22 +240,6 @@ class TaskOrchestrator:
 
         try:
             written_files, all_tool_results, last_text = [], [], ""
-
-            # 阶段A0: Kernel agent tick (if available)
-            kernel_decision = None
-            if self._kernel and self._kernel.is_available():
-                try:
-                    tick_result = self._kernel.agent_tick(task.agent_id, task.description)
-                    if tick_result:
-                        kernel_decision = tick_result.get("decision", {})
-                        logger.info(
-                            "Kernel tick for %s: action=%s confidence=%.2f",
-                            task.agent_id,
-                            tick_result.get("action", "?"),
-                            kernel_decision.get("confidence", 0),
-                        )
-                except Exception as e:
-                    logger.debug("Kernel tick failed (non-fatal): %s", e)
 
             # 阶段A: 环境检查
             if agent_toolset:
