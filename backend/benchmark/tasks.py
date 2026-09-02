@@ -12,7 +12,6 @@
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 
 @dataclass
@@ -23,15 +22,15 @@ class BenchmarkTask:
     category: str  # simple | standard | complex
     expected_path: str  # simple | complex | workflow
     expected_min_files: int = 0
-    expected_tools: List[str] = field(default_factory=list)
+    expected_tools: list[str] = field(default_factory=list)
     max_llm_calls: int = 12
     max_latency_s: float = 60.0
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
 
 # ── 评测数据集 ──
 
-BENCHMARK_TASKS: List[BenchmarkTask] = [
+BENCHMARK_TASKS: list[BenchmarkTask] = [
     # ── Simple 路径 ──
     BenchmarkTask(
         id="simple-01",
@@ -216,7 +215,7 @@ BENCHMARK_TASKS: List[BenchmarkTask] = [
 ]
 
 
-def get_benchmark_tasks(category: Optional[str] = None, tags: Optional[List[str]] = None) -> List[BenchmarkTask]:
+def get_benchmark_tasks(category: str | None = None, tags: list[str] | None = None) -> list[BenchmarkTask]:
     """获取评测任务（支持按类别和标签过滤）"""
     tasks = BENCHMARK_TASKS
     if category:

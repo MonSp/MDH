@@ -2,7 +2,7 @@
 import pytest
 
 from onboarding_manager import OnboardingManager
-from onboarding_tasks import get_onboarding_tasks, ONBOARDING_TASKS
+from onboarding_tasks import ONBOARDING_TASKS, get_onboarding_tasks
 
 
 @pytest.fixture

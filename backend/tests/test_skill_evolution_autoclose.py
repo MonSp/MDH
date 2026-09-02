@@ -12,7 +12,6 @@ class _FakePackager:
 
     def full_package(self, **kwargs):
         self.calls.append(kwargs)
-        return None  # 打包结果非本测试关注点
 
 
 def _seed_pending_rule(extractor, rule_id="r-test-1", source_task_id="task-001"):

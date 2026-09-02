@@ -2,11 +2,15 @@
 import json
 import os
 
-from benchmark.tasks import BENCHMARK_TASKS, get_benchmark_tasks
 from benchmark.runner import (
-    TaskResult, BenchmarkReport, MetricsCollector,
-    compare_with_baseline, save_baseline, format_report,
+    BenchmarkReport,
+    MetricsCollector,
+    TaskResult,
+    compare_with_baseline,
+    format_report,
+    save_baseline,
 )
+from benchmark.tasks import BENCHMARK_TASKS, get_benchmark_tasks
 
 
 class TestBenchmarkTasks:

@@ -12,11 +12,10 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Optional
 
-from skill_registry import SkillRegistry
 from skill_packager import SkillPackager
-from team import Team, TeamRuntime, RuntimeType
+from skill_registry import SkillRegistry
+from team import RuntimeType, Team, TeamRuntime
 from team_assembler import TeamAssembler
 
 logger = logging.getLogger(__name__)
@@ -103,8 +102,8 @@ class ProjectManager:
     """
 
     def __init__(self, projects_dir: str, skill_registry: SkillRegistry,
-                 skill_packager: Optional[SkillPackager] = None,
-                 roles_config_path: Optional[str] = None):
+                 skill_packager: SkillPackager | None = None,
+                 roles_config_path: str | None = None):
         """初始化项目管理器。
 
         Args:

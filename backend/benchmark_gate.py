@@ -17,11 +17,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from benchmark.tasks import get_benchmark_tasks
 from benchmark.runner import (
-    run_benchmark, compare_with_baseline, format_report,
-    BenchmarkReport, TaskResult,
+    BenchmarkReport,
+    TaskResult,
+    compare_with_baseline,
+    format_report,
+    run_benchmark,
 )
+from benchmark.tasks import get_benchmark_tasks
 
 
 def run_self_check() -> BenchmarkReport:

@@ -2,10 +2,12 @@
 Critic Agent 测试
 """
 
-import pytest
 import json
 import os
 import tempfile
+
+import pytest
+
 from collaboration.critic_agent import CriticAgent, CriticResult
 
 

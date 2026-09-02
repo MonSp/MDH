@@ -3,7 +3,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger("performance_dashboard")
 
@@ -14,7 +14,7 @@ class PerformanceDashboard:
     def __init__(self, data_dir: str):
         self._data_dir = data_dir
 
-    def get_overview(self) -> Dict[str, Any]:
+    def get_overview(self) -> dict[str, Any]:
         """全局概览"""
         agent_stats = self._get_agent_stats()
         rule_stats = self._get_rule_stats()
@@ -36,7 +36,7 @@ class PerformanceDashboard:
             "sessions": session_stats,
         }
 
-    def _get_agent_stats(self) -> Dict[str, Any]:
+    def _get_agent_stats(self) -> dict[str, Any]:
         """Agent 统计"""
         try:
             from agent_profile_manager import AgentProfileManager
@@ -59,8 +59,7 @@ class PerformanceDashboard:
                 skill_count = 0
                 for sp in p.skill_progress.values():
                     level = sp.get("level", 0) if isinstance(sp, dict) else 0
-                    if level > max_skill:
-                        max_skill = level
+                    max_skill = max(max_skill, level)
                     if level > 0:
                         skill_count += 1
 
@@ -87,7 +86,7 @@ class PerformanceDashboard:
             logger.debug("agent stats error: %s", e)
             return {"total": 0, "total_xp": 0, "by_stage": {}, "by_department": {}, "top_agents": []}
 
-    def _get_rule_stats(self) -> Dict[str, Any]:
+    def _get_rule_stats(self) -> dict[str, Any]:
         """经验规则统计"""
         try:
             from experience_extractor import ExperienceExtractor
@@ -136,7 +135,7 @@ class PerformanceDashboard:
             logger.debug("rule stats error: %s", e)
             return {"total": 0, "by_status": {}, "avg_effectiveness": 0}
 
-    def _get_routing_stats(self) -> Dict[str, Any]:
+    def _get_routing_stats(self) -> dict[str, Any]:
         """路由统计"""
         try:
             routing_path = os.path.join(self._data_dir, "routing_table.json")
@@ -162,7 +161,7 @@ class PerformanceDashboard:
             logger.debug("routing stats error: %s", e)
             return {"departments": 0, "depts": []}
 
-    def _get_cost_stats(self) -> Dict[str, Any]:
+    def _get_cost_stats(self) -> dict[str, Any]:
         """LLM 成本统计（含缓存命中率）"""
         try:
             from llm_cost_tracker import get_tracker
@@ -179,7 +178,7 @@ class PerformanceDashboard:
             pass
         return stats
 
-    def _get_knowledge_flow_stats(self) -> Dict[str, Any]:
+    def _get_knowledge_flow_stats(self) -> dict[str, Any]:
         """知识流动统计"""
         try:
             flow_path = os.path.join(self._data_dir, "knowledge_flow.json")
@@ -205,7 +204,7 @@ class PerformanceDashboard:
             logger.debug("knowledge flow stats error: %s", e)
             return {"total_flows": 0, "unique_mentors": 0, "unique_mentees": 0}
 
-    def _get_evolution_stats(self) -> Dict[str, Any]:
+    def _get_evolution_stats(self) -> dict[str, Any]:
         """技能进化统计"""
         try:
             from db import get_db
@@ -225,7 +224,7 @@ class PerformanceDashboard:
             logger.debug("evolution stats error: %s", e)
             return {"total_evolutions": 0, "recent": []}
 
-    def _get_system_health(self) -> Dict[str, Any]:
+    def _get_system_health(self) -> dict[str, Any]:
         """系统健康状态"""
         try:
             import shutil
@@ -256,7 +255,7 @@ class PerformanceDashboard:
             logger.debug("system health error: %s", e)
             return {"db_size_mb": 0, "error": str(e)}
 
-    def _get_session_stats(self) -> Dict[str, Any]:
+    def _get_session_stats(self) -> dict[str, Any]:
         """会话统计"""
         try:
             from db import get_db

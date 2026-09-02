@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
 
 
 class WorkflowNodeStatus(str, Enum):
@@ -34,7 +33,7 @@ class WorkflowNode:
     output_spec: dict = field(default_factory=dict)
     status: WorkflowNodeStatus = WorkflowNodeStatus.PENDING
     result: dict | None = None
-    gate: Optional[dict] = None
+    gate: dict | None = None
     execution_target: str = "local"  # "local" | "a2a:<agent_id>" | "auto"
 
 
@@ -52,8 +51,8 @@ class WorkflowDefinition:
     workflow_id: str
     name: str
     description: str
-    nodes: List[WorkflowNode] = field(default_factory=list)
-    edges: List[WorkflowEdge] = field(default_factory=list)
+    nodes: list[WorkflowNode] = field(default_factory=list)
+    edges: list[WorkflowEdge] = field(default_factory=list)
     execution_strategy: str = "sequential"
 
 

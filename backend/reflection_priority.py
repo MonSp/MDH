@@ -10,7 +10,7 @@ import json
 import logging
 import os
 from collections import defaultdict
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("reflection_priority")
 
@@ -24,7 +24,7 @@ class ReflectionPriorityQueue:
         self._evolution_log_path = os.path.join(self._experience_dir, "evolution_log.json")
         self._queue_path = os.path.join(data_dir, "reflection_queue.json")
 
-    def compute_priorities(self) -> Dict[str, Any]:
+    def compute_priorities(self) -> dict[str, Any]:
         """计算反思优先级队列
 
         Returns:
@@ -77,7 +77,7 @@ class ReflectionPriorityQueue:
         self._save_queue(result)
         return result
 
-    def _load_all_rules(self) -> List[Dict]:
+    def _load_all_rules(self) -> list[dict]:
         """加载所有规则"""
         import yaml
         rules_dir = os.path.join(self._experience_dir, "rules")
@@ -96,7 +96,7 @@ class ReflectionPriorityQueue:
                 pass
         return rules
 
-    def _compute_domain_health(self, rules: List[Dict]) -> List[Dict]:
+    def _compute_domain_health(self, rules: list[dict]) -> list[dict]:
         """按技能领域计算健康度
 
         健康度 = 该领域所有规则的平均 effectiveness_score
@@ -144,7 +144,7 @@ class ReflectionPriorityQueue:
         else:
             return f"紧急：{count} 条规则平均有效性 {score:.0%}，需要重点改进"
 
-    def _compute_evolution_stats(self, rules: List[Dict]) -> Dict:
+    def _compute_evolution_stats(self, rules: list[dict]) -> dict:
         """计算进化成功率"""
         # 从进化日志中获取进化对
         evolution_log = self._get_evolution_log()
@@ -153,7 +153,7 @@ class ReflectionPriorityQueue:
 
         total = len(evolution_log)
         success_count = 0
-        by_domain: Dict[str, Dict] = defaultdict(lambda: {"total": 0, "success": 0})
+        by_domain: dict[str, dict] = defaultdict(lambda: {"total": 0, "success": 0})
 
         for entry in evolution_log:
             evolved_id = entry.get("evolved_rule_id", "")
@@ -180,7 +180,7 @@ class ReflectionPriorityQueue:
                           for k, v in by_domain.items()},
         }
 
-    def _build_priority_queue(self, rules: List[Dict], domains: List[Dict], evo_stats: Dict) -> List[Dict]:
+    def _build_priority_queue(self, rules: list[dict], domains: list[dict], evo_stats: dict) -> list[dict]:
         """构建反思优先级队列
 
         优先级排序：
@@ -239,7 +239,7 @@ class ReflectionPriorityQueue:
         queue.sort(key=lambda x: x["priority"], reverse=True)
         return queue
 
-    def _find_rule(self, rule_id: str) -> Dict:
+    def _find_rule(self, rule_id: str) -> dict:
         """查找规则"""
         import yaml
         rules_dir = os.path.join(self._experience_dir, "rules")
@@ -254,7 +254,7 @@ class ReflectionPriorityQueue:
         except Exception:
             return {}
 
-    def _get_evolution_log(self) -> List[Dict]:
+    def _get_evolution_log(self) -> list[dict]:
         try:
             if os.path.isfile(self._evolution_log_path):
                 with open(self._evolution_log_path, encoding="utf-8") as f:
@@ -263,7 +263,7 @@ class ReflectionPriorityQueue:
             pass
         return []
 
-    def _save_queue(self, data: Dict) -> None:
+    def _save_queue(self, data: dict) -> None:
         try:
             tmp = self._queue_path + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
@@ -272,7 +272,7 @@ class ReflectionPriorityQueue:
         except Exception:
             pass
 
-    def get_saved_queue(self) -> Dict:
+    def get_saved_queue(self) -> dict:
         """获取上次计算的队列"""
         try:
             if os.path.isfile(self._queue_path):

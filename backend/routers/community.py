@@ -3,6 +3,7 @@ Community Marketplace REST API Router
 """
 
 import os
+
 from fastapi import APIRouter, Request
 
 router = APIRouter(prefix="/api/community", tags=["community"])

@@ -19,7 +19,6 @@ discussion_utils - 讨论投影共享辅助函数
 """
 
 import re
-from typing import Optional
 
 from protocol import AgentRole
 
@@ -46,8 +45,8 @@ def parse_stance_from_content(content: str) -> str:
 
 def resolve_agent_role(
     meeting,
-    agent_id: Optional[str],
-    msg_role: Optional[str] = None,
+    agent_id: str | None,
+    msg_role: str | None = None,
 ) -> str:
     """从 agent_id 解析角色名（统一三处调用点的回退语义）。
 
@@ -68,7 +67,7 @@ def resolve_agent_role(
     return "?"
 
 
-def is_coordinator_agent(meeting, agent_id: Optional[str]) -> bool:
+def is_coordinator_agent(meeting, agent_id: str | None) -> bool:
     """判断 agent_id 是否对应协调者角色。
 
     协调者状态消息（analysis_text/plan_text/组织团队讨论 等）不应混入讨论

@@ -1,63 +1,116 @@
 import asyncio
-import json
 import logging
 import os
 import re
-import uuid
-from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+from collections.abc import Awaitable, Callable
+from typing import Any, Optional
 
 from agentscope.agent import Agent
 from agentscope.message import Msg
 
+from agenda import AgendaStateMachine
 from agent import _extract_text
 from agent_pool import AgentPool
-from agenda import AgendaStateMachine
 from approval_manager import ApprovalManager
 from collaboration.planner_agent import PlannerAgent
+from coordinator_effects import (
+    grant_task_xp as _grant_task_xp_impl,
+)
+from coordinator_effects import (
+    notify_agent_status as _notify_agent_status_impl,
+)
+from coordinator_effects import (
+    notify_artifact_created as _notify_artifact_created_impl,
+)
+from coordinator_execution import (
+    build_execution_artifact_text as _build_execution_artifact_text_impl,
+)
+from coordinator_execution import (
+    execute_and_review_task as _execute_and_review_task_impl,
+)
+from coordinator_execution import (
+    execute_tool_call as _execute_tool_call_impl,
+)
+from coordinator_execution import (
+    lightweight_review as _lightweight_review_impl,
+)
+from coordinator_execution import (
+    run_dev_loop as _run_dev_loop_impl,
+)
+from coordinator_execution import (
+    run_simple_path as _run_simple_path_impl,
+)
+from coordinator_execution import (
+    save_execution_artifacts as _save_execution_artifacts_impl,
+)
+from coordinator_experience import (
+    finalize_skill_evolution as _finalize_skill_evolution_impl,
+)
+from coordinator_experience import (
+    inject_experience as _inject_experience_impl,
+)
+from coordinator_experience import (
+    log_knowledge_flow as _log_knowledge_flow_impl,
+)
+from coordinator_experience import (
+    log_skill_evolution as _log_skill_evolution_impl,
+)
+from coordinator_experience import (
+    recall_agent_memory as _recall_agent_memory_impl,
+)
+from coordinator_experience import (
+    update_injected_rule_effectiveness as _update_injected_rule_effectiveness_impl,
+)
+from coordinator_experience import (
+    write_task_memory as _write_task_memory_impl,
+)
+from coordinator_routing import (
+    agent_can_execute as _agent_can_execute_impl,
+)
+from coordinator_routing import (
+    ensure_default_routing_table as _ensure_default_routing_table_impl,
+)
+from coordinator_routing import (
+    estimate_task_complexity as _estimate_task_complexity_impl,
+)
+from coordinator_routing import (
+    find_agent_id as _find_agent_id_impl,
+)
+from coordinator_routing import (
+    find_best_agent_for_task as _find_best_agent_for_task_impl,
+)
+from coordinator_routing import (
+    get_agent_tools as _get_agent_tools_impl,
+)
+from coordinator_routing import (
+    resolve_agent as _resolve_agent_impl,
+)
+from coordinator_routing import (
+    setup_agent_isolation as _setup_agent_isolation_impl,
+)
+from coordinator_triage import decompose_task as _decompose_task_impl
+from coordinator_triage import triage_task as _triage_task_impl
+from discussion_manager import DiscussionManager
 from dynamic_router import DynamicRouter
-from meeting import MeetingSession, SessionEventType
+from meeting import MeetingSession
+from mixed_location_discussion import MixedLocationDiscussion
 from negotiation import NegotiationEngine
-from protocol import AgentRole, MeetingAgentStatus, SemanticAnalysisResult, semantic_analysis_to_dict, WorkflowDefinition, WorkflowNode, LLM_FALLBACK_TEMPLATE
-from team import Team
-from workflow_engine import WorkflowEngine
+from protocol import (
+    LLM_FALLBACK_TEMPLATE,
+    AgentRole,
+    MeetingAgentStatus,
+    SemanticAnalysisResult,
+    WorkflowDefinition,
+    WorkflowNode,
+    semantic_analysis_to_dict,
+)
+from review_pipeline import ReviewPipeline
 
 # WhyBuddy化：导入拆分后的子模块
 from semantic_analyzer import SemanticAnalyzer
 from task_orchestrator import TaskOrchestrator
-from review_pipeline import ReviewPipeline
-from discussion_manager import DiscussionManager
-from coordinator_routing import (
-    AGENT_ROLE_TOOLS, estimate_task_complexity as _estimate_task_complexity_impl,
-    setup_agent_isolation as _setup_agent_isolation_impl,
-    find_agent_id as _find_agent_id_impl, resolve_agent as _resolve_agent_impl,
-    get_agent_tools as _get_agent_tools_impl, agent_can_execute as _agent_can_execute_impl,
-    find_best_agent_for_task as _find_best_agent_for_task_impl,
-    ensure_default_routing_table as _ensure_default_routing_table_impl,
-)
-from coordinator_triage import triage_task as _triage_task_impl, decompose_task as _decompose_task_impl
-from coordinator_experience import (
-    update_injected_rule_effectiveness as _update_injected_rule_effectiveness_impl,
-    recall_agent_memory as _recall_agent_memory_impl, write_task_memory as _write_task_memory_impl,
-    finalize_skill_evolution as _finalize_skill_evolution_impl,
-    log_skill_evolution as _log_skill_evolution_impl,
-    inject_experience as _inject_experience_impl, log_knowledge_flow as _log_knowledge_flow_impl,
-)
-from coordinator_execution import (
-    build_execution_artifact_text as _build_execution_artifact_text_impl,
-    save_execution_artifacts as _save_execution_artifacts_impl,
-    lightweight_review as _lightweight_review_impl,
-    run_simple_path as _run_simple_path_impl,
-    execute_and_review_task as _execute_and_review_task_impl,
-    run_dev_loop as _run_dev_loop_impl,
-    execute_tool_call as _execute_tool_call_impl,
-)
-from coordinator_effects import (
-    notify_agent_status as _notify_agent_status_impl,
-    notify_artifact_created as _notify_artifact_created_impl,
-    grant_task_xp as _grant_task_xp_impl,
-)
-from mixed_location_discussion import MixedLocationDiscussion
+from team import Team
+from workflow_engine import WorkflowEngine
 
 AGENT_ROLE_PROMPTS = {
     AgentRole.CEO: "你是编程团队的CTO（技术总监）。你的职责是分析用户技术需求、判断技术意图、将开发任务自动分配给最合适的团队成员。你熟悉前后端技术栈、系统架构和团队成员能力。请用简洁果断的技术语言发言。",
@@ -101,7 +154,7 @@ def _build_approval_send_fn(on_message: Callable[[str, str, str], Awaitable[None
 
 async def _noop_on_message(*args, **kwargs) -> None:
     """异步空操作 on_message 兜底：无 _on_message 时静默丢弃审批推送。"""
-    return None
+    return
 
 
 class MeetingCoordinator:
@@ -114,12 +167,12 @@ class MeetingCoordinator:
         base_url: str = "",
         data_dir: str = "data",
         workspace=None,
-        agent_pool: Optional[AgentPool] = None,
+        agent_pool: AgentPool | None = None,
         max_iterations: int = 3,
-        workflow_engine: Optional[WorkflowEngine] = None,
-        approval_manager: Optional[ApprovalManager] = None,
+        workflow_engine: WorkflowEngine | None = None,
+        approval_manager: ApprovalManager | None = None,
         approval_timeout: float = 300.0,
-        asset_context_builder: Optional[Callable[[str, str, list | None], str]] = None,
+        asset_context_builder: Callable[[str, str, list | None], str] | None = None,
         executor_url: str = "",
         session_persistence=None,
         kernel_integration=None,
@@ -139,8 +192,8 @@ class MeetingCoordinator:
         self.api_key = api_key
         self.base_url = base_url
 
-        from tool_registry import ToolRegistry
         from tool_executor import ToolExecutor
+        from tool_registry import ToolRegistry
 
         if workspace:
             self._tool_registry = ToolRegistry()
@@ -163,9 +216,9 @@ class MeetingCoordinator:
             model_name=model_name or "",
             agent_pool=agent_pool,
         )
-        self._tasks: List[Dict[str, Any]] = []
-        self._on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
-        self._current_on_message: Optional[Callable[[str, str, str], Awaitable[None]]] = None
+        self._tasks: list[dict[str, Any]] = []
+        self._on_message: Callable[[str, str, str], Awaitable[None]] | None = None
+        self._current_on_message: Callable[[str, str, str], Awaitable[None]] | None = None
         self.logger = logging.getLogger("meeting_coordinator")
         self.agenda = AgendaStateMachine()
         self.negotiation = NegotiationEngine()
@@ -223,7 +276,7 @@ class MeetingCoordinator:
         )
 
         # 混合位置讨论引擎（支持本地/远端Agent并行讨论）
-        self._mixed_discussion: Optional[MixedLocationDiscussion] = None
+        self._mixed_discussion: MixedLocationDiscussion | None = None
 
         # Artifact 存储（角色产出物通过文件系统传递）
         self._artifact_store = None
@@ -297,17 +350,17 @@ class MeetingCoordinator:
         self._model_manager._agent_pool = value
 
     @property
-    def _models(self) -> Dict[str, Agent]:
+    def _models(self) -> dict[str, Agent]:
         """模型缓存（委托给 ModelManager，保持向后兼容）"""
         return self._model_manager._models
 
     @property
-    def _model_pool_ids(self) -> Dict[str, str]:
+    def _model_pool_ids(self) -> dict[str, str]:
         """模型池 ID 映射（委托给 ModelManager，保持向后兼容）"""
         return self._model_manager._model_pool_ids
 
     @property
-    def _task_routing(self) -> Dict[str, str]:
+    def _task_routing(self) -> dict[str, str]:
         """任务路由映射（委托给 RoutingStatsManager，保持向后兼容）"""
         return self._routing_stats._task_routing
 
@@ -321,7 +374,7 @@ class MeetingCoordinator:
 
     # ── Agent 隔离工作区 ──
 
-    def _setup_agent_isolation(self) -> Dict[str, str]:
+    def _setup_agent_isolation(self) -> dict[str, str]:
         return _setup_agent_isolation_impl(self)
 
     @_task_routing.setter
@@ -344,7 +397,7 @@ class MeetingCoordinator:
         return await run_agent_execution_loop(self, model, prompt, agent_toolset, max_tool_rounds, on_model_error)
 
     @staticmethod
-    def _extract_tool_calls_from_text(text: str) -> List[Dict[str, Any]]:
+    def _extract_tool_calls_from_text(text: str) -> list[dict[str, Any]]:
         """从 LLM 文本提取工具调用 JSON（委托给 coordinator_workflow）"""
         from coordinator_workflow import extract_tool_calls_from_text
         return extract_tool_calls_from_text(text)
@@ -354,7 +407,7 @@ class MeetingCoordinator:
         from coordinator_workflow import execute_workflow_node
         return await execute_workflow_node(self, node, input_data)
 
-    async def _run_node_gate(self, node: WorkflowNode) -> Optional[dict]:
+    async def _run_node_gate(self, node: WorkflowNode) -> dict | None:
         """节点把关（委托给 coordinator_workflow）"""
         from coordinator_workflow import run_node_gate
         return await run_node_gate(self, node)
@@ -385,7 +438,7 @@ class MeetingCoordinator:
         """委托给 ModelManager"""
         self._model_manager.safe_mark_failed(role)
 
-    async def decompose_task(self, task_description: str) -> List[Dict[str, Any]]:
+    async def decompose_task(self, task_description: str) -> list[dict[str, Any]]:
         return await _decompose_task_impl(self, task_description)
 
     async def run_discussion(
@@ -393,13 +446,13 @@ class MeetingCoordinator:
         topic: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
         max_rounds: int = 2,
-        team: Optional[Team] = None,
-    ) -> List[Dict[str, str]]:
+        team: Team | None = None,
+    ) -> list[dict[str, str]]:
         """运行多角色讨论（委托给 coordinator_discussion）"""
         from coordinator_discussion import run_discussion
         return await run_discussion(self, topic, on_message, max_rounds, team)
 
-    def _find_agent_id(self, role: AgentRole) -> Optional[str]:
+    def _find_agent_id(self, role: AgentRole) -> str | None:
         return _find_agent_id_impl(self, role)
 
     async def _msg(self, agent_id: str, text: str) -> None:
@@ -465,8 +518,8 @@ class MeetingCoordinator:
             self.agenda.resolve_emergency()
 
     async def assign_tasks(
-        self, subtasks: List[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
+        self, subtasks: list[dict[str, Any]] = None
+    ) -> list[dict[str, Any]]:
         if subtasks is None:
             subtasks = self._tasks
 
@@ -498,7 +551,7 @@ class MeetingCoordinator:
         self._tasks = subtasks or self._tasks
         return assignments
 
-    async def execute_assigned_tasks(self) -> List[Dict[str, Any]]:
+    async def execute_assigned_tasks(self) -> list[dict[str, Any]]:
         """执行已分配的任务（委托给TaskOrchestrator）
 
         WhyBuddy化：委托给TaskOrchestrator。
@@ -514,14 +567,14 @@ class MeetingCoordinator:
         self._routing_stats.update_stats_safe(self.meeting.tasks)
 
     async def _update_injected_rule_effectiveness(
-        self, coordinator_id: str, injected_rule_ids: List[str], review_result: Dict[str, Any]
+        self, coordinator_id: str, injected_rule_ids: list[str], review_result: dict[str, Any]
     ) -> None:
         await _update_injected_rule_effectiveness_impl(self, coordinator_id, injected_rule_ids, review_result)
 
     # ── 证据驱动交付 ──
 
     @staticmethod
-    def _build_peer_context(current_agent_id: str, execution_results: List[Dict[str, Any]]) -> str:
+    def _build_peer_context(current_agent_id: str, execution_results: list[dict[str, Any]]) -> str:
         """构建其他 agent 已完成工作的上下文（协调协议）
 
         当多个 agent 执行同一任务时，每个 agent 的 prompt 应包含
@@ -544,7 +597,7 @@ class MeetingCoordinator:
         return "\n\n## 其他 agent 已完成的工作（请勿重复）\n" + "\n".join(peer_parts)
 
     @staticmethod
-    def _verify_delivery(execution_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _verify_delivery(execution_results: list[dict[str, Any]]) -> dict[str, Any]:
         """验证执行结果有实际产出（证据驱动交付）
 
         检查：
@@ -587,13 +640,13 @@ class MeetingCoordinator:
         return {"passed": True, "reason": "ok", "evidence": evidence}
 
     @staticmethod
-    def _triage_task(user_message: str) -> Dict[str, Any]:
+    def _triage_task(user_message: str) -> dict[str, Any]:
         return _triage_task_impl(user_message)
 
-    async def _run_simple_path(self, user_message: str, ceo_id: str, on_message, team_id: str = "") -> Dict[str, Any]:
+    async def _run_simple_path(self, user_message: str, ceo_id: str, on_message, team_id: str = "") -> dict[str, Any]:
         return await _run_simple_path_impl(self, user_message, ceo_id, on_message, team_id)
 
-    async def _lightweight_review(self, reviewer_id, task_desc, exec_text, on_message) -> Dict:
+    async def _lightweight_review(self, reviewer_id, task_desc, exec_text, on_message) -> dict:
         return await _lightweight_review_impl(self, reviewer_id, task_desc, exec_text, on_message)
 
     def _grant_task_xp(self, agent_id, skill_id, task_success, review_score, task_complexity, department: str = ""):
@@ -605,24 +658,24 @@ class MeetingCoordinator:
     def _write_task_memory(self, agent_id: str, task_description: str, task_success: bool, review_score: float, execution_summary: str = ""):
         _write_task_memory_impl(self, agent_id, task_description, task_success, review_score, execution_summary)
 
-    def _finalize_skill_evolution(self, extractor, packager, project_id: str) -> Dict[str, Any]:
+    def _finalize_skill_evolution(self, extractor, packager, project_id: str) -> dict[str, Any]:
         return _finalize_skill_evolution_impl(self, extractor, packager, project_id)
 
     def _log_skill_evolution(self, project_id: str, rule) -> None:
         _log_skill_evolution_impl(project_id, rule)
 
     @staticmethod
-    def _build_execution_artifact_text(exec_results: List[Dict[str, Any]], max_summary_len: int = 400) -> str:
+    def _build_execution_artifact_text(exec_results: list[dict[str, Any]], max_summary_len: int = 400) -> str:
         return _build_execution_artifact_text_impl(exec_results, max_summary_len)
 
-    async def _save_execution_artifacts(self, exec_results: List[Dict[str, Any]]) -> None:
+    async def _save_execution_artifacts(self, exec_results: list[dict[str, Any]]) -> None:
         await _save_execution_artifacts_impl(self, exec_results)
 
     async def execute_and_review_task(
         self,
         task_description: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
-    ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         return await _execute_and_review_task_impl(self, task_description, on_message)
 
     # 工具缺失信号（通道感知 + 工具特定）：门禁只跑 run_linter（pylint）与 run_tests（pytest）
@@ -650,7 +703,7 @@ class MeetingCoordinator:
         from gate_engine import GateEngine
         return GateEngine._check_unavailable(error, output)
 
-    def _run_deterministic_gate(self, workspace_root: Optional[str] = None) -> Dict[str, Any]:
+    def _run_deterministic_gate(self, workspace_root: str | None = None) -> dict[str, Any]:
         """确定性门禁：委托给 GateEngine
 
         Returns:
@@ -685,7 +738,7 @@ class MeetingCoordinator:
         task_description: str,
         target_agent_id: str,
         reason: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         agent_info = self._resolve_agent(target_agent_id)
 
         # 验证解析到的Agent是否有能力执行任务（如写作任务需要write_file）
@@ -739,7 +792,7 @@ class MeetingCoordinator:
         user_message: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
         team_id: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         处理用户消息（编排方法，协调各阶段子流程）
 
@@ -940,7 +993,7 @@ class MeetingCoordinator:
     async def _inject_experience(self, coordinator_id, original_description, enhanced_description, discussion_results, target_agent_id: str = ""):
         return await _inject_experience_impl(self, coordinator_id, original_description, enhanced_description, discussion_results, target_agent_id)
 
-    def _log_knowledge_flow(self, from_agent: str, to_agent: str, rule_ids: List[str]) -> None:
+    def _log_knowledge_flow(self, from_agent: str, to_agent: str, rule_ids: list[str]) -> None:
         _log_knowledge_flow_impl(from_agent, to_agent, rule_ids)
 
     async def _run_voting_phase(self, coordinator_id, enhanced_description, discussion_results, on_message):
@@ -1094,7 +1147,7 @@ class MeetingCoordinator:
         from coordinator_discussion import _extract_discussion_decisions
         return _extract_discussion_decisions(self, discussion_results)
 
-    def _project_discussion_decisions(self) -> Optional[str]:
+    def _project_discussion_decisions(self) -> str | None:
         """从 SessionEvent 事件流投影讨论决策摘要（委托给 coordinator_discussion）"""
         from coordinator_discussion import _project_discussion_decisions
         return _project_discussion_decisions(self)
@@ -1148,7 +1201,7 @@ class MeetingCoordinator:
         self,
         workflow_definition: WorkflowDefinition,
         on_message: Callable[[str, str, str], Awaitable[None]],
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """执行工作流（委托给 coordinator_workflow）"""
         from coordinator_workflow import execute_workflow
         return await execute_workflow(self, workflow_definition, on_message)

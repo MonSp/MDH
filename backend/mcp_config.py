@@ -11,7 +11,6 @@ import os
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 logger = logging.getLogger("mcp_config")
 
@@ -22,9 +21,9 @@ class MCPServerEntry:
     name: str
     transport: str = "stdio"  # "stdio" | "streamable-http"
     command: str = ""
-    args: List[str] = field(default_factory=list)
+    args: list[str] = field(default_factory=list)
     url: str = ""
-    env: Dict[str, str] = field(default_factory=dict)
+    env: dict[str, str] = field(default_factory=dict)
     enabled: bool = True
     status: str = "disconnected"  # "connected" | "disconnected" | "error"
     tools_count: int = 0
@@ -57,7 +56,7 @@ class MCPConfigManager:
 
     def __init__(self, config_path: str):
         self._config_path = Path(config_path)
-        self._servers: Dict[str, MCPServerEntry] = {}
+        self._servers: dict[str, MCPServerEntry] = {}
         self._load()
 
     def _load(self) -> None:
@@ -90,11 +89,11 @@ class MCPConfigManager:
             encoding="utf-8",
         )
 
-    def list_servers(self) -> List[MCPServerEntry]:
+    def list_servers(self) -> list[MCPServerEntry]:
         """列出所有配置的服务器"""
         return list(self._servers.values())
 
-    def get_server(self, name: str) -> Optional[MCPServerEntry]:
+    def get_server(self, name: str) -> MCPServerEntry | None:
         """获取单个服务器配置"""
         return self._servers.get(name)
 
@@ -108,7 +107,7 @@ class MCPConfigManager:
         logger.info("添加 MCP 服务器: %s", entry.name)
         return entry
 
-    def update_server(self, name: str, updates: dict) -> Optional[MCPServerEntry]:
+    def update_server(self, name: str, updates: dict) -> MCPServerEntry | None:
         """更新服务器配置"""
         entry = self._servers.get(name)
         if not entry:

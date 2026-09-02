@@ -2,9 +2,9 @@
 
 import pytest
 
+from a2a_client import A2AClient
 from a2a_registry import A2ARegistry, AgentCard, AgentSkill, RegisteredAgent
 from a2a_task_router import A2ATaskRouter
-from a2a_client import A2AClient
 
 
 @pytest.fixture

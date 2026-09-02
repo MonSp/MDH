@@ -6,18 +6,17 @@ Extracted from meeting_coordinator.py to isolate execution and review logic.
 
 import asyncio
 import logging
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+from collections.abc import Awaitable, Callable
+from typing import Any
 
-from agent import _extract_text
-from meeting import MeetingAgentStatus
-from protocol import AgentRole, LLM_FALLBACK_TEMPLATE
+from protocol import AgentRole
 
 logger = logging.getLogger("coordinator_execution")
 
 
-def build_execution_artifact_text(exec_results: List[Dict[str, Any]], max_summary_len: int = 400) -> str:
+def build_execution_artifact_text(exec_results: list[dict[str, Any]], max_summary_len: int = 400) -> str:
     """构建 artifact 模式的执行结果文本：文件清单 + 截断摘要"""
-    parts: List[str] = []
+    parts: list[str] = []
     for r in exec_results:
         written = r.get("written_files") or []
         files_line = f"[文件清单] {', '.join(written)}" if written else "[文件清单] (无)"
@@ -26,7 +25,7 @@ def build_execution_artifact_text(exec_results: List[Dict[str, Any]], max_summar
     return "\n\n".join(parts)
 
 
-async def save_execution_artifacts(coordinator, exec_results: List[Dict[str, Any]]) -> None:
+async def save_execution_artifacts(coordinator, exec_results: list[dict[str, Any]]) -> None:
     """将执行产出的文件保存到 ArtifactStore，并发送通知"""
     if not coordinator._artifact_store:
         return
@@ -48,7 +47,7 @@ async def save_execution_artifacts(coordinator, exec_results: List[Dict[str, Any
             )
 
 
-async def lightweight_review(coordinator, reviewer_id, task_desc, exec_text, on_message) -> Dict:
+async def lightweight_review(coordinator, reviewer_id, task_desc, exec_text, on_message) -> dict:
     """轻量审查：单个 reviewer 一次 LLM 调用"""
     prompt = (
         f"你是 QA 工程师。请快速审查以下任务执行结果。\n\n"
@@ -85,7 +84,7 @@ async def lightweight_review(coordinator, reviewer_id, task_desc, exec_text, on_
     return {"structured_feedback": {"status": "approved", "score": 7.0}}
 
 
-async def run_simple_path(coordinator, user_message: str, ceo_id: str, on_message, team_id: str = "") -> Dict[str, Any]:
+async def run_simple_path(coordinator, user_message: str, ceo_id: str, on_message, team_id: str = "") -> dict[str, Any]:
     """简单任务路径：单 agent 执行 + 轻量审查（跳过讨论/投票/完整审查）"""
     executor_id = coordinator._find_agent_id(AgentRole.EXECUTOR) or "agent-executor"
     reviewer_id = coordinator._find_agent_id(AgentRole.REVIEWER) or "agent-reviewer"
@@ -145,7 +144,7 @@ async def run_simple_path(coordinator, user_message: str, ceo_id: str, on_messag
     }
 
 
-async def execute_and_review_task(coordinator, task_description: str, on_message: Callable[[str, str, str], Awaitable[None]]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+async def execute_and_review_task(coordinator, task_description: str, on_message: Callable[[str, str, str], Awaitable[None]]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """执行任务并审查（委托给ReviewPipeline）"""
     task_results = await coordinator.execute_assigned_tasks()
     for task_result in task_results:
@@ -167,7 +166,7 @@ async def execute_and_review_task(coordinator, task_description: str, on_message
 
 async def run_dev_loop(coordinator, coordinator_id, enhanced_description, discussion_context, on_message):
     """开发循环：执行 → 审查 → 修复迭代"""
-    from review_pipeline import ReviewReport, ReviewIteration
+    from review_pipeline import ReviewIteration, ReviewReport
     max_dev_iterations = coordinator._max_iterations
     review_result = {}
     execution_results = []

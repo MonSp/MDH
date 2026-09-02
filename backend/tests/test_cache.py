@@ -1,5 +1,6 @@
 """Tests for TTLCache — 性能缓存"""
 import time
+
 from cache import TTLCache, get_cache
 
 

@@ -71,7 +71,7 @@ class A2APostProcessor:
 
         # Prometheus: 任务成功/失败计数
         try:
-            from prometheus_metrics import TASK_SUCCESS, TASK_FAILURE
+            from prometheus_metrics import TASK_FAILURE, TASK_SUCCESS
             task_type = self._infer_task_type(task_description)
             if success:
                 TASK_SUCCESS.labels(task_type=task_type).inc()

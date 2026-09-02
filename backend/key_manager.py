@@ -7,7 +7,6 @@ KeyManager - 独立API密钥管理模块
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Dict, Optional
 
 logger = logging.getLogger("key_manager")
 
@@ -38,15 +37,15 @@ class KeyManager:
     支持字符串类型的role，不再限制为AgentRole枚举。
     """
 
-    def __init__(self, default_config: Optional[KeyConfig] = None):
+    def __init__(self, default_config: KeyConfig | None = None):
         """
         初始化KeyManager
 
         Args:
             default_config: 默认配置，未单独配置的角色使用此配置
         """
-        self._keys: Dict[str, KeyConfig] = {}
-        self._usage: Dict[str, UsageRecord] = {}
+        self._keys: dict[str, KeyConfig] = {}
+        self._usage: dict[str, UsageRecord] = {}
         self._default_config = default_config
 
         logger.info("KeyManager 初始化完成")
@@ -142,7 +141,7 @@ class KeyManager:
         logger.debug("记录角色 %s 的API调用，当前计数: %d",
                     role, self._usage[role].count)
 
-    def get_usage_stats(self, role: str) -> Dict:
+    def get_usage_stats(self, role: str) -> dict:
         """
         获取角色的使用统计
 
@@ -164,7 +163,7 @@ class KeyManager:
             "last_reset": usage.last_reset
         }
 
-    def get_all_stats(self) -> Dict[str, Dict]:
+    def get_all_stats(self) -> dict[str, dict]:
         """
         获取所有角色的使用统计
 
@@ -181,7 +180,7 @@ class KeyManager:
 
         return stats
 
-    def reset_usage(self, role: Optional[str] = None) -> None:
+    def reset_usage(self, role: str | None = None) -> None:
         """
         重置使用计数
 

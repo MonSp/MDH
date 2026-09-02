@@ -1,9 +1,10 @@
 """Tests for model-authored workflow generation"""
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from semantic_analyzer import SemanticAnalyzer
+import pytest
+
 from dynamic_router import DynamicRouter, RoutingDecision
+from semantic_analyzer import SemanticAnalyzer
 
 
 @pytest.fixture

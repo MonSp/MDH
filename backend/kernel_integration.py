@@ -8,7 +8,6 @@ available, while keeping the existing SQLite path as primary.
 
 import logging
 import os
-from typing import Dict, List, Optional
 
 from agent_kernel_client import AgentKernelClient, AgentKernelError, KernelAgent
 
@@ -27,7 +26,7 @@ class KernelIntegration:
         ki.disconnect()
     """
 
-    def __init__(self, socket_path: Optional[str] = None):
+    def __init__(self, socket_path: str | None = None):
         if socket_path is None:
             socket_path = os.environ.get(
                 "AGENT_KERNEL_SOCKET", "/tmp/agent-kernel.sock"
@@ -36,7 +35,7 @@ class KernelIntegration:
         self._client = AgentKernelClient(socket_path)
         self._connected = False
         # Mapping: company agent_id (str) -> kernel entity_id (int)
-        self._entity_map: Dict[str, int] = {}
+        self._entity_map: dict[str, int] = {}
 
     def connect(self) -> bool:
         """Try to connect to kernel. Returns False if unavailable."""
@@ -69,7 +68,7 @@ class KernelIntegration:
         company_role: str,
         total_xp: int = 0,
         career_stage: str = "Junior",
-    ) -> Optional[KernelAgent]:
+    ) -> KernelAgent | None:
         """Sync an agent from Company DB to kernel.
 
         Creates the agent in the kernel (or retrieves it if already present)
@@ -146,7 +145,7 @@ class KernelIntegration:
 
     # ── L4: LLM Decision ──────────────────────────────────────────
 
-    def agent_decide(self, agent_id: str, task: str) -> Optional[dict]:
+    def agent_decide(self, agent_id: str, task: str) -> dict | None:
         """Ask the kernel's LLM to make a decision for an agent.
 
         Returns a Decision dict (action, reasoning, confidence, delegateTo, details)
@@ -165,7 +164,7 @@ class KernelIntegration:
 
     # ── L5: Agent Tick & Simulation ──────────────────────────────
 
-    def agent_tick(self, agent_id: str, task: str) -> Optional[dict]:
+    def agent_tick(self, agent_id: str, task: str) -> dict | None:
         """Run a single agent tick: perceive → LLM decide → execute → apply effects.
 
         Returns a TickResult dict (action, tickNumber, timestamp, decision, effects)
@@ -183,8 +182,8 @@ class KernelIntegration:
             return None
 
     def run_simulation(
-        self, agent_ids: List[str], ticks: int = 1, tasks: Optional[List[str]] = None
-    ) -> Optional[dict]:
+        self, agent_ids: list[str], ticks: int = 1, tasks: list[str] | None = None
+    ) -> dict | None:
         """Run a multi-agent batch simulation.
 
         Returns a SimulationResult dict or None if kernel unavailable.
@@ -206,7 +205,7 @@ class KernelIntegration:
 
     # ── Query ───────────────────────────────────────────────────────
 
-    def get_kernel_state(self) -> List[dict]:
+    def get_kernel_state(self) -> list[dict]:
         """Get all agents from kernel as serializable dicts.
 
         Returns an empty list if kernel is unavailable.
@@ -239,14 +238,14 @@ class KernelIntegration:
 
     def sync_all_from_company(
         self, profiles: list
-    ) -> Dict[str, Optional[dict]]:
+    ) -> dict[str, dict | None]:
         """Bulk-sync all Company profiles to the kernel.
 
         *profiles* should be a list of AgentProfile objects (from
         AgentProfileManager.list_profiles()).  Returns a mapping of
         agent_id -> kernel agent dict (or None on failure).
         """
-        results: Dict[str, Optional[dict]] = {}
+        results: dict[str, dict | None] = {}
         for p in profiles:
             kernel_agent = self.sync_agent_to_kernel(
                 agent_id=p.agent_id,

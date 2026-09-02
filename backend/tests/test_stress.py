@@ -265,11 +265,14 @@ def test_04_large_workflow_execution(tmp_path):
 
     Execute and verify all nodes complete. Report execution time.
     """
-    from workflow_engine import WorkflowEngine
     from protocol import (
-        WorkflowDefinition, WorkflowNode, WorkflowEdge,
-        WorkflowNodeStatus, WorkflowExecutionStatus,
+        WorkflowDefinition,
+        WorkflowEdge,
+        WorkflowExecutionStatus,
+        WorkflowNode,
+        WorkflowNodeStatus,
     )
+    from workflow_engine import WorkflowEngine
 
     persistence_dir = str(tmp_path / "workflow_persist")
     engine = WorkflowEngine(persistence_dir=persistence_dir)
@@ -352,7 +355,7 @@ def test_05_evolution_event_flood(tmp_path):
     Verify timeline query returns correct count.
     Verify summary aggregation is correct. Report write throughput.
     """
-    from evolution_events import EvolutionEventStore, EvolutionEvent, new_event_id
+    from evolution_events import EvolutionEvent, EvolutionEventStore, new_event_id
 
     db_path = str(tmp_path / "flood_evolution.db")
     store = EvolutionEventStore(db_path=db_path)
@@ -412,7 +415,8 @@ def test_06_memory_pressure_large_extraction(tmp_path):
     Verify rules created without OOM. Report peak memory delta.
     """
     import tracemalloc
-    from experience_extractor import ExperienceExtractor, ExecutionLog
+
+    from experience_extractor import ExecutionLog, ExperienceExtractor
 
     inc_dir = str(tmp_path / "incremental_mem")
     extractor = ExperienceExtractor(incremental_dir=inc_dir)

@@ -15,8 +15,8 @@ import statistics
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 sys.path.insert(0, os.path.dirname(__file__))
 

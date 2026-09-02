@@ -1,6 +1,7 @@
 """Tests for SharedExperiencePool and cross-project experience retrieval"""
-import pytest
 import tempfile
+
+import pytest
 
 from shared_experience_pool import SharedExperiencePool
 

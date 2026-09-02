@@ -4,9 +4,9 @@
 为 server.py REST 端点提供类型安全和自动验证。
 """
 
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from typing import Any
 
+from pydantic import BaseModel, Field
 
 # ── 技能管理 ──
 
@@ -28,7 +28,7 @@ class ProjectCreateRequest(BaseModel):
 
 class TaskCreateRequest(BaseModel):
     description: str = Field(..., min_length=1, max_length=2000, description="任务描述")
-    agent_id: Optional[str] = Field(None, description="指定执行者 ID")
+    agent_id: str | None = Field(None, description="指定执行者 ID")
 
 
 class SubtaskCreateRequest(BaseModel):
@@ -41,8 +41,8 @@ class RouteEntryRequest(BaseModel):
     dept_id: str = Field(..., description="部门 ID")
     dept_name: str = Field(..., description="部门名称")
     capability_desc: str = Field("", description="能力描述")
-    capability_keywords: List[str] = Field(default_factory=list, description="能力关键词")
-    tools: List[str] = Field(default_factory=list, description="工具列表")
+    capability_keywords: list[str] = Field(default_factory=list, description="能力关键词")
+    tools: list[str] = Field(default_factory=list, description="工具列表")
     priority: int = Field(5, ge=1, le=10, description="优先级 1-10")
 
 
@@ -51,15 +51,15 @@ class RouteEntryRequest(BaseModel):
 class RoleCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="角色名称")
     description: str = Field("", max_length=500, description="角色描述")
-    tools: List[str] = Field(default_factory=list, description="工具列表")
-    skills: List[str] = Field(default_factory=list, description="技能列表")
+    tools: list[str] = Field(default_factory=list, description="工具列表")
+    skills: list[str] = Field(default_factory=list, description="技能列表")
 
 
 class RoleUpdateRequest(BaseModel):
-    name: Optional[str] = Field(None, max_length=100)
-    description: Optional[str] = Field(None, max_length=500)
-    tools: Optional[List[str]] = None
-    skills: Optional[List[str]] = None
+    name: str | None = Field(None, max_length=100)
+    description: str | None = Field(None, max_length=500)
+    tools: list[str] | None = None
+    skills: list[str] | None = None
 
 
 # ── 工作流 ──
@@ -68,22 +68,22 @@ class WorkflowNodeRequest(BaseModel):
     node_id: str = Field(..., description="节点 ID")
     task_description: str = Field("", description="任务描述")
     dept_id: str = Field("", description="部门 ID")
-    input_spec: Dict[str, Any] = Field(default_factory=dict)
-    output_spec: Dict[str, Any] = Field(default_factory=dict)
+    input_spec: dict[str, Any] = Field(default_factory=dict)
+    output_spec: dict[str, Any] = Field(default_factory=dict)
 
 
 class WorkflowEdgeRequest(BaseModel):
     source_node_id: str = Field(..., description="源节点 ID")
     target_node_id: str = Field(..., description="目标节点 ID")
-    condition: Optional[str] = Field(None, description="条件表达式")
+    condition: str | None = Field(None, description="条件表达式")
 
 
 class WorkflowCreateRequest(BaseModel):
-    workflow_id: Optional[str] = Field(None, description="工作流 ID")
+    workflow_id: str | None = Field(None, description="工作流 ID")
     name: str = Field("Unnamed", max_length=200, description="工作流名称")
     description: str = Field("", max_length=1000, description="工作流描述")
-    nodes: List[WorkflowNodeRequest] = Field(default_factory=list, description="节点列表")
-    edges: List[WorkflowEdgeRequest] = Field(default_factory=list, description="边列表")
+    nodes: list[WorkflowNodeRequest] = Field(default_factory=list, description="节点列表")
+    edges: list[WorkflowEdgeRequest] = Field(default_factory=list, description="边列表")
     execution_strategy: str = Field("sequential", description="执行策略")
 
 
@@ -104,7 +104,7 @@ class SkillForkRequest(BaseModel):
 class ExperiencePublishRequest(BaseModel):
     trigger_condition: str = Field(..., min_length=1, description="触发条件")
     action: str = Field(..., min_length=1, description="建议动作")
-    keywords: List[str] = Field(default_factory=list, description="关键词")
+    keywords: list[str] = Field(default_factory=list, description="关键词")
     rule_type: str = Field("success_pattern", description="规则类型")
 
 
@@ -129,19 +129,19 @@ class MCPServerRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="服务器名称")
     transport: str = Field("stdio", description="传输类型")
     command: str = Field("", description="命令（stdio）")
-    args: List[str] = Field(default_factory=list, description="参数（stdio）")
+    args: list[str] = Field(default_factory=list, description="参数（stdio）")
     url: str = Field("", description="URL（http）")
-    env: Dict[str, str] = Field(default_factory=dict, description="环境变量")
+    env: dict[str, str] = Field(default_factory=dict, description="环境变量")
     enabled: bool = Field(True, description="是否启用")
 
 
 class MCPServerUpdateRequest(BaseModel):
-    transport: Optional[str] = None
-    command: Optional[str] = None
-    args: Optional[List[str]] = None
-    url: Optional[str] = None
-    env: Optional[Dict[str, str]] = None
-    enabled: Optional[bool] = None
+    transport: str | None = None
+    command: str | None = None
+    args: list[str] | None = None
+    url: str | None = None
+    env: dict[str, str] | None = None
+    enabled: bool | None = None
 
 
 # ── 社区市场 ──

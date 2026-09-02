@@ -4,9 +4,10 @@
 由于这些模块依赖agentscope等外部库，使用sys.modules mock进行测试。
 """
 
-import pytest
 import sys
 from unittest.mock import MagicMock
+
+import pytest
 
 
 # Mock agentscope modules before importing

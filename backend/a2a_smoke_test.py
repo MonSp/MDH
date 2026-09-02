@@ -11,10 +11,10 @@
 不需要启动完整服务器，所有组件在进程内测试。
 """
 
-import sys
 import json
+import sys
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # ── Mock A2A Server ──
 
@@ -63,8 +63,8 @@ def run_smoke_tests():
 
     # 1. Import check
     try:
-        from a2a_registry import A2ARegistry, AgentCard, AgentSkill
         from a2a_client import A2AClient
+        from a2a_registry import A2ARegistry, AgentCard, AgentSkill
         from a2a_task_router import A2ATaskRouter
         from state_sync import StateSyncManager
         results.append(("模块导入", True, "所有 A2A 模块导入成功"))
@@ -74,8 +74,8 @@ def run_smoke_tests():
 
     # 2. Registry
     try:
-        import tempfile
         import asyncio
+        import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             registry = A2ARegistry(persist_path=f"{tmp}/agents.json")
             card = AgentCard(

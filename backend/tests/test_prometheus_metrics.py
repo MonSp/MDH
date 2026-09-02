@@ -7,8 +7,8 @@ Verifies:
 - Evolution event counter increments
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -25,7 +25,6 @@ def _reset_prometheus_metrics():
     # 重新创建指标对象使用默认 registry（测试间通过 clear 重置）
     # prometheus_client 不支持 unregister 后重新 register 同名指标，
     # 所以我们直接测试默认 registry 的行为
-    pass
 
 
 class TestMetricsEndpoint:
@@ -34,6 +33,7 @@ class TestMetricsEndpoint:
     def test_metrics_endpoint_returns_prometheus_format(self):
         """验证 /metrics 返回 Prometheus text format"""
         from fastapi.testclient import TestClient
+
         from server import app
 
         client = TestClient(app)
@@ -194,6 +194,7 @@ class TestA2APostProcessorIntegration:
     def test_process_success_increments_task_success(self):
         """验证 A2A 任务成功时 TASK_SUCCESS 计数器递增"""
         import asyncio
+
         from a2a_post_processor import A2APostProcessor
         from prometheus_metrics import TASK_SUCCESS
 
@@ -211,6 +212,7 @@ class TestA2APostProcessorIntegration:
     def test_process_failure_increments_task_failure(self):
         """验证 A2A 任务失败时 TASK_FAILURE 计数器递增"""
         import asyncio
+
         from a2a_post_processor import A2APostProcessor
         from prometheus_metrics import TASK_FAILURE
 

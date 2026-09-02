@@ -7,7 +7,7 @@ import json
 import logging
 import os
 from collections import Counter, defaultdict
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("system_introspection")
 
@@ -19,7 +19,7 @@ class SystemIntrospection:
         self._data_dir = data_dir
         self._experience_dir = os.path.join(data_dir, "experience")
         self._tracking_path = os.path.join(data_dir, "feature_tracking.json")
-        self._tracking: Dict[str, Any] = {}
+        self._tracking: dict[str, Any] = {}
         self._load_tracking()
 
     def _load_tracking(self):
@@ -61,7 +61,7 @@ class SystemIntrospection:
         self._tracking["regressions"] = regressions[-100:]
         self._save_tracking()
 
-    def get_feature_utilization(self) -> Dict[str, Any]:
+    def get_feature_utilization(self) -> dict[str, Any]:
         """功能利用率分析
 
         分析 v1.5.x 新增功能的实际使用情况
@@ -119,7 +119,7 @@ class SystemIntrospection:
             },
         }
 
-    def get_module_health(self) -> Dict[str, Any]:
+    def get_module_health(self) -> dict[str, Any]:
         """模块健康度分析
 
         基于规则数据推断模块的使用情况
@@ -166,7 +166,7 @@ class SystemIntrospection:
             "weakest": min(modules.items(), key=lambda x: x[1]["avg_effectiveness"])[0] if modules else None,
         }
 
-    def get_regression_report(self) -> Dict[str, Any]:
+    def get_regression_report(self) -> dict[str, Any]:
         """回归报告"""
         regressions = self._tracking.get("regressions", [])
         by_module = Counter(r.get("module", "unknown") for r in regressions)
@@ -179,7 +179,7 @@ class SystemIntrospection:
             "recent": recent[-10:],
         }
 
-    def generate_improvement_proposals(self) -> List[Dict[str, Any]]:
+    def generate_improvement_proposals(self) -> list[dict[str, Any]]:
         """生成改进提案
 
         基于功能利用率、模块健康度、回归数据自动生成改进建议
@@ -242,5 +242,5 @@ class SystemIntrospection:
         return datetime.now(timezone.utc).isoformat()
 
     def _hours_ago(self, hours: int) -> str:
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
         return (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()

@@ -5,13 +5,13 @@ import traceback
 
 from agentscope.agent import Agent, ContextConfig
 from agentscope.credential import (
-    OpenAICredential,
     AnthropicCredential,
     DashScopeCredential,
     DeepSeekCredential,
     GeminiCredential,
     MoonshotCredential,
     OllamaCredential,
+    OpenAICredential,
     XAICredential,
 )
 from agentscope.event import (
@@ -19,6 +19,7 @@ from agentscope.event import (
     DataBlockDeltaEvent,
     DataBlockEndEvent,
     DataBlockStartEvent,
+    ExceedMaxItersEvent,
     ExternalExecutionResultEvent,
     ModelCallEndEvent,
     ModelCallStartEvent,
@@ -40,34 +41,33 @@ from agentscope.event import (
     ToolResultStartEvent,
     ToolResultTextDeltaEvent,
     UserConfirmResultEvent,
-    ExceedMaxItersEvent,
 )
 from agentscope.formatter import (
-    OpenAIChatFormatter,
     AnthropicChatFormatter,
     DashScopeChatFormatter,
     DeepSeekChatFormatter,
     GeminiChatFormatter,
     MoonshotChatFormatter,
     OllamaChatFormatter,
+    OpenAIChatFormatter,
     XAIChatFormatter,
 )
 from agentscope.message import Msg, TextBlock, ToolResultBlock, ToolResultState
 from agentscope.model import (
-    OpenAIChatModel,
     AnthropicChatModel,
     DashScopeChatModel,
     DeepSeekChatModel,
     GeminiChatModel,
     MoonshotChatModel,
     OllamaChatModel,
+    OpenAIChatModel,
     XAIChatModel,
 )
 from agentscope.skill import LocalSkillLoader
 from agentscope.tool import FunctionTool, Toolkit
 
-from config import SYSTEM_PROMPT, SKILLS_DIR
-from session import Session, get_session, _current_session
+from config import SKILLS_DIR, SYSTEM_PROMPT
+from session import Session, _current_session, get_session
 
 logger = logging.getLogger("agent")
 
@@ -349,7 +349,6 @@ async def _stream_loop(agent: Agent, first_input):
                 DataBlockEndEvent,
             )):
                 logger.debug("  (已忽略事件)")
-                pass
 
             else:
                 logger.debug("  未处理的流式事件: %s", type(event).__name__)

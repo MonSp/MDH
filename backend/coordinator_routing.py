@@ -7,7 +7,6 @@ Extracted from meeting_coordinator.py to isolate routing logic behind a clean in
 import json
 import logging
 import os
-from typing import Dict, Optional, Set
 
 from protocol import AgentRole
 
@@ -36,7 +35,7 @@ def estimate_task_complexity(task_description: str) -> int:
     return min(5, max(1, score))
 
 
-def setup_agent_isolation(coordinator) -> Dict[str, str]:
+def setup_agent_isolation(coordinator) -> dict[str, str]:
     """为会议中的每个 agent 创建隔离工作区"""
     agent_workspaces = {}
     if not coordinator._workspace or not coordinator._workspace.root_path:
@@ -59,7 +58,7 @@ def setup_agent_isolation(coordinator) -> Dict[str, str]:
     return agent_workspaces
 
 
-def find_agent_id(coordinator, role: AgentRole) -> Optional[str]:
+def find_agent_id(coordinator, role: AgentRole) -> str | None:
     for a in coordinator.meeting.agents:
         if a.role == role:
             return a.id
@@ -87,7 +86,7 @@ def resolve_agent(coordinator, agent_id: str):
     return None
 
 
-def get_agent_tools(coordinator, agent) -> Set[str]:
+def get_agent_tools(coordinator, agent) -> set[str]:
     """获取Agent实际可用的工具集。优先使用AGENT_ROLE_TOOLS，回退到角色配置。"""
     role_tools = AGENT_ROLE_TOOLS.get(agent.role)
     if role_tools is not None:
@@ -178,8 +177,7 @@ def find_best_agent_for_task(coordinator, task_description: str):
                     for skill_id in skills:
                         sp = profile.skill_progress.get(skill_id, {})
                         level = sp.get("level", 0) if isinstance(sp, dict) else 0
-                        if level > max_skill_level:
-                            max_skill_level = level
+                        max_skill_level = max(max_skill_level, level)
 
                     if task_complexity <= 2:
                         if max_skill_level <= 1:

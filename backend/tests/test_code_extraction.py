@@ -1,5 +1,6 @@
 from code_extractor import extract_code_blocks
 
+
 def test_extract_single_code_block():
     """测试提取单个代码块"""
     text = """

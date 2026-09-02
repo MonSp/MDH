@@ -9,7 +9,6 @@ import os
 import threading
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
 logger = logging.getLogger("llm_cost")
 
@@ -48,7 +47,7 @@ class LLMCostTracker:
     def __init__(self, data_dir: str):
         self._path = os.path.join(data_dir, "llm_costs.json")
         self._lock = threading.Lock()
-        self._records: List[dict] = []
+        self._records: list[dict] = []
         self._load()
 
     def _load(self) -> None:
@@ -111,7 +110,7 @@ class LLMCostTracker:
             self._save()
         return record
 
-    def get_summary(self) -> Dict:
+    def get_summary(self) -> dict:
         """成本汇总"""
         with self._lock:
             records = self._records
@@ -123,9 +122,9 @@ class LLMCostTracker:
         total_tokens_in = sum(r["input_tokens"] for r in records)
         total_tokens_out = sum(r["output_tokens"] for r in records)
 
-        by_role: Dict[str, Dict] = {}
-        by_model: Dict[str, Dict] = {}
-        by_agent: Dict[str, Dict] = {}
+        by_role: dict[str, dict] = {}
+        by_model: dict[str, dict] = {}
+        by_agent: dict[str, dict] = {}
 
         for r in records:
             role = r.get("role", "unknown")
@@ -163,14 +162,14 @@ class LLMCostTracker:
             "by_agent": by_agent,
         }
 
-    def get_records(self, limit: int = 100) -> List[dict]:
+    def get_records(self, limit: int = 100) -> list[dict]:
         """获取最近的调用记录"""
         with self._lock:
             return list(reversed(self._records[-limit:]))
 
 
 # 全局单例
-_tracker: Optional[LLMCostTracker] = None
+_tracker: LLMCostTracker | None = None
 
 
 def get_tracker(data_dir: str = "") -> LLMCostTracker:

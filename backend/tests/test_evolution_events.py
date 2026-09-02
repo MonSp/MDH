@@ -3,19 +3,18 @@
 import os
 import sqlite3
 import threading
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from evolution_events import (
+    EVENT_TYPES,
+    ABTracker,
     EvolutionEvent,
     EvolutionEventStore,
-    ABTracker,
-    new_event_id,
     _now_iso,
-    EVENT_TYPES,
+    new_event_id,
 )
-
 
 # ══════════════════════════════════════════════════════════════════
 # T1: EvolutionEvent + EvolutionEventStore
@@ -302,7 +301,7 @@ class TestEventStoreWiring:
         extractor = ExperienceExtractor(incremental_dir, event_store=event_store)
 
         # Create and save a rule, then approve it
-        from experience_extractor import ExperienceRule, _now_iso, _new_rule_id
+        from experience_extractor import ExperienceRule, _new_rule_id, _now_iso
         rule = ExperienceRule(
             rule_id=_new_rule_id(),
             trigger_condition="test condition",

@@ -11,9 +11,9 @@ import os
 import re
 import threading
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional
 
 import yaml
 
@@ -48,7 +48,7 @@ class ExperienceRule:
     source_task_type: str  # 来源任务类型
     rule_type: str  # success_pattern / failure_avoidance / correction_tip
     status: str  # pending_review / approved / rejected
-    keywords: List[str]  # 关键词标签
+    keywords: list[str]  # 关键词标签
     created_at: str
     team_id: str = ""  # 归属团队（"" = 全局/未隔离——旧规则兼容）
     source_agent_id: str = ""  # 来源 agent ID（用于 mentor 匹配）
@@ -70,7 +70,7 @@ def _new_rule_id() -> str:
     return str(uuid.uuid4())
 
 
-def _extract_keywords_from_steps(steps: List[dict], task_type: str) -> List[str]:
+def _extract_keywords_from_steps(steps: list[dict], task_type: str) -> list[str]:
     """从执行步骤中提取关键词标签"""
     keywords = set()
     keywords.add(task_type)
@@ -91,7 +91,7 @@ def _extract_keywords_from_steps(steps: List[dict], task_type: str) -> List[str]
     return sorted(keywords)
 
 
-def _extract_keywords_from_errors(errors: List[dict]) -> List[str]:
+def _extract_keywords_from_errors(errors: list[dict]) -> list[str]:
     """从错误列表中提取关键词标签"""
     keywords = set()
     for err in errors:
@@ -108,15 +108,13 @@ def _extract_keywords_from_errors(errors: List[dict]) -> List[str]:
     return sorted(keywords)
 
 
-def _identify_decision_points(steps: List[dict]) -> List[dict]:
+def _identify_decision_points(steps: list[dict]) -> list[dict]:
     """识别关键决策点"""
     decision_points = []
     for step in steps:
         if not isinstance(step, dict):
             continue
-        if step.get("is_decision") or step.get("decision"):
-            decision_points.append(step)
-        elif step.get("selected_option") or step.get("chosen_approach"):
+        if step.get("is_decision") or step.get("decision") or step.get("selected_option") or step.get("chosen_approach"):
             decision_points.append(step)
     return decision_points
 
@@ -128,7 +126,7 @@ class ExperienceExtractor:
     将通过审核的规则写入技能增量区。
     """
 
-    def __init__(self, incremental_dir: str, llm_caller: Optional[Callable] = None, event_store=None):
+    def __init__(self, incremental_dir: str, llm_caller: Callable | None = None, event_store=None):
         """初始化经验提炼器
 
         Args:
@@ -174,7 +172,7 @@ class ExperienceExtractor:
             )
             self._db.commit()
 
-    def _load_rule(self, rule_id: str) -> Optional[ExperienceRule]:
+    def _load_rule(self, rule_id: str) -> ExperienceRule | None:
         """从 SQLite 加载规则（线程安全）"""
         with self._lock:
             row = self._db.execute(
@@ -214,7 +212,7 @@ class ExperienceExtractor:
             last_used_at=row["last_used_at"] or "",
         )
 
-    def _list_rule_ids(self) -> List[str]:
+    def _list_rule_ids(self) -> list[str]:
         """列出所有规则 ID"""
         rows = self._db.execute("SELECT rule_id FROM experience_rules").fetchall()
         return [r["rule_id"] for r in rows]
@@ -223,7 +221,7 @@ class ExperienceExtractor:
 
     async def _llm_distill(
         self, task_description: str, result_text: str, context: str = ""
-    ) -> List[ExperienceRule]:
+    ) -> list[ExperienceRule]:
         """Use LLM to extract reusable experience rules from task execution.
 
         Args:
@@ -269,7 +267,7 @@ class ExperienceExtractor:
         # 解析 LLM 响应
         return self._parse_llm_rules(raw)
 
-    def _parse_llm_rules(self, raw: str) -> List[ExperienceRule]:
+    def _parse_llm_rules(self, raw: str) -> list[ExperienceRule]:
         """Parse LLM JSON response into ExperienceRule objects.
 
         Handles markdown code blocks and malformed JSON gracefully.
@@ -298,7 +296,7 @@ class ExperienceExtractor:
         if not isinstance(items, list):
             return []
 
-        rules: List[ExperienceRule] = []
+        rules: list[ExperienceRule] = []
         task_type = self._infer_task_type(task_description="")
         for item in items:
             if not isinstance(item, dict):
@@ -326,7 +324,7 @@ class ExperienceExtractor:
 
     def _try_llm_distill_sync(
         self, task_description: str, result_text: str, context: str = ""
-    ) -> List[ExperienceRule]:
+    ) -> list[ExperienceRule]:
         """Sync wrapper to try LLM distillation. Returns empty list on any failure."""
         if self._llm_caller is None:
             return []
@@ -354,7 +352,7 @@ class ExperienceExtractor:
 
     # ──────────────────── 经验提炼 ────────────────────
 
-    def extract_from_success(self, log: ExecutionLog) -> List[ExperienceRule]:
+    def extract_from_success(self, log: ExecutionLog) -> list[ExperienceRule]:
         """从成功执行日志中提炼经验
 
         提炼逻辑：
@@ -399,7 +397,7 @@ class ExperienceExtractor:
 
         # 回退到模板提取
 
-        rules: List[ExperienceRule] = []
+        rules: list[ExperienceRule] = []
         keywords = _extract_keywords_from_steps(log.steps, log.task_type)
 
         # 规则 1：基于关键决策点
@@ -463,7 +461,7 @@ class ExperienceExtractor:
 
         return rules
 
-    def extract_from_failure_recovery(self, log: ExecutionLog) -> List[ExperienceRule]:
+    def extract_from_failure_recovery(self, log: ExecutionLog) -> list[ExperienceRule]:
         """从失败-修正交互对中提炼经验
 
         提炼逻辑：
@@ -479,7 +477,7 @@ class ExperienceExtractor:
         if not log.errors or not log.corrections:
             return []
 
-        rules: List[ExperienceRule] = []
+        rules: list[ExperienceRule] = []
         error_keywords = _extract_keywords_from_errors(log.errors)
         step_keywords = _extract_keywords_from_steps(log.steps, log.task_type)
         all_keywords = sorted(set(error_keywords + step_keywords))
@@ -720,7 +718,7 @@ class ExperienceExtractor:
         )
         self._db.commit()
 
-    def get_demotion_log(self) -> List[Dict]:
+    def get_demotion_log(self) -> list[dict]:
         """获取降级日志（最近的在前）"""
         rows = self._db.execute(
             "SELECT * FROM demotion_log ORDER BY id DESC"
@@ -744,7 +742,7 @@ class ExperienceExtractor:
 
         # 统计近期进化（最近 10 次）的 rule_type 分布
         recent = evolution_log[:10]
-        type_counts: Dict[str, int] = {}
+        type_counts: dict[str, int] = {}
         for entry in recent:
             # 从进化日志中推断 rule_type
             orig_id = entry.get("original_rule_id", "")
@@ -761,7 +759,7 @@ class ExperienceExtractor:
             return False  # 该领域进化过多，拒绝
         return True
 
-    def retrieve_with_aging(self, task_type: str, keywords: List[str], team_id: str = "") -> List[ExperienceRule]:
+    def retrieve_with_aging(self, task_type: str, keywords: list[str], team_id: str = "") -> list[ExperienceRule]:
         """带老化机制的规则检索
 
         - 老规则（超过 AGING_DAYS 未使用）降权
@@ -769,7 +767,7 @@ class ExperienceExtractor:
         - 20% 概率注入随机规则（探索）
         """
         import random as _random
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
 
         rules = self.retrieve_relevant_rules(task_type, keywords, team_id)
         if not rules:
@@ -807,7 +805,7 @@ class ExperienceExtractor:
     SHARE_MIN_SCORE = 0.7
     SHARE_MIN_USAGE = 5
 
-    def get_share_recommendations(self) -> List[Dict]:
+    def get_share_recommendations(self) -> list[dict]:
         """推荐高分规则发布到共享池
 
         条件：approved + effectiveness_score ≥ 0.7 + usage_count ≥ 5
@@ -839,7 +837,7 @@ class ExperienceExtractor:
     EVOLUTION_MIN_SCORE = 0.3
     EVOLUTION_MAX_COUNT = 3  # 单条规则最多进化 3 次
 
-    def evolve_rule(self, rule_id: str, failure_reason: str = "") -> Optional[ExperienceRule]:
+    def evolve_rule(self, rule_id: str, failure_reason: str = "") -> ExperienceRule | None:
         """规则自进化：分析失败原因，生成改进版规则
 
         Args:
@@ -853,7 +851,7 @@ class ExperienceExtractor:
             return None
         return self._evolve_rule_impl(rule, failure_reason)
 
-    def _evolve_rule_impl(self, rule: ExperienceRule, failure_reason: str = "") -> Optional[ExperienceRule]:
+    def _evolve_rule_impl(self, rule: ExperienceRule, failure_reason: str = "") -> ExperienceRule | None:
         """规则自进化实现（接受内存中的规则对象，含抗过拟合检查）"""
         # 检查进化条件
         if rule.status not in ("approved", "pending_review"):
@@ -944,7 +942,7 @@ class ExperienceExtractor:
 
         return evolved
 
-    def _generate_evolved_rule(self, original: ExperienceRule, failure_reason: str) -> Optional[ExperienceRule]:
+    def _generate_evolved_rule(self, original: ExperienceRule, failure_reason: str) -> ExperienceRule | None:
         """生成改进版规则（基于原规则 + 失败原因）
 
         策略：
@@ -998,7 +996,7 @@ class ExperienceExtractor:
             constraints.append("注意安全漏洞")
         return "；".join(constraints) if constraints else ""
 
-    def get_evolution_chain(self, rule_id: str) -> List[Dict]:
+    def get_evolution_chain(self, rule_id: str) -> list[dict]:
         """获取规则的进化链（从原始到最新）"""
         chain = []
         current_id = rule_id
@@ -1035,7 +1033,7 @@ class ExperienceExtractor:
 
         return chain
 
-    def get_evolution_log(self) -> List[Dict]:
+    def get_evolution_log(self) -> list[dict]:
         """获取进化日志"""
         rows = self._db.execute(
             "SELECT * FROM evolution_log ORDER BY id DESC"
@@ -1056,7 +1054,7 @@ class ExperienceExtractor:
         self._db.commit()
 
 
-    def get_demotion_stats(self) -> Dict:
+    def get_demotion_stats(self) -> dict:
         """降级统计报表：按类型/团队/时间聚合，含复审率"""
         from collections import Counter
         log = self.get_demotion_log()  # 倒序（最近在前）
@@ -1082,7 +1080,7 @@ class ExperienceExtractor:
         re_approval_rate = re_approved / len(demoted_rule_ids) if demoted_rule_ids else 0.0
 
         # 按天聚合时间线（最近 14 天）
-        day_counts: Dict[str, int] = {}
+        day_counts: dict[str, int] = {}
         for e in log:
             day = e.get("demoted_at", "")[:10]
             if day:
@@ -1166,7 +1164,7 @@ class ExperienceExtractor:
                      rule_id, rule.effectiveness_score, rule.success_count, rule.usage_count)
         return True
 
-    def scan_and_demote_ineffective_rules(self) -> List[str]:
+    def scan_and_demote_ineffective_rules(self) -> list[str]:
         """扫描所有已批准规则，降级有效性过低的规则
 
         Returns:
@@ -1245,7 +1243,7 @@ class ExperienceExtractor:
 
     # ──────────────────── 检索与上下文 ────────────────────
 
-    def retrieve_relevant_rules(self, task_type: str, keywords: List[str], team_id: str = "") -> List[ExperienceRule]:
+    def retrieve_relevant_rules(self, task_type: str, keywords: list[str], team_id: str = "") -> list[ExperienceRule]:
         """根据任务特征检索相关经验规则
 
         基于关键词匹配实现：计算规则关键词与查询关键词的交集大小作为相关度。
@@ -1261,7 +1259,7 @@ class ExperienceExtractor:
         query_keywords = set(k.lower() for k in keywords)
         query_keywords.add(task_type.lower())
 
-        scored: List[tuple] = []
+        scored: list[tuple] = []
         for rule_id in all_rule_ids:
             rule = self._load_rule(rule_id)
             if rule is None or rule.status != "approved":
@@ -1282,11 +1280,11 @@ class ExperienceExtractor:
     def retrieve_with_shared(
         self,
         task_type: str,
-        keywords: List[str],
+        keywords: list[str],
         team_id: str = "",
         shared_pool_dir: str = "",
         limit: int = 10,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """跨项目经验检索：本地规则 + 共享池规则联合搜索。
 
         Args:
@@ -1350,7 +1348,7 @@ class ExperienceExtractor:
         results.sort(key=lambda x: -x["score"])
         return results[:limit]
 
-    def migrate_rules_team_id(self, team_id: str, rule_ids: Optional[List[str]] = None) -> int:
+    def migrate_rules_team_id(self, team_id: str, rule_ids: list[str] | None = None) -> int:
         """存量规则 team_id 回填（规则级团队隔离迁移）。
 
         team_id 严格过滤（fail-closed）下 team_id="" 的存量规则对团队检索不可见
@@ -1370,7 +1368,7 @@ class ExperienceExtractor:
         logger.info("Migrated %d rules to team %s", migrated, team_id)
         return migrated
 
-    def build_experience_context(self, rules: List[ExperienceRule]) -> str:
+    def build_experience_context(self, rules: list[ExperienceRule]) -> str:
         """将规则格式化为可注入的提示上下文（完整版）
 
         Args:
@@ -1394,7 +1392,7 @@ class ExperienceExtractor:
 
         return "\n".join(lines)
 
-    def build_experience_summary(self, rules: List[ExperienceRule], max_rules: int = 5) -> str:
+    def build_experience_summary(self, rules: list[ExperienceRule], max_rules: int = 5) -> str:
         """渐进披露：生成精简版经验摘要（仅触发条件 + 建议动作），减少 context 消耗。
 
         完整详情在 agent 需要时可通过 retrieve_relevant_rules 按需加载。
@@ -1414,7 +1412,7 @@ class ExperienceExtractor:
 
     # ──────────────────── 查询方法 ────────────────────
 
-    def get_pending_rules(self) -> List[ExperienceRule]:
+    def get_pending_rules(self) -> list[ExperienceRule]:
         """获取待审核的规则列表
 
         Returns:
@@ -1422,7 +1420,7 @@ class ExperienceExtractor:
         """
         return self.get_all_rules(status="pending_review")
 
-    def get_all_rules(self, status: Optional[str] = None) -> List[ExperienceRule]:
+    def get_all_rules(self, status: str | None = None) -> list[ExperienceRule]:
         """获取所有规则
 
         Args:
@@ -1445,7 +1443,7 @@ class ExperienceExtractor:
         discussion_results: list,
         review_result: dict,
         execution_results: list,
-    ) -> List[ExperienceRule]:
+    ) -> list[ExperienceRule]:
         """从会议结果中提炼经验规则
 
         分析讨论决策、审查反馈、执行结果，生成可复用的经验规则。
@@ -1460,7 +1458,7 @@ class ExperienceExtractor:
         Returns:
             提炼出的经验规则列表
         """
-        rules: List[ExperienceRule] = []
+        rules: list[ExperienceRule] = []
         task_type = self._infer_task_type(task_description)
 
         # 从任务描述中提取内容关键词

@@ -9,7 +9,6 @@
 import logging
 import sqlite3
 import threading
-from typing import Dict
 
 logger = logging.getLogger("mdh_db")
 
@@ -160,8 +159,8 @@ def _safe_add_column(conn: sqlite3.Connection, table: str, column: str, col_def:
 
 # 全局连接池（线程安全）
 _db_lock = threading.Lock()
-_connections: Dict[str, sqlite3.Connection] = {}
-_write_locks: Dict[str, threading.RLock] = {}
+_connections: dict[str, sqlite3.Connection] = {}
+_write_locks: dict[str, threading.RLock] = {}
 
 
 def get_db(db_path: str) -> sqlite3.Connection:

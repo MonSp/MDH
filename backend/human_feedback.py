@@ -13,7 +13,7 @@ import os
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("human_feedback")
 
@@ -26,10 +26,10 @@ class HumanFeedback:
     task_id: str
     task_description: str
     rating: str  # "excellent" / "good" / "needs_improvement" / "poor"
-    strengths: List[str]  # 做得好的方面
-    improvements: List[str]  # 需要改进的方面
-    specific_suggestions: List[str]  # 具体建议（可直接转化为规则）
-    skill_directions: List[str]  # 建议 agent 重点发展的技能
+    strengths: list[str]  # 做得好的方面
+    improvements: list[str]  # 需要改进的方面
+    specific_suggestions: list[str]  # 具体建议（可直接转化为规则）
+    skill_directions: list[str]  # 建议 agent 重点发展的技能
     reviewer: str  # 审查者
     created_at: str = ""
 
@@ -44,8 +44,8 @@ class HumanFeedbackManager:
         self._data_dir = data_dir
         self._feedback_path = os.path.join(data_dir, "human_feedback.json")
         self._guidance_path = os.path.join(data_dir, "skill_guidance.json")
-        self._feedbacks: List[Dict] = []
-        self._guidance: Dict[str, Any] = {}
+        self._feedbacks: list[dict] = []
+        self._guidance: dict[str, Any] = {}
         self._experience = experience_extractor
         self._load()
 
@@ -81,7 +81,7 @@ class HumanFeedbackManager:
         except Exception:
             pass
 
-    def submit_feedback(self, feedback: Dict) -> Dict:
+    def submit_feedback(self, feedback: dict) -> dict:
         """提交结构化反馈
 
         Args:
@@ -132,7 +132,7 @@ class HumanFeedbackManager:
             "guidance_updated": bool(entry["skill_directions"]),
         }
 
-    def _convert_suggestions_to_rules(self, feedback: Dict) -> int:
+    def _convert_suggestions_to_rules(self, feedback: dict) -> int:
         """将具体建议转化为经验规则
 
         优先写入 SQLite（通过 ExperienceExtractor），回退到 JSON 文件。
@@ -201,7 +201,7 @@ class HumanFeedbackManager:
 
         return created
 
-    def _update_skill_guidance(self, agent_id: str, skill_directions: List[str]):
+    def _update_skill_guidance(self, agent_id: str, skill_directions: list[str]):
         """更新技能方向指导"""
         agent_guidance = self._guidance.setdefault(agent_id, {
             "directions": [],
@@ -215,11 +215,11 @@ class HumanFeedbackManager:
         agent_guidance["updated_at"] = datetime.now(timezone.utc).isoformat()
         self._save_guidance()
 
-    def get_skill_guidance(self, agent_id: str) -> List[str]:
+    def get_skill_guidance(self, agent_id: str) -> list[str]:
         """获取 agent 的技能发展方向指导"""
         return self._guidance.get(agent_id, {}).get("directions", [])
 
-    def get_feedback_summary(self) -> Dict:
+    def get_feedback_summary(self) -> dict:
         """反馈汇总"""
         if not self._feedbacks:
             return {"total": 0, "by_rating": {}, "top_improvements": [], "top_strengths": []}
@@ -246,6 +246,6 @@ class HumanFeedbackManager:
             "top_strengths": [{"item": k, "count": c} for k, c in top_strengths],
         }
 
-    def get_recent_feedback(self, limit: int = 10) -> List[Dict]:
+    def get_recent_feedback(self, limit: int = 10) -> list[dict]:
         """获取最近的反馈"""
         return list(reversed(self._feedbacks[-limit:]))

@@ -1,6 +1,7 @@
 """Tests for routing_stats_manager — routing statistics management"""
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 
 class TestRoutingStatsManager:
@@ -106,9 +107,10 @@ class TestSkillLevelRouting:
 
     def test_compute_skill_level_with_profiles(self, tmp_path):
         """有 profile_manager 时按最高等级返回得分"""
-        from dynamic_router import DynamicRouter
-        from agent_profile_manager import AgentProfileManager
         import json
+
+        from agent_profile_manager import AgentProfileManager
+        from dynamic_router import DynamicRouter
 
         # 创建路由表
         routing_path = str(tmp_path / "routing.json")
@@ -128,9 +130,10 @@ class TestSkillLevelRouting:
 
     def test_compute_skill_level_max_level(self, tmp_path):
         """最高技能等级返回 1.0"""
-        from dynamic_router import DynamicRouter
-        from agent_profile_manager import AgentProfileManager
         import json
+
+        from agent_profile_manager import AgentProfileManager
+        from dynamic_router import DynamicRouter
 
         routing_path = str(tmp_path / "routing.json")
         with open(routing_path, "w") as f:
@@ -296,8 +299,9 @@ class TestSkillLevelBoost:
 
     def test_update_skill_boost(self, tmp_path):
         """升级后部门加成增加"""
-        from dynamic_router import DynamicRouter
         import json
+
+        from dynamic_router import DynamicRouter
         routing_path = str(tmp_path / "routing.json")
         with open(routing_path, "w") as f:
             json.dump({"departments": [{"dept_id": "dept-software", "dept_name": "研发部",
@@ -313,8 +317,9 @@ class TestSkillLevelBoost:
 
     def test_skill_boost_capped_at_03(self, tmp_path):
         """加成上限 0.3"""
-        from dynamic_router import DynamicRouter
         import json
+
+        from dynamic_router import DynamicRouter
         routing_path = str(tmp_path / "routing.json")
         with open(routing_path, "w") as f:
             json.dump({"departments": [{"dept_id": "dept-software", "dept_name": "研发部",
@@ -328,8 +333,9 @@ class TestSkillLevelBoost:
 
     def test_skill_boost_persists(self, tmp_path):
         """加成持久化到路由表"""
-        from dynamic_router import DynamicRouter
         import json
+
+        from dynamic_router import DynamicRouter
         routing_path = str(tmp_path / "routing.json")
         with open(routing_path, "w") as f:
             json.dump({"departments": [{"dept_id": "dept-software", "dept_name": "研发部",

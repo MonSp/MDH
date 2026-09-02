@@ -10,9 +10,8 @@ import os
 import sqlite3
 import threading
 import uuid
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger("evolution_events")
 
@@ -36,12 +35,12 @@ class EvolutionEvent:
     event_type: str
     agent_id: str
     timestamp: str  # ISO format
-    details: Dict = field(default_factory=dict)
+    details: dict = field(default_factory=dict)
     task_id: str = ""
-    before_state: Dict = field(default_factory=dict)
-    after_state: Dict = field(default_factory=dict)
+    before_state: dict = field(default_factory=dict)
+    after_state: dict = field(default_factory=dict)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return asdict(self)
 
 
@@ -115,11 +114,11 @@ class EvolutionEventStore:
 
     def get_timeline(
         self,
-        agent_id: Optional[str] = None,
-        event_type: Optional[str] = None,
-        since: Optional[str] = None,
+        agent_id: str | None = None,
+        event_type: str | None = None,
+        since: str | None = None,
         limit: int = 50,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """查询事件时间线，支持多维过滤"""
         conditions = []
         params: list = []
@@ -157,9 +156,9 @@ class EvolutionEventStore:
 
     def get_summary(
         self,
-        agent_id: Optional[str] = None,
+        agent_id: str | None = None,
         period_days: int = 7,
-    ) -> Dict:
+    ) -> dict:
         """聚合统计：按事件类型计数、XP 变化、规则变更"""
         cutoff = (datetime.now(timezone.utc) - timedelta(days=period_days)).isoformat()
         conditions = ["timestamp >= ?"]
@@ -286,9 +285,9 @@ class ABTracker:
 
     def get_stats(
         self,
-        task_type: Optional[str] = None,
+        task_type: str | None = None,
         period_days: int = 30,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """查询任务类型成功率统计
 
         Returns:

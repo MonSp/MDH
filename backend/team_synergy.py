@@ -11,7 +11,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("team_synergy")
 
@@ -23,7 +23,7 @@ class TeamSynergy:
         self._data_dir = data_dir
         self._profile_dir = os.path.join(data_dir, "agent_profiles")
         self._synergy_path = os.path.join(data_dir, "team_synergy.json")
-        self._synergy: Dict[str, Any] = {}
+        self._synergy: dict[str, Any] = {}
         self._load_synergy()
 
     def _load_synergy(self):
@@ -43,7 +43,7 @@ class TeamSynergy:
         except Exception:
             pass
 
-    def record_team_task(self, agent_ids: List[str], task_type: str, success: bool, review_score: float = 0):
+    def record_team_task(self, agent_ids: list[str], task_type: str, success: bool, review_score: float = 0):
         """记录一次团队任务执行
 
         Args:
@@ -81,7 +81,7 @@ class TeamSynergy:
         self._synergy["task_history"] = self._synergy["task_history"][-500:]
         self._save_synergy()
 
-    def analyze_synergy(self) -> Dict[str, Any]:
+    def analyze_synergy(self) -> dict[str, Any]:
         """分析团队协同效率
 
         Returns:
@@ -125,12 +125,12 @@ class TeamSynergy:
             "total_tasks_analyzed": len(history),
         }
 
-    def _identify_bottlenecks(self, history: List[Dict]) -> List[Dict]:
+    def _identify_bottlenecks(self, history: list[dict]) -> list[dict]:
         """识别瓶颈 agent
 
         瓶颈：参与的任务成功率显著低于团队平均
         """
-        agent_stats: Dict[str, Dict] = {}
+        agent_stats: dict[str, dict] = {}
         for entry in history:
             for agent_id in entry.get("agent_ids", []):
                 stats = agent_stats.setdefault(agent_id, {"total": 0, "success": 0})
@@ -160,12 +160,12 @@ class TeamSynergy:
         bottlenecks.sort(key=lambda x: x["impact"], reverse=True)
         return bottlenecks
 
-    def _recommend_teams(self, history: List[Dict]) -> List[Dict]:
+    def _recommend_teams(self, history: list[dict]) -> list[dict]:
         """推荐最优团队搭配
 
         基于历史数据，找出成功率最高的 agent 组合。
         """
-        team_stats: Dict[str, Dict] = {}
+        team_stats: dict[str, dict] = {}
         for entry in history:
             agents = tuple(sorted(entry.get("agent_ids", [])))
             if len(agents) < 2:
@@ -189,7 +189,7 @@ class TeamSynergy:
         teams.sort(key=lambda x: x["success_rate"], reverse=True)
         return teams[:5]
 
-    def recommend_for_task(self, task_type: str, available_agents: List[str]) -> List[str]:
+    def recommend_for_task(self, task_type: str, available_agents: list[str]) -> list[str]:
         """为任务推荐最优 agent 组合
 
         Args:
@@ -208,7 +208,7 @@ class TeamSynergy:
             return available_agents[:2]
 
         # 统计每个 agent 在该任务类型上的表现
-        agent_scores: Dict[str, Dict] = {}
+        agent_scores: dict[str, dict] = {}
         for entry in task_history:
             for agent_id in entry.get("agent_ids", []):
                 if agent_id not in available_agents:
@@ -226,7 +226,7 @@ class TeamSynergy:
         )
         return [agent_id for agent_id, _ in ranked[:3]] or available_agents[:2]
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """协同统计"""
         history = self._synergy.get("task_history", [])
         pair_stats = self._synergy.get("pair_stats", {})

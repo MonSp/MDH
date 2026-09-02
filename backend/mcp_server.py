@@ -22,7 +22,8 @@ import logging
 import os
 import re
 import sys
-from typing import Any, Callable, Dict, List
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger("mcp_server")
 
@@ -93,6 +94,7 @@ def _get_rest_client():
     global _rest_client
     if _rest_client is None:
         from fastapi.testclient import TestClient
+
         from server import app
         _rest_client = TestClient(app)
     return _rest_client
@@ -131,9 +133,9 @@ class MDHMCPServer:
     def __init__(self, workspace: str = "/tmp", config_path: str = ""):
         self._workspace = workspace
         self._config_path = config_path
-        self._tools: Dict[str, Dict[str, Any]] = {}
-        self._clients: List[Any] = []  # 已连接的客户端（用于广播通知）
-        self._tool_change_callbacks: List[Callable] = []
+        self._tools: dict[str, dict[str, Any]] = {}
+        self._clients: list[Any] = []  # 已连接的客户端（用于广播通知）
+        self._tool_change_callbacks: list[Callable] = []
         self._register_builtin_tools()
 
     def register_tool(self, name: str, description: str, input_schema: dict, handler: Callable) -> None:
@@ -541,7 +543,7 @@ class MDHMCPServer:
             "handler": self._create_minutes,
         }
 
-    async def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
         """处理 JSON-RPC 请求"""
         method = request.get("method", "")
         params = request.get("params", {})
@@ -567,7 +569,7 @@ class MDHMCPServer:
         except Exception as e:
             return self._error_response(request_id, -32603, str(e))
 
-    async def _handle_initialize(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_initialize(self, params: dict[str, Any]) -> dict[str, Any]:
         """处理初始化请求"""
         return {
             "protocolVersion": "2024-11-05",
@@ -581,7 +583,7 @@ class MDHMCPServer:
             },
         }
 
-    async def _handle_list_tools(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_list_tools(self, params: dict[str, Any]) -> dict[str, Any]:
         """处理工具列表请求（含安全过滤）"""
         tools = []
         for name, tool in self._tools.items():
@@ -592,7 +594,7 @@ class MDHMCPServer:
             })
         return {"tools": tools}
 
-    async def _handle_call_tool(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_call_tool(self, params: dict[str, Any]) -> dict[str, Any]:
         """处理工具调用请求"""
         tool_name = params.get("name", "")
         arguments = params.get("arguments", {})
@@ -609,7 +611,7 @@ class MDHMCPServer:
 
     # ── Phase 3 T3.1: 资源暴露 ──
 
-    async def _handle_list_resources(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_list_resources(self, params: dict[str, Any]) -> dict[str, Any]:
         """列出可用资源（文件 + prompt）"""
         resources = []
 
@@ -649,7 +651,7 @@ class MDHMCPServer:
 
         return {"resources": resources}
 
-    async def _handle_read_resource(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_read_resource(self, params: dict[str, Any]) -> dict[str, Any]:
         """读取资源内容"""
         uri = params.get("uri", "")
 
@@ -903,10 +905,10 @@ class MDHMCPServer:
 
     # ── JSON-RPC 辅助 ──
 
-    def _success_response(self, request_id: Any, result: Any) -> Dict[str, Any]:
+    def _success_response(self, request_id: Any, result: Any) -> dict[str, Any]:
         return {"jsonrpc": "2.0", "id": request_id, "result": result}
 
-    def _error_response(self, request_id: Any, code: int, message: str) -> Dict[str, Any]:
+    def _error_response(self, request_id: Any, code: int, message: str) -> dict[str, Any]:
         return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
 
     async def run(self) -> None:
@@ -957,7 +959,7 @@ class MDHMCPServer:
 
     async def _reload_mcp_servers(self) -> None:
         """重载 MCP 服务器配置"""
-        from mcp_adapter import load_mcp_configs, MCPAdapter
+        from mcp_adapter import MCPAdapter, load_mcp_configs
 
         configs = load_mcp_configs(self._config_path)
         if configs:

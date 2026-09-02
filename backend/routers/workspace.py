@@ -7,7 +7,7 @@ import os
 
 from fastapi import APIRouter, Request
 
-from routers.common import ok, fail
+from routers.common import fail, ok
 
 logger = logging.getLogger("routers.workspace")
 

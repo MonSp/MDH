@@ -16,7 +16,6 @@ import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
 
 logger = logging.getLogger("skill_fork")
 
@@ -54,7 +53,7 @@ class SkillForkManager:
         self._source_dir = Path(source_skill_dir)
         self._forks_dir.mkdir(parents=True, exist_ok=True)
 
-    def fork_skill(self, skill_name: str, project_id: str) -> Optional[SkillFork]:
+    def fork_skill(self, skill_name: str, project_id: str) -> SkillFork | None:
         """Fork 技能包到项目本地。
 
         Args:
@@ -104,7 +103,7 @@ class SkillForkManager:
         logger.info("已 fork 技能 %s 到项目 %s", skill_name, project_id)
         return fork
 
-    def list_forks(self, project_id: str) -> List[SkillFork]:
+    def list_forks(self, project_id: str) -> list[SkillFork]:
         """列出项目的所有 fork"""
         project_dir = self._forks_dir / project_id
         if not project_dir.exists():
@@ -159,12 +158,12 @@ class SkillForkManager:
                     fork_meta.source_version if fork_meta else "?", source_version)
         return True
 
-    def get_fork_path(self, skill_name: str, project_id: str) -> Optional[Path]:
+    def get_fork_path(self, skill_name: str, project_id: str) -> Path | None:
         """获取 fork 的本地路径"""
         path = self._forks_dir / project_id / skill_name
         return path if path.exists() else None
 
-    def _load_fork_meta(self, project_dir: Path) -> Optional[SkillFork]:
+    def _load_fork_meta(self, project_dir: Path) -> SkillFork | None:
         """加载 fork 元数据"""
         meta_path = project_dir / "fork_meta.json"
         if not meta_path.exists():

@@ -4,22 +4,27 @@
 验证完整的闭环：输入 -> Spec Tree -> 门禁 -> 伴随审查 -> 执行 -> 证据链 -> 交付
 """
 
-import pytest
 import json
 import os
 import tempfile
 
-from spec_tree import (
-    SpecTree, SpecTreeNode, SpecTreeNodeType,
-    SuccessCriterion, Provenance, SpecTreeValidator,
-)
-from ears_validator import EarsValidator
-from gate_manager import GateManager
+import pytest
+
 from collaboration.critic_agent import CriticAgent
 from collaboration.grounding_agent import GroundingAgent
-from evidence_chain import EvidenceChain, Evidence
-from fallback_chain import FallbackChain, FallbackStep, FallbackExecutor
+from ears_validator import EarsValidator
+from evidence_chain import Evidence, EvidenceChain
+from fallback_chain import FallbackChain, FallbackExecutor, FallbackStep
+from gate_manager import GateManager
 from spec_manager import SpecManager
+from spec_tree import (
+    Provenance,
+    SpecTree,
+    SpecTreeNode,
+    SpecTreeNodeType,
+    SpecTreeValidator,
+    SuccessCriterion,
+)
 
 
 class TestWhybuddyIntegration:

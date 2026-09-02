@@ -9,7 +9,7 @@
 
 import json
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
@@ -65,11 +65,11 @@ def mock_a2a_server():
 @pytest.fixture
 def a2a_infrastructure(tmp_path):
     """创建 A2A 基础设施"""
-    from a2a_registry import A2ARegistry
     from a2a_client import A2AClient
+    from a2a_registry import A2ARegistry
     from a2a_task_router import A2ATaskRouter
-    from state_sync import StateSyncManager
     from experience_extractor import ExperienceExtractor
+    from state_sync import StateSyncManager
 
     registry = A2ARegistry(persist_path=str(tmp_path / "agents.json"))
     client = A2AClient(timeout=10)
@@ -85,9 +85,10 @@ class TestA2AIntelligentRouting:
     @pytest.mark.asyncio
     async def test_simple_executor_routes_to_a2a(self, mock_a2a_server, a2a_infrastructure, tmp_path):
         """SimpleExecutor 检测到 A2A 节点后自动路由"""
-        from simple_executor import SimpleExecutor
-        from a2a_registry import AgentCard, AgentSkill
         from unittest.mock import MagicMock
+
+        from a2a_registry import AgentCard, AgentSkill
+        from simple_executor import SimpleExecutor
 
         registry, client, router, sync = a2a_infrastructure
 
@@ -133,8 +134,9 @@ class TestA2AIntelligentRouting:
     @pytest.mark.asyncio
     async def test_simple_executor_fallback_no_nodes(self, a2a_infrastructure):
         """无 A2A 节点时降级到 Python 内部执行"""
-        from simple_executor import SimpleExecutor
         from unittest.mock import MagicMock
+
+        from simple_executor import SimpleExecutor
 
         registry, client, router, sync = a2a_infrastructure
 

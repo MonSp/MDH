@@ -12,7 +12,6 @@
 import json
 import logging
 import os
-from typing import Dict, List
 
 logger = logging.getLogger("knowledge_network")
 
@@ -27,7 +26,7 @@ class KnowledgeNetwork:
         )
         self._evolution_log_path = os.path.join(data_dir, "network_evolution_log.json")
 
-    def propagate_rule_evolution(self, rule_id: str, evolved_rule_id: str, keywords: List[str]) -> Dict:
+    def propagate_rule_evolution(self, rule_id: str, evolved_rule_id: str, keywords: list[str]) -> dict:
         """规则进化后的联动传播
 
         Args:
@@ -65,7 +64,7 @@ class KnowledgeNetwork:
                      rule_id, len(related_skills), len(related_assets))
         return result
 
-    def _find_related_skills(self, keywords: List[str]) -> List[str]:
+    def _find_related_skills(self, keywords: list[str]) -> list[str]:
         """根据关键词找到相关的技能包"""
         related = []
         if not os.path.isdir(self._skill_packs_dir):
@@ -95,7 +94,7 @@ class KnowledgeNetwork:
 
         return list(set(related))
 
-    def _find_related_assets(self, keywords: List[str]) -> List[str]:
+    def _find_related_assets(self, keywords: list[str]) -> list[str]:
         """根据关键词找到相关的资产"""
         related = []
         assets_dir = os.path.join(self._data_dir, "assets")
@@ -168,7 +167,7 @@ class KnowledgeNetwork:
         except Exception:
             pass
 
-    def get_network_stats(self) -> Dict:
+    def get_network_stats(self) -> dict:
         """知识网络统计"""
         skill_count = 0
         rule_count = 0
@@ -204,7 +203,7 @@ class KnowledgeNetwork:
             "recent_evolutions": evo_log[:5],
         }
 
-    def get_evolution_log(self) -> List[Dict]:
+    def get_evolution_log(self) -> list[dict]:
         """获取联动进化日志"""
         try:
             if os.path.isfile(self._evolution_log_path):
@@ -214,7 +213,7 @@ class KnowledgeNetwork:
             pass
         return []
 
-    def _log_network_evolution(self, rule_id: str, evolved_rule_id: str, result: Dict) -> None:
+    def _log_network_evolution(self, rule_id: str, evolved_rule_id: str, result: dict) -> None:
         """记录联动进化事件"""
         from datetime import datetime, timezone
         entry = {

@@ -5,11 +5,12 @@
 移植自 WhyBuddy gate.py 的设计哲学。
 """
 
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Callable, Optional
-from datetime import datetime
 import json
 import os
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
 
 
 @dataclass
@@ -21,19 +22,19 @@ class GateResult:
     stdout: str
     stderr: str
     timestamp: str
-    context: Optional[Dict[str, Any]] = None
+    context: dict[str, Any] | None = None
 
 
 @dataclass
 class ChecksLedger:
     """校验台账"""
-    records: List[GateResult] = field(default_factory=list)
+    records: list[GateResult] = field(default_factory=list)
 
     def record(self, result: GateResult):
         """追加记录到台账"""
         self.records.append(result)
 
-    def export(self) -> List[GateResult]:
+    def export(self) -> list[GateResult]:
         """导出全部记录"""
         return self.records.copy()
 
@@ -58,7 +59,7 @@ class ChecksLedger:
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         """生成台账摘要"""
         total = len(self.records)
         passed = sum(1 for r in self.records if r.passed)
@@ -87,12 +88,12 @@ GateValidator = Callable[[Any], GateResult]
 class GateManager:
     """门禁管理器"""
 
-    def __init__(self, ledger_path: Optional[str] = None):
+    def __init__(self, ledger_path: str | None = None):
         """
         Args:
             ledger_path: 台账文件路径（可选，不提供则只在内存中记录）
         """
-        self._gates: Dict[str, GateValidator] = {}
+        self._gates: dict[str, GateValidator] = {}
         self._ledger = ChecksLedger()
         self._ledger_path = ledger_path
 
@@ -148,7 +149,7 @@ class GateManager:
         """获取台账"""
         return self._ledger
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """获取台账摘要"""
         return self._ledger.summary()
 
@@ -189,7 +190,7 @@ class GateManager:
                 passed=False,
                 exit_code=2,
                 stdout="",
-                stderr=f"校验异常：{str(e)}",
+                stderr=f"校验异常：{e!s}",
                 timestamp=datetime.now().isoformat(),
             )
 
@@ -245,7 +246,7 @@ class GateManager:
                 passed=False,
                 exit_code=2,
                 stdout="",
-                stderr=f"校验异常：{str(e)}",
+                stderr=f"校验异常：{e!s}",
                 timestamp=datetime.now().isoformat(),
             )
 
@@ -306,7 +307,7 @@ class GateManager:
                 passed=False,
                 exit_code=2,
                 stdout="",
-                stderr=f"校验异常：{str(e)}",
+                stderr=f"校验异常：{e!s}",
                 timestamp=datetime.now().isoformat(),
             )
 

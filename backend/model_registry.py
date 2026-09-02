@@ -17,7 +17,6 @@ import json
 import logging
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 logger = logging.getLogger("model_registry")
 
@@ -38,7 +37,7 @@ class ModelConfig:
 
 
 # 默认模型配置
-DEFAULT_MODELS: Dict[str, ModelConfig] = {
+DEFAULT_MODELS: dict[str, ModelConfig] = {
     # DeepSeek
     "deepseek-chat": ModelConfig(
         provider="deepseek", model_id="deepseek-chat", display_name="DeepSeek Chat",
@@ -88,7 +87,7 @@ class ModelRegistry:
     """模型注册表"""
 
     def __init__(self, config_path: str = ""):
-        self._models: Dict[str, ModelConfig] = dict(DEFAULT_MODELS)
+        self._models: dict[str, ModelConfig] = dict(DEFAULT_MODELS)
         self._config_path = config_path
         self._load_custom_config()
 
@@ -105,11 +104,11 @@ class ModelRegistry:
         except Exception as e:
             logger.warning("加载自定义模型配置失败: %s", e)
 
-    def get_model(self, model_id: str) -> Optional[ModelConfig]:
+    def get_model(self, model_id: str) -> ModelConfig | None:
         """获取模型配置"""
         return self._models.get(model_id)
 
-    def list_models(self, tier: str = "") -> List[ModelConfig]:
+    def list_models(self, tier: str = "") -> list[ModelConfig]:
         """列出所有模型"""
         models = list(self._models.values())
         if tier:
@@ -148,7 +147,7 @@ class ModelRegistry:
         candidates = [m for m in self._models.values() if m.tier == "medium"]
         return min(candidates, key=lambda m: m.cost_per_1m_input) if candidates else list(self._models.values())[0]
 
-    def get_fallback_chain(self, model_id: str) -> List[ModelConfig]:
+    def get_fallback_chain(self, model_id: str) -> list[ModelConfig]:
         """获取降级链：big → medium → small"""
         model = self.get_model(model_id)
         if not model:

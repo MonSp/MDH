@@ -5,7 +5,6 @@ import shutil
 import subprocess
 import uuid
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +20,9 @@ class Workspace:
     task_id: str
     workspace_type: WorkspaceType
     root_path: str
-    branch_name: Optional[str] = None
-    repo_path: Optional[str] = None  # 原始仓库路径（仅GIT_WORKTREE类型）
-    metadata: Dict = field(default_factory=dict)
+    branch_name: str | None = None
+    repo_path: str | None = None  # 原始仓库路径（仅GIT_WORKTREE类型）
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -34,14 +33,14 @@ class DirectoryScan:
     is_empty: bool
     has_git: bool
     file_count: int
-    files: List[str]           # 顶层文件/目录列表
-    project_hints: List[str]   # 检测到的项目特征（如 package.json, requirements.txt 等）
+    files: list[str]           # 顶层文件/目录列表
+    project_hints: list[str]   # 检测到的项目特征（如 package.json, requirements.txt 等）
 
 
 class WorkspaceManager:
     def __init__(self, workspaces_dir: str):
         self.workspaces_dir = workspaces_dir
-        self._workspaces: Dict[str, Workspace] = {}
+        self._workspaces: dict[str, Workspace] = {}
         os.makedirs(workspaces_dir, exist_ok=True)
 
     def scan_directory(self, path: str) -> DirectoryScan:
@@ -96,8 +95,8 @@ class WorkspaceManager:
         self,
         task_id: str,
         workspace_type: WorkspaceType,
-        branch_name: Optional[str] = None,
-        repo_path: Optional[str] = None,
+        branch_name: str | None = None,
+        repo_path: str | None = None,
         force: bool = False,
     ) -> Workspace:
         workspace_id = str(uuid.uuid4())[:8]
@@ -145,10 +144,10 @@ class WorkspaceManager:
         logger.info("创建工作区: %s (%s) -> %s", workspace_id, workspace_type.value, root_path)
         return workspace
 
-    def get_workspace(self, workspace_id: str) -> Optional[Workspace]:
+    def get_workspace(self, workspace_id: str) -> Workspace | None:
         return self._workspaces.get(workspace_id)
 
-    def list_workspaces(self) -> List[Workspace]:
+    def list_workspaces(self) -> list[Workspace]:
         return list(self._workspaces.values())
 
     def destroy_workspace(self, workspace_id: str) -> None:
@@ -166,7 +165,7 @@ class WorkspaceManager:
         if os.path.exists(workspace.root_path):
             shutil.rmtree(workspace.root_path, ignore_errors=True)
 
-    def get_workspace_path(self, workspace_id: str) -> Optional[str]:
+    def get_workspace_path(self, workspace_id: str) -> str | None:
         workspace = self._workspaces.get(workspace_id)
         return workspace.root_path if workspace else None
 

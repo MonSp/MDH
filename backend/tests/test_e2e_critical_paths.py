@@ -5,6 +5,7 @@
 
 import os
 import sys
+
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -37,6 +38,7 @@ class TestMeetingFlowPath:
     def test_simple_task_grants_xp_and_levels_up(self, data_dir):
         """简单任务授予 XP 并可能触发技能升级"""
         import logging
+
         from agent_profile_manager import AgentProfileManager
         from meeting_coordinator import MeetingCoordinator
 
@@ -81,8 +83,8 @@ class TestMeetingFlowPath:
 
     def test_routing_boost_on_skill_upgrade(self, data_dir):
         """技能升级触发路由加成"""
-        from dynamic_router import DynamicRouter
         from agent_profile_manager import AgentProfileManager
+        from dynamic_router import DynamicRouter
 
         routing_path = os.path.join(data_dir, "routing_table.json")
         router = DynamicRouter(routing_path)
@@ -215,8 +217,9 @@ class TestMemoryPath:
 
     def test_memory_aging(self, data_dir):
         """记忆老化"""
+        from datetime import datetime, timedelta, timezone
+
         from agent_memory import AgentMemory
-        from datetime import datetime, timezone, timedelta
 
         mem = AgentMemory(data_dir)
         mem.add_memory("agent-1", {"type": "observation", "content": "旧记忆", "importance": 0.8})
@@ -239,8 +242,9 @@ class TestDeliveryPath:
 
     def test_delivery_full_cycle(self, data_dir):
         """交付完整流程"""
-        from delivery_engine import DeliveryEngine
         import subprocess
+
+        from delivery_engine import DeliveryEngine
 
         ws = os.path.join(data_dir, "workspace")
         os.makedirs(ws)
@@ -320,6 +324,7 @@ class TestMonitoringPath:
     def test_reflection_priority_with_rules(self, data_dir):
         """反思优先级队列生成"""
         import yaml
+
         from reflection_priority import ReflectionPriorityQueue
 
         rules_dir = os.path.join(data_dir, "experience", "rules")

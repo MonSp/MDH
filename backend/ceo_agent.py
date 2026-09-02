@@ -13,18 +13,20 @@ import asyncio
 import logging
 import os
 import uuid
-from typing import Any, Awaitable, Callable, Dict, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from agentscope.agent import Agent
+
+from agenda import AgendaStateMachine
+from complexity_classifier import ComplexityClassifier
 from meeting import MeetingSession
 from meeting_coordinator import MeetingCoordinator
+from project_manager import ProjectManager
 from protocol import (
     AgentRole,
 )
-from project_manager import ProjectManager
-from complexity_classifier import ComplexityClassifier
 from simple_executor import SimpleExecutor
-from agenda import AgendaStateMachine
 from team import Team
 
 
@@ -66,7 +68,7 @@ def team_to_meeting_template(team: Team) -> list[dict]:
     return template
 
 
-def _build_dag(selected_roles: list[str], roles_config: dict, task_description: str, role_locations: Optional[Dict[str, str]] = None) -> dict:
+def _build_dag(selected_roles: list[str], roles_config: dict, task_description: str, role_locations: dict[str, str] | None = None) -> dict:
     """从选中角色构建 DAG，供 instantiate_project 使用。
 
     Args:
@@ -136,19 +138,19 @@ class CeoAgent:
         # 协调器创建回调：server 注入以更新 _active_coordinator，
         # 保证 CEO 对话（unified_message）路径创建的协调器可被共享引擎委托执行。
         self._on_coordinator_created = on_coordinator_created
-        self._meeting_coordinator: Optional[MeetingCoordinator] = None
-        self._agenda: Optional[AgendaStateMachine] = None
+        self._meeting_coordinator: MeetingCoordinator | None = None
+        self._agenda: AgendaStateMachine | None = None
         self._workspace_manager = None
         self._workspace = None
-        self._workspace_confirm_event: Optional[asyncio.Event] = None
-        self._workspace_confirm_response: Optional[Dict[str, Any]] = None
+        self._workspace_confirm_event: asyncio.Event | None = None
+        self._workspace_confirm_response: dict[str, Any] | None = None
 
     @property
-    def agenda(self) -> Optional[AgendaStateMachine]:
+    def agenda(self) -> AgendaStateMachine | None:
         return self._agenda
 
     @property
-    def meeting_coordinator(self) -> Optional[MeetingCoordinator]:
+    def meeting_coordinator(self) -> MeetingCoordinator | None:
         return self._meeting_coordinator
 
     def _create_model(self, role: str) -> Agent:
@@ -202,11 +204,11 @@ class CeoAgent:
     async def process_message(
         self,
         content: str,
-        send_message: Callable[[Dict[str, Any]], Awaitable[None]],
-        selected_roles: Optional[list] = None,
-        role_locations: Optional[Dict[str, str]] = None,
+        send_message: Callable[[dict[str, Any]], Awaitable[None]],
+        selected_roles: list | None = None,
+        role_locations: dict[str, str] | None = None,
         execution_preference: str = "auto",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         CEO处理用户消息的完整流程
 
@@ -246,9 +248,9 @@ class CeoAgent:
     async def _execute_simple(
         self,
         content: str,
-        send_message: Callable[[Dict[str, Any]], Awaitable[None]],
+        send_message: Callable[[dict[str, Any]], Awaitable[None]],
         execution_preference: str = "auto",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """简单路径：单人助理直接执行"""
         await self._emit(send_message, "CEO：任务较简单，指派单人助理直接执行。")
         await send_message({"type": "path_selected", "path": "simple"})
@@ -285,10 +287,10 @@ class CeoAgent:
     async def _execute_complex(
         self,
         content: str,
-        send_message: Callable[[Dict[str, Any]], Awaitable[None]],
-        selected_roles: Optional[list] = None,
-        role_locations: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        send_message: Callable[[dict[str, Any]], Awaitable[None]],
+        selected_roles: list | None = None,
+        role_locations: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         """复杂路径：创建项目 → 组建团队 → 启动会议 → 协调器接管"""
         await self._emit(send_message, "CEO：任务复杂，需要组建专业团队。正在创建项目并召集会议。")
         await send_message({"type": "path_selected", "path": "complex"})
@@ -309,7 +311,11 @@ class CeoAgent:
         await self._emit(send_message, f"CEO：任务已创建（{task_id}），准备启动会议。")
 
         # ② 创建工作区（先询问用户确认）
-        from workspace_manager import WorkspaceManager, WorkspaceType, DirectoryNotEmptyError
+        from workspace_manager import (
+            DirectoryNotEmptyError,
+            WorkspaceManager,
+            WorkspaceType,
+        )
         workspaces_base = os.environ.get(
             "AGENT_WORKSPACES_DIR",
             os.path.join(os.path.expanduser("~"), ".agent-workspaces")
@@ -541,11 +547,11 @@ class CeoAgent:
 
     async def _handle_coordinator_result(
         self,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         project,
         meeting_id: str,
-        send_message: Callable[[Dict[str, Any]], Awaitable[None]],
-    ) -> Dict[str, Any]:
+        send_message: Callable[[dict[str, Any]], Awaitable[None]],
+    ) -> dict[str, Any]:
         """处理Coordinator返回的结果，转换为前端消息"""
 
         if not result:
@@ -676,7 +682,7 @@ class CeoAgent:
     async def handle_meeting_message(
         self,
         content: str,
-        send_message: Callable[[Dict[str, Any]], Awaitable[None]],
+        send_message: Callable[[dict[str, Any]], Awaitable[None]],
     ) -> None:
         """处理会议中的用户消息（用户以CEO身份介入）"""
         if not self._meeting_coordinator:
@@ -693,7 +699,7 @@ class CeoAgent:
             logger.exception("会议消息处理异常: %s", e)
             await send_message({"type": "meeting_error", "message": str(e)})
 
-    def handle_workspace_confirm_response(self, response: Dict[str, Any]) -> None:
+    def handle_workspace_confirm_response(self, response: dict[str, Any]) -> None:
         """处理前端返回的工作区确认响应"""
         self._workspace_confirm_response = response
         if self._workspace_confirm_event:
@@ -701,7 +707,7 @@ class CeoAgent:
 
     async def _emit(
         self,
-        send_message: Callable[[Dict[str, Any]], Awaitable[None]],
+        send_message: Callable[[dict[str, Any]], Awaitable[None]],
         text: str,
     ):
         """发送CEO发言消息"""

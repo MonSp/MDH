@@ -1,4 +1,5 @@
 import os
+
 import yaml
 
 SKILL_PACKS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "skill_packs")

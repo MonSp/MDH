@@ -808,6 +808,7 @@ class ToolExecutor:
     def _exec_browser_tool(self, tool_call: ToolCall, tool_name: str) -> ToolResult:
         """通用浏览器工具执行器"""
         import asyncio
+
         import playwright_browser as pw
 
         try:

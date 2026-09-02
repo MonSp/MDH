@@ -1,9 +1,11 @@
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from meeting import DEFAULT_MEETING_AGENTS, MeetingSession
 from protocol import (
     AgentRole,
     MeetingAgentInfo,
@@ -15,7 +17,6 @@ from protocol import (
     meeting_summary_to_dict,
     meeting_task_to_dict,
 )
-from meeting import MeetingSession, DEFAULT_MEETING_AGENTS
 
 
 @pytest.fixture

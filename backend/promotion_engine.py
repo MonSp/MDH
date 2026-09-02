@@ -1,7 +1,7 @@
 """角色晋升引擎 — 根据部门职业路径和技能等级自动晋升 agent 角色"""
 
 import logging
-from typing import List, Optional
+
 from agent_profile_manager import AgentProfile
 
 logger = logging.getLogger("promotion_engine")
@@ -12,7 +12,7 @@ CAREER_ORDER = ["junior", "mid", "senior", "lead"]
 class PromotionEngine:
     def check_promotion(
         self, profile: AgentProfile, roles_config: dict
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """检查是否满足晋升条件，返回目标阶段信息或 None
 
         Returns:
@@ -93,7 +93,7 @@ class PromotionEngine:
                      promotion.get("title", ""), promotion.get("department", ""))
         return profile
 
-    def get_career_path(self, profile: AgentProfile, roles_config: dict) -> Optional[dict]:
+    def get_career_path(self, profile: AgentProfile, roles_config: dict) -> dict | None:
         """获取 agent 当前部门的完整职业路径"""
         career_paths = roles_config.get("career_paths", {})
         department = profile.department
@@ -101,7 +101,7 @@ class PromotionEngine:
             return None
         return career_paths[department]
 
-    def list_departments(self, roles_config: dict) -> List[dict]:
+    def list_departments(self, roles_config: dict) -> list[dict]:
         """列出所有部门职业路径"""
         career_paths = roles_config.get("career_paths", {})
         return [

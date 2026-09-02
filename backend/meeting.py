@@ -5,7 +5,6 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 from protocol import (
     AgentRole,
@@ -53,10 +52,10 @@ class SessionEvent:
     event_type: SessionEventType = SessionEventType.AGENT_MESSAGE
     role: str = ""
     content: str = ""
-    agent_id: Optional[str] = None
-    phase: Optional[str] = None
-    actor: Optional[str] = None
-    span_id: Optional[str] = None
+    agent_id: str | None = None
+    phase: str | None = None
+    actor: str | None = None
+    span_id: str | None = None
     timestamp: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict:
@@ -210,7 +209,7 @@ def create_team_from_roles(selected_role_ids: list[str], roles_config: dict) -> 
 
 
 class MeetingSession:
-    def __init__(self, meeting_id: str, session_log_dir: Optional[str] = None):
+    def __init__(self, meeting_id: str, session_log_dir: str | None = None):
         self.meeting_id = meeting_id
         self.agents: list[MeetingAgentInfo] = []
         self.tasks: list[MeetingTaskInfo] = []
@@ -218,7 +217,7 @@ class MeetingSession:
         self._running: bool = False
         self._created_at: float = time.time()
         # SessionEvent 事件流：内存镜像 + 可选 JSONL 持久化
-        self._session_log_dir: Optional[str] = session_log_dir
+        self._session_log_dir: str | None = session_log_dir
         self._events: list[dict] = []
         if session_log_dir:
             os.makedirs(session_log_dir, exist_ok=True)
@@ -271,7 +270,7 @@ class MeetingSession:
         self.agents.append(agent)
         return agent
 
-    def get_agent(self, agent_id: str) -> Optional[MeetingAgentInfo]:
+    def get_agent(self, agent_id: str) -> MeetingAgentInfo | None:
         for agent in self.agents:
             if agent.id == agent_id:
                 return agent
@@ -345,7 +344,7 @@ class MeetingSession:
                 path = os.path.join(self._session_log_dir, f"{self.meeting_id}.jsonl")
                 with open(path, "a", encoding="utf-8") as f:
                     f.write(json.dumps(event_dict, ensure_ascii=False) + "\n")
-            except (IOError, OSError):
+            except OSError:
                 # IOError 静默降级为纯内存模式，不破坏 add_message 行为
                 logger.warning(
                     "SessionEvent JSONL 追加失败（降级为内存模式）: %s/%s.jsonl",
@@ -365,9 +364,9 @@ class MeetingSession:
         self,
         event_type: SessionEventType,
         content: str,
-        agent_id: Optional[str] = None,
-        phase: Optional[str] = None,
-        actor: Optional[str] = None,
+        agent_id: str | None = None,
+        phase: str | None = None,
+        actor: str | None = None,
     ) -> dict:
         """追加结构化事件（不经过 add_message，直接写入事件流）。
 
@@ -391,7 +390,7 @@ class MeetingSession:
                 path = os.path.join(self._session_log_dir, f"{self.meeting_id}.jsonl")
                 with open(path, "a", encoding="utf-8") as f:
                     f.write(json.dumps(event_dict, ensure_ascii=False) + "\n")
-            except (IOError, OSError):
+            except OSError:
                 logger.warning(
                     "SessionEvent JSONL 追加失败（降级为内存模式）: %s/%s.jsonl",
                     self._session_log_dir,
@@ -401,9 +400,9 @@ class MeetingSession:
 
     def deriveMessages(
         self,
-        event_types: Optional[list] = None,
-        window: Optional[int] = None,
-        max_content_len: Optional[int] = None,
+        event_types: list | None = None,
+        window: int | None = None,
+        max_content_len: int | None = None,
     ) -> list[dict]:
         """从事件流投影为既有 messages 结构 ``{id, role, content, agent_id, timestamp}``。
 
@@ -487,7 +486,7 @@ class MeetingSession:
                             "跳过损坏的 SessionEvent 行: %s...", line[:80]
                         )
                         continue
-        except (IOError, OSError):
+        except OSError:
             logger.warning("读取 SessionEvent JSONL 失败: %s", path)
             return []
         return events

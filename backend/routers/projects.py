@@ -7,10 +7,10 @@ import uuid
 from dataclasses import asdict
 
 from fastapi import APIRouter, Body, Request
-from rate_limiter import limiter, RATE_LIMITS
-from schemas import ProjectCreateRequest
 
-from routers.common import ok, fail
+from rate_limiter import RATE_LIMITS, limiter
+from routers.common import fail, ok
+from schemas import ProjectCreateRequest
 
 logger = logging.getLogger("routers.projects")
 

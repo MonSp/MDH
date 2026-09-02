@@ -10,7 +10,7 @@ import base64
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("playwright_browser")
 
@@ -18,7 +18,7 @@ logger = logging.getLogger("playwright_browser")
 _playwright = None
 _browser = None
 _context = None
-_pages: Dict[str, Any] = {}
+_pages: dict[str, Any] = {}
 _active_page_id: str = ""
 _initialized = False
 
@@ -30,7 +30,7 @@ class BrowserTask:
     """浏览器任务"""
     id: str
     url: str
-    actions: List[Dict[str, Any]] = field(default_factory=list)
+    actions: list[dict[str, Any]] = field(default_factory=list)
     priority: int = 0
     timeout: float = 60.0
 
@@ -40,9 +40,9 @@ class TaskResult:
     """任务结果"""
     task_id: str
     success: bool
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
     error: str = ""
-    screenshots: List[str] = field(default_factory=list)
+    screenshots: list[str] = field(default_factory=list)
 
 
 class BrowserTaskQueue:
@@ -50,10 +50,10 @@ class BrowserTaskQueue:
 
     def __init__(self, max_concurrent: int = 3):
         self._queue: asyncio.Queue[BrowserTask] = asyncio.Queue()
-        self._results: Dict[str, TaskResult] = {}
+        self._results: dict[str, TaskResult] = {}
         self._max_concurrent = max_concurrent
         self._running = False
-        self._workers: List[asyncio.Task] = []
+        self._workers: list[asyncio.Task] = []
 
     async def submit(self, task: BrowserTask) -> str:
         """提交任务到队列"""
@@ -120,11 +120,11 @@ class BrowserTaskQueue:
         except Exception as e:
             return TaskResult(task_id=task.id, success=False, error=str(e), screenshots=screenshots)
 
-    def get_result(self, task_id: str) -> Optional[TaskResult]:
+    def get_result(self, task_id: str) -> TaskResult | None:
         """获取任务结果"""
         return self._results.get(task_id)
 
-    def get_all_results(self) -> Dict[str, TaskResult]:
+    def get_all_results(self) -> dict[str, TaskResult]:
         """获取所有结果"""
         return dict(self._results)
 
@@ -309,7 +309,7 @@ async def wait_for(selector: str, state: str = "visible") -> dict:
 
 # ── 截图工具 ──
 
-async def screenshot(path: Optional[str] = None) -> dict:
+async def screenshot(path: str | None = None) -> dict:
     await _ensure_initialized()
     page = _get_active_page()
     screenshot_path = path or os.path.join(SCREENSHOT_DIR, f"screenshot-{int(asyncio.get_event_loop().time() * 1000)}.png")
@@ -318,7 +318,7 @@ async def screenshot(path: Optional[str] = None) -> dict:
     return {"path": screenshot_path, "base64": base64.b64encode(buffer).decode()}
 
 
-async def screenshot_element(selector: str, path: Optional[str] = None) -> dict:
+async def screenshot_element(selector: str, path: str | None = None) -> dict:
     await _ensure_initialized()
     page = _get_active_page()
     element = await page.query_selector(selector)
@@ -354,7 +354,7 @@ async def switch_tab(tab_id: str) -> dict:
     return {"success": True}
 
 
-async def new_tab(url: Optional[str] = None) -> dict:
+async def new_tab(url: str | None = None) -> dict:
     global _active_page_id
     await _ensure_initialized()
     page = await _context.new_page()
@@ -388,7 +388,7 @@ async def evaluate_js(code: str) -> dict:
     return {"result": result}
 
 
-async def execute_steps(steps: List[Dict[str, Any]]) -> List[dict]:
+async def execute_steps(steps: list[dict[str, Any]]) -> list[dict]:
     await _ensure_initialized()
     results = []
     for step in steps:
@@ -425,7 +425,7 @@ class BrowserInstance:
     id: str
     browser: Any = None
     context: Any = None
-    pages: Dict[str, Any] = field(default_factory=dict)
+    pages: dict[str, Any] = field(default_factory=dict)
     active_page_id: str = ""
     healthy: bool = True
     created_at: float = 0.0
@@ -440,7 +440,7 @@ class BrowserPool:
         self._min_instances = min_instances
         self._max_instances = max_instances
         self._idle_timeout = idle_timeout
-        self._instances: Dict[str, BrowserInstance] = {}
+        self._instances: dict[str, BrowserInstance] = {}
         self._lock = asyncio.Lock()
         self._playwright = None
         self._initialized = False
@@ -549,7 +549,7 @@ class BrowserPool:
                     del self._instances[instance_id]
                     logger.info("清理空闲浏览器实例: %s", instance_id)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """获取池统计"""
         return {
             "total": len(self._instances),

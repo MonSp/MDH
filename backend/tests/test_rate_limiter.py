@@ -4,14 +4,17 @@
 验证 HTTP 速率限制（slowapi）和 WebSocket 速率限制器的功能。
 """
 
-import time
 import json
+import time
 from unittest.mock import MagicMock
 
-
 # backend/ 路径已在 conftest.py 中添加
-
-from rate_limiter import WSRateLimiter, RATE_LIMITS, limiter, rate_limit_exceeded_handler
+from rate_limiter import (
+    RATE_LIMITS,
+    WSRateLimiter,
+    limiter,
+    rate_limit_exceeded_handler,
+)
 
 
 def _make_mock_limit(detail: str = "10/minute"):
@@ -211,7 +214,12 @@ class TestRateLimiterIntegration:
     def test_server_imports_limiter(self):
         """验证 server.py 能正确导入速率限制模块"""
         # 测试导入链是否完整
-        from rate_limiter import limiter, rate_limit_exceeded_handler, RATE_LIMITS, ws_limiter
+        from rate_limiter import (
+            RATE_LIMITS,
+            limiter,
+            rate_limit_exceeded_handler,
+            ws_limiter,
+        )
         assert limiter is not None
         assert callable(rate_limit_exceeded_handler)
         assert isinstance(RATE_LIMITS, dict)

@@ -12,7 +12,7 @@ import logging
 import os
 import subprocess
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("delivery_engine")
 
@@ -24,7 +24,7 @@ class DeliveryEngine:
         self._data_dir = data_dir
         self._workspace_dir = workspace_dir or os.path.join(data_dir, "workspaces")
         self._delivery_log_path = os.path.join(data_dir, "delivery_log.json")
-        self._delivery_log: List[Dict] = []
+        self._delivery_log: list[dict] = []
         self._load_log()
 
     def _load_log(self):
@@ -49,10 +49,10 @@ class DeliveryEngine:
         agent_id: str,
         task_id: str,
         task_description: str,
-        execution_results: List[Dict],
-        review_result: Dict,
-        delivery_types: List[str] = None,
-    ) -> Dict[str, Any]:
+        execution_results: list[dict],
+        review_result: dict,
+        delivery_types: list[str] = None,
+    ) -> dict[str, Any]:
         """执行自主交付
 
         Args:
@@ -101,7 +101,7 @@ class DeliveryEngine:
 
         return result
 
-    def _deliver_git(self, agent_id: str, task_id: str, description: str, results: List[Dict]) -> Dict:
+    def _deliver_git(self, agent_id: str, task_id: str, description: str, results: list[dict]) -> dict:
         """Git 交付：自动 commit + push"""
         try:
             workspace = self._workspace_dir
@@ -138,7 +138,7 @@ class DeliveryEngine:
         except Exception as e:
             return {"success": False, "error": str(e)[:200]}
 
-    def _deliver_notification(self, agent_id: str, description: str, results: List[Dict], review: Dict) -> Dict:
+    def _deliver_notification(self, agent_id: str, description: str, results: list[dict], review: dict) -> dict:
         """通知交付：生成通知文本"""
         try:
             review_status = review.get("structured_feedback", {}).get("status", "unknown")
@@ -156,7 +156,7 @@ class DeliveryEngine:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _deliver_report(self, agent_id: str, task_id: str, description: str, results: List[Dict], review: Dict) -> Dict:
+    def _deliver_report(self, agent_id: str, task_id: str, description: str, results: list[dict], review: dict) -> dict:
         """文档交付：生成任务报告"""
         try:
             review_status = review.get("structured_feedback", {}).get("status", "unknown")
@@ -189,15 +189,15 @@ class DeliveryEngine:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _deliver_deploy(self, agent_id: str, task_id: str) -> Dict:
+    def _deliver_deploy(self, agent_id: str, task_id: str) -> dict:
         """部署触发（占位 — 实际 CI/CD 集成需要配置）"""
         return {"success": True, "action": "skipped", "message": "CI/CD 触发未配置"}
 
-    def get_delivery_log(self, limit: int = 20) -> List[Dict]:
+    def get_delivery_log(self, limit: int = 20) -> list[dict]:
         """获取交付日志"""
         return list(reversed(self._delivery_log[-limit:]))
 
-    def get_delivery_stats(self) -> Dict:
+    def get_delivery_stats(self) -> dict:
         """交付统计"""
         total = len(self._delivery_log)
         by_type = {}

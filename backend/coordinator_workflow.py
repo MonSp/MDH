@@ -15,11 +15,11 @@ MeetingCoordinator 工作流执行子模块
 import asyncio
 import json
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from agent import _extract_text
-from protocol import AgentRole, WorkflowNode, WorkflowDefinition, LLM_FALLBACK_TEMPLATE
-
+from protocol import LLM_FALLBACK_TEMPLATE, AgentRole, WorkflowDefinition, WorkflowNode
 
 logger = logging.getLogger("coordinator_workflow")
 
@@ -48,10 +48,11 @@ async def run_agent_execution_loop(
     prompt: str,
     agent_toolset,
     max_tool_rounds: int = 5,
-    on_model_error: Optional[Callable[[], None]] = None,
-) -> Dict[str, Any]:
+    on_model_error: Callable[[], None] | None = None,
+) -> dict[str, Any]:
     """LLM + 工具执行循环：环境检查、代码块写文件、工具调用、产物收集"""
     from agentscope.message import Msg
+
     from code_extractor import extract_code_blocks
     from llm_guard import safe_llm_reply
 
@@ -63,8 +64,8 @@ async def run_agent_execution_loop(
 
     msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
     conversation = [msg]
-    files_written: List[str] = []
-    tool_outputs: List[Dict[str, Any]] = []
+    files_written: list[str] = []
+    tool_outputs: list[dict[str, Any]] = []
     last_text = ""
 
     # ── 阶段B: 文件创建循环 ──
@@ -80,7 +81,7 @@ async def run_agent_execution_loop(
             raise
         last_text = _extract_text(response)
 
-        files_this_round: List[str] = []
+        files_this_round: list[str] = []
         code_blocks = extract_code_blocks(last_text)
         if code_blocks and agent_toolset:
             for block in code_blocks:
@@ -150,9 +151,9 @@ async def run_agent_execution_loop(
     }
 
 
-def extract_tool_calls_from_text(text: str) -> List[Dict[str, Any]]:
+def extract_tool_calls_from_text(text: str) -> list[dict[str, Any]]:
     """从 LLM 文本提取工具调用 JSON（花括号配对扫描）"""
-    calls: List[Dict[str, Any]] = []
+    calls: list[dict[str, Any]] = []
     start = 0
     while True:
         begin = text.find("{", start)
@@ -282,7 +283,7 @@ async def execute_workflow_node(coordinator, node: WorkflowNode, input_data: dic
     return node_result
 
 
-async def run_node_gate(coordinator, node: WorkflowNode) -> Optional[dict]:
+async def run_node_gate(coordinator, node: WorkflowNode) -> dict | None:
     """节点把关：node.gate 非空且已注入 approval_manager 时发起把关"""
     gate = node.gate
     if not gate or coordinator._approval_manager is None:
@@ -335,7 +336,7 @@ async def on_workflow_node_status_change(coordinator, execution, node_id):
     )
 
 
-async def execute_workflow(coordinator, workflow_definition: WorkflowDefinition, on_message) -> Dict[str, Any]:
+async def execute_workflow(coordinator, workflow_definition: WorkflowDefinition, on_message) -> dict[str, Any]:
     """执行完整工作流"""
     try:
         execution = coordinator.workflow_engine.create_workflow(workflow_definition)
@@ -376,7 +377,7 @@ async def execute_workflow(coordinator, workflow_definition: WorkflowDefinition,
     except Exception as e:
         logger.error("工作流执行失败: %s", str(e))
         ceo_id = coordinator._find_agent_id(AgentRole.CEO) or "agent-ceo"
-        error_msg = f"工作流执行失败: {str(e)}"
+        error_msg = f"工作流执行失败: {e!s}"
         await coordinator._msg(ceo_id, error_msg)
         coordinator.meeting.add_message("agent", error_msg, ceo_id)
         return {"error": str(e)}

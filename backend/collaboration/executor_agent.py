@@ -1,13 +1,19 @@
 import asyncio
 import logging
 import re
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
+from typing import Any
 
-from .communication import CommunicationInterface, CommunicationManager, Message, MessageType
+from .communication import (
+    CommunicationInterface,
+    CommunicationManager,
+    Message,
+    MessageType,
+)
 
 try:
     from experience_extractor import ExecutionLog, ExperienceExtractor
@@ -31,7 +37,7 @@ class TaskResult:
     task_id: str = ""
     success: bool = True
     result: Any = None
-    error: Optional[str] = None
+    error: str | None = None
     duration: float = 0.0
     timestamp: datetime = field(default_factory=datetime.now)
 
@@ -41,14 +47,14 @@ class AgentStats:
     tasks_completed: int = 0
     tasks_failed: int = 0
     total_duration: float = 0.0
-    last_active: Optional[datetime] = None
+    last_active: datetime | None = None
 
 
 class ExecutorAgent:
     def __init__(
         self,
         name: str = "executor",
-        capabilities: List[str] = None,
+        capabilities: list[str] = None,
         communication: CommunicationInterface = None,
         communication_manager: CommunicationManager = None,
         auto_report: bool = True,
@@ -80,13 +86,13 @@ class ExecutorAgent:
         self.incremental_path = incremental_path
         self.experience_extractor = experience_extractor
         self.status = AgentStatus.IDLE
-        self.current_task: Optional[Dict[str, Any]] = None
-        self.task_history: List[TaskResult] = []
+        self.current_task: dict[str, Any] | None = None
+        self.task_history: list[TaskResult] = []
         self.stats = AgentStats()
-        self._parent_agent: Optional[str] = None
-        self._task_executor: Optional[Callable] = None
+        self._parent_agent: str | None = None
+        self._task_executor: Callable | None = None
         self._running = False
-        self._message_task: Optional[asyncio.Task] = None
+        self._message_task: asyncio.Task | None = None
 
     @property
     def agent_id(self) -> str:
@@ -233,7 +239,7 @@ class ExecutorAgent:
             )
             await self.communication_manager.send_message(message)
 
-    async def request_collaboration(self, target_agent: str, request_type: str, data: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
+    async def request_collaboration(self, target_agent: str, request_type: str, data: dict[str, Any] = None) -> dict[str, Any] | None:
         if not self.communication_manager:
             return None
 
@@ -251,7 +257,7 @@ class ExecutorAgent:
             return response.content.get("result")
         return None
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "agent_id": self.name,
             "status": self.status.value,
@@ -265,7 +271,7 @@ class ExecutorAgent:
             },
         }
 
-    def get_task_history(self) -> List[Dict[str, Any]]:
+    def get_task_history(self) -> list[dict[str, Any]]:
         return [
             {
                 "task_id": r.task_id,
@@ -404,7 +410,7 @@ class ExecutorAgent:
         task_context = task_context or {}
         task_id = task_context.get("task_id", str(uuid.uuid4()))
         task_type = task_context.get("task_type", "")
-        all_corrections: List[dict] = []
+        all_corrections: list[dict] = []
         task_output = None
 
         # 1. 注入经验上下文
@@ -554,7 +560,7 @@ class ExecutorAgent:
     # ──────────────────── 辅助方法 ────────────────────
 
     @staticmethod
-    def _extract_keywords(text: str) -> List[str]:
+    def _extract_keywords(text: str) -> list[str]:
         """从文本中提取关键词
 
         简单实现：分词 + 过滤停用词。
@@ -588,7 +594,7 @@ class ExecutorAgent:
 
         # 中英文混合分词
         raw_tokens = re.findall(r'[\u4e00-\u9fff]+|[a-zA-Z_][a-zA-Z0-9_]*', text)
-        tokens: List[str] = []
+        tokens: list[str] = []
         for raw in raw_tokens:
             if re.match(r'[\u4e00-\u9fff]+', raw):
                 # 中文：逐字拆分（每个汉字作为独立 token）

@@ -6,11 +6,11 @@ a subprocess with a dedicated test socket.
 """
 
 import os
+import signal
+import socket
+import subprocess
 import sys
 import time
-import socket
-import signal
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -18,7 +18,11 @@ import pytest
 # Ensure backend/ is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from agent_kernel_client import AgentKernelClient, AgentKernelError, KernelAgent  # noqa: E402
+from agent_kernel_client import (
+    AgentKernelClient,
+    AgentKernelError,
+    KernelAgent,
+)
 
 DAEMON_PATH = str(
     Path(__file__).resolve().parents[2]

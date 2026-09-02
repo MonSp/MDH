@@ -7,10 +7,9 @@ import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
-from db import get_db, get_write_lock
 from cache import get_cache
+from db import get_db, get_write_lock
 
 logger = logging.getLogger("agent_profile")
 
@@ -34,7 +33,7 @@ class AgentProfile:
     career_stage: str = "junior"
     department: str = ""
     total_xp: int = 0
-    skill_progress: Dict[str, dict] = field(default_factory=dict)
+    skill_progress: dict[str, dict] = field(default_factory=dict)
 
 
 class AgentProfileManager:
@@ -42,7 +41,7 @@ class AgentProfileManager:
         self._dir = profiles_dir
         self._db_path = os.path.join(profiles_dir, "profiles.db")
         os.makedirs(self._dir, exist_ok=True)
-        self._locks: Dict[str, threading.Lock] = {}
+        self._locks: dict[str, threading.Lock] = {}
         self._locks_lock = threading.Lock()
         self._db = get_db(self._db_path)
         self._event_store = event_store
@@ -70,10 +69,10 @@ class AgentProfileManager:
             self._save_profile_db(profile)
             return profile
 
-    def get_profile(self, agent_id: str) -> Optional[AgentProfile]:
+    def get_profile(self, agent_id: str) -> AgentProfile | None:
         return self._get_profile_db(agent_id)
 
-    def _get_profile_db(self, agent_id: str) -> Optional[AgentProfile]:
+    def _get_profile_db(self, agent_id: str) -> AgentProfile | None:
         cache = get_cache()
         cached = cache.get(f"profile:{agent_id}")
         if cached is not None:
@@ -102,7 +101,11 @@ class AgentProfileManager:
                 try:
                     old_profile = self._get_profile_db(profile.agent_id)
                     if old_profile and old_profile.career_stage != profile.career_stage:
-                        from evolution_events import EvolutionEvent, new_event_id, _now_iso
+                        from evolution_events import (
+                            EvolutionEvent,
+                            _now_iso,
+                            new_event_id,
+                        )
                         self._event_store.record_event(EvolutionEvent(
                             event_id=new_event_id(),
                             event_type="career_promotion",
@@ -132,7 +135,7 @@ class AgentProfileManager:
             self._db.commit()
             get_cache().invalidate(f"profile:{profile.agent_id}")
 
-    def list_profiles(self) -> List[AgentProfile]:
+    def list_profiles(self) -> list[AgentProfile]:
         rows = self._db.execute("SELECT * FROM agent_profiles").fetchall()
         return [
             AgentProfile(
@@ -144,7 +147,7 @@ class AgentProfileManager:
             for r in rows
         ]
 
-    def find_mentor(self, agent_id: str) -> Optional[AgentProfile]:
+    def find_mentor(self, agent_id: str) -> AgentProfile | None:
         STAGE_ORDER = {"junior": 0, "mid": 1, "senior": 2, "lead": 3}
         profile = self.get_profile(agent_id)
         if not profile or not profile.department:
@@ -176,7 +179,7 @@ class AgentProfileManager:
             )
         return None
 
-    def get_department_peers(self, agent_id: str) -> List[AgentProfile]:
+    def get_department_peers(self, agent_id: str) -> list[AgentProfile]:
         profile = self.get_profile(agent_id)
         if not profile or not profile.department:
             return []
@@ -200,7 +203,7 @@ class AgentProfileManager:
         with get_write_lock(self._db_path):
             return self._grant_xp_unsafe(agent_id, skill_id, task_success, review_score, task_complexity, skill_config)
 
-    def _grant_xp_unsafe(self, agent_id, skill_id, task_success, review_score, task_complexity, skill_config) -> Dict:
+    def _grant_xp_unsafe(self, agent_id, skill_id, task_success, review_score, task_complexity, skill_config) -> dict:
         profile = self._get_profile_db(agent_id)
         if not profile:
             return {"xp_gained": 0, "new_level": 0, "leveled_up": False, "skill_id": skill_id}
@@ -260,7 +263,7 @@ class AgentProfileManager:
         # ── 记录进化事件 ──
         if self._event_store and xp_gained > 0:
             try:
-                from evolution_events import EvolutionEvent, new_event_id, _now_iso
+                from evolution_events import EvolutionEvent, _now_iso, new_event_id
                 self._event_store.record_event(EvolutionEvent(
                     event_id=new_event_id(),
                     event_type="xp_granted",
@@ -275,7 +278,7 @@ class AgentProfileManager:
 
         if self._event_store and leveled_up:
             try:
-                from evolution_events import EvolutionEvent, new_event_id, _now_iso
+                from evolution_events import EvolutionEvent, _now_iso, new_event_id
                 self._event_store.record_event(EvolutionEvent(
                     event_id=new_event_id(),
                     event_type="skill_level_up",

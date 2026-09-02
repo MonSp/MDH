@@ -11,7 +11,6 @@ import json
 import logging
 import os
 import secrets
-from typing import Dict, Optional
 
 logger = logging.getLogger("rbac")
 
@@ -39,7 +38,7 @@ class RBACManager:
     def __init__(self, data_dir: str):
         self._data_dir = data_dir
         self._keys_path = os.path.join(data_dir, "api_keys.json")
-        self._keys: Dict[str, Dict] = {}
+        self._keys: dict[str, dict] = {}
         self._load_keys()
 
     def _load_keys(self):
@@ -87,7 +86,7 @@ class RBACManager:
         logger.info("创建 API key: %s (role=%s)", name, role)
         return key
 
-    def verify_key(self, key: str) -> Optional[Dict]:
+    def verify_key(self, key: str) -> dict | None:
         """验证 API key，返回 key 信息或 None"""
         if not key:
             return None

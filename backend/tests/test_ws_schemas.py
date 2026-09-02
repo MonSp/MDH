@@ -5,11 +5,14 @@ WebSocket 消息验证模型测试
 """
 
 import pytest
-from ws_schemas import (
-    validate_ws_message, WSValidationError, MESSAGE_MODELS,
-    UserMessage, StartMeeting,
-)
 
+from ws_schemas import (
+    MESSAGE_MODELS,
+    StartMeeting,
+    UserMessage,
+    WSValidationError,
+    validate_ws_message,
+)
 
 # ── 基本验证 ──
 

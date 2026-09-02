@@ -12,7 +12,7 @@ import logging
 import os
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("proactive_monitor")
 
@@ -24,7 +24,7 @@ class ProactiveMonitor:
         self._data_dir = data_dir
         self._profile_dir = os.path.join(data_dir, "agent_profiles")
         self._alerts_path = os.path.join(data_dir, "proactive_alerts.json")
-        self._alerts: List[Dict] = []
+        self._alerts: list[dict] = []
         self._load_alerts()
 
     def _load_alerts(self):
@@ -44,7 +44,7 @@ class ProactiveMonitor:
         except Exception:
             pass
 
-    def run_health_check(self) -> Dict[str, Any]:
+    def run_health_check(self) -> dict[str, Any]:
         """运行健康巡检
 
         检查：
@@ -82,7 +82,7 @@ class ProactiveMonitor:
             },
         }
 
-    def _check_agent_performance(self) -> List[Dict]:
+    def _check_agent_performance(self) -> list[dict]:
         """检查 agent 表现下降"""
         alerts = []
         try:
@@ -115,7 +115,7 @@ class ProactiveMonitor:
 
         return alerts
 
-    def _check_skill_coverage(self) -> List[Dict]:
+    def _check_skill_coverage(self) -> list[dict]:
         """检查技能覆盖缺口"""
         alerts = []
         try:
@@ -125,7 +125,7 @@ class ProactiveMonitor:
         except Exception:
             return alerts
 
-        dept_skills: Dict[str, set] = defaultdict(set)
+        dept_skills: dict[str, set] = defaultdict(set)
         for profile in profiles:
             if not profile.department:
                 continue
@@ -145,7 +145,7 @@ class ProactiveMonitor:
 
         return alerts
 
-    def _check_rule_health(self) -> List[Dict]:
+    def _check_rule_health(self) -> list[dict]:
         """检查规则健康度"""
         import yaml
         alerts = []
@@ -153,7 +153,7 @@ class ProactiveMonitor:
         if not os.path.isdir(rules_dir):
             return alerts
 
-        domain_scores: Dict[str, List[float]] = defaultdict(list)
+        domain_scores: dict[str, list[float]] = defaultdict(list)
         for fname in os.listdir(rules_dir):
             if not fname.endswith(".yaml"):
                 continue
@@ -178,11 +178,11 @@ class ProactiveMonitor:
 
         return alerts
 
-    def get_recent_alerts(self, limit: int = 20) -> List[Dict]:
+    def get_recent_alerts(self, limit: int = 20) -> list[dict]:
         """获取最近的告警"""
         return list(reversed(self._alerts[-limit:]))
 
-    def get_alert_stats(self) -> Dict:
+    def get_alert_stats(self) -> dict:
         """告警统计"""
         total = len(self._alerts)
         by_type = Counter(a.get("type", "unknown") for a in self._alerts)

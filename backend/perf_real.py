@@ -4,13 +4,13 @@
 """
 import json
 import os
-import subprocess
 import statistics
+import subprocess
 import sys
-import time
-import urllib.request
-import urllib.error
 import threading
+import time
+import urllib.error
+import urllib.request
 
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 TOKEN = "perf-test-token"
@@ -190,8 +190,9 @@ def main():
         print("LLM 缓存（SQLite 持久化）")
         print("=" * 90)
 
-        from llm_cache import LLMCache
         import tempfile
+
+        from llm_cache import LLMCache
         perf_cache_db = os.path.join(tempfile.gettempdir(), "llm_cache_perf.db")
 
         # 写入延迟
@@ -241,6 +242,7 @@ def main():
         print("=" * 90)
 
         import sqlite3
+
         from session_persistence import SessionPersistence
 
         # 读取延迟

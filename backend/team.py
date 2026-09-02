@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 class RuntimeType(str, enum.Enum):
@@ -59,7 +58,7 @@ class Team:
     project_id: str
     runtime: TeamRuntime
     members: list[TeamMember] = field(default_factory=list)
-    leader: Optional[TeamMember] = field(default=None, repr=False)
+    leader: TeamMember | None = field(default=None, repr=False)
     status: TeamStatus = TeamStatus.CREATED
 
     def add_member(self, member: TeamMember) -> None:
@@ -75,13 +74,13 @@ class Team:
     def set_status(self, status: TeamStatus) -> None:
         self.status = status
 
-    def get_member_by_team_role(self, team_role: str) -> Optional[TeamMember]:
+    def get_member_by_team_role(self, team_role: str) -> TeamMember | None:
         for m in self.members:
             if m.team_role == team_role:
                 return m
         return None
 
-    def get_member_by_id(self, agent_id: str) -> Optional[TeamMember]:
+    def get_member_by_id(self, agent_id: str) -> TeamMember | None:
         for m in self.members:
             if m.agent_id == agent_id:
                 return m

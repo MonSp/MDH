@@ -1,5 +1,6 @@
 """Tests for TeamFederation — 多团队进化联邦"""
 import pytest
+
 from team_federation import TeamFederation
 
 

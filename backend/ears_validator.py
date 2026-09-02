@@ -10,7 +10,6 @@ EARS (Event-Driven Acceptance Requirements Specification) 验收句式校验器
 
 import re
 from dataclasses import dataclass
-from typing import List, Tuple
 
 
 @dataclass
@@ -64,7 +63,7 @@ class EarsValidator:
         r'\bmaybe\b',     # maybe (英文)
     ]
 
-    def validate(self, text: str) -> Tuple[bool, List[EarsViolation]]:
+    def validate(self, text: str) -> tuple[bool, list[EarsViolation]]:
         """
         校验文本是否符合EARS句式
 
@@ -135,7 +134,7 @@ class EarsValidator:
         passed = len(violations) == 0
         return passed, violations
 
-    def validate_batch(self, texts: List[str]) -> List[Tuple[bool, List[EarsViolation]]]:
+    def validate_batch(self, texts: list[str]) -> list[tuple[bool, list[EarsViolation]]]:
         """
         批量校验多个验收标准文本
 
@@ -149,7 +148,7 @@ class EarsValidator:
 
 
 # 便捷函数
-def validate_ears(text: str) -> Tuple[bool, List[str]]:
+def validate_ears(text: str) -> tuple[bool, list[str]]:
     """
     便捷函数：校验EARS句式，返回简化结果
 

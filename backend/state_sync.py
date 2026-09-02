@@ -7,15 +7,14 @@ State Sync — 双层状态同步
 
 import logging
 import re
-from typing import Dict, List
 
-from experience_extractor import ExperienceExtractor
 from agent_memory import AgentMemory
+from experience_extractor import ExperienceExtractor
 
 logger = logging.getLogger("state_sync")
 
 
-def extract_keywords(text: str, max_keywords: int = 10) -> List[str]:
+def extract_keywords(text: str, max_keywords: int = 10) -> list[str]:
     """从文本中提取关键词（中文 bigram + 英文分词）"""
     cn_words = []
     for i in range(len(text) - 1):
@@ -47,7 +46,7 @@ class StateSyncManager:
         task_description: str,
         agent_id: str,
         max_rules: int = 5,
-    ) -> Dict:
+    ) -> dict:
         """任务前: 检索相关经验规则，构建注入 metadata
 
         Args:
@@ -161,7 +160,7 @@ class StateSyncManager:
             logger.warning("记忆写入失败: %s", e)
 
     @staticmethod
-    def _extract_keywords(text: str) -> List[str]:
+    def _extract_keywords(text: str) -> list[str]:
         """从文本中提取关键词"""
         return extract_keywords(text)
 

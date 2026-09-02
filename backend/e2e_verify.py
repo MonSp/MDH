@@ -7,8 +7,8 @@ import os
 import subprocess
 import sys
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 TOKEN = "e2e-test-token"
@@ -174,7 +174,7 @@ def main():
 
         # ── Test 7: Voting ──
         print("\n=== 7. Voting (SIMPLE_MAJORITY only) ===")
-        from negotiation import NegotiationEngine, ConsensusStrategy
+        from negotiation import ConsensusStrategy, NegotiationEngine
         check("only one strategy", len(ConsensusStrategy) == 1)
 
         engine = NegotiationEngine()
@@ -218,9 +218,9 @@ def main():
 
         # ── Test 11: A2A Protocol ──
         print("\n=== 11. A2A Protocol ===")
+        from a2a_client import A2AClient
         from a2a_registry import A2ARegistry, AgentCard, AgentSkill
         from a2a_task_router import A2ATaskRouter
-        from a2a_client import A2AClient
         from state_sync import StateSyncManager
 
         reg = A2ARegistry(persist_path=os.path.join(BACKEND_DIR, "data", "a2a_agents.json"))

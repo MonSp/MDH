@@ -11,7 +11,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger("agent_optimizer")
 
@@ -24,7 +24,7 @@ class AgentOptimizer:
         self._profile_dir = os.path.join(data_dir, "agent_profiles")
         self._memory_dir = os.path.join(data_dir, "agent_memory")
         self._optimization_path = os.path.join(data_dir, "agent_optimizations.json")
-        self._optimizations: Dict[str, Any] = {}
+        self._optimizations: dict[str, Any] = {}
         self._load_optimizations()
 
     def _load_optimizations(self):
@@ -44,7 +44,7 @@ class AgentOptimizer:
         except Exception:
             pass
 
-    def analyze_agent(self, agent_id: str) -> Dict[str, Any]:
+    def analyze_agent(self, agent_id: str) -> dict[str, Any]:
         """分析单个 agent 的表现
 
         Returns:
@@ -170,7 +170,7 @@ class AgentOptimizer:
 
         return recs
 
-    def get_all_agents_summary(self) -> Dict[str, Any]:
+    def get_all_agents_summary(self) -> dict[str, Any]:
         """所有 agent 汇总"""
         if not os.path.isdir(self._profile_dir):
             return {"total_agents": 0}
@@ -199,7 +199,7 @@ class AgentOptimizer:
             "needs_attention": [s for s in summaries if s["weak_count"] > 0],
         }
 
-    def _load_profile(self, agent_id: str) -> Optional[Dict]:
+    def _load_profile(self, agent_id: str) -> dict | None:
         path = os.path.join(self._profile_dir, f"{agent_id}.json")
         if not os.path.isfile(path):
             return None

@@ -4,6 +4,7 @@ from email import policy
 from unittest import mock
 
 import pytest
+
 from mailer.provider import FileMailer, SmtpMailer, build_mime
 from mailer.seam import MailMessage, get_mailer
 

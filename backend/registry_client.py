@@ -20,7 +20,6 @@ import subprocess
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 logger = logging.getLogger("registry_client")
 
@@ -33,7 +32,7 @@ class SkillMeta:
     description: str
     author: str = ""
     category: str = ""
-    keywords: List[str] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
     license: str = ""
     repository: str = ""
     created_at: str = ""
@@ -78,7 +77,7 @@ class RegistryClient:
         self._cache_dir = Path(local_cache_dir) if local_cache_dir else Path.home() / ".mdh" / "registry"
         self._skills_dir = self._cache_dir / "skills"
         self._index_path = self._cache_dir / "index.json"
-        self._index: Dict[str, SkillMeta] = {}
+        self._index: dict[str, SkillMeta] = {}
 
         if auto_clone and repo_url:
             self._ensure_repo()
@@ -159,7 +158,7 @@ class RegistryClient:
         except Exception as e:
             logger.error("保存注册表索引失败: %s", e)
 
-    def _read_skill_meta(self, skill_dir: Path) -> Optional[SkillMeta]:
+    def _read_skill_meta(self, skill_dir: Path) -> SkillMeta | None:
         """读取技能包元数据"""
         # 优先读取 manifest.json
         manifest_path = skill_dir / "manifest.json"
@@ -175,6 +174,7 @@ class RegistryClient:
         if skill_md.exists():
             try:
                 import re
+
                 import yaml
                 content = skill_md.read_text(encoding="utf-8")
                 match = re.match(r'^---\s*\n(.*?)\n---\s*\n', content, re.DOTALL)
@@ -198,10 +198,10 @@ class RegistryClient:
 
     def search(
         self,
-        keywords: List[str] = None,
+        keywords: list[str] = None,
         category: str = "",
         limit: int = 20,
-    ) -> List[SkillMeta]:
+    ) -> list[SkillMeta]:
         """搜索技能包。
 
         Args:
@@ -316,7 +316,7 @@ class RegistryClient:
             logger.error("发布技能 %s 失败: %s", skill_name, e)
             return False
 
-    def _run_git(self, args: List[str]) -> str:
+    def _run_git(self, args: list[str]) -> str:
         """执行 Git 命令"""
         result = subprocess.run(
             ["git", "-C", str(self._cache_dir)] + args,
@@ -327,14 +327,14 @@ class RegistryClient:
             raise RuntimeError(f"Git 命令失败: {result.stderr}")
         return result.stdout
 
-    def list_installed(self, target_dir: str) -> List[str]:
+    def list_installed(self, target_dir: str) -> list[str]:
         """列出本地已安装的技能"""
         target_path = Path(target_dir)
         if not target_path.exists():
             return []
         return [d.name for d in target_path.iterdir() if d.is_dir() and not d.name.startswith(".")]
 
-    def get_skill_info(self, skill_name: str) -> Optional[SkillMeta]:
+    def get_skill_info(self, skill_name: str) -> SkillMeta | None:
         """获取技能包详细信息"""
         return self._index.get(skill_name)
 
@@ -348,7 +348,7 @@ class RegistryClient:
 
     # ── 社区市场：GitHub API 远程搜索 ──
 
-    def search_remote(self, query: str = "", limit: int = 20) -> List[SkillMeta]:
+    def search_remote(self, query: str = "", limit: int = 20) -> list[SkillMeta]:
         """通过 GitHub API 搜索远程注册表（无需 clone 整个仓库）
 
         Args:
@@ -358,8 +358,8 @@ class RegistryClient:
         Returns:
             技能包元数据列表
         """
-        import urllib.request
         import urllib.error
+        import urllib.request
 
         # 从 repo_url 提取 owner/repo
         repo_path = self._extract_repo_path()
@@ -463,7 +463,7 @@ class RegistryClient:
             return match.group(1).rstrip('.git')
         return ""
 
-    def _fetch_skill_meta_from_url(self, url: str, fallback_name: str) -> Optional[SkillMeta]:
+    def _fetch_skill_meta_from_url(self, url: str, fallback_name: str) -> SkillMeta | None:
         """从 URL 下载 SKILL.md 并解析 frontmatter"""
         import re as _re
         try:

@@ -14,7 +14,6 @@ from project_manager import ProjectManager
 from skill_registry import SkillRegistry
 from team import Team, TeamMember, TeamStatus
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

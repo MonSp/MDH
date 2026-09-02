@@ -1,7 +1,8 @@
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +42,14 @@ class ToolParameter:
     description: str
     required: bool = True
     default: Any = None
-    enum: Optional[List[str]] = None
+    enum: list[str] | None = None
 
 
 @dataclass
 class ToolDefinition:
     name: str
     description: str
-    parameters: List[ToolParameter] = field(default_factory=list)
+    parameters: list[ToolParameter] = field(default_factory=list)
     category: str = "general"
     dangerous: bool = False
     timeout: int = 60
@@ -57,7 +58,7 @@ class ToolDefinition:
 @dataclass
 class ToolCall:
     tool_name: str
-    arguments: Dict[str, Any]
+    arguments: dict[str, Any]
     call_id: str = ""
 
 
@@ -66,7 +67,7 @@ class ToolResult:
     success: bool
     output: str = ""
     error: str = ""
-    artifacts: List[Dict[str, Any]] = field(default_factory=list)
+    artifacts: list[dict[str, Any]] = field(default_factory=list)
     call_id: str = ""
 
 
@@ -75,8 +76,8 @@ ToolExecutorFunc = Callable[[ToolCall], ToolResult]
 
 class ToolRegistry:
     def __init__(self):
-        self._tools: Dict[str, ToolDefinition] = {}
-        self._executors: Dict[str, ToolExecutorFunc] = {}
+        self._tools: dict[str, ToolDefinition] = {}
+        self._executors: dict[str, ToolExecutorFunc] = {}
 
     def register(
         self,
@@ -89,16 +90,16 @@ class ToolRegistry:
         self._executors[definition.name] = executor
         logger.info("Registered tool: %s (category=%s)", definition.name, definition.category)
 
-    def get_tool(self, name: str) -> Optional[ToolDefinition]:
+    def get_tool(self, name: str) -> ToolDefinition | None:
         return self._tools.get(name)
 
-    def list_tools(self, category: Optional[str] = None) -> List[ToolDefinition]:
+    def list_tools(self, category: str | None = None) -> list[ToolDefinition]:
         tools = list(self._tools.values())
         if category:
             tools = [t for t in tools if t.category == category]
         return tools
 
-    def get_executor(self, name: str) -> Optional[ToolExecutorFunc]:
+    def get_executor(self, name: str) -> ToolExecutorFunc | None:
         return self._executors.get(name)
 
     def validate_tool_call(self, tool_call: ToolCall) -> tuple[bool, str]:
@@ -118,7 +119,7 @@ class ToolRegistry:
 
         return True, ""
 
-    def _check_shell_safety(self, arguments: Dict[str, Any]) -> tuple[bool, str]:
+    def _check_shell_safety(self, arguments: dict[str, Any]) -> tuple[bool, str]:
         command = arguments.get("command", "")
         if not command:
             return True, ""
@@ -133,13 +134,13 @@ class ToolRegistry:
 
         return True, ""
 
-    def get_tools_schema(self) -> List[Dict[str, Any]]:
+    def get_tools_schema(self) -> list[dict[str, Any]]:
         schemas = []
         for tool in self._tools.values():
             properties = {}
             required = []
             for param in tool.parameters:
-                prop: Dict[str, Any] = {
+                prop: dict[str, Any] = {
                     "type": param.type,
                     "description": param.description,
                 }

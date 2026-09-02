@@ -1,9 +1,11 @@
 import asyncio
 import os
 import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from provider_registry import PROVIDER_REGISTRY
+
 
 async def test():
     reg = PROVIDER_REGISTRY['deepseek']

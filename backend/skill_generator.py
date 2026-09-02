@@ -8,7 +8,7 @@ SkillGenerator — AI 技能生成服务
 import json
 import logging
 import re
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger("skill_generator")
 
@@ -32,7 +32,7 @@ class SkillGenerator:
         api_key: str = "",
         base_url: str = "",
         model_name: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """生成技能配置
 
         Args:
@@ -53,10 +53,11 @@ class SkillGenerator:
 
         try:
             # 创建模型
-            from model_factory import create_agent, get_default_base_url
             from agentscope.agent import Agent
             from agentscope.message import Msg
+
             from agent import _extract_text
+            from model_factory import create_agent, get_default_base_url
 
             if base_url and not base_url.startswith(("http://", "https://")):
                 base_url = "https://" + base_url
@@ -142,7 +143,7 @@ class SkillGenerator:
     "required_tools": ["工具列表，从以下选择：read_file, write_file, edit_file, list_directory, bash, git_status, git_commit, git_push, git_branch, git_diff, git_log, search_files, grep_content, run_tests, run_linter, create_document, edit_document, create_slide, edit_slide, run_sql, create_chart, run_etl, generate_image, generate_video, edit_media, write_copy, seo_optimize, web_fetch"]
 }}"""
 
-    def _parse_response(self, text: str) -> Dict[str, Any]:
+    def _parse_response(self, text: str) -> dict[str, Any]:
         """解析 LLM 返回的 JSON"""
         json_match = re.search(r'\{[\s\S]*\}', text)
         if not json_match:
@@ -151,7 +152,7 @@ class SkillGenerator:
         try:
             skill_config = json.loads(json_match.group())
         except json.JSONDecodeError as e:
-            return {"error": f"JSON解析失败: {str(e)}"}
+            return {"error": f"JSON解析失败: {e!s}"}
 
         # 验证必要字段
         if not skill_config.get("id"):

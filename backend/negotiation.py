@@ -1,7 +1,6 @@
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict
 from enum import Enum
 
 
@@ -48,17 +47,17 @@ class DecisionNode:
     id: str
     proposal_id: str
     decision: str
-    supporters: List[str] = field(default_factory=list)
-    opposers: List[str] = field(default_factory=list)
-    vote_result: Optional[VoteResult] = None
+    supporters: list[str] = field(default_factory=list)
+    opposers: list[str] = field(default_factory=list)
+    vote_result: VoteResult | None = None
     timestamp: float = 0.0
 
 
 class NegotiationEngine:
     def __init__(self):
-        self._proposals: Dict[str, Proposal] = {}
-        self._votes: Dict[str, List[Vote]] = {}
-        self._decision_graph: List[DecisionNode] = []
+        self._proposals: dict[str, Proposal] = {}
+        self._votes: dict[str, list[Vote]] = {}
+        self._decision_graph: list[DecisionNode] = []
 
     def create_proposal(self, proposer_id: str, content: str) -> Proposal:
         proposal = Proposal(
@@ -77,7 +76,7 @@ class NegotiationEngine:
         voter_id: str,
         approve: bool,
         reason: str = "",
-    ) -> Optional[Vote]:
+    ) -> Vote | None:
         proposal = self._proposals.get(proposal_id)
         if proposal is None:
             return None
@@ -144,7 +143,7 @@ class NegotiationEngine:
 
         return result
 
-    def get_decision_graph(self) -> List[DecisionNode]:
+    def get_decision_graph(self) -> list[DecisionNode]:
         return list(self._decision_graph)
 
     def reset(self) -> None:

@@ -13,7 +13,7 @@ import logging
 import os
 from collections import Counter
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("live_document")
 
@@ -30,8 +30,8 @@ class LiveDocumentManager:
         self._workspace_dir = workspace_dir or os.path.join(data_dir, "workspaces")
         self._artifacts_path = os.path.join(data_dir, "artifact_history.json")
         self._conflicts_path = os.path.join(data_dir, "document_conflicts.json")
-        self._artifacts: List[Dict] = []
-        self._conflicts: List[Dict] = []
+        self._artifacts: list[dict] = []
+        self._conflicts: list[dict] = []
         self._load()
 
     def _load(self):
@@ -70,7 +70,7 @@ class LiveDocumentManager:
 
     # ── 代码感知 ──
 
-    def analyze_codebase(self, workspace_path: str = "") -> Dict[str, Any]:
+    def analyze_codebase(self, workspace_path: str = "") -> dict[str, Any]:
         """分析代码仓库结构"""
         path = workspace_path or self._workspace_dir
         if not os.path.isdir(path):
@@ -115,7 +115,7 @@ class LiveDocumentManager:
 
     # ── 数据感知 ──
 
-    def analyze_dataset(self, file_path: str) -> Dict[str, Any]:
+    def analyze_dataset(self, file_path: str) -> dict[str, Any]:
         """解析 CSV/JSON 数据集，提取摘要统计"""
         if not os.path.isfile(file_path):
             return {"error": "file not found"}
@@ -134,7 +134,7 @@ class LiveDocumentManager:
             return {"error": str(e)}
 
     @staticmethod
-    def _analyze_csv(file_path: str) -> Dict:
+    def _analyze_csv(file_path: str) -> dict:
         with open(file_path, encoding="utf-8", errors="replace") as f:
             reader = csv.reader(f)
             headers = next(reader, [])
@@ -170,7 +170,7 @@ class LiveDocumentManager:
         return result
 
     @staticmethod
-    def _analyze_json(file_path: str) -> Dict:
+    def _analyze_json(file_path: str) -> dict:
         with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
 
@@ -188,7 +188,7 @@ class LiveDocumentManager:
         return result
 
     @staticmethod
-    def _analyze_yaml(file_path: str) -> Dict:
+    def _analyze_yaml(file_path: str) -> dict:
         import yaml
         with open(file_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
@@ -216,7 +216,7 @@ class LiveDocumentManager:
         self._save_artifacts()
         return entry
 
-    def get_artifact_history(self, file_path: str = "", agent_id: str = "", limit: int = 20) -> List[Dict]:
+    def get_artifact_history(self, file_path: str = "", agent_id: str = "", limit: int = 20) -> list[dict]:
         """获取产出物变更历史"""
         filtered = self._artifacts
         if file_path:
@@ -225,7 +225,7 @@ class LiveDocumentManager:
             filtered = [a for a in filtered if a.get("agent_id") == agent_id]
         return list(reversed(filtered[-limit:]))
 
-    def get_artifact_stats(self) -> Dict:
+    def get_artifact_stats(self) -> dict:
         """产出物统计"""
         by_agent = Counter(a.get("agent_id", "?") for a in self._artifacts)
         by_action = Counter(a.get("action", "?") for a in self._artifacts)
@@ -239,7 +239,7 @@ class LiveDocumentManager:
 
     # ── 冲突检测 ──
 
-    def detect_conflict(self, file_path: str, agent_id: str) -> Optional[Dict]:
+    def detect_conflict(self, file_path: str, agent_id: str) -> dict | None:
         """检测文件是否有并发编辑冲突"""
         # 查找最近 5 分钟内其他 agent 对同一文件的编辑
         from datetime import timedelta
@@ -265,6 +265,6 @@ class LiveDocumentManager:
             return conflict
         return None
 
-    def get_conflicts(self, limit: int = 10) -> List[Dict]:
+    def get_conflicts(self, limit: int = 10) -> list[dict]:
         """获取最近的冲突记录"""
         return list(reversed(self._conflicts[-limit:]))

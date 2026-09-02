@@ -7,10 +7,11 @@ SimpleExecutor - 简单执行引擎
 
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any
 
-from meeting import MeetingSession, PERSONAL_ASSISTANT_TEMPLATE
+from meeting import PERSONAL_ASSISTANT_TEMPLATE, MeetingSession
 from project_manager import ProjectManager
 
 logger = logging.getLogger("simple_executor")
@@ -20,7 +21,7 @@ logger = logging.getLogger("simple_executor")
 class ReviewResult:
     """轻量验收结果"""
     passed: bool
-    checks: Dict[str, bool] = field(default_factory=dict)
+    checks: dict[str, bool] = field(default_factory=dict)
     reason: str = ""
 
 
@@ -32,7 +33,7 @@ class SimpleResult:
     project_id: str
     review_passed: bool
     retry_with_complex: bool
-    tool_calls: List[Dict[str, Any]] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
 
 
 class SimpleExecutor:
@@ -161,14 +162,14 @@ class SimpleExecutor:
             logger.exception("简单执行失败: %s", e)
             return SimpleResult(
                 success=False,
-                result=f"执行失败: {str(e)}",
+                result=f"执行失败: {e!s}",
                 project_id="",
                 review_passed=False,
                 retry_with_complex=True,
                 tool_calls=tool_calls,
             )
 
-    async def _try_a2a_routing(self, content: str, on_progress, execution_preference: str = "auto") -> Optional[SimpleResult]:
+    async def _try_a2a_routing(self, content: str, on_progress, execution_preference: str = "auto") -> SimpleResult | None:
         """尝试通过 A2A 协议路由任务到外部执行节点
 
         路由策略:
@@ -295,7 +296,7 @@ class SimpleExecutor:
         session,
         content: str,
         on_progress: Callable[[str, str, str], Awaitable[None]],
-        tool_calls: List[Dict[str, Any]],
+        tool_calls: list[dict[str, Any]],
     ) -> str:
         """
         调用 run_agent_stream 执行任务
@@ -320,14 +321,14 @@ class SimpleExecutor:
             result_text = await run_agent_stream(session, content)
         except Exception as e:
             logger.warning("run_agent_stream 异常: %s", e)
-            result_text = f"执行异常: {str(e)}"
+            result_text = f"执行异常: {e!s}"
 
         return result_text
 
     def _lightweight_review(
         self,
         result: str,
-        tool_calls: List[Dict[str, Any]],
+        tool_calls: list[dict[str, Any]],
     ) -> ReviewResult:
         """
         轻量验收
@@ -375,7 +376,7 @@ class SimpleExecutor:
         session,
         content: str,
         on_progress: Callable[[str, str, str], Awaitable[None]],
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         升级到复杂路径
 
@@ -449,5 +450,5 @@ class SimpleExecutor:
             logger.exception("升级到复杂路径失败: %s", e)
             return {
                 "type": "error",
-                "message": f"升级失败: {str(e)}",
+                "message": f"升级失败: {e!s}",
             }

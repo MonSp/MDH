@@ -1,5 +1,6 @@
 """Tests for TeamSynergy — 团队协同优化"""
 import pytest
+
 from team_synergy import TeamSynergy
 
 

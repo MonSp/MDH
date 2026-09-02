@@ -6,16 +6,20 @@ Spec Manager - 规格管理器
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
+from typing import Any
 
-from spec_tree import (
-    SpecTree, SpecTreeNode, SpecTreeNodeType,
-    SuccessCriterion, Provenance, SpecTreeValidator,
-)
-from gate_manager import GateManager
 from ears_validator import EarsValidator
 from evidence_chain import EvidenceChain
+from gate_manager import GateManager
+from spec_tree import (
+    Provenance,
+    SpecTree,
+    SpecTreeNode,
+    SpecTreeNodeType,
+    SpecTreeValidator,
+    SuccessCriterion,
+)
 
 
 @dataclass
@@ -29,12 +33,12 @@ class SpecDocuments:
 @dataclass
 class HandoffPackage:
     """交付包"""
-    spec_tree: Dict[str, Any]
+    spec_tree: dict[str, Any]
     documents: SpecDocuments
-    checks_ledger: List[Dict[str, Any]]
-    traceability_matrix: Dict[str, Any]
-    companion_log: List[Dict[str, Any]]
-    evidence_chain: Dict[str, Any]
+    checks_ledger: list[dict[str, Any]]
+    traceability_matrix: dict[str, Any]
+    companion_log: list[dict[str, Any]]
+    evidence_chain: dict[str, Any]
     generated_at: str
 
 
@@ -51,16 +55,16 @@ class SpecManager:
 
     def __init__(
         self,
-        gate_manager: Optional[GateManager] = None,
-        ears_validator: Optional[EarsValidator] = None,
-        evidence_chain: Optional[EvidenceChain] = None,
+        gate_manager: GateManager | None = None,
+        ears_validator: EarsValidator | None = None,
+        evidence_chain: EvidenceChain | None = None,
     ):
         self._gate_manager = gate_manager or GateManager()
         self._ears_validator = ears_validator or EarsValidator()
         self._evidence_chain = evidence_chain or EvidenceChain()
         self._spec_validator = SpecTreeValidator()
 
-    def generate_spec_tree(self, clarified_brief: Dict[str, Any]) -> SpecTree:
+    def generate_spec_tree(self, clarified_brief: dict[str, Any]) -> SpecTree:
         """
         从澄清简报生成 Spec Tree
 
@@ -125,7 +129,7 @@ class SpecManager:
             provenance=Provenance(generationSource="llm"),
         )
 
-    def validate_and_gate(self, tree: SpecTree) -> Tuple[bool, SpecTree]:
+    def validate_and_gate(self, tree: SpecTree) -> tuple[bool, SpecTree]:
         """
         校验并通过门禁
 
@@ -226,7 +230,7 @@ class SpecManager:
 
         return "\n".join(lines)
 
-    def build_traceability_matrix(self, tree: SpecTree) -> Dict[str, Any]:
+    def build_traceability_matrix(self, tree: SpecTree) -> dict[str, Any]:
         """
         构建可追溯矩阵
 
@@ -265,8 +269,8 @@ class SpecManager:
         self,
         tree: SpecTree,
         documents: SpecDocuments,
-        companion_log: Optional[List[Dict[str, Any]]] = None,
-        trace_id: Optional[str] = None,
+        companion_log: list[dict[str, Any]] | None = None,
+        trace_id: str | None = None,
     ) -> HandoffPackage:
         """
         导出交付包

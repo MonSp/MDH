@@ -3,8 +3,15 @@ Spec Manager 测试
 """
 
 import pytest
-from spec_manager import SpecManager, SpecDocuments, HandoffPackage
-from spec_tree import SpecTree, SpecTreeNode, SpecTreeNodeType, SuccessCriterion, Provenance
+
+from spec_manager import HandoffPackage, SpecDocuments, SpecManager
+from spec_tree import (
+    Provenance,
+    SpecTree,
+    SpecTreeNode,
+    SpecTreeNodeType,
+    SuccessCriterion,
+)
 
 
 class TestSpecManager:

@@ -35,9 +35,9 @@ def test_artifacts_endpoint_stores(tmp_path, monkeypatch):
 
 
 def test_templates_endpoint_requests_gate(tmp_path, monkeypatch):
-    from asset_store import AssetStore
-    from asset_evaluator import AssetEvaluator
     from approval_manager import ApprovalManager
+    from asset_evaluator import AssetEvaluator
+    from asset_store import AssetStore
     from template_confirmation import TemplateConfirmation
     store = AssetStore(str(tmp_path))
     approvals = ApprovalManager()
@@ -55,9 +55,9 @@ def test_templates_endpoint_requests_gate(tmp_path, monkeypatch):
 
 
 def test_templates_endpoint_evaluation_failure(tmp_path, monkeypatch):
-    from asset_store import AssetStore
-    from asset_evaluator import AssetEvaluator
     from approval_manager import ApprovalManager
+    from asset_evaluator import AssetEvaluator
+    from asset_store import AssetStore
     from template_confirmation import TemplateConfirmation
     store = AssetStore(str(tmp_path))
     tc = TemplateConfirmation(store, AssetEvaluator(store), ApprovalManager())
@@ -69,8 +69,8 @@ def test_templates_endpoint_evaluation_failure(tmp_path, monkeypatch):
 
 
 def test_search_endpoint_merges(tmp_path, monkeypatch):
-    from asset_store import AssetStore
     from asset_search import AssetSearch
+    from asset_store import AssetStore
     from experience_extractor import ExperienceExtractor
     from skill_evolution import SkillEvolution
     store = AssetStore(str(tmp_path))
@@ -163,10 +163,10 @@ def test_template_confirmation_singleton_uses_demo_gate_manager(tmp_path, monkey
 def test_malicious_team_id_returns_fail_not_500(tmp_path, monkeypatch):
     """T6 评审 Important：畸形/恶意 team_id（../ 路径遍历、非字符串）在各端点
     必须返回 200 + success=False（包装为 _fail），不得以 500 传播。"""
-    from asset_store import AssetStore
-    from asset_evaluator import AssetEvaluator
     from approval_manager import ApprovalManager
+    from asset_evaluator import AssetEvaluator
     from asset_search import AssetSearch
+    from asset_store import AssetStore
     from experience_extractor import ExperienceExtractor
     from skill_evolution import SkillEvolution
     from template_confirmation import TemplateConfirmation
@@ -201,9 +201,9 @@ def test_malicious_team_id_returns_fail_not_500(tmp_path, monkeypatch):
 
 
 def test_templates_endpoint_with_judge_wiring(tmp_path, monkeypatch):
+    from approval_manager import ApprovalManager
     from asset_evaluator import AssetEvaluator
     from asset_store import AssetStore
-    from approval_manager import ApprovalManager
     from template_confirmation import TemplateConfirmation
     store = AssetStore(str(tmp_path))
     approvals = ApprovalManager()

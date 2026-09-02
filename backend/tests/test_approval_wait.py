@@ -238,8 +238,8 @@ async def test_ceo_send_fn_passes_structured_approval_payload_through():
 
 def test_ceo_agent_accepts_shared_engines():
     """CeoAgent 构造透传共享 workflow_engine / approval_manager。"""
-    from ceo_agent import CeoAgent
     from approval_manager import ApprovalManager
+    from ceo_agent import CeoAgent
     from workflow_engine import WorkflowEngine
 
     class _FakeSession:

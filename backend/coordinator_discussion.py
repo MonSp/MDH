@@ -9,10 +9,14 @@ MeetingCoordinator 讨论流程子模块
 
 import logging
 import re
-from typing import Callable, Awaitable, Dict, List, Optional
+from collections.abc import Awaitable, Callable
 
+from discussion_utils import (
+    parse_stance_from_content,
+    resolve_agent_role,
+    strip_stance_tags,
+)
 from mixed_location_discussion import MixedLocationDiscussion
-from discussion_utils import parse_stance_from_content, resolve_agent_role, strip_stance_tags
 from team import Team
 
 logger = logging.getLogger("coordinator_discussion")
@@ -23,8 +27,8 @@ async def run_discussion(
     topic: str,
     on_message: Callable[[str, str, str], Awaitable[None]],
     max_rounds: int = 2,
-    team: Optional[Team] = None,
-) -> List[Dict[str, str]]:
+    team: Team | None = None,
+) -> list[dict[str, str]]:
     """运行多角色讨论
 
     如果提供了Team实例，使用MixedLocationDiscussion进行并行讨论；
@@ -89,7 +93,7 @@ def _extract_discussion_decisions(coordinator, discussion_results: list) -> str:
     return "团队讨论确定的方案与约束：\n" + "\n".join(decisions[:8])
 
 
-def _project_discussion_decisions(coordinator) -> Optional[str]:
+def _project_discussion_decisions(coordinator) -> str | None:
     """从 SessionEvent 事件流投影讨论决策摘要。
 
     保留 support/modify 过滤与 8 条/120 字语义：对投影到的 agent_message 事件

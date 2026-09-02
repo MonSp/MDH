@@ -1,6 +1,6 @@
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import List, Optional, Callable, Dict
 from enum import Enum
 
 
@@ -16,7 +16,7 @@ class AgendaPhase(str, Enum):
     EMERGENCY = "emergency"
 
 
-VALID_TRANSITIONS: Dict[AgendaPhase, List[AgendaPhase]] = {
+VALID_TRANSITIONS: dict[AgendaPhase, list[AgendaPhase]] = {
     AgendaPhase.IDLE: [AgendaPhase.OPEN_TOPIC, AgendaPhase.EMERGENCY],
     AgendaPhase.OPEN_TOPIC: [AgendaPhase.DISCUSSION, AgendaPhase.CLOSED, AgendaPhase.EMERGENCY],
     AgendaPhase.DISCUSSION: [AgendaPhase.PROPOSAL, AgendaPhase.CLOSED, AgendaPhase.EMERGENCY],
@@ -51,10 +51,10 @@ class SpeakingToken:
 class AgendaEvent:
     type: str
     timestamp: float
-    from_phase: Optional[AgendaPhase] = None
-    to_phase: Optional[AgendaPhase] = None
-    agent_id: Optional[str] = None
-    reason: Optional[str] = None
+    from_phase: AgendaPhase | None = None
+    to_phase: AgendaPhase | None = None
+    agent_id: str | None = None
+    reason: str | None = None
 
 
 class AgendaStateMachine:
@@ -62,17 +62,17 @@ class AgendaStateMachine:
 
     def __init__(self):
         self._phase: AgendaPhase = AgendaPhase.IDLE
-        self._current_token: Optional[SpeakingToken] = None
-        self._token_queue: List[SpeakingToken] = []
-        self._event_history: List[AgendaEvent] = []
-        self._listeners: List[Callable] = []
+        self._current_token: SpeakingToken | None = None
+        self._token_queue: list[SpeakingToken] = []
+        self._event_history: list[AgendaEvent] = []
+        self._listeners: list[Callable] = []
         self._topic: str = ""
 
     def get_phase(self) -> AgendaPhase:
         self._check_token_expiration()
         return self._phase
 
-    def get_current_speaker(self) -> Optional[str]:
+    def get_current_speaker(self) -> str | None:
         self._check_token_expiration()
         if self._current_token:
             return self._current_token.agent_id
@@ -215,10 +215,10 @@ class AgendaStateMachine:
     def remove_listener(self, listener: Callable) -> None:
         self._listeners = [l for l in self._listeners if l is not listener]
 
-    def get_event_history(self) -> List[AgendaEvent]:
+    def get_event_history(self) -> list[AgendaEvent]:
         return list(self._event_history)
 
-    def get_token_queue(self) -> List[SpeakingToken]:
+    def get_token_queue(self) -> list[SpeakingToken]:
         return list(self._token_queue)
 
     def reset(self) -> None:

@@ -5,17 +5,18 @@ Critic Agent - 伴随式审查角色
 每次审查结果写入 companion_log.json。
 """
 
-from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 import json
 import logging
 import os
 import re
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
 
 from agentscope.message import Msg
-from protocol import AgentRole
+
 from agent import _extract_text
+from protocol import AgentRole
 
 logger = logging.getLogger("critic_agent")
 
@@ -23,11 +24,11 @@ logger = logging.getLogger("critic_agent")
 @dataclass
 class CriticResult:
     """Critic审查结果"""
-    findings: List[str]
+    findings: list[str]
     severity: str  # "low" | "medium" | "high" | "critical"
     timestamp: str
     stage: str
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
 class CriticAgent:
@@ -43,15 +44,15 @@ class CriticAgent:
     按需触发，不常驻。
     """
 
-    def __init__(self, companion_log_path: Optional[str] = None):
+    def __init__(self, companion_log_path: str | None = None):
         """
         Args:
             companion_log_path: companion_log.json 文件路径
         """
         self._companion_log_path = companion_log_path or "companion_log.json"
-        self._log_entries: List[Dict[str, Any]] = []
+        self._log_entries: list[dict[str, Any]] = []
 
-    def review(self, task_context: Dict[str, Any], stage: str = "clarification") -> CriticResult:
+    def review(self, task_context: dict[str, Any], stage: str = "clarification") -> CriticResult:
         """
         审查任务上下文
 
@@ -98,7 +99,7 @@ class CriticAgent:
 
     async def review_with_llm(
         self,
-        task_context: Dict[str, Any],
+        task_context: dict[str, Any],
         get_model_fn,
         stage: str = "review",
     ) -> CriticResult:
@@ -140,9 +141,9 @@ class CriticAgent:
         return merged
 
     @staticmethod
-    def _parse_llm_findings(text: str) -> List[Dict[str, str]]:
+    def _parse_llm_findings(text: str) -> list[dict[str, str]]:
         """解析 LLM 返回的 JSON 数组，容错提取（首个可解析且含 findings 的数组）"""
-        findings: List[Dict[str, str]] = []
+        findings: list[dict[str, str]] = []
         for match in re.finditer(r'\[[^\]]*\]', text):
             try:
                 parsed = json.loads(match.group(0))
@@ -167,18 +168,17 @@ class CriticAgent:
         return normalized if normalized in {"low", "medium", "high", "critical"} else "medium"
 
     @staticmethod
-    def _merge_severity(rule_severity: str, llm_findings: List[Dict[str, str]]) -> str:
+    def _merge_severity(rule_severity: str, llm_findings: list[dict[str, str]]) -> str:
         """合并严重程度：取最严重值"""
         order = {"low": 0, "medium": 1, "high": 2, "critical": 3}
         current = order.get(rule_severity, 1)
         for f in llm_findings:
             sev = CriticAgent._normalize_severity(f.get("severity", "medium"))
             rank = order[sev]
-            if rank > current:
-                current = rank
+            current = max(current, rank)
         return next(k for k, v in order.items() if v == current)
 
-    def _check_requirements(self, context: Dict[str, Any]) -> List[str]:
+    def _check_requirements(self, context: dict[str, Any]) -> list[str]:
         """检查需求完整性"""
         findings = []
 
@@ -198,7 +198,7 @@ class CriticAgent:
 
         return findings
 
-    def _check_constraints(self, context: Dict[str, Any]) -> List[str]:
+    def _check_constraints(self, context: dict[str, Any]) -> list[str]:
         """检查约束一致性"""
         findings = []
 
@@ -215,7 +215,7 @@ class CriticAgent:
 
         return findings
 
-    def _check_evidence(self, context: Dict[str, Any]) -> List[str]:
+    def _check_evidence(self, context: dict[str, Any]) -> list[str]:
         """检查证据充分性"""
         findings = []
 
@@ -234,7 +234,7 @@ class CriticAgent:
 
         return findings
 
-    def _check_risks(self, context: Dict[str, Any]) -> List[str]:
+    def _check_risks(self, context: dict[str, Any]) -> list[str]:
         """检查潜在风险"""
         findings = []
 
@@ -254,7 +254,7 @@ class CriticAgent:
 
         return findings
 
-    def _determine_severity(self, findings: List[str]) -> str:
+    def _determine_severity(self, findings: list[str]) -> str:
         """根据findings确定严重程度"""
         if not findings:
             return "low"
@@ -308,7 +308,7 @@ class CriticAgent:
             # 日志写入失败不影响主流程
             pass
 
-    def get_log_entries(self) -> List[Dict[str, Any]]:
+    def get_log_entries(self) -> list[dict[str, Any]]:
         """获取内存中的日志条目"""
         return self._log_entries.copy()
 

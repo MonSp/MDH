@@ -9,7 +9,7 @@ import json
 import os
 import re
 import urllib.request
-from typing import Callable
+from collections.abc import Callable
 
 # 数字 lookaround（而非 \b）：\b 在 re.UNICODE 下把 CJK 字符当 \w，无法分隔
 # 数字与中文——"0.85分" 会被 \b 版正则误解析为 "0"（静默 0.0）、"得分0.85"

@@ -1,5 +1,6 @@
 """Tests for ProactiveMonitor — 主动式监控"""
 import pytest
+
 from agent_profile_manager import AgentProfileManager
 from proactive_monitor import ProactiveMonitor
 

@@ -3,6 +3,7 @@ Skills REST API Router
 """
 
 from dataclasses import asdict
+
 from fastapi import APIRouter, Body
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])

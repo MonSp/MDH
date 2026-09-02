@@ -1,6 +1,8 @@
 """Tests for agent_pool.py — AgentPool management"""
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from key_manager import KeyManager
 
 

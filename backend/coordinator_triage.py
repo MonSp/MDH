@@ -8,16 +8,17 @@ import json
 import logging
 import re
 import uuid
-from typing import Any, Dict, List
+from typing import Any
 
 from agentscope.message import Msg
+
 from agent import _extract_text
 from protocol import AgentRole
 
 logger = logging.getLogger("coordinator_triage")
 
 
-def triage_task(user_message: str) -> Dict[str, Any]:
+def triage_task(user_message: str) -> dict[str, Any]:
     """规则引擎分流门（0 token）
 
     Returns:
@@ -84,7 +85,7 @@ def triage_task(user_message: str) -> Dict[str, Any]:
     return {"level": level, "confidence": confidence, "reason": ", ".join(signals) or "default"}
 
 
-async def decompose_task(coordinator, task_description: str) -> List[Dict[str, Any]]:
+async def decompose_task(coordinator, task_description: str) -> list[dict[str, Any]]:
     """LLM-based task decomposition into subtasks."""
     planner = coordinator._get_model(AgentRole.PLANNER)
     prompt = (

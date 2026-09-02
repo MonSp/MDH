@@ -2,7 +2,7 @@ import json
 import logging
 import os
 
-from config import SKILLS_DIR, SKILL_MD_TEMPLATE
+from config import SKILL_MD_TEMPLATE, SKILLS_DIR
 
 logger = logging.getLogger("skills")
 

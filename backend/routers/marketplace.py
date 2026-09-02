@@ -3,6 +3,7 @@ Marketplace REST API Router
 """
 
 from dataclasses import asdict
+
 from fastapi import APIRouter, Request
 
 router = APIRouter(prefix="/api/marketplace", tags=["marketplace"])
@@ -89,8 +90,9 @@ async def reject_experience(request: Request):
 async def get_share_recommendations():
     """获取可推荐发布到共享池的高分本地规则"""
     try:
-        from experience_extractor import ExperienceExtractor
         import os
+
+        from experience_extractor import ExperienceExtractor
         data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
         extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
         recs = extractor.get_share_recommendations()

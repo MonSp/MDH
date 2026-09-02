@@ -3,7 +3,6 @@ import pytest
 
 from skill_bridge import SkillBridge
 
-
 # ── Fixtures ──
 
 @pytest.fixture

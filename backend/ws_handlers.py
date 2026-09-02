@@ -15,8 +15,9 @@ import logging
 import os
 import shutil
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 from rate_limiter import ws_limiter
 
@@ -46,7 +47,7 @@ class WSContext:
 
     # 模块级引用
     skills_dir: str = ""
-    sessions: Dict = None
+    sessions: dict = None
     active_coordinator: Any = None
     kernel_integration: Any = None
 
@@ -103,7 +104,6 @@ async def handle_tool_result(msg, session, ctx):
         future = session.pending.pop(call_id)
         if not future.done():
             future.set_result(msg.get("result", {}))
-    return None
 
 
 async def handle_confirm_result(msg, session, ctx):
@@ -114,13 +114,12 @@ async def handle_confirm_result(msg, session, ctx):
             confirmed = msg.get("confirmed", True)
             logger.info("用户确认结果: call_id=%s confirmed=%s", call_id, confirmed)
             future.set_result({} if confirmed else {"rejected": True})
-    return None
 
 
 async def handle_unified_message(msg, session, ctx):
     content = msg.get("content", "")
     if not content:
-        return None
+        return
 
     if msg.get("provider"):
         session.provider = msg["provider"]
@@ -161,7 +160,7 @@ async def handle_unified_message(msg, session, ctx):
             logger.exception("CEO处理异常: %s", e)
             await session.send_error(str(e))
     asyncio.create_task(_run_ceo())
-    return None
+    return
 
 
 async def handle_workspace_confirm_response(msg, session, ctx):
@@ -175,14 +174,12 @@ async def handle_workspace_confirm_response(msg, session, ctx):
         })
     else:
         logger.warning("收到 workspace_confirm_response 但 ceo_agent 不存在")
-    return None
 
 
 async def handle_page_context(msg, session, ctx):
     page_ctx = msg.get("context", {})
     session.update_page_context(page_ctx)
     logger.info("页面上下文更新: session=%s url=%s", session.session_id, page_ctx.get("url", ""))
-    return None
 
 
 # ──────────────────── 技能管理 handlers ────────────────────
@@ -198,14 +195,12 @@ async def handle_save_skill(msg, session, ctx):
         session.agent = None
         logger.info("技能已保存: name=%s type=%s", name, skill_type)
         await session.ws.send_json({"type": "skill_saved", "name": name})
-    return None
 
 
 async def handle_get_skills(msg, session, ctx):
     from skills import list_skills_from_dir
     skills = list_skills_from_dir()
     await session.ws.send_json({"type": "skill_list", "skills": skills})
-    return None
 
 
 async def handle_delete_skill(msg, session, ctx):
@@ -220,7 +215,6 @@ async def handle_delete_skill(msg, session, ctx):
             session.agent = None
             logger.info("技能已删除: dir=%s", skill_dir_name)
     await session.ws.send_json({"type": "skill_deleted", "dir": skill_dir_name})
-    return None
 
 
 async def handle_generate_skill_summary(msg, session, ctx):
@@ -231,19 +225,18 @@ async def handle_generate_skill_summary(msg, session, ctx):
         logger.info("生成技能摘要: session=%s steps=%d type=%s", session.session_id, len(steps), skill_type)
         result = await generate_skill_summary(session, steps, skill_type)
         await session.ws.send_json({"type": "skill_summary", **result})
-    return None
 
 
 # ──────────────────── 会议管理 handlers ────────────────────
 
 async def handle_start_meeting(msg, session, ctx):
-    from meeting import MeetingSession
     from ceo_agent import CeoAgent
+    from meeting import MeetingSession
     from meeting_coordinator import MeetingCoordinator
 
     if session.meeting_session and session.meeting_session.is_running():
         await session.send_error("会议已在进行中")
-        return None
+        return
 
     if msg.get("provider"):
         session.provider = msg["provider"]
@@ -343,17 +336,17 @@ async def handle_start_meeting(msg, session, ctx):
         "event_history": [],
         "sequence_no": session.next_sequence(),
     })
-    return None
+    return
 
 
 async def handle_meeting_message(msg, session, ctx):
     if not session.meeting_session or not session.meeting_session.is_running():
         await session.send_error("没有进行中的会议")
-        return None
+        return
 
     content = msg.get("content", "")
     if not content:
-        return None
+        return
 
     logger.info("收到会议消息: session=%s content=%r", session.session_id, content[:100])
     session.meeting_session.add_message("boss", content)
@@ -382,19 +375,19 @@ async def handle_meeting_message(msg, session, ctx):
     else:
         logger.warning("CEO Agent未初始化: session=%s", session.session_id)
         await session.ws.send_json({"type": "meeting_message_ack", "content": content})
-    return None
+    return
 
 
 async def handle_task_assign(msg, session, ctx):
     from meeting import MeetingAgentStatus
     if not session.meeting_session or not session.meeting_session.is_running():
         await session.send_error("没有进行中的会议")
-        return None
+        return
 
     agent_id = msg.get("agentId", "")
     description = msg.get("description", "")
     if not agent_id or not description:
-        return None
+        return
 
     task = session.meeting_session.add_task(agent_id, description)
     session.meeting_session.update_task_status(task.id, "assigned")
@@ -416,16 +409,16 @@ async def handle_task_assign(msg, session, ctx):
         "type": "agent_status_update", "agentId": agent_id,
         "status": "working", "currentTask": task.id, "sequence_no": session.next_sequence(),
     })
-    return None
+    return
 
 
 async def handle_task_delete(msg, session, ctx):
     if not session.meeting_session or not session.meeting_session.is_running():
         await session.send_error("没有进行中的会议")
-        return None
+        return
     task_id = msg.get("taskId", "")
     if not task_id:
-        return None
+        return
     success = session.meeting_session.delete_task(task_id)
     if success:
         await session.send_and_buffer({
@@ -433,13 +426,13 @@ async def handle_task_delete(msg, session, ctx):
         })
     else:
         await session.send_error(f"任务不存在: {task_id}")
-    return None
+    return
 
 
 async def handle_end_meeting(msg, session, ctx):
     if not session.meeting_session:
         await session.send_error("没有进行中的会议")
-        return None
+        return
     summary = session.meeting_session.get_summary()
     session.meeting_session.stop()
     session.meeting_session.cleanup()
@@ -454,13 +447,13 @@ async def handle_end_meeting(msg, session, ctx):
     await session.send_and_buffer({
         "type": "meeting_ended", "summary": summary, "sequence_no": session.next_sequence(),
     })
-    return None
+    return
 
 
 async def handle_get_meeting_status(msg, session, ctx):
     if not session.meeting_session:
         await session.send_error("没有进行中的会议")
-        return None
+        return
     await session.ws.send_json({
         "type": "meeting_status",
         "meeting_id": session.meeting_session.meeting_id,
@@ -468,7 +461,7 @@ async def handle_get_meeting_status(msg, session, ctx):
         "tasks": session.meeting_session.get_tasks_dict(),
         "is_running": session.meeting_session.is_running(),
     })
-    return None
+    return
 
 
 async def handle_pause_task(msg, session, ctx):
@@ -476,7 +469,6 @@ async def handle_pause_task(msg, session, ctx):
     if session.meeting_session and task_id:
         session.meeting_session.update_task_status(task_id, "paused")
         await session.ws.send_json({"type": "task_paused", "taskId": task_id})
-    return None
 
 
 async def handle_resume_task(msg, session, ctx):
@@ -484,7 +476,6 @@ async def handle_resume_task(msg, session, ctx):
     if session.meeting_session and task_id:
         session.meeting_session.update_task_status(task_id, "assigned")
         await session.ws.send_json({"type": "task_resumed", "taskId": task_id})
-    return None
 
 
 # ──────────────────── 议程/投票 handlers ────────────────────
@@ -492,7 +483,7 @@ async def handle_resume_task(msg, session, ctx):
 async def handle_agenda_action(msg, session, ctx):
     if not session.meeting_session or not session.meeting_session.is_running():
         await session.send_error("没有进行中的会议")
-        return None
+        return
     ceo = getattr(session, '_ceo_agent', None)
     if ceo and ceo.agenda:
         agenda = ceo.agenda
@@ -531,7 +522,7 @@ async def handle_agenda_action(msg, session, ctx):
         result = agenda.resolve_emergency()
 
     await session.send_and_buffer(ctx.build_agenda_snapshot(agenda, session))
-    return None
+    return
 
 
 async def handle_override_decision(msg, session, ctx):
@@ -540,22 +531,21 @@ async def handle_override_decision(msg, session, ctx):
     await session.ws.send_json({
         "type": "decision_overridden", "decision_id": decision_id, "new_decision": new_decision,
     })
-    return None
 
 
 async def handle_create_proposal(msg, session, ctx):
     if not session.meeting_session or not session.meeting_session.is_running():
         await session.send_error("没有进行中的会议")
-        return None
+        return
     coordinator = getattr(session, '_meeting_coordinator', None)
     if not coordinator or not hasattr(coordinator, 'negotiation'):
         await session.send_error("协商引擎未初始化")
-        return None
+        return
     proposer_id = msg.get("proposerId", "user")
     content = msg.get("content", "")
     if not content:
         await session.send_error("提案内容不能为空")
-        return None
+        return
     proposal = coordinator.negotiation.create_proposal(proposer_id, content)
     agenda = getattr(coordinator, 'agenda', None) or session._agenda
     if agenda:
@@ -571,17 +561,17 @@ async def handle_create_proposal(msg, session, ctx):
     })
     if agenda:
         await session.send_and_buffer(ctx.build_agenda_snapshot(agenda, session, proposal_id=proposal.id))
-    return None
+    return
 
 
 async def handle_cast_vote(msg, session, ctx):
     if not session.meeting_session or not session.meeting_session.is_running():
         await session.send_error("没有进行中的会议")
-        return None
+        return
     coordinator = getattr(session, '_meeting_coordinator', None)
     if not coordinator or not hasattr(coordinator, 'negotiation'):
         await session.send_error("协商引擎未初始化")
-        return None
+        return
     proposal_id = msg.get("proposalId", "")
     voter_id = msg.get("voterId", "user")
     approve = msg.get("approve", True)
@@ -590,15 +580,15 @@ async def handle_cast_vote(msg, session, ctx):
     proposal = coordinator.negotiation._proposals.get(proposal_id)
     if not proposal:
         await session.send_error(f"提案 {proposal_id} 不存在")
-        return None
+        return
     existing_votes = coordinator.negotiation._votes.get(proposal_id, [])
     if any(v.voter_id == voter_id for v in existing_votes):
         await session.send_error(f"{voter_id} 已经对提案 {proposal_id} 投过票")
-        return None
+        return
     vote = coordinator.negotiation.cast_vote(proposal_id, voter_id, approve, weight, reason)
     if vote is None:
         await session.send_error("投票失败")
-        return None
+        return
     await session.send_and_buffer({
         "type": "vote",
         "vote": {
@@ -637,17 +627,17 @@ async def handle_cast_vote(msg, session, ctx):
                 "event_history": [{"type": e.type, "timestamp": e.timestamp, "from": e.from_phase.value if e.from_phase else None, "to": e.to_phase.value if e.to_phase else None, "agent_id": e.agent_id, "reason": e.reason} for e in agenda.get_event_history()[-20:]],
                 "sequence_no": session.next_sequence(),
             })
-    return None
+    return
 
 
 async def handle_evaluate_consensus(msg, session, ctx):
     if not session.meeting_session or not session.meeting_session.is_running():
         await session.send_error("没有进行中的会议")
-        return None
+        return
     coordinator = getattr(session, '_meeting_coordinator', None)
     if not coordinator or not hasattr(coordinator, 'negotiation'):
         await session.send_error("协商引擎未初始化")
-        return None
+        return
     proposal_id = msg.get("proposalId", "")
     result = coordinator.negotiation.evaluate_consensus(proposal_id)
     agenda = getattr(coordinator, 'agenda', None) or session._agenda
@@ -667,7 +657,7 @@ async def handle_evaluate_consensus(msg, session, ctx):
     })
     if agenda:
         await session.send_and_buffer(ctx.build_agenda_snapshot(agenda, session, proposal_id=proposal_id))
-    return None
+    return
 
 
 async def handle_request_retransmit(msg, session, ctx):
@@ -676,7 +666,6 @@ async def handle_request_retransmit(msg, session, ctx):
     for buffered_msg in buffered:
         if buffered_msg.get("sequence_no", 0) >= from_seq:
             await session.ws.send_json(buffered_msg)
-    return None
 
 
 # ──────────────────── 工作区/Bridge/审批 handlers ────────────────────
@@ -695,7 +684,6 @@ async def handle_workspace_action(msg, session, ctx):
             await session.ws.send_json({
                 "type": "workspace_destroyed", "workspace_id": workspace_id, "success": success,
             })
-    return None
 
 
 async def handle_tool_call(msg, session, ctx):
@@ -704,7 +692,6 @@ async def handle_tool_call(msg, session, ctx):
     if session._meeting_coordinator and session._meeting_coordinator._tool_executor:
         result = await session._meeting_coordinator.execute_tool_call(tool_name, arguments)
         await session.ws.send_json({"type": "tool_result", "tool_name": tool_name, **result})
-    return None
 
 
 async def handle_bridge_register_agent(msg, session, ctx):
@@ -716,14 +703,12 @@ async def handle_bridge_register_agent(msg, session, ctx):
     if not session._agent_bridge:
         session._agent_bridge = AgentBridge(meeting_session=session.meeting_session, agent_pool=ctx.agent_pool)
     await session._agent_bridge.register_ts_agent(ts_agent_id, name, role, capabilities, session.send_and_buffer)
-    return None
 
 
 async def handle_bridge_unregister_agent(msg, session, ctx):
     ts_agent_id = msg.get("tsAgentId")
     if session._agent_bridge:
         await session._agent_bridge.unregister_ts_agent(ts_agent_id, session.send_and_buffer)
-    return None
 
 
 async def handle_bridge_message(msg, session, ctx):
@@ -734,7 +719,6 @@ async def handle_bridge_message(msg, session, ctx):
     if not session._agent_bridge:
         session._agent_bridge = AgentBridge(meeting_session=session.meeting_session, agent_pool=ctx.agent_pool)
     await session._agent_bridge.route_message(from_id, to_id, payload, session.send_and_buffer, coordinator=session._meeting_coordinator)
-    return None
 
 
 async def handle_human_approval_response(msg, session, ctx):
@@ -744,7 +728,6 @@ async def handle_human_approval_response(msg, session, ctx):
     success = await session._approval_manager.handle_response(request_id, approved, reason, session.send_and_buffer)
     if not success:
         await session.send_error(f"审批请求 {request_id} 不存在或已处理")
-    return None
 
 
 async def handle_get_pending_approvals(msg, session, ctx):
@@ -753,7 +736,6 @@ async def handle_get_pending_approvals(msg, session, ctx):
         "type": "pending_approvals",
         "requests": ctx.with_approver_names(pending), "count": len(pending),
     })
-    return None
 
 
 async def handle_request_approval(msg, session, ctx):
@@ -769,7 +751,6 @@ async def handle_request_approval(msg, session, ctx):
         risk_level=risk_level, confidence=confidence, send_fn=session.send_and_buffer,
     )
     logger.info("审批请求已发送: id=%s operation=%s", approval.id, operation)
-    return None
 
 
 # ──────────────────── 检查点 handlers ────────────────────
@@ -787,7 +768,6 @@ async def handle_checkpoint_save(msg, session, ctx):
         "checkpoint": {"id": checkpoint.id, "taskId": checkpoint.task_id, "stepIndex": checkpoint.step_index, "createdAt": checkpoint.created_at},
         "sequence_no": session.next_sequence(),
     })
-    return None
 
 
 async def handle_checkpoint_restore(msg, session, ctx):
@@ -806,7 +786,6 @@ async def handle_checkpoint_restore(msg, session, ctx):
             "stepIndex": checkpoint.step_index if checkpoint else 0,
             "state": state, "sequence_no": session.next_sequence(),
         })
-    return None
 
 
 async def handle_get_checkpoints(msg, session, ctx):
@@ -824,7 +803,6 @@ async def handle_get_checkpoints(msg, session, ctx):
         "type": "checkpoints_list", "taskId": task_id,
         "checkpoints": [{"id": cp.id, "taskId": cp.task_id, "stepIndex": cp.step_index, "createdAt": cp.created_at} for cp in checkpoints],
     })
-    return None
 
 
 async def handle_checkpoint_delete(msg, session, ctx):
@@ -834,7 +812,6 @@ async def handle_checkpoint_delete(msg, session, ctx):
         session._checkpoint_manager = CheckpointManager()
     deleted = session._checkpoint_manager.delete_checkpoint(checkpoint_id)
     await session.ws.send_json({"type": "checkpoint_deleted", "checkpointId": checkpoint_id, "success": deleted})
-    return None
 
 
 async def handle_set_max_iterations(msg, session, ctx):
@@ -845,7 +822,6 @@ async def handle_set_max_iterations(msg, session, ctx):
         await session.ws.send_json({"type": "config_updated", "key": "max_iterations", "value": coordinator._max_iterations})
     else:
         await session.send_error("会议协调器未初始化")
-    return None
 
 
 async def handle_save_meeting_snapshot(msg, session, ctx):
@@ -853,7 +829,7 @@ async def handle_save_meeting_snapshot(msg, session, ctx):
     meeting = session.meeting_session
     if not meeting or not meeting.is_running():
         await session.send_error("没有进行中的会议")
-        return None
+        return
     snapshot = {
         "meeting_id": meeting.meeting_id, "agents": meeting.get_agents_dict(),
         "tasks": meeting.get_tasks_dict(),
@@ -867,18 +843,18 @@ async def handle_save_meeting_snapshot(msg, session, ctx):
         "type": "meeting_snapshot_saved", "checkpointId": cp.id,
         "meetingId": meeting.meeting_id, "sequence_no": session.next_sequence(),
     })
-    return None
+    return
 
 
 async def handle_restore_meeting_snapshot(msg, session, ctx):
     checkpoint_id = msg.get("checkpointId", "")
     if not session._checkpoint_manager:
         await session.send_error("无检查点")
-        return None
+        return
     state = session._checkpoint_manager.restore_checkpoint(checkpoint_id)
     if not state:
         await session.send_error(f"检查点 {checkpoint_id} 不存在")
-        return None
+        return
     meeting = session.meeting_session
     if meeting:
         for task_data in state.get("tasks", []):
@@ -897,7 +873,7 @@ async def handle_restore_meeting_snapshot(msg, session, ctx):
         "messagesRestored": len(state.get("messages", [])),
         "sequence_no": session.next_sequence(),
     })
-    return None
+    return
 
 
 async def handle_critical_blocker(msg, session, ctx):
@@ -906,11 +882,11 @@ async def handle_critical_blocker(msg, session, ctx):
     blocker_type = msg.get("blockerType", "unknown")
     if not session.meeting_session or not session.meeting_session.is_running():
         await session.send_error("没有进行中的会议")
-        return None
+        return
     coordinator = getattr(session, '_meeting_coordinator', None)
     if not coordinator:
         await session.send_error("会议协调器未初始化")
-        return None
+        return
     await session.send_and_buffer({
         "type": "critical_blocker", "agentId": agent_id, "content": content,
         "blockerType": blocker_type, "sequence_no": session.next_sequence(),
@@ -936,7 +912,7 @@ async def handle_critical_blocker(msg, session, ctx):
     except Exception as e:
         logger.error("紧急响应处理失败: %s", e)
         await session.send_error(f"紧急响应处理失败: {e}")
-    return None
+    return
 
 
 async def handle_get_audit_log(msg, session, ctx):
@@ -956,7 +932,6 @@ async def handle_get_audit_log(msg, session, ctx):
         "entries": [{"id": e.id, "agentId": e.agent_id, "operation": e.operation, "target": e.target, "riskLevel": e.risk_level.value, "allowed": e.allowed, "reason": e.reason, "timestamp": e.timestamp} for e in entries],
         "count": len(entries),
     })
-    return None
 
 
 async def handle_log_audit(msg, session, ctx):
@@ -974,12 +949,11 @@ async def handle_log_audit(msg, session, ctx):
             "entry": {"id": latest.id, "agentId": latest.agent_id, "operation": latest.operation, "target": latest.target, "riskLevel": latest.risk_level.value, "allowed": latest.allowed, "reason": latest.reason, "timestamp": latest.timestamp},
             "sequence_no": session.next_sequence(),
         })
-    return None
 
 
 # ──────────────────── 注册表 ────────────────────
 
-HANDLER_REGISTRY: Dict[str, Callable] = {
+HANDLER_REGISTRY: dict[str, Callable] = {
     "user_message": handle_user_message,
     "tool_result": handle_tool_result,
     "confirm_result": handle_confirm_result,
@@ -1025,7 +999,7 @@ HANDLER_REGISTRY: Dict[str, Callable] = {
 }
 
 
-async def dispatch(msg_type: str, msg: dict, session, ctx: WSContext) -> Optional[asyncio.Task]:
+async def dispatch(msg_type: str, msg: dict, session, ctx: WSContext) -> asyncio.Task | None:
     """分发 WebSocket 消息到对应的 handler。返回 handler 创建的 Task（如有）。"""
     # ── Prometheus: 接收消息计数 ──
     try:

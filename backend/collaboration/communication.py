@@ -1,9 +1,10 @@
 import asyncio
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
+from typing import Any
 
 
 class MessageType(str, Enum):
@@ -28,17 +29,17 @@ class Message:
     content: Any = None
     timestamp: datetime = field(default_factory=datetime.now)
     priority: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     requires_response: bool = False
-    task_id: Optional[str] = None
-    correlation_id: Optional[str] = None
+    task_id: str | None = None
+    correlation_id: str | None = None
 
 
 class CommunicationInterface:
     async def send(self, message: Message) -> None:
         raise NotImplementedError
 
-    async def receive(self, agent_id: str, timeout: float = None) -> Optional[Message]:
+    async def receive(self, agent_id: str, timeout: float = None) -> Message | None:
         raise NotImplementedError
 
     def has_messages(self, agent_id: str) -> bool:
@@ -56,7 +57,7 @@ class CommunicationInterface:
 
 class InMemoryCommunication(CommunicationInterface):
     def __init__(self):
-        self._queues: Dict[str, asyncio.Queue] = {}
+        self._queues: dict[str, asyncio.Queue] = {}
         self._lock = asyncio.Lock()
 
     def _get_queue(self, agent_id: str) -> asyncio.Queue:
@@ -69,7 +70,7 @@ class InMemoryCommunication(CommunicationInterface):
             queue = self._get_queue(message.receiver)
             await queue.put(message)
 
-    async def receive(self, agent_id: str, timeout: float = None) -> Optional[Message]:
+    async def receive(self, agent_id: str, timeout: float = None) -> Message | None:
         queue = self._get_queue(agent_id)
         try:
             if timeout:
@@ -116,8 +117,8 @@ class InMemoryCommunication(CommunicationInterface):
 class CommunicationManager:
     def __init__(self, communication: CommunicationInterface = None):
         self.communication = communication or InMemoryCommunication()
-        self._agents: Dict[str, Any] = {}
-        self._handlers: Dict[str, List[Callable]] = {}
+        self._agents: dict[str, Any] = {}
+        self._handlers: dict[str, list[Callable]] = {}
 
     def register_agent(self, agent_id: str, agent: Any = None) -> None:
         self._agents[agent_id] = agent
@@ -126,10 +127,10 @@ class CommunicationManager:
         self._agents.pop(agent_id, None)
         self._handlers.pop(agent_id, None)
 
-    def get_registered_agents(self) -> List[str]:
+    def get_registered_agents(self) -> list[str]:
         return list(self._agents.keys())
 
-    def get_agent(self, agent_id: str) -> Optional[Any]:
+    def get_agent(self, agent_id: str) -> Any | None:
         return self._agents.get(agent_id)
 
     async def send_message(self, message: Message) -> None:
@@ -142,7 +143,7 @@ class CommunicationManager:
     async def broadcast_message(self, message: Message, exclude_sender: bool = True) -> None:
         await self.communication.broadcast(message, exclude_sender)
 
-    async def receive_message(self, agent_id: str, timeout: float = None) -> Optional[Message]:
+    async def receive_message(self, agent_id: str, timeout: float = None) -> Message | None:
         return await self.communication.receive(agent_id, timeout)
 
     def has_messages(self, agent_id: str) -> bool:

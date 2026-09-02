@@ -751,7 +751,7 @@ class TestRuleEvolution:
 class TestAntiOverfitting:
     def test_aging_deprioritizes_old_rules(self, extractor):
         """超过老化期未使用的规则降权"""
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
         log = _make_success_log()
         rules = extractor.extract_from_success(log)
         rule = rules[0]

@@ -88,7 +88,12 @@ def test_reuse_stats_untouched_on_empty_context(tmp_path, monkeypatch):
 def test_reuse_stats_persists_to_disk(tmp_path, monkeypatch):
     import json as _json
 
-    from asset_injection import _REUSE_LOCK, _REUSE_STATS, build_asset_context, get_reuse_stats
+    from asset_injection import (
+        _REUSE_LOCK,
+        _REUSE_STATS,
+        build_asset_context,
+        get_reuse_stats,
+    )
     store = AssetStore(str(tmp_path))
     store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
     extractor = ExperienceExtractor(str(tmp_path))
@@ -113,11 +118,17 @@ def test_reuse_stats_persists_to_disk(tmp_path, monkeypatch):
 
 import pytest
 
+
 @pytest.mark.flaky(reruns=2)
 def test_reuse_stats_thread_safety(tmp_path, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
 
-    from asset_injection import _REUSE_LOCK, _REUSE_STATS, build_asset_context, get_reuse_stats
+    from asset_injection import (
+        _REUSE_LOCK,
+        _REUSE_STATS,
+        build_asset_context,
+        get_reuse_stats,
+    )
     store = AssetStore(str(tmp_path))
     store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
     extractor = ExperienceExtractor(str(tmp_path))
@@ -145,7 +156,12 @@ def test_reuse_stats_loads_before_first_build(tmp_path, monkeypatch):
     """
     import json as _json
 
-    from asset_injection import _REUSE_LOCK, _REUSE_STATS, build_asset_context, get_reuse_stats
+    from asset_injection import (
+        _REUSE_LOCK,
+        _REUSE_STATS,
+        build_asset_context,
+        get_reuse_stats,
+    )
     stats_path = tmp_path / "reuse_stats.json"
     monkeypatch.setattr("asset_injection._REUSE_STATS_PATH", str(stats_path))  # 落盘重定向 tmp
     store = AssetStore(str(tmp_path))

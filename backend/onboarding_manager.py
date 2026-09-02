@@ -44,8 +44,7 @@ class OnboardingManager:
         return asdict(self._state)
 
     def update_step(self, step: int):
-        if self._state.current_step < step:
-            self._state.current_step = step
+        self._state.current_step = max(self._state.current_step, step)
         if step == 1 and not self._state.started_at:
             self._state.started_at = datetime.now(timezone.utc).isoformat()
         self._save()

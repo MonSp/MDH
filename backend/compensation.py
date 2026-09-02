@@ -4,8 +4,8 @@ import os
 import time
 import uuid
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
 
 logger = logging.getLogger("compensation")
 
@@ -46,10 +46,10 @@ class Checkpoint:
 
 class CompensationEngine:
     def __init__(self):
-        self._compensation_log: List[CompensationResult] = []
-        self._failure_history: List[FailureEvent] = []
-        self._listeners: List[Callable[[FailureEvent], None]] = []
-        self._handlers: Dict[str, Callable] = {}
+        self._compensation_log: list[CompensationResult] = []
+        self._failure_history: list[FailureEvent] = []
+        self._listeners: list[Callable[[FailureEvent], None]] = []
+        self._handlers: dict[str, Callable] = {}
 
     def record_failure(
         self, task_id: str, agent_id: str, error: str, impact: str
@@ -72,7 +72,7 @@ class CompensationEngine:
         sub_tasks: list,
         dependencies: list,
     ) -> list:
-        graph: Dict[str, List[str]] = defaultdict(list)
+        graph: dict[str, list[str]] = defaultdict(list)
         for dep in dependencies:
             graph[dep.get("from", dep.get("from_task_id", ""))].append(
                 dep.get("to", dep.get("to_task_id", ""))
@@ -149,10 +149,10 @@ class CompensationEngine:
         self._compensation_log.append(result)
         return result
 
-    def get_compensation_log(self) -> List[CompensationResult]:
+    def get_compensation_log(self) -> list[CompensationResult]:
         return list(self._compensation_log)
 
-    def get_failure_history(self) -> List[FailureEvent]:
+    def get_failure_history(self) -> list[FailureEvent]:
         return list(self._failure_history)
 
     def add_listener(self, listener: Callable[[FailureEvent], None]) -> None:
@@ -167,8 +167,8 @@ class CompensationEngine:
 
 
 class CheckpointManager:
-    def __init__(self, max_per_task: int = 10, persistence_dir: Optional[str] = None):
-        self._checkpoints: Dict[str, List[Checkpoint]] = {}
+    def __init__(self, max_per_task: int = 10, persistence_dir: str | None = None):
+        self._checkpoints: dict[str, list[Checkpoint]] = {}
         self._max_per_task = max_per_task
         self._persistence_dir = persistence_dir
         if persistence_dir:
@@ -254,24 +254,24 @@ class CheckpointManager:
         self._persist()
         return checkpoint
 
-    def get_latest_checkpoint(self, task_id: str) -> Optional[Checkpoint]:
+    def get_latest_checkpoint(self, task_id: str) -> Checkpoint | None:
         task_checkpoints = self._checkpoints.get(task_id)
         if not task_checkpoints:
             return None
         return max(task_checkpoints, key=lambda cp: cp.step_index)
 
-    def get_checkpoint(self, checkpoint_id: str) -> Optional[Checkpoint]:
+    def get_checkpoint(self, checkpoint_id: str) -> Checkpoint | None:
         for task_checkpoints in self._checkpoints.values():
             for cp in task_checkpoints:
                 if cp.id == checkpoint_id:
                     return cp
         return None
 
-    def get_checkpoints_for_task(self, task_id: str) -> List[Checkpoint]:
+    def get_checkpoints_for_task(self, task_id: str) -> list[Checkpoint]:
         task_checkpoints = self._checkpoints.get(task_id, [])
         return sorted(task_checkpoints, key=lambda cp: cp.step_index)
 
-    def restore_checkpoint(self, checkpoint_id: str) -> Optional[dict]:
+    def restore_checkpoint(self, checkpoint_id: str) -> dict | None:
         checkpoint = self.get_checkpoint(checkpoint_id)
         if not checkpoint:
             return None

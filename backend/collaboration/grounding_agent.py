@@ -5,21 +5,21 @@ Grounding Agent - 伴随式接地角色
 每次审查结果写入 companion_log.json。
 """
 
-from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 import json
 import os
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
 
 
 @dataclass
 class GroundingResult:
     """Grounding审查结果"""
-    sources: List[str]
+    sources: list[str]
     grounded: bool
     timestamp: str
     stage: str
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
 class GroundingAgent:
@@ -34,15 +34,15 @@ class GroundingAgent:
     按需触发，不常驻。
     """
 
-    def __init__(self, companion_log_path: Optional[str] = None):
+    def __init__(self, companion_log_path: str | None = None):
         """
         Args:
             companion_log_path: companion_log.json 文件路径
         """
         self._companion_log_path = companion_log_path or "companion_log.json"
-        self._log_entries: List[Dict[str, Any]] = []
+        self._log_entries: list[dict[str, Any]] = []
 
-    def verify(self, task_output: Dict[str, Any], repo_context: Optional[Dict[str, Any]] = None,
+    def verify(self, task_output: dict[str, Any], repo_context: dict[str, Any] | None = None,
                stage: str = "review") -> GroundingResult:
         """
         验证任务产出的接地性
@@ -98,7 +98,7 @@ class GroundingAgent:
 
         return result
 
-    def _check_conclusions(self, output: Dict[str, Any], repo_available: bool) -> List[str]:
+    def _check_conclusions(self, output: dict[str, Any], repo_available: bool) -> list[str]:
         """检查结论的证据来源"""
         sources = []
 
@@ -118,7 +118,7 @@ class GroundingAgent:
 
         return sources
 
-    def _check_decisions(self, output: Dict[str, Any], repo_available: bool) -> List[str]:
+    def _check_decisions(self, output: dict[str, Any], repo_available: bool) -> list[str]:
         """检查决策的依据"""
         sources = []
 
@@ -138,8 +138,8 @@ class GroundingAgent:
 
         return sources
 
-    def _check_evidence_validity(self, output: Dict[str, Any],
-                                  repo_context: Optional[Dict[str, Any]]) -> List[str]:
+    def _check_evidence_validity(self, output: dict[str, Any],
+                                  repo_context: dict[str, Any] | None) -> list[str]:
         """检查现有证据的有效性"""
         sources = []
 
@@ -147,9 +147,7 @@ class GroundingAgent:
         for evidence in evidence_list:
             if isinstance(evidence, str):
                 # 检查是否是有效的证据格式
-                if evidence.startswith("repo://") or evidence.startswith("file://"):
-                    sources.append(evidence)
-                elif evidence.startswith("clarified_brief:") or evidence.startswith("spec_tree:"):
+                if evidence.startswith("repo://") or evidence.startswith("file://") or evidence.startswith("clarified_brief:") or evidence.startswith("spec_tree:"):
                     sources.append(evidence)
             elif isinstance(evidence, dict):
                 source = evidence.get("source", "")
@@ -189,7 +187,7 @@ class GroundingAgent:
             # 日志写入失败不影响主流程
             pass
 
-    def get_log_entries(self) -> List[Dict[str, Any]]:
+    def get_log_entries(self) -> list[dict[str, Any]]:
         """获取内存中的日志条目"""
         return self._log_entries.copy()
 

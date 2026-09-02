@@ -8,7 +8,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agentscope.agent import Agent
 from agentscope.message import Msg
@@ -25,7 +25,7 @@ class AgentConfig:
     id: str
     name: str
     role: str  # 角色名称，不再限制为AgentRole枚举
-    capabilities: List[str] = field(default_factory=list)
+    capabilities: list[str] = field(default_factory=list)
     system_prompt: str = ""  # 自定义系统提示词
     provider: str = ""  # 可选：覆盖默认provider
     model_name: str = ""  # 可选：覆盖默认模型
@@ -90,7 +90,7 @@ class AgentPool:
     def __init__(
         self,
         key_manager: KeyManager,
-        role_prompts: Optional[Dict[str, str]] = None,
+        role_prompts: dict[str, str] | None = None,
         max_instances_per_role: int = 3,
         incremental_dir: str = "",
     ):
@@ -109,11 +109,11 @@ class AgentPool:
         self._incremental_dir = incremental_dir
 
         # 按角色分组存储Agent实例
-        self._agents: Dict[str, List[AgentInstance]] = {}
-        self._round_robin_index: Dict[str, int] = {}
+        self._agents: dict[str, list[AgentInstance]] = {}
+        self._round_robin_index: dict[str, int] = {}
 
         # 按ID索引Agent实例
-        self._agents_by_id: Dict[str, AgentInstance] = {}
+        self._agents_by_id: dict[str, AgentInstance] = {}
 
         logger.info("AgentPool 初始化完成 (max_instances_per_role=%d)",
                    max_instances_per_role)
@@ -175,7 +175,7 @@ class AgentPool:
 
         return agent
 
-    def create_team(self, team_template: List[Dict[str, Any]]) -> List[str]:
+    def create_team(self, team_template: list[dict[str, Any]]) -> list[str]:
         """
         根据团队模板创建团队
 
@@ -228,7 +228,7 @@ class AgentPool:
 
         return instance
 
-    def get_agent_by_id(self, agent_id: str) -> Optional[AgentInstance]:
+    def get_agent_by_id(self, agent_id: str) -> AgentInstance | None:
         """
         根据ID获取Agent实例
 
@@ -240,7 +240,7 @@ class AgentPool:
         """
         return self._agents_by_id.get(agent_id)
 
-    def get_agent_by_role(self, role: str) -> Optional[AgentInstance]:
+    def get_agent_by_role(self, role: str) -> AgentInstance | None:
         """
         根据角色获取可用的Agent实例（轮询负载均衡）
 
@@ -275,7 +275,7 @@ class AgentPool:
 
         return instance
 
-    def get_agents_by_capability(self, capability: str) -> List[AgentInstance]:
+    def get_agents_by_capability(self, capability: str) -> list[AgentInstance]:
         """
         根据能力获取Agent实例列表
 
@@ -291,11 +291,11 @@ class AgentPool:
                 result.append(instance)
         return result
 
-    def get_all_agents(self) -> List[AgentInstance]:
+    def get_all_agents(self) -> list[AgentInstance]:
         """获取所有Agent实例"""
         return list(self._agents_by_id.values())
 
-    async def health_check(self, timeout: float = 5.0) -> Dict[str, bool]:
+    async def health_check(self, timeout: float = 5.0) -> dict[str, bool]:
         """
         执行健康检查
 
@@ -356,7 +356,7 @@ class AgentPool:
             return True
         return False
 
-    def scale_up(self, role: str, count: int = 1) -> List[str]:
+    def scale_up(self, role: str, count: int = 1) -> list[str]:
         """
         扩容Agent实例
 
@@ -407,7 +407,7 @@ class AgentPool:
 
         return new_ids
 
-    def scale_down(self, role: str, count: int = 1) -> List[str]:
+    def scale_down(self, role: str, count: int = 1) -> list[str]:
         """
         缩容Agent实例
 
@@ -454,7 +454,7 @@ class AgentPool:
         logger.info("移除Agent实例: %s", agent_id)
         return True
 
-    def get_pool_status(self) -> Dict:
+    def get_pool_status(self) -> dict:
         """
         获取池状态
 

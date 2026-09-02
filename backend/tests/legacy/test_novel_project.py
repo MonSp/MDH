@@ -24,12 +24,11 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from agent_toolset import load_roles_config, AgentToolset
-from meeting import MeetingSession, create_team_from_roles, ROLE_TO_AGENT_ROLE
+from agent_toolset import AgentToolset, load_roles_config
+from meeting import ROLE_TO_AGENT_ROLE, MeetingSession, create_team_from_roles
 from meeting_coordinator import MeetingCoordinator
 from protocol import AgentRole
 from workspace_manager import WorkspaceManager, WorkspaceType
-
 
 # ============================================================================
 # 小说创作团队定义

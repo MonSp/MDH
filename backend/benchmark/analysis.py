@@ -9,7 +9,6 @@ import json
 import os
 import statistics
 from dataclasses import dataclass, field
-from typing import Dict, List
 
 from benchmark.tasks import BENCHMARK_TASKS
 
@@ -72,16 +71,16 @@ class AnalysisReport:
     avg_files: float = 0.0
 
     # 分类
-    by_category: Dict[str, CategoryStats] = field(default_factory=dict)
+    by_category: dict[str, CategoryStats] = field(default_factory=dict)
 
     # 标签
-    by_tag: Dict[str, TagStats] = field(default_factory=dict)
+    by_tag: dict[str, TagStats] = field(default_factory=dict)
 
     # 异常
-    anomalies: List[Anomaly] = field(default_factory=list)
+    anomalies: list[Anomaly] = field(default_factory=list)
 
     # 趋势
-    trends: List[TrendPoint] = field(default_factory=list)
+    trends: list[TrendPoint] = field(default_factory=list)
     trend_summary: str = ""
 
 
@@ -109,8 +108,8 @@ def analyze_report(report_data: dict) -> AnalysisReport:
     task_meta = {t.id: t for t in BENCHMARK_TASKS}
 
     # 按分类聚合
-    cat_data: Dict[str, List[dict]] = {}
-    tag_data: Dict[str, List[dict]] = {}
+    cat_data: dict[str, list[dict]] = {}
+    tag_data: dict[str, list[dict]] = {}
     llm_values = []
     lat_values = []
     file_values = []
@@ -162,7 +161,7 @@ def analyze_report(report_data: dict) -> AnalysisReport:
         analysis.by_tag[tag] = ts
 
     # 异常检测（Z-score > 2）
-    def detect_anomalies(values: List[float], metric_name: str):
+    def detect_anomalies(values: list[float], metric_name: str):
         if len(values) < 3:
             return
         mean = statistics.mean(values)
@@ -183,7 +182,7 @@ def analyze_report(report_data: dict) -> AnalysisReport:
     return analysis
 
 
-def compare_versions(baseline_paths: List[str]) -> List[TrendPoint]:
+def compare_versions(baseline_paths: list[str]) -> list[TrendPoint]:
     """对比多个基线版本，生成趋势数据
 
     Args:

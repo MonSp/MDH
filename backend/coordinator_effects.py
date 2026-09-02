@@ -6,7 +6,7 @@ Extracted from meeting_coordinator.py to isolate effect logic.
 
 import logging
 import os
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger("coordinator_effects")
 
@@ -45,7 +45,7 @@ async def notify_artifact_created(coordinator, agent_id: str, files_count: int, 
         logger.debug("artifact 创建通知发送失败: %s", e)
 
 
-def grant_task_xp(coordinator, agent_id, skill_id, task_success, review_score, task_complexity, department: str = "") -> Dict[str, Any]:
+def grant_task_xp(coordinator, agent_id, skill_id, task_success, review_score, task_complexity, department: str = "") -> dict[str, Any]:
     """任务完成后授予 XP，含 mentor 奖励"""
     try:
         from agent_profile_manager import AgentProfileManager

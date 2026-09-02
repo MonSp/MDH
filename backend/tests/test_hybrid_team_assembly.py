@@ -1,6 +1,7 @@
 """混合团队组装：agent 成员 + human 把关成员"""
-import yaml
 import pytest
+import yaml
+
 from team import RuntimeType, TeamRuntime
 from team_assembler import TeamAssembler
 

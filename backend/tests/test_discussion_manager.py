@@ -6,18 +6,18 @@
 - I2: round-1 无讨论发言时 previous_context 不含 coordinator 状态消息
 - ③: window=10 语义（只取最近 10 条讨论发言）
 """
-import sys
 import os
+import sys
 from unittest.mock import MagicMock
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from discussion_manager import DiscussionManager
 from agenda import AgendaStateMachine
-from negotiation import NegotiationEngine
+from discussion_manager import DiscussionManager
 from meeting import MeetingSession
+from negotiation import NegotiationEngine
 
 
 def _make_discussion_manager(meeting: MeetingSession) -> DiscussionManager:

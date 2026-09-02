@@ -9,9 +9,9 @@ import uuid
 from dataclasses import asdict
 
 from fastapi import APIRouter, Body, HTTPException, Request
-from rate_limiter import limiter, RATE_LIMITS
 
 from a2a_registry import AgentCard, AgentSkill
+from rate_limiter import RATE_LIMITS, limiter
 
 logger = logging.getLogger("routers.a2a")
 

@@ -5,7 +5,7 @@ import uuid
 from email.mime.text import MIMEText
 from pathlib import Path
 
-from mailer.seam import MailMessage, Mailer
+from mailer.seam import Mailer, MailMessage
 
 
 def build_mime(message: MailMessage) -> bytes:

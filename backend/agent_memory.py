@@ -4,8 +4,8 @@ import json
 import logging
 import os
 import threading
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from db import get_db
 
@@ -32,7 +32,7 @@ class AgentMemory:
         ).fetchone()
         return f"mem-{(row['cnt'] or 0) + 1:04d}"
 
-    def get_memory(self, agent_id: str) -> Dict[str, Any]:
+    def get_memory(self, agent_id: str) -> dict[str, Any]:
         """获取 agent 的完整记忆"""
         with self._lock:
             rows = self._db.execute(
@@ -42,7 +42,7 @@ class AgentMemory:
         summary = self._compute_summary(entries)
         return {"agent_id": agent_id, "entries": entries, "summary": summary}
 
-    def _row_to_entry(self, row) -> Dict:
+    def _row_to_entry(self, row) -> dict:
         kw = row["keywords"]
         if isinstance(kw, str):
             try:
@@ -61,7 +61,7 @@ class AgentMemory:
             "last_referenced_at": row["last_referenced_at"],
         }
 
-    def add_memory(self, agent_id: str, entry: Dict[str, Any]) -> Dict:
+    def add_memory(self, agent_id: str, entry: dict[str, Any]) -> dict:
         """添加一条记忆"""
         now = datetime.now(timezone.utc).isoformat()
         memory_id = self._next_id(agent_id)
@@ -92,7 +92,7 @@ class AgentMemory:
         logger.info("Agent %s 新增记忆: %s (%s)", agent_id, memory_id, entry_data["type"])
         return entry_data
 
-    def recall(self, agent_id: str, query: str, limit: int = 5) -> List[Dict]:
+    def recall(self, agent_id: str, query: str, limit: int = 5) -> list[dict]:
         """检索相关记忆"""
         memory = self.get_memory(agent_id)
         if not memory["entries"]:
@@ -194,7 +194,7 @@ class AgentMemory:
             logger.info("Agent %s: %d 条记忆已老化", agent_id, aged)
         return aged
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """记忆统计"""
         with self._lock:
             rows = self._db.execute("SELECT * FROM agent_memories").fetchall()
@@ -210,7 +210,7 @@ class AgentMemory:
         }
 
     @staticmethod
-    def _compute_summary(entries: List[Dict]) -> str:
+    def _compute_summary(entries: list[dict]) -> str:
         if not entries:
             return ""
         sorted_entries = sorted(

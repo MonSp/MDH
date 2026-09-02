@@ -1,8 +1,9 @@
 """Tests for ArtifactStore — 执行产物结构化存储"""
 import os
+
 import pytest
 
-from artifact_store import ArtifactStore, ArtifactRef
+from artifact_store import ArtifactRef, ArtifactStore
 
 
 @pytest.fixture

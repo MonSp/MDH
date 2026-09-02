@@ -8,12 +8,13 @@ Discussion Manager - 讨论管理器
 import json
 import logging
 import re
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from agentscope.message import Msg
 
-from agent import _extract_text
 from agenda import AgendaStateMachine
+from agent import _extract_text
 from discussion_utils import (
     is_coordinator_agent,
     parse_stance_from_content,
@@ -21,7 +22,7 @@ from discussion_utils import (
     strip_stance_tags,
 )
 from negotiation import NegotiationEngine
-from protocol import AgentRole, MeetingAgentStatus, LLM_FALLBACK_TEMPLATE
+from protocol import LLM_FALLBACK_TEMPLATE, AgentRole, MeetingAgentStatus
 
 logger = logging.getLogger("discussion_manager")
 
@@ -46,7 +47,7 @@ class DiscussionManager:
         topic: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
         max_rounds: int = 2,
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """
         运行多角色讨论
 
@@ -61,7 +62,7 @@ class DiscussionManager:
         self._agenda.open_topic(topic)
         self._agenda.start_discussion()
 
-        all_discussions: List[Dict[str, Any]] = []
+        all_discussions: list[dict[str, Any]] = []
         discussion_roles = [
             AgentRole.PLANNER,
             AgentRole.EXECUTOR,
@@ -71,7 +72,7 @@ class DiscussionManager:
 
         for current_round in range(1, max_rounds + 1):
             logger.info("讨论第 %d 轮", current_round)
-            round_results: List[Dict[str, Any]] = []
+            round_results: list[dict[str, Any]] = []
 
             for role in discussion_roles:
                 agent_id = self._find_agent_id(role)
@@ -143,7 +144,7 @@ class DiscussionManager:
     async def _coordinator_summarize(
         self,
         topic: str,
-        all_discussions: List[Dict[str, Any]],
+        all_discussions: list[dict[str, Any]],
         on_message: Callable[[str, str, str], Awaitable[None]],
     ):
         """协调者总结"""
@@ -198,13 +199,13 @@ class DiscussionManager:
         vote_result = self._negotiation.evaluate_consensus(proposal.id)
         logger.info(f"Consensus result: {vote_result}")
 
-    def _find_agent_id(self, role: AgentRole) -> Optional[str]:
+    def _find_agent_id(self, role: AgentRole) -> str | None:
         for a in self._meeting.agents:
             if a.role == role:
                 return a.id
         return None
 
-    def _build_previous_context(self, results: List[Dict[str, Any]]) -> str:
+    def _build_previous_context(self, results: list[dict[str, Any]]) -> str:
         """构建之前的讨论上下文
         P3：优先从 SessionEvent 事件流投影（保留既有 10 条/80 字语义）；
         无事件流时回退到既有讨论结果拼装。
@@ -214,7 +215,7 @@ class DiscussionManager:
             return projected
         return self._build_legacy_previous_context(results)
 
-    def _project_previous_context(self) -> Optional[str]:
+    def _project_previous_context(self) -> str | None:
         """从 SessionEvent 事件流投影 previous_context（event_types=agent_message, window=10）。
 
         对每条发言先于截断从完整内容解析 STANCE——>80 字发言的尾标签不再因
@@ -256,7 +257,7 @@ class DiscussionManager:
             return None
         return "\n".join(lines)
 
-    def _build_legacy_previous_context(self, results: List[Dict[str, Any]]) -> str:
+    def _build_legacy_previous_context(self, results: list[dict[str, Any]]) -> str:
         """既有实现：从讨论结果列表拼装（无事件流时的回退路径）"""
         if not results:
             return "（尚无发言）"
@@ -280,7 +281,7 @@ class DiscussionManager:
         confidence = min(1.0, max(0.0, float(confidence_match.group(1)))) if confidence_match else 0.5
         return stance, confidence
 
-    async def _evaluate_convergence(self, topic: str, all_discussions: List[Dict[str, Any]]) -> bool:
+    async def _evaluate_convergence(self, topic: str, all_discussions: list[dict[str, Any]]) -> bool:
         """评估讨论是否收敛"""
         ceo_id = self._find_agent_id(AgentRole.CEO)
         if not ceo_id:

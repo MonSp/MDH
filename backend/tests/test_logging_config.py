@@ -1,9 +1,15 @@
 """Tests for logging_config — 结构化日志"""
 import json
 import logging
+
 from logging_config import (
-    StructuredFormatter, HumanReadableFormatter, setup_logging,
-    get_trace_id, set_trace_id, log_business_event, TraceFilter,
+    HumanReadableFormatter,
+    StructuredFormatter,
+    TraceFilter,
+    get_trace_id,
+    log_business_event,
+    set_trace_id,
+    setup_logging,
 )
 
 

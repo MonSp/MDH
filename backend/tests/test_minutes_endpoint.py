@@ -2,8 +2,9 @@
 import server
 
 server.BACKEND_TOKEN = ""
-from server import app  # noqa: E402  （沿用 test_hybrid_endpoints 的 import 顺序约定）
 from fastapi.testclient import TestClient
+
+from server import app
 
 client = TestClient(app)
 

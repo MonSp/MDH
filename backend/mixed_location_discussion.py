@@ -12,18 +12,19 @@ import asyncio
 import logging
 import re
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from agentscope.agent import Agent
 from agentscope.message import Msg
 
-from agent import _extract_text
 from agenda import AgendaStateMachine
+from agent import _extract_text
 from discussion_utils import is_coordinator_agent, strip_stance_tags
 from negotiation import NegotiationEngine
 from protocol import LLM_FALLBACK_TEMPLATE
-from team import Team, TeamMember, AgentLocation
+from team import AgentLocation, Team, TeamMember
 
 logger = logging.getLogger("mixed_location_discussion")
 
@@ -40,7 +41,7 @@ class DiscussionEntry:
     confidence: float
     round: int
     duration_ms: float
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class MixedLocationDiscussion:
@@ -60,7 +61,7 @@ class MixedLocationDiscussion:
         agenda: AgendaStateMachine,
         negotiation: NegotiationEngine,
         get_model_fn: Callable[[str], Agent],
-        meeting: Optional[Any] = None,
+        meeting: Any | None = None,
         max_concurrent: int = 6,
         timeout: float = 30.0,
     ):
@@ -86,7 +87,7 @@ class MixedLocationDiscussion:
         self._semaphore = asyncio.Semaphore(max_concurrent)
 
         # 构建成员信息索引
-        self._member_info: Dict[str, TeamMember] = {}
+        self._member_info: dict[str, TeamMember] = {}
         for member in team.members:
             self._member_info[member.agent_id] = member
 
@@ -98,7 +99,7 @@ class MixedLocationDiscussion:
         topic: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
         max_rounds: int = 2,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         运行并行讨论
 
@@ -113,7 +114,7 @@ class MixedLocationDiscussion:
         self._agenda.open_topic(topic)
         self._agenda.start_discussion()
 
-        all_discussions: List[Dict[str, Any]] = []
+        all_discussions: list[dict[str, Any]] = []
 
         # 过滤出可讨论的成员（排除CEO和Coordinator）
         discussable_members = [
@@ -162,7 +163,7 @@ class MixedLocationDiscussion:
                         agent_name=member.role_name,
                         role=member.team_role,
                         location=member.location,
-                        content=f"[讨论失败: {str(result)}]",
+                        content=f"[讨论失败: {result!s}]",
                         stance="neutral",
                         confidence=0.0,
                         round=current_round,
@@ -229,7 +230,7 @@ class MixedLocationDiscussion:
         topic: str,
         round_num: int,
         previous_context: str,
-    ) -> Tuple[str, str, float, float]:
+    ) -> tuple[str, str, float, float]:
         """
         向单个成员提问
 
@@ -286,9 +287,9 @@ class MixedLocationDiscussion:
             except asyncio.TimeoutError:
                 raise RuntimeError(f"成员 {member.agent_id} ({member.role_name}) 响应超时")
             except Exception as e:
-                raise RuntimeError(f"成员 {member.agent_id} ({member.role_name}) 响应失败: {str(e)}")
+                raise RuntimeError(f"成员 {member.agent_id} ({member.role_name}) 响应失败: {e!s}")
 
-    def _parse_stance(self, text: str) -> Tuple[str, float]:
+    def _parse_stance(self, text: str) -> tuple[str, float]:
         """
         从响应中解析立场和置信度
         """
@@ -300,7 +301,7 @@ class MixedLocationDiscussion:
 
         return stance, confidence
 
-    def _build_previous_context(self, discussions: List[Dict[str, Any]]) -> str:
+    def _build_previous_context(self, discussions: list[dict[str, Any]]) -> str:
         """
         构建之前的讨论上下文
         P3：优先从 SessionEvent 事件流投影（保留既有 10 条/80 字语义）；
@@ -311,7 +312,7 @@ class MixedLocationDiscussion:
             return projected
         return self._build_legacy_previous_context(discussions)
 
-    def _project_previous_context(self) -> Optional[str]:
+    def _project_previous_context(self) -> str | None:
         """从 SessionEvent 事件流投影 previous_context（event_types=agent_message, window=10, max_content_len=80）。
 
         P3-T2 I2：仅投影 agent_message 讨论发言并排除协调者状态消息，避免
@@ -357,7 +358,7 @@ class MixedLocationDiscussion:
             return None
         return "\n".join(context_parts)
 
-    def _build_legacy_previous_context(self, discussions: List[Dict[str, Any]]) -> str:
+    def _build_legacy_previous_context(self, discussions: list[dict[str, Any]]) -> str:
         """既有实现：从讨论结果列表拼装（无事件流时的回退路径）"""
         if not discussions:
             return "（暂无讨论）"
@@ -381,7 +382,7 @@ class MixedLocationDiscussion:
     async def _evaluate_convergence(
         self,
         topic: str,
-        discussions: List[Dict[str, Any]]
+        discussions: list[dict[str, Any]]
     ) -> bool:
         """
         评估讨论是否达成共识
@@ -421,7 +422,7 @@ class MixedLocationDiscussion:
     async def _coordinator_summarize(
         self,
         topic: str,
-        discussions: List[Dict[str, Any]],
+        discussions: list[dict[str, Any]],
         on_message: Callable[[str, str, str], Awaitable[None]],
     ):
         """

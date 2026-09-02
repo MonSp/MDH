@@ -73,7 +73,6 @@ if "fastapi" not in sys.modules:
 from meeting import MeetingSession
 from meeting_coordinator import MeetingCoordinator
 
-
 SAMPLE_ROUTING_TABLE = {
     "departments": [
         {

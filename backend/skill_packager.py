@@ -15,7 +15,6 @@ import tempfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -665,7 +664,7 @@ class SkillPackager:
         Returns:
             PackageResult 打包结果
         """
-        merged_dir: Optional[str] = None
+        merged_dir: str | None = None
         try:
             # 1. 合并
             merged_dir = self.merge_skills(base_skill_path, incremental_path)

@@ -5,9 +5,6 @@ Task Templates REST API Router — CRUD + usage tracking.
 import logging
 
 from fastapi import APIRouter, Body, HTTPException
-from typing import Optional
-
-from routers.common import ok
 
 logger = logging.getLogger("routers.templates")
 
@@ -22,7 +19,7 @@ def init(server_module):
 
 
 @router.get("")
-async def templates_list(category: Optional[str] = None):
+async def templates_list(category: str | None = None):
     return _srv.task_template_mgr.list_templates(category=category)
 
 

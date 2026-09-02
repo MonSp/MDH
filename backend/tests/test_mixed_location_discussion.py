@@ -2,13 +2,14 @@
 测试 MixedLocationDiscussion - 混合位置并行讨论引擎
 """
 import asyncio
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from mixed_location_discussion import MixedLocationDiscussion
-from team import Team, TeamMember, TeamRuntime, RuntimeType, AgentLocation
+import pytest
+
 from agenda import AgendaStateMachine
+from mixed_location_discussion import MixedLocationDiscussion
 from negotiation import NegotiationEngine
+from team import AgentLocation, RuntimeType, Team, TeamMember, TeamRuntime
 
 
 def create_test_team():
@@ -276,10 +277,11 @@ async def test_coordinator_summary():
 
 class TestParseStance:
     def setup_method(self):
+        from unittest.mock import MagicMock
+
+        from agenda import AgendaStateMachine
         from mixed_location_discussion import MixedLocationDiscussion
         from negotiation import NegotiationEngine
-        from agenda import AgendaStateMachine
-        from unittest.mock import MagicMock
 
         team = MagicMock()
         team.members = []
@@ -334,10 +336,11 @@ class TestParseStance:
 
 class TestBuildPreviousContext:
     def setup_method(self):
+        from unittest.mock import MagicMock
+
+        from agenda import AgendaStateMachine
         from mixed_location_discussion import MixedLocationDiscussion
         from negotiation import NegotiationEngine
-        from agenda import AgendaStateMachine
-        from unittest.mock import MagicMock
 
         team = MagicMock()
         team.members = []

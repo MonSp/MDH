@@ -24,7 +24,6 @@ import time
 import zipfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import List, Optional
 
 import yaml
 
@@ -55,7 +54,7 @@ class ImportResult:
     skill_name: str
     skill_version: str
     rules_imported: int = 0
-    warnings: List[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
     error: str = ""
 
 
@@ -84,7 +83,7 @@ class SkillExporter:
         include_experience: bool = True,
         desensitize: bool = False,
         source_instance: str = "",
-    ) -> Optional[str]:
+    ) -> str | None:
         """导出技能包为 zip 文件。
 
         Args:
@@ -212,7 +211,7 @@ class SkillExporter:
         except Exception as e:
             return ImportResult(success=False, skill_name="", skill_version="", error=str(e))
 
-    def list_exports(self) -> List[dict]:
+    def list_exports(self) -> list[dict]:
         """列出所有导出包"""
         exports = []
         for zf_path in sorted(self._export_dir.glob("skill_export_*.zip")):
@@ -231,7 +230,7 @@ class SkillExporter:
                 continue
         return exports
 
-    def _collect_related_rules(self, skill_name: str, desensitize: bool) -> List[dict]:
+    def _collect_related_rules(self, skill_name: str, desensitize: bool) -> list[dict]:
         """收集与技能相关的经验规则"""
         rules = []
         if not self._experience_dir.exists():

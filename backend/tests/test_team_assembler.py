@@ -1,6 +1,7 @@
 import pytest
 import yaml
-from team import TeamRuntime, RuntimeType, TeamStatus
+
+from team import RuntimeType, TeamRuntime, TeamStatus
 from team_assembler import TeamAssembler
 
 

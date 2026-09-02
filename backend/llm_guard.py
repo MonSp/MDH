@@ -7,7 +7,7 @@ LLM 守卫工具 — 统一的 LLM 调用超时与重试守卫。
 
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("llm_guard")
 
@@ -54,7 +54,7 @@ async def safe_llm_reply(
     msg: Any,
     timeout: float = DEFAULT_LLM_TIMEOUT,
     max_retries: int = DEFAULT_MAX_RETRIES,
-    on_timeout: Optional[Any] = None,
+    on_timeout: Any | None = None,
 ) -> Any:
     """带超时和重试的 LLM 调用守卫。
 

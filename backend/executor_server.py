@@ -12,7 +12,7 @@ import os
 import secrets
 from abc import ABC, abstractmethod
 
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 

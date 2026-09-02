@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List
 
 
 class MeetingMessageType(str, Enum):
@@ -73,7 +72,7 @@ class MeetingAgentInfo:
     name: str
     role: AgentRole
     status: MeetingAgentStatus
-    capabilities: List[str] = field(default_factory=list)
+    capabilities: list[str] = field(default_factory=list)
     location: str = "local"  # "local" or "remote"
 
 

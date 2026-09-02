@@ -30,10 +30,10 @@ class _FakeSession:
 @pytest.mark.asyncio
 async def test_upgrade_to_complex_injects_approval_manager_and_engine(monkeypatch, tmp_path):
     """升级路径协调器注入会话级 approval_manager 与共享 workflow_engine，并注册活动协调器。"""
-    from meeting_coordinator import MeetingCoordinator
     from approval_manager import ApprovalManager
-    from workflow_engine import WorkflowEngine
+    from meeting_coordinator import MeetingCoordinator
     from simple_executor import SimpleExecutor
+    from workflow_engine import WorkflowEngine
 
     shared = WorkflowEngine()
     registered = {}
@@ -77,8 +77,8 @@ async def test_upgrade_to_complex_injects_approval_manager_and_engine(monkeypatc
 @pytest.mark.asyncio
 async def test_upgrade_to_complex_reuses_existing_session_approval_manager(monkeypatch):
     """会话已存在 approval_manager 时（unified_message 分支已创建），升级路径复用同一实例。"""
-    from meeting_coordinator import MeetingCoordinator
     from approval_manager import ApprovalManager
+    from meeting_coordinator import MeetingCoordinator
     from simple_executor import SimpleExecutor
 
     async def fake_process_user_message(self, user_message, on_message):
@@ -102,8 +102,8 @@ async def test_upgrade_to_complex_reuses_existing_session_approval_manager(monke
 
 def test_simple_executor_accepts_engine_and_callback():
     """SimpleExecutor 构造接受共享引擎与协调器创建回调。"""
-    from workflow_engine import WorkflowEngine
     from simple_executor import SimpleExecutor
+    from workflow_engine import WorkflowEngine
 
     shared = WorkflowEngine()
 

@@ -4,8 +4,8 @@
 （默认 None 跳过——试点接真实 key，单测用 fake）。
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from asset_store import AssetStore, _norm_title
 

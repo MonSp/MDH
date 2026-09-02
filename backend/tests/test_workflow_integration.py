@@ -1,23 +1,24 @@
 """工作流集成测试"""
 
 import asyncio
-import pytest
-import sys
 import os
+import sys
 import types
+
+import pytest
 
 # 添加backend目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+from meeting import MeetingSession
+from meeting_coordinator import MeetingCoordinator
 from protocol import (
     AgentRole,
     WorkflowDefinition,
-    WorkflowNode,
     WorkflowEdge,
+    WorkflowNode,
     WorkflowNodeStatus,
 )
-from meeting_coordinator import MeetingCoordinator
-from meeting import MeetingSession
 
 
 class MockRoutingDecision:

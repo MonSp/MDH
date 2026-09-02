@@ -8,16 +8,16 @@
 - 缺失 auth header 的公开端点正常访问
 - 租户隔离：A 看不到 B 的项目
 """
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from tenant_middleware import TenantMiddleware
 from tenant_manager import TenantManager
-
+from tenant_middleware import TenantMiddleware
 
 # ────────────────────── fixtures ──────────────────────
 
@@ -262,8 +262,9 @@ def test_docs_prefix_always_public(tenant_mgr):
 
 def test_middleware_integrates_with_server():
     """验证 tenant_middleware 可正常导入并与 FastAPI 集成"""
-    from tenant_middleware import TenantMiddleware
     from fastapi import FastAPI
+
+    from tenant_middleware import TenantMiddleware
 
     app = FastAPI()
     mgr = MagicMock()

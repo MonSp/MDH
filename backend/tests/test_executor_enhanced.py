@@ -8,7 +8,6 @@ import pytest
 from collaboration.executor_agent import ExecutorAgent
 from experience_extractor import ExecutionLog, ExperienceExtractor, ExperienceRule
 
-
 # ──────────────────── Fixtures ────────────────────
 
 

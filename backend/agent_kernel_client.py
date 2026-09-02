@@ -14,10 +14,10 @@ Usage:
     client.disconnect()
 """
 
-import socket
 import json
-from typing import Any, Dict, List, Optional
+import socket
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -35,12 +35,11 @@ class KernelAgent:
     tasks_completed: int = 0
     tasks_succeeded: int = 0
     avg_review_score: float = 0.0
-    skills: Dict[str, dict] = field(default_factory=dict)
+    skills: dict[str, dict] = field(default_factory=dict)
 
 
 class AgentKernelError(Exception):
     """Raised when the kernel returns an error response."""
-    pass
 
 
 class AgentKernelClient:
@@ -53,7 +52,7 @@ class AgentKernelClient:
 
     def __init__(self, socket_path: str = "/tmp/agent-kernel.sock"):
         self._socket_path = socket_path
-        self._sock: Optional[socket.socket] = None
+        self._sock: socket.socket | None = None
         self._request_id = 0
         self._buffer = b""
 
@@ -124,7 +123,7 @@ class AgentKernelClient:
         department: str,
         company_role: str,
         role: str = "Worker",
-        agent_id: Optional[str] = None,
+        agent_id: str | None = None,
         team_id: str = "",
     ) -> KernelAgent:
         """Create a new agent in the kernel.
@@ -135,7 +134,7 @@ class AgentKernelClient:
         """
         if agent_id is None:
             agent_id = f"py-agent-{self._request_id + 1}"
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "id": agent_id,
             "name": name,
             "department": department,
@@ -148,7 +147,7 @@ class AgentKernelClient:
         result = self._send("createAgent", params)
         return self._parse_agent(result["data"])
 
-    def get_agent(self, entity_id: int) -> Optional[KernelAgent]:
+    def get_agent(self, entity_id: int) -> KernelAgent | None:
         """Get an agent by its entity ID."""
         try:
             result = self._send("getAgent", {"entityId": entity_id})
@@ -165,7 +164,7 @@ class AgentKernelClient:
         Supported keyword arguments: ``name``, ``department``,
         ``company_role``, ``team_id``, ``role``.
         """
-        params: Dict[str, Any] = {"entityId": entity_id}
+        params: dict[str, Any] = {"entityId": entity_id}
         # Map Python snake_case → camelCase for the C++ side
         key_map = {
             "name": "name",
@@ -186,7 +185,7 @@ class AgentKernelClient:
         self._send("deleteAgent", {"entityId": entity_id})
         return True
 
-    def list_agents(self) -> List[KernelAgent]:
+    def list_agents(self) -> list[KernelAgent]:
         """List all agents currently in the kernel."""
         result = self._send("listAgents", {})
         data = result.get("data", [])
@@ -225,7 +224,7 @@ class AgentKernelClient:
         })
         return result.get("data", {})
 
-    def get_skills(self, entity_id: int) -> Dict[str, dict]:
+    def get_skills(self, entity_id: int) -> dict[str, dict]:
         """Get all skills for an agent."""
         result = self._send("getSkills", {"entityId": entity_id})
         return result.get("data", {})
@@ -243,7 +242,7 @@ class AgentKernelClient:
 
     # ── Sync ───────────────────────────────────────────────────────
 
-    def sync_state(self) -> Dict[str, Any]:
+    def sync_state(self) -> dict[str, Any]:
         """Sync full state from the kernel.
 
         Returns a dict with ``agents`` (list of KernelAgent) and
@@ -282,15 +281,15 @@ class AgentKernelClient:
 
     def run_simulation(
         self,
-        entity_ids: List[int],
+        entity_ids: list[int],
         ticks: int = 1,
-        tasks: Optional[List[str]] = None,
+        tasks: list[str] | None = None,
     ) -> dict:
         """Run a multi-agent batch simulation for N ticks.
 
         Returns a dict with: results (list of TickResult), summary (totalTicks, averageConfidence, actionCounts).
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "entityIds": entity_ids,
             "ticks": ticks,
         }

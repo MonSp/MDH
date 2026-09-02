@@ -3,6 +3,7 @@ import zipfile
 from io import BytesIO
 
 import pytest
+
 from doc_tools.builder import StdlibDocxBuilder
 from doc_tools.seam import DocBuilder, DocSpec, get_doc_builder
 

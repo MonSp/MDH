@@ -9,14 +9,14 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 from meeting import SessionEventType
 
 logger = logging.getLogger("coordinator_experience")
 
 
-async def update_injected_rule_effectiveness(coordinator, coordinator_id: str, injected_rule_ids: List[str], review_result: Dict[str, Any]) -> None:
+async def update_injected_rule_effectiveness(coordinator, coordinator_id: str, injected_rule_ids: list[str], review_result: dict[str, Any]) -> None:
     """根据审查结果更新已注入规则的有效性评分，降级时发出告警"""
     try:
         extractor = coordinator._get_experience_extractor()
@@ -92,13 +92,13 @@ def write_task_memory(coordinator, agent_id: str, task_description: str, task_su
         logger.debug("记忆写入跳过: %s", e)
 
 
-def finalize_skill_evolution(coordinator, extractor, packager, project_id: str) -> Dict[str, Any]:
+def finalize_skill_evolution(coordinator, extractor, packager, project_id: str) -> dict[str, Any]:
     """技能闭环自动触发：审核 pending 规则 → 写增量区 → 打包升级版技能包
 
     Returns:
         {"approved": int, "written": int, "packaged": List[str]}
     """
-    result: Dict[str, Any] = {"approved": 0, "written": 0, "packaged": []}
+    result: dict[str, Any] = {"approved": 0, "written": 0, "packaged": []}
     skill_packs_root = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skill_packs"
     )
@@ -197,7 +197,7 @@ async def inject_experience(coordinator, coordinator_id, original_description, e
     return enhanced_description, injected_rule_ids
 
 
-def log_knowledge_flow(from_agent: str, to_agent: str, rule_ids: List[str]) -> None:
+def log_knowledge_flow(from_agent: str, to_agent: str, rule_ids: list[str]) -> None:
     """记录知识流动（mentor → mentee）"""
     try:
         log_path = os.path.join(os.path.dirname(__file__), "data", "knowledge_flow.json")

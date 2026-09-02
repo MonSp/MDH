@@ -11,7 +11,7 @@ import os
 import shutil
 import sqlite3
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("ops")
 
@@ -26,7 +26,7 @@ class OpsManager:
 
     # ── 数据库备份 ──
 
-    def backup_database(self, label: str = "") -> Dict[str, Any]:
+    def backup_database(self, label: str = "") -> dict[str, Any]:
         """备份 SQLite 数据库
 
         Args:
@@ -70,7 +70,7 @@ class OpsManager:
             logger.error("数据库备份失败: %s", e)
             return {"error": str(e)}
 
-    def list_backups(self) -> List[Dict]:
+    def list_backups(self) -> list[dict]:
         """列出所有备份"""
         backups = []
         for fname in sorted(os.listdir(self._backup_dir), reverse=True):
@@ -83,7 +83,7 @@ class OpsManager:
                 })
         return backups
 
-    def restore_backup(self, backup_name: str) -> Dict[str, Any]:
+    def restore_backup(self, backup_name: str) -> dict[str, Any]:
         """从备份恢复数据库
 
         Args:
@@ -129,7 +129,7 @@ class OpsManager:
 
     # ── 健康检查 ──
 
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> dict[str, Any]:
         """综合健康检查"""
         checks = {}
 
@@ -154,7 +154,7 @@ class OpsManager:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-    def _check_database(self) -> Dict:
+    def _check_database(self) -> dict:
         """检查数据库连接"""
         db_files = []
         for root, _dirs, files in os.walk(self._data_dir):
@@ -177,7 +177,7 @@ class OpsManager:
 
         return {"healthy": True, "message": "无数据库文件"}
 
-    def _check_disk(self) -> Dict:
+    def _check_disk(self) -> dict:
         """检查磁盘空间"""
         try:
             usage = shutil.disk_usage(self._data_dir)
@@ -194,7 +194,7 @@ class OpsManager:
         except Exception as e:
             return {"healthy": False, "error": str(e)}
 
-    def _check_modules(self) -> Dict:
+    def _check_modules(self) -> dict:
         """检查核心模块状态"""
         modules = {}
         for mod_name in ["agent_profile_manager", "experience_extractor", "agent_memory",
@@ -209,7 +209,7 @@ class OpsManager:
         healthy = all(v == "ok" for v in modules.values())
         return {"healthy": healthy, "modules": modules}
 
-    def _check_backups(self) -> Dict:
+    def _check_backups(self) -> dict:
         """检查备份状态"""
         backups = self.list_backups()
         if not backups:
@@ -224,7 +224,7 @@ class OpsManager:
 
     # ── 日志聚合 ──
 
-    def get_error_summary(self, log_path: str = "") -> Dict:
+    def get_error_summary(self, log_path: str = "") -> dict:
         """获取错误日志摘要"""
         if not log_path:
             # 尝试找到日志文件

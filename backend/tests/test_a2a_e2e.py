@@ -5,18 +5,17 @@
 
 import asyncio
 import json
-import time
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest.mock import MagicMock
 
 import pytest
 
+from a2a_client import A2AClient
 from a2a_registry import A2ARegistry, AgentCard, AgentSkill
 from a2a_task_router import A2ATaskRouter
-from a2a_client import A2AClient
 from state_sync import StateSyncManager
-
 
 # ── Fixtures ────────────────────────────────────────────────────────
 
@@ -106,7 +105,6 @@ class _MockA2AHandler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         """静默日志，避免测试输出噪音"""
-        pass
 
     def do_GET(self):
         if self.path == "/.well-known/agent.json":
@@ -463,8 +461,8 @@ class TestSSRFProtection:
 
     def _import_validate_url(self):
         """导入 _validate_a2a_url（延迟导入避免循环）"""
-        import sys
         import os
+        import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
         # 需要在 import server 前 mock 掉 heavy 依赖
         from server import _validate_a2a_url

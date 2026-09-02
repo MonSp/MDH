@@ -13,7 +13,6 @@ import os
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 logger = logging.getLogger("team_federation")
 
@@ -31,11 +30,11 @@ class SharedEvolution:
     source_rule_id: str
     trigger_condition: str
     action: str
-    keywords: List[str]
+    keywords: list[str]
     rule_type: str
     source_effectiveness: float  # 来源团队的有效性评分
     trust_score: float  # 来源团队的信任评分
-    usage_by_team: Dict[str, Dict] = field(default_factory=dict)  # team_id -> {usage, success, effectiveness}
+    usage_by_team: dict[str, dict] = field(default_factory=dict)  # team_id -> {usage, success, effectiveness}
     created_at: str = ""
     status: str = "active"  # active / deprecated
 
@@ -47,8 +46,8 @@ class TeamFederation:
         self._data_dir = data_dir
         self._federation_path = os.path.join(data_dir, "team_federation.json")
         self._trust_path = os.path.join(data_dir, "team_trust.json")
-        self._evolutions: List[Dict] = []
-        self._trust_scores: Dict[str, float] = {}
+        self._evolutions: list[dict] = []
+        self._trust_scores: dict[str, float] = {}
         self._load()
 
     def _load(self):
@@ -83,7 +82,7 @@ class TeamFederation:
         except Exception:
             pass
 
-    def publish_evolution(self, team_id: str, rule_data: Dict) -> Optional[Dict]:
+    def publish_evolution(self, team_id: str, rule_data: dict) -> dict | None:
         """发布进化规则到共享池
 
         条件：effectiveness_score ≥ 0.7 且 usage_count ≥ 5
@@ -118,7 +117,7 @@ class TeamFederation:
                      evolution_id, team_id, score, trust)
         return evolution
 
-    def subscribe_team(self, team_id: str, team_keywords: List[str]) -> List[Dict]:
+    def subscribe_team(self, team_id: str, team_keywords: list[str]) -> list[dict]:
         """智能订阅：返回与团队技能领域匹配的共享进化规则
 
         匹配逻辑：共享规则的 keywords 与团队关键词有交集，
@@ -182,7 +181,7 @@ class TeamFederation:
         current = self._get_trust(team_id)
         self._trust_scores[team_id] = max(0.0, min(1.0, current + delta))
 
-    def get_federation_stats(self) -> Dict:
+    def get_federation_stats(self) -> dict:
         """联邦统计"""
         total = len(self._evolutions)
         active = sum(1 for e in self._evolutions if e["status"] == "active")
@@ -205,7 +204,7 @@ class TeamFederation:
             "team_trust_scores": dict(self._trust_scores),
         }
 
-    def get_team_feed(self, team_id: str, team_keywords: List[str]) -> Dict:
+    def get_team_feed(self, team_id: str, team_keywords: list[str]) -> dict:
         """获取团队的个性化进化流
 
         返回：

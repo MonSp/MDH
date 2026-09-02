@@ -10,19 +10,20 @@ import asyncio
 import json
 import logging
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from agentscope.message import Msg
-from llm_guard import safe_llm_reply
 
 from agent import _extract_text
 from code_extractor import extract_code_blocks
-from protocol import AgentRole, MeetingAgentStatus
 from dynamic_router import DynamicRouter
-from spec_manager import SpecManager
-from evidence_chain import EvidenceChain, Evidence
-from fallback_chain import FallbackExecutor, RoutingFallbackBuilder
+from evidence_chain import Evidence, EvidenceChain
 from experience_extractor import ExperienceExtractor
+from fallback_chain import FallbackExecutor, RoutingFallbackBuilder
+from llm_guard import safe_llm_reply
+from protocol import AgentRole, MeetingAgentStatus
+from spec_manager import SpecManager
 
 logger = logging.getLogger("task_orchestrator")
 
@@ -35,10 +36,10 @@ class TaskOrchestrator:
         get_model_fn,
         meeting,
         router: DynamicRouter,
-        spec_manager: Optional[SpecManager] = None,
-        evidence_chain: Optional[EvidenceChain] = None,
-        fallback_executor: Optional[FallbackExecutor] = None,
-        workspace_root: Optional[str] = None,
+        spec_manager: SpecManager | None = None,
+        evidence_chain: EvidenceChain | None = None,
+        fallback_executor: FallbackExecutor | None = None,
+        workspace_root: str | None = None,
         executor_url: str = "",
         on_agent_status_change=None,
         kernel_integration=None,
@@ -49,14 +50,14 @@ class TaskOrchestrator:
         self._spec_manager = spec_manager or SpecManager()
         self._evidence_chain = evidence_chain or EvidenceChain()
         self._fallback_executor = fallback_executor or FallbackExecutor()
-        self._tasks: List[Dict[str, Any]] = []
-        self._task_routing: Dict[str, str] = {}
+        self._tasks: list[dict[str, Any]] = []
+        self._task_routing: dict[str, str] = {}
         self._workspace_root = workspace_root
         self._executor_url = executor_url
         self._on_agent_status_change = on_agent_status_change
         self._kernel = kernel_integration
 
-    async def decompose(self, task_description: str) -> List[Dict[str, Any]]:
+    async def decompose(self, task_description: str) -> list[dict[str, Any]]:
         """
         分解任务
 
@@ -103,7 +104,7 @@ class TaskOrchestrator:
 
         return subtasks
 
-    async def assign(self, subtasks: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    async def assign(self, subtasks: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
         """
         分配任务
 
@@ -161,7 +162,7 @@ class TaskOrchestrator:
         self._tasks = subtasks or self._tasks
         return assignments
 
-    async def execute(self, on_progress: Callable = None, parallel: bool = False) -> List[Dict[str, Any]]:
+    async def execute(self, on_progress: Callable = None, parallel: bool = False) -> list[dict[str, Any]]:
         """
         执行已分配的任务
 
@@ -392,7 +393,7 @@ class TaskOrchestrator:
             logger.debug("经验注入跳过: %s", e)
             return ""
 
-    def _extract_tool_calls(self, text: str) -> List[Dict[str, Any]]:
+    def _extract_tool_calls(self, text: str) -> list[dict[str, Any]]:
         """从Agent回复中提取工具调用
 
         支持格式：
@@ -400,8 +401,8 @@ class TaskOrchestrator:
         {"tool": "read_file", "arguments": {"path": "..."}}
         ```
         """
-        import re
         import json
+        import re
 
         tool_calls = []
         pattern = r'```tool_call\s*\n(.*?)```'

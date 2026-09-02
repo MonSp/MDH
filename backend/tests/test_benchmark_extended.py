@@ -335,10 +335,19 @@ def test_04_prometheus_metrics_under_load():
     Target: < 5ms for generate_latest().
     """
     from prometheus_client import generate_latest
+
     from prometheus_metrics import (
-        LLM_CALLS, LLM_TOKENS, LLM_CACHE_HITS, LLM_CACHE_MISSES,
-        TASK_SUCCESS, TASK_FAILURE, EVOLUTION_EVENTS,
-        XP_GRANTED, SKILL_LEVEL_UPS, WS_CONNECTIONS, WS_MESSAGES,
+        EVOLUTION_EVENTS,
+        LLM_CACHE_HITS,
+        LLM_CACHE_MISSES,
+        LLM_CALLS,
+        LLM_TOKENS,
+        SKILL_LEVEL_UPS,
+        TASK_FAILURE,
+        TASK_SUCCESS,
+        WS_CONNECTIONS,
+        WS_MESSAGES,
+        XP_GRANTED,
     )
 
     # Simulate 1000 LLM calls with various providers/models
@@ -474,7 +483,7 @@ def test_06_concurrent_evolution_events(tmp_path):
 
     Verify all 100 events recorded. Target: < 500ms total.
     """
-    from evolution_events import EvolutionEventStore, EvolutionEvent, new_event_id
+    from evolution_events import EvolutionEvent, EvolutionEventStore, new_event_id
 
     db_path = str(tmp_path / "concurrent_evolution.db")
     store = EvolutionEventStore(db_path=db_path)

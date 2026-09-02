@@ -7,11 +7,10 @@ A2A Registry — 执行节点注册中心
 
 import json
 import logging
-import time
 import threading
-from dataclasses import dataclass, field, asdict
+import time
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 logger = logging.getLogger("a2a_registry")
 
@@ -22,8 +21,8 @@ class AgentSkill:
     id: str
     name: str
     description: str
-    tags: List[str] = field(default_factory=list)
-    examples: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
+    examples: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -32,8 +31,8 @@ class AgentCard:
     name: str
     description: str
     url: str
-    skills: List[AgentSkill] = field(default_factory=list)
-    capabilities: Dict = field(default_factory=lambda: {"streaming": True})
+    skills: list[AgentSkill] = field(default_factory=list)
+    capabilities: dict = field(default_factory=lambda: {"streaming": True})
     version: str = "1.0.0"
 
 
@@ -62,7 +61,7 @@ class A2ARegistry:
     """
 
     def __init__(self, persist_path: str = None):
-        self._agents: Dict[str, RegisteredAgent] = {}
+        self._agents: dict[str, RegisteredAgent] = {}
         self._lock = threading.Lock()
         self._persist_path = persist_path or str(
             Path(__file__).parent / "data" / "a2a_agents.json"
@@ -102,17 +101,17 @@ class A2ARegistry:
                 return True
             return False
 
-    def get(self, agent_id: str) -> Optional[RegisteredAgent]:
+    def get(self, agent_id: str) -> RegisteredAgent | None:
         """获取指定节点"""
         with self._lock:
             return self._agents.get(agent_id)
 
-    def list_active(self) -> List[RegisteredAgent]:
+    def list_active(self) -> list[RegisteredAgent]:
         """列出所有活跃节点"""
         with self._lock:
             return [a for a in self._agents.values() if a.status == "active"]
 
-    def find_by_skill(self, skill_id: str) -> List[RegisteredAgent]:
+    def find_by_skill(self, skill_id: str) -> list[RegisteredAgent]:
         """按技能查找节点"""
         with self._lock:
             result = []
@@ -125,7 +124,7 @@ class A2ARegistry:
                         break
             return result
 
-    def find_by_tag(self, tag: str) -> List[RegisteredAgent]:
+    def find_by_tag(self, tag: str) -> list[RegisteredAgent]:
         """按标签查找节点"""
         with self._lock:
             result = []

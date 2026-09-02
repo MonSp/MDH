@@ -7,17 +7,18 @@ Review Pipeline - 审查流水线
 
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any
 
 from agentscope.message import Msg
 
 from agent import _extract_text
-from collaboration.planner_agent import PlannerAgent, SubTask
 from collaboration.critic_agent import CriticAgent, CriticResult
 from collaboration.grounding_agent import GroundingAgent, GroundingResult
+from collaboration.planner_agent import PlannerAgent, SubTask
 from llm_guard import safe_llm_reply
-from protocol import AgentRole, MeetingAgentStatus, LLM_FALLBACK_TEMPLATE
+from protocol import LLM_FALLBACK_TEMPLATE, AgentRole, MeetingAgentStatus
 
 logger = logging.getLogger("review_pipeline")
 
@@ -28,16 +29,16 @@ class ReviewIteration:
     iteration: int
     status: str  # "approved" | "revision_required" | "skipped"
     critic_severity: str = "unknown"
-    critic_findings: List[str] = field(default_factory=list)
+    critic_findings: list[str] = field(default_factory=list)
     grounding_grounded: bool = False
-    grounding_sources: List[str] = field(default_factory=list)
-    issues: List[Dict[str, str]] = field(default_factory=list)
+    grounding_sources: list[str] = field(default_factory=list)
+    issues: list[dict[str, str]] = field(default_factory=list)
     reviewer_feedback: str = ""
     monitor_feedback: str = ""
     coordinator_summary: str = ""
-    gate_passed: Optional[bool] = None
-    gate_failures: List[str] = field(default_factory=list)
-    files_written: List[str] = field(default_factory=list)
+    gate_passed: bool | None = None
+    gate_failures: list[str] = field(default_factory=list)
+    files_written: list[str] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
 
 
@@ -47,9 +48,9 @@ class ReviewReport:
     task_id: str = ""
     final_status: str = "pending"  # "approved" | "revision_required" | "max_iterations_reached"
     total_iterations: int = 0
-    iterations: List[ReviewIteration] = field(default_factory=list)
+    iterations: list[ReviewIteration] = field(default_factory=list)
     total_issues_found: int = 0
-    total_files_written: List[str] = field(default_factory=list)
+    total_files_written: list[str] = field(default_factory=list)
 
     def add_iteration(self, iteration: ReviewIteration) -> None:
         self.iterations.append(iteration)
@@ -58,7 +59,7 @@ class ReviewReport:
         self.total_files_written.extend(iteration.files_written)
         self.final_status = iteration.status
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "task_id": self.task_id,
             "final_status": self.final_status,
@@ -89,10 +90,10 @@ class ReviewPipeline:
         self,
         get_model_fn,
         meeting,
-        planner: Optional[PlannerAgent] = None,
-        critic: Optional[CriticAgent] = None,
-        grounding: Optional[GroundingAgent] = None,
-        on_model_error: Optional[Callable[[AgentRole], None]] = None,
+        planner: PlannerAgent | None = None,
+        critic: CriticAgent | None = None,
+        grounding: GroundingAgent | None = None,
+        on_model_error: Callable[[AgentRole], None] | None = None,
     ):
         self._get_model = get_model_fn
         self._meeting = meeting
@@ -116,10 +117,10 @@ class ReviewPipeline:
         task_description: str,
         execution_result: str,
         on_message: Callable[[str, str, str], Awaitable[None]],
-        repo_context: Optional[Dict[str, Any]] = None,
+        repo_context: dict[str, Any] | None = None,
         discussion_context: str = "",
-        gate_result: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        gate_result: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         执行审查流水线
 
@@ -195,7 +196,7 @@ class ReviewPipeline:
             "structured_feedback": structured_feedback,
         }
 
-    def _find_agent_id(self, role: AgentRole) -> Optional[str]:
+    def _find_agent_id(self, role: AgentRole) -> str | None:
         for a in self._meeting.agents:
             if a.role == role:
                 return a.id
@@ -387,8 +388,8 @@ class ReviewPipeline:
         execution_result: str,
         reviewer_feedback: str = "",
         monitor_feedback: str = "",
-        gate_result: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        gate_result: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """生成结构化验收反馈，整合 LLM 审查意见与确定性门禁结果"""
         if self._planner:
             subtask = SubTask(

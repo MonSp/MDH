@@ -8,7 +8,7 @@ import logging
 
 from fastapi import APIRouter, Body
 
-from routers.common import ok, fail
+from routers.common import fail, ok
 
 logger = logging.getLogger("routers.assets")
 

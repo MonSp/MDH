@@ -16,7 +16,6 @@ import json
 import logging
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import yaml
 
@@ -37,7 +36,7 @@ class RegistryServer:
         self._storage_dir = Path(storage_dir)
         self._skills_dir = self._storage_dir / "skills"
         self._skills_dir.mkdir(parents=True, exist_ok=True)
-        self._index: Dict[str, dict] = {}
+        self._index: dict[str, dict] = {}
         self._rebuild_index()
 
     def _rebuild_index(self) -> None:
@@ -50,7 +49,7 @@ class RegistryServer:
             if meta:
                 self._index[meta["name"]] = meta
 
-    def _read_meta(self, skill_dir: Path) -> Optional[dict]:
+    def _read_meta(self, skill_dir: Path) -> dict | None:
         """读取技能元数据"""
         # manifest.json
         manifest = skill_dir / "manifest.json"
@@ -82,15 +81,15 @@ class RegistryServer:
 
         return None
 
-    def list_skills(self) -> List[dict]:
+    def list_skills(self) -> list[dict]:
         """列出所有技能"""
         return list(self._index.values())
 
-    def get_skill(self, skill_name: str) -> Optional[dict]:
+    def get_skill(self, skill_name: str) -> dict | None:
         """获取技能详情"""
         return self._index.get(skill_name)
 
-    def download_skill(self, skill_name: str) -> Optional[bytes]:
+    def download_skill(self, skill_name: str) -> bytes | None:
         """下载技能包为 zip"""
         skill_dir = self._skills_dir / skill_name
         if not skill_dir.exists():
@@ -134,7 +133,7 @@ class RegistryServer:
             logger.error("上传技能失败: %s", e)
             return False
 
-    def search_skills(self, query: str = "", category: str = "") -> List[dict]:
+    def search_skills(self, query: str = "", category: str = "") -> list[dict]:
         """搜索技能"""
         results = []
         query_lower = query.lower()
@@ -162,7 +161,7 @@ class RegistryServer:
 
     def create_app(self):
         """创建 FastAPI 应用"""
-        from fastapi import FastAPI, HTTPException, Query, UploadFile, File
+        from fastapi import FastAPI, File, HTTPException, Query, UploadFile
         from fastapi.responses import Response
 
         app = FastAPI(title="MDH Skill Registry", version="1.0.0")

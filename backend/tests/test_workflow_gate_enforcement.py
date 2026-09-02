@@ -1,11 +1,17 @@
 """把关强制力：gate 拒绝的节点置 FAILED，下游中止，execution FAILED；可重试"""
-import sys
 import os
+import sys
 
 # 添加backend目录到Python路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from protocol import WorkflowDefinition, WorkflowEdge, WorkflowNode, WorkflowNodeStatus, WorkflowExecutionStatus
+from protocol import (
+    WorkflowDefinition,
+    WorkflowEdge,
+    WorkflowExecutionStatus,
+    WorkflowNode,
+    WorkflowNodeStatus,
+)
 from workflow_engine import WorkflowEngine
 
 

@@ -1,25 +1,50 @@
 """Tests for protocol.py — data structures and serialization functions"""
 from protocol import (
-    # Enums
-    WorkflowNodeStatus, WorkflowExecutionStatus, AgentRole, MeetingAgentStatus,
-    AgendaPhase, Stance, ConsensusStrategy, ApprovalStatus, RiskLevel,
-    # Dataclasses
-    WorkflowNode, WorkflowEdge, MeetingAgentInfo, MeetingTaskInfo, MeetingSummary, TraceContext,
-    AgendaState, Proposal, Vote, VoteResult,
-    ApprovalRequest, Checkpoint,
-    # Serialization
-    meeting_agent_to_dict, meeting_task_to_dict,
-    meeting_summary_to_dict, trace_context_to_dict, agenda_state_to_dict,
-    proposal_to_dict, vote_to_dict, vote_result_to_dict,
-    approval_request_to_dict, checkpoint_to_dict,
-    # Deserialization
-    dict_to_trace_context, dict_to_agenda_state,
-    dict_to_proposal, dict_to_vote, dict_to_vote_result,
-    dict_to_approval_request, dict_to_checkpoint,
     # LLM fallback
     LLM_FALLBACK_TEMPLATE,
+    AgendaPhase,
+    AgendaState,
+    AgentRole,
+    ApprovalRequest,
+    ApprovalStatus,
+    Checkpoint,
+    ConsensusStrategy,
+    MeetingAgentInfo,
+    MeetingAgentStatus,
+    MeetingSummary,
+    MeetingTaskInfo,
+    Proposal,
+    RiskLevel,
+    Stance,
+    TraceContext,
+    Vote,
+    VoteResult,
+    WorkflowEdge,
+    WorkflowExecutionStatus,
+    # Dataclasses
+    WorkflowNode,
+    # Enums
+    WorkflowNodeStatus,
+    agenda_state_to_dict,
+    approval_request_to_dict,
+    checkpoint_to_dict,
+    dict_to_agenda_state,
+    dict_to_approval_request,
+    dict_to_checkpoint,
+    dict_to_proposal,
+    # Deserialization
+    dict_to_trace_context,
+    dict_to_vote,
+    dict_to_vote_result,
+    # Serialization
+    meeting_agent_to_dict,
+    meeting_summary_to_dict,
+    meeting_task_to_dict,
+    proposal_to_dict,
+    trace_context_to_dict,
+    vote_result_to_dict,
+    vote_to_dict,
 )
-
 
 # ── Enums ──
 

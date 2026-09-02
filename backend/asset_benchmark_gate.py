@@ -10,8 +10,8 @@ import json
 import os
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 from asset_judge_benchmark import BENCHMARK_ITEMS, evaluate_judge, load_benchmark_items
 

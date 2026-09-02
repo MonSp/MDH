@@ -1,6 +1,7 @@
 """Tests for MCP Adapter and MCP Server"""
-import pytest
 import json
+
+import pytest
 
 from mcp_adapter import MCPAdapter, MCPTool, load_mcp_configs
 from mcp_server import MDHMCPServer

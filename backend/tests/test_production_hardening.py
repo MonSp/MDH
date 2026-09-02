@@ -2,9 +2,9 @@
 
 import os
 import sqlite3
+import sys
 import threading
 import time
-import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -198,8 +198,8 @@ class TestPerformanceBenchmark:
 
     def test_backup_performance(self, tmp_path):
         """数据库备份 < 1 秒"""
-        from ops import OpsManager
         from agent_profile_manager import AgentProfileManager
+        from ops import OpsManager
 
         # 创建一些数据
         mgr = AgentProfileManager(str(tmp_path))

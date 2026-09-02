@@ -6,8 +6,8 @@ import logging
 import uuid
 
 from fastapi import APIRouter, Request
-from rate_limiter import limiter, RATE_LIMITS
 
+from rate_limiter import RATE_LIMITS, limiter
 from routers.common import fail
 
 logger = logging.getLogger("routers.browser")

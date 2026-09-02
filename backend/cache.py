@@ -6,20 +6,21 @@
 
 import threading
 import time
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 
 class TTLCache:
     """带 TTL 的内存缓存（线程安全）"""
 
     def __init__(self, default_ttl: int = 60):
-        self._store: Dict[str, Dict] = {}
+        self._store: dict[str, dict] = {}
         self._lock = threading.Lock()
         self._default_ttl = default_ttl
         self._hits = 0
         self._misses = 0
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """获取缓存值"""
         with self._lock:
             entry = self._store.get(key)
@@ -58,7 +59,7 @@ class TTLCache:
         with self._lock:
             self._store.clear()
 
-    def stats(self) -> Dict:
+    def stats(self) -> dict:
         """缓存统计"""
         with self._lock:
             total = self._hits + self._misses

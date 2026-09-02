@@ -1,8 +1,14 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from .communication import CommunicationInterface, CommunicationManager, InMemoryCommunication, Message, MessageType
-from .planner_agent import PlannerAgent, TaskPlan, TaskStatus
+from .communication import (
+    CommunicationInterface,
+    CommunicationManager,
+    InMemoryCommunication,
+    Message,
+    MessageType,
+)
 from .executor_agent import ExecutorAgent
+from .planner_agent import PlannerAgent, TaskPlan, TaskStatus
 
 
 class CollaborativeAgent:
@@ -19,15 +25,15 @@ class CollaborativeAgent:
             communication=self.communication,
             communication_manager=self.communication_manager,
         )
-        self.executors: Dict[str, ExecutorAgent] = {}
-        self.current_plan: Optional[TaskPlan] = None
+        self.executors: dict[str, ExecutorAgent] = {}
+        self.current_plan: TaskPlan | None = None
         self._running = False
 
     @property
     def agent_id(self) -> str:
         return self.name
 
-    def add_executor(self, name: str, capabilities: List[str] = None) -> ExecutorAgent:
+    def add_executor(self, name: str, capabilities: list[str] = None) -> ExecutorAgent:
         executor = ExecutorAgent(
             name=name,
             capabilities=capabilities or [],
@@ -80,7 +86,7 @@ class CollaborativeAgent:
                     error=error,
                 )
 
-    async def execute_task(self, task_description: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def execute_task(self, task_description: str, context: dict[str, Any] = None) -> dict[str, Any]:
         self.current_plan = await self.planner.plan_task(task_description, context)
 
         results = await self.planner.execute_plan()
@@ -93,7 +99,7 @@ class CollaborativeAgent:
             "plan_status": self.planner.get_plan_status(),
         }
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         executor_statuses = {}
         for name, executor in self.executors.items():
             executor_statuses[name] = executor.get_status()
@@ -105,13 +111,13 @@ class CollaborativeAgent:
             "is_running": self._running,
         }
 
-    def get_executor(self, name: str) -> Optional[ExecutorAgent]:
+    def get_executor(self, name: str) -> ExecutorAgent | None:
         return self.executors.get(name)
 
-    def list_executors(self) -> List[str]:
+    def list_executors(self) -> list[str]:
         return list(self.executors.keys())
 
-    async def add_executor_and_start(self, name: str, capabilities: List[str] = None) -> ExecutorAgent:
+    async def add_executor_and_start(self, name: str, capabilities: list[str] = None) -> ExecutorAgent:
         executor = self.add_executor(name, capabilities)
         if self._running:
             await executor.start()
@@ -143,10 +149,10 @@ class CollaborativeAgent:
         )
         await self.communication_manager.send_message(message)
 
-    def get_plan_progress(self) -> Optional[Dict[str, Any]]:
+    def get_plan_progress(self) -> dict[str, Any] | None:
         return self.planner.get_plan_status()
 
-    def get_executor_stats(self) -> Dict[str, Any]:
+    def get_executor_stats(self) -> dict[str, Any]:
         stats = {}
         for name, executor in self.executors.items():
             stats[name] = {

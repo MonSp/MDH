@@ -1,7 +1,9 @@
 """Tests for negotiation.py — NegotiationEngine vote logic"""
 import pytest
+
 from negotiation import (
-    NegotiationEngine, ConsensusStrategy,
+    ConsensusStrategy,
+    NegotiationEngine,
 )
 
 
@@ -67,9 +69,7 @@ def test_stance_oppose_maps_to_reject():
     for agent_id, stance, confidence in stances:
         if stance == "oppose":
             approve = False
-        elif stance == "modify":
-            approve = True
-        elif stance == "support":
+        elif stance == "modify" or stance == "support":
             approve = True
         else:  # neutral
             approve = confidence >= 0.4

@@ -12,7 +12,6 @@ import secrets
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
 from db import get_db
 
@@ -38,7 +37,7 @@ class TenantManager:
         self._db = get_db(self._db_path)
         self._ensure_table()
         self._lock = threading.Lock()
-        self._previous_keys: Dict[str, tuple] = {}  # api_key → (tenant_id, expires_at)
+        self._previous_keys: dict[str, tuple] = {}  # api_key → (tenant_id, expires_at)
 
     def _ensure_table(self):
         self._db.executescript("""
@@ -70,7 +69,7 @@ class TenantManager:
         logger.info("创建租户: %s (%s)", name, tenant_id)
         return Tenant(tenant_id=tenant_id, name=name, description=description, created_at=now, api_key=api_key, is_active=True)
 
-    def get_tenant(self, tenant_id: str) -> Optional[Tenant]:
+    def get_tenant(self, tenant_id: str) -> Tenant | None:
         """获取租户"""
         row = self._db.execute("SELECT * FROM tenants WHERE tenant_id = ?", (tenant_id,)).fetchone()
         if not row:
@@ -80,7 +79,7 @@ class TenantManager:
             created_at=row["created_at"], api_key=row["api_key"], is_active=bool(row["is_active"]),
         )
 
-    def get_tenant_by_api_key(self, api_key: str, include_inactive: bool = False) -> Optional[Tenant]:
+    def get_tenant_by_api_key(self, api_key: str, include_inactive: bool = False) -> Tenant | None:
         """通过 API key 获取租户（含旧 key 宽限期检查）
 
         Args:
@@ -110,7 +109,7 @@ class TenantManager:
                 del self._previous_keys[api_key]
         return None
 
-    def list_tenants(self) -> List[Tenant]:
+    def list_tenants(self) -> list[Tenant]:
         """列出所有租户"""
         rows = self._db.execute("SELECT * FROM tenants ORDER BY created_at DESC").fetchall()
         return [
@@ -126,7 +125,7 @@ class TenantManager:
             self._db.commit()
             return cursor.rowcount > 0
 
-    def regenerate_api_key(self, tenant_id: str) -> Optional[str]:
+    def regenerate_api_key(self, tenant_id: str) -> str | None:
         """重新生成 API key（旧 key 保留 5 分钟宽限期）"""
         new_key = f"mdh_tenant_{secrets.token_urlsafe(24)}"
         with self._lock:
@@ -141,7 +140,7 @@ class TenantManager:
                 return new_key
         return None
 
-    def get_tenant_stats(self, tenant_id: str) -> Dict:
+    def get_tenant_stats(self, tenant_id: str) -> dict:
         """获取租户数据统计（隔离验证用）"""
         from db import get_db as get_main_db
         db_path = os.path.join(self._data_dir, "mdh.db")

@@ -1,7 +1,8 @@
 # backend/tests/test_promotion_engine.py
 import pytest
-from promotion_engine import PromotionEngine
+
 from agent_profile_manager import AgentProfile
+from promotion_engine import PromotionEngine
 
 
 @pytest.fixture

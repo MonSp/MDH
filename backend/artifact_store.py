@@ -10,7 +10,6 @@ import logging
 import os
 import time
 from dataclasses import asdict, dataclass, field
-from typing import List
 
 logger = logging.getLogger("artifact_store")
 
@@ -44,9 +43,9 @@ class ArtifactStore:
         self,
         task_id: str,
         agent_id: str,
-        files_written: List[str],
+        files_written: list[str],
         result_summary: str = "",
-    ) -> List[ArtifactRef]:
+    ) -> list[ArtifactRef]:
         """保存执行产物引用
 
         Args:
@@ -97,7 +96,7 @@ class ArtifactStore:
 
         return refs
 
-    def load_artifacts(self, task_id: str) -> List[ArtifactRef]:
+    def load_artifacts(self, task_id: str) -> list[ArtifactRef]:
         """加载任务的 artifact 引用"""
         index_path = os.path.join(self._artifacts_dir, f"{task_id}.json")
         if not os.path.exists(index_path):
@@ -129,7 +128,7 @@ class ArtifactStore:
             logger.warning("读取 artifact 失败 %s: %s", ref.path, e)
         return ""
 
-    def build_artifact_context(self, task_ids: List[str], max_chars_per_file: int = 2000) -> str:
+    def build_artifact_context(self, task_ids: list[str], max_chars_per_file: int = 2000) -> str:
         """构建 artifact 上下文文本（供审查使用）
 
         读取指定任务的 artifact 文件内容，构建结构化上下文。

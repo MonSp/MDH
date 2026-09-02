@@ -1,6 +1,7 @@
 """Tests for RegistryClient and RegistryServer"""
-import pytest
 import zipfile
+
+import pytest
 
 from registry_client import RegistryClient, SkillMeta
 from registry_server import RegistryServer

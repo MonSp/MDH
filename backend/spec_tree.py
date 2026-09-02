@@ -5,11 +5,11 @@ Spec Tree 数据结构与校验器
 校验规则移植自 WhyBuddy 的 validate_spec_tree.py 逻辑。
 """
 
+import json
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional, Dict, Any
-from collections import defaultdict, deque
-import json
+from typing import Any
 
 
 class SpecTreeNodeType(str, Enum):
@@ -40,15 +40,15 @@ class Provenance:
 class SpecTreeNode:
     """规格树节点"""
     id: str
-    parentId: Optional[str]
+    parentId: str | None
     type: SpecTreeNodeType
     title: str
-    acceptance: Optional[str] = None  # EARS句式验收标准（仅requirement类型）
-    coversCriteria: List[str] = field(default_factory=list)  # 覆盖的成功标准ID列表
-    evidenceRefs: List[str] = field(default_factory=list)  # 证据节点引用
-    notes: Optional[str] = None
-    source: Optional[str] = None  # 证据来源（仅evidence类型）
-    verify: Optional[str] = None  # 验证方法（仅task类型）
+    acceptance: str | None = None  # EARS句式验收标准（仅requirement类型）
+    coversCriteria: list[str] = field(default_factory=list)  # 覆盖的成功标准ID列表
+    evidenceRefs: list[str] = field(default_factory=list)  # 证据节点引用
+    notes: str | None = None
+    source: str | None = None  # 证据来源（仅evidence类型）
+    verify: str | None = None  # 验证方法（仅task类型）
 
 
 @dataclass
@@ -56,8 +56,8 @@ class SpecTree:
     """规格树"""
     rootNodeId: str
     version: int
-    successCriteria: List[SuccessCriterion]
-    nodes: List[SpecTreeNode]
+    successCriteria: list[SuccessCriterion]
+    nodes: list[SpecTreeNode]
     provenance: Provenance
 
 
@@ -65,8 +65,8 @@ class SpecTree:
 class ValidationResult:
     """校验结果"""
     passed: bool
-    violations: List[str] = field(default_factory=list)
-    stats: Dict[str, Any] = field(default_factory=dict)
+    violations: list[str] = field(default_factory=list)
+    stats: dict[str, Any] = field(default_factory=dict)
 
 
 class SpecTreeValidator:
@@ -177,7 +177,7 @@ class SpecTreeValidator:
 
         return violations, stats
 
-    def _has_cycle(self, nodes: List[SpecTreeNode]) -> bool:
+    def _has_cycle(self, nodes: list[SpecTreeNode]) -> bool:
         """检测是否有环（DFS）"""
         adj = defaultdict(list)
         for node in nodes:
@@ -232,7 +232,7 @@ class SpecTreeValidator:
 
         return max_depth
 
-    def _validate_provenance(self, tree: SpecTree) -> List[str]:
+    def _validate_provenance(self, tree: SpecTree) -> list[str]:
         """来源诚实校验"""
         violations = []
 
@@ -244,7 +244,7 @@ class SpecTreeValidator:
 
         return violations
 
-    def _validate_coverage(self, tree: SpecTree) -> List[str]:
+    def _validate_coverage(self, tree: SpecTree) -> list[str]:
         """成功标准覆盖且不塌缩"""
         violations = []
 
@@ -276,7 +276,7 @@ class SpecTreeValidator:
 
         return violations
 
-    def _validate_ears(self, tree: SpecTree) -> List[str]:
+    def _validate_ears(self, tree: SpecTree) -> list[str]:
         """EARS验收句式校验"""
         from ears_validator import EarsValidator
 
@@ -297,7 +297,7 @@ class SpecTreeValidator:
 
         return violations
 
-    def _validate_evidence(self, tree: SpecTree) -> List[str]:
+    def _validate_evidence(self, tree: SpecTree) -> list[str]:
         """证据贯穿校验"""
         violations = []
 
@@ -333,7 +333,7 @@ class SpecTreeValidator:
             tree = self._dict_to_tree(data)
             return self.validate(tree)
         except Exception as e:
-            return ValidationResult(passed=False, violations=[f"解析失败：{str(e)}"])
+            return ValidationResult(passed=False, violations=[f"解析失败：{e!s}"])
 
     def _dict_to_tree(self, data: dict) -> SpecTree:
         """字典转SpecTree对象"""
@@ -389,7 +389,7 @@ class SpecTreeValidator:
                 data = json.load(f)
             return self.validate_from_dict(data)
         except Exception as e:
-            return ValidationResult(passed=False, violations=[f"读取文件失败：{str(e)}"])
+            return ValidationResult(passed=False, violations=[f"读取文件失败：{e!s}"])
 
 
 if __name__ == "__main__":

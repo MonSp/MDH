@@ -1,7 +1,8 @@
 """Tests for SkillExporter — import/export"""
-import pytest
 import zipfile
 from pathlib import Path
+
+import pytest
 
 from skill_exporter import SkillExporter
 

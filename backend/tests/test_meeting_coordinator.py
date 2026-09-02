@@ -5,7 +5,6 @@ Focused on static/pure methods that can be tested without LLM or WebSocket setup
 
 from meeting_coordinator import MeetingCoordinator
 
-
 # ──────────────────── _estimate_task_complexity ────────────────────
 
 class TestEstimateTaskComplexity:

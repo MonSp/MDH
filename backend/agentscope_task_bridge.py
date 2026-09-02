@@ -4,12 +4,12 @@
 """
 
 import logging
-import uuid
-from typing import Dict, List, Optional
+import os
 
 # 导入agentscope的Task类
 import sys
-import os
+import uuid
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'third_party', 'agentscope', 'src'))
 
 from agentscope.state._task import Task
@@ -32,11 +32,11 @@ class AgentscopeTaskBridge:
 
     def __init__(self):
         # 工作流节点ID到Task ID的映射
-        self._node_to_task_map: Dict[str, str] = {}
+        self._node_to_task_map: dict[str, str] = {}
         # Task ID到工作流节点ID的映射
-        self._task_to_node_map: Dict[str, str] = {}
+        self._task_to_node_map: dict[str, str] = {}
         # 工作流执行实例ID到Task列表的映射
-        self._workflow_tasks: Dict[str, List[Task]] = {}
+        self._workflow_tasks: dict[str, list[Task]] = {}
 
     def workflow_node_to_task(self, node: WorkflowNode) -> Task:
         """将工作流节点转换为agentscope Task
@@ -118,7 +118,7 @@ class AgentscopeTaskBridge:
         logger.info("将Task %s 转换为工作流节点 %s", task.id, node_id)
         return node
 
-    def sync_workflow_to_tasks(self, workflow: WorkflowExecution) -> List[Task]:
+    def sync_workflow_to_tasks(self, workflow: WorkflowExecution) -> list[Task]:
         """同步工作流状态到Task列表
 
         Args:
@@ -176,7 +176,7 @@ class AgentscopeTaskBridge:
         logger.info("同步工作流 %s 的状态到 %d 个Task", workflow.execution_id, len(tasks))
         return tasks
 
-    def update_task_dependencies(self, tasks: List[Task], edges: List[WorkflowEdge]):
+    def update_task_dependencies(self, tasks: list[Task], edges: list[WorkflowEdge]):
         """更新Task的blocks/blocked_by字段
 
         Args:
@@ -206,7 +206,7 @@ class AgentscopeTaskBridge:
 
                 logger.debug("更新依赖关系: %s -> %s", edge.source_node_id, edge.target_node_id)
 
-    def get_task_for_node(self, node_id: str) -> Optional[Task]:
+    def get_task_for_node(self, node_id: str) -> Task | None:
         """获取节点对应的Task
 
         Args:
@@ -227,7 +227,7 @@ class AgentscopeTaskBridge:
 
         return None
 
-    def get_node_for_task(self, task_id: str) -> Optional[str]:
+    def get_node_for_task(self, task_id: str) -> str | None:
         """获取Task对应的节点ID
 
         Args:
@@ -238,7 +238,7 @@ class AgentscopeTaskBridge:
         """
         return self._task_to_node_map.get(task_id)
 
-    def get_workflow_tasks(self, execution_id: str) -> List[Task]:
+    def get_workflow_tasks(self, execution_id: str) -> list[Task]:
         """获取工作流的所有Task
 
         Args:

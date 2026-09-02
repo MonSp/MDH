@@ -6,7 +6,6 @@ A2A Task Router — 根据任务特征选择最优执行节点
 
 import logging
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 
 from a2a_registry import A2ARegistry, RegisteredAgent
 
@@ -34,7 +33,7 @@ class RoutingDecision:
     skill_id: str
     confidence: float
     reason: str
-    matched_tags: List[str]
+    matched_tags: list[str]
 
 
 class A2ATaskRouter:
@@ -46,7 +45,7 @@ class A2ATaskRouter:
     def __init__(self, registry: A2ARegistry):
         self._registry = registry
 
-    def route(self, task_description: str, prefer_tags: List[str] = None) -> Optional[RoutingDecision]:
+    def route(self, task_description: str, prefer_tags: list[str] = None) -> RoutingDecision | None:
         """为任务选择最优执行节点
 
         Args:
@@ -71,7 +70,7 @@ class A2ATaskRouter:
             detected_tags = ["file", "shell"]
 
         # 为每个节点计算匹配分
-        candidates: List[Tuple[RegisteredAgent, str, float, List[str]]] = []
+        candidates: list[tuple[RegisteredAgent, str, float, list[str]]] = []
 
         for agent in active_agents:
             for skill in agent.card.skills:
@@ -106,7 +105,7 @@ class A2ATaskRouter:
         local_tags = {"file", "git", "shell", "search", "browser"}
         return bool(set(tags) & local_tags)
 
-    def _detect_tags(self, text: str) -> List[str]:
+    def _detect_tags(self, text: str) -> list[str]:
         """从文本中提取任务特征标签"""
         tags = []
         text_lower = text.lower()
@@ -119,10 +118,10 @@ class A2ATaskRouter:
 
     def _score_match(
         self,
-        task_tags: List[str],
-        skill_tags: List[str],
+        task_tags: list[str],
+        skill_tags: list[str],
         agent: RegisteredAgent,
-    ) -> Tuple[float, List[str]]:
+    ) -> tuple[float, list[str]]:
         """计算任务标签与技能标签的匹配分
 
         评分公式:

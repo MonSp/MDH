@@ -13,7 +13,7 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("mcp_adapter")
 
@@ -24,9 +24,9 @@ class MCPServerConfig:
     name: str
     transport: str = "stdio"  # "stdio" | "streamable-http"
     command: str = ""
-    args: List[str] = field(default_factory=list)
+    args: list[str] = field(default_factory=list)
     url: str = ""
-    env: Dict[str, str] = field(default_factory=dict)
+    env: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -34,17 +34,17 @@ class MCPTool:
     """MCP 工具定义"""
     name: str
     description: str
-    input_schema: Dict[str, Any] = field(default_factory=dict)
+    input_schema: dict[str, Any] = field(default_factory=dict)
     server_name: str = ""
 
 
 class MCPConnection:
     """MCP 服务器连接基类"""
 
-    async def list_tools(self) -> List[MCPTool]:
+    async def list_tools(self) -> list[MCPTool]:
         raise NotImplementedError
 
-    async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
         raise NotImplementedError
 
     async def close(self) -> None:
@@ -56,7 +56,7 @@ class StdioMCPConnection(MCPConnection):
 
     def __init__(self, config: MCPServerConfig):
         self._config = config
-        self._process: Optional[asyncio.subprocess.Process] = None
+        self._process: asyncio.subprocess.Process | None = None
         self._request_id = 0
 
     async def connect(self) -> None:
@@ -80,7 +80,7 @@ class StdioMCPConnection(MCPConnection):
         await self._send_notification("notifications/initialized", {})
         logger.info("已连接 MCP 服务器: %s", self._config.name)
 
-    async def list_tools(self) -> List[MCPTool]:
+    async def list_tools(self) -> list[MCPTool]:
         """列出服务器提供的工具"""
         result = await self._send_request("tools/list", {})
         tools = []
@@ -93,7 +93,7 @@ class StdioMCPConnection(MCPConnection):
             ))
         return tools
 
-    async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
         """调用服务器工具"""
         result = await self._send_request("tools/call", {
             "name": name,
@@ -111,7 +111,7 @@ class StdioMCPConnection(MCPConnection):
             await self._process.wait()
             self._process = None
 
-    async def _send_request(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def _send_request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
         """发送 JSON-RPC 请求"""
         self._request_id += 1
         request = {
@@ -134,7 +134,7 @@ class StdioMCPConnection(MCPConnection):
 
         return response.get("result", {})
 
-    async def _send_notification(self, method: str, params: Dict[str, Any]) -> None:
+    async def _send_notification(self, method: str, params: dict[str, Any]) -> None:
         """发送 JSON-RPC 通知（无响应）"""
         notification = {
             "jsonrpc": "2.0",
@@ -162,10 +162,10 @@ class MCPAdapter:
         result = await adapter.call_tool("filesystem__read_file", {"path": "/tmp/test.txt"})
     """
 
-    def __init__(self, configs: List[MCPServerConfig]):
+    def __init__(self, configs: list[MCPServerConfig]):
         self._configs = configs
-        self._connections: Dict[str, MCPConnection] = {}
-        self._tools: Dict[str, MCPTool] = {}
+        self._connections: dict[str, MCPConnection] = {}
+        self._tools: dict[str, MCPTool] = {}
 
     async def initialize(self) -> None:
         """初始化所有 MCP 服务器连接"""
@@ -185,7 +185,7 @@ class MCPAdapter:
             except Exception as e:
                 logger.warning("连接 MCP 服务器 %s 失败: %s", config.name, e)
 
-    async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
         """调用 MCP 工具"""
         tool = self._tools.get(tool_name)
         if not tool:
@@ -197,11 +197,11 @@ class MCPAdapter:
 
         return await conn.call_tool(tool.name, arguments)
 
-    def get_all_tools(self) -> List[MCPTool]:
+    def get_all_tools(self) -> list[MCPTool]:
         """获取所有可用的 MCP 工具"""
         return list(self._tools.values())
 
-    def get_tool_definitions(self) -> List[Dict[str, Any]]:
+    def get_tool_definitions(self) -> list[dict[str, Any]]:
         """获取工具定义（用于注入 LLM context）"""
         return [
             {
@@ -224,7 +224,7 @@ class MCPAdapter:
         self._tools.clear()
 
 
-def load_mcp_configs(config_path: str) -> List[MCPServerConfig]:
+def load_mcp_configs(config_path: str) -> list[MCPServerConfig]:
     """从 JSON 文件加载 MCP 服务器配置
 
     配置文件格式：

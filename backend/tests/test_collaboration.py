@@ -1,13 +1,14 @@
 import pytest
+
+from collaboration.collaborative_agent import CollaborativeAgent
 from collaboration.communication import (
-    InMemoryCommunication,
     CommunicationManager,
+    InMemoryCommunication,
     Message,
     MessageType,
 )
+from collaboration.executor_agent import AgentStatus, ExecutorAgent
 from collaboration.planner_agent import PlannerAgent, TaskStatus
-from collaboration.executor_agent import ExecutorAgent, AgentStatus
-from collaboration.collaborative_agent import CollaborativeAgent
 
 
 @pytest.fixture

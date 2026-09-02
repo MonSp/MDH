@@ -81,7 +81,6 @@ from protocol import (
     WorkflowNode,
 )
 
-
 SAMPLE_ROUTING_TABLE = {
     "departments": [
         {
@@ -1245,7 +1244,6 @@ class TestTeamIdPassThrough:
 
         def fake_get(prompt, role="", model=""):
             cache_calls["get"] += 1
-            return None
 
         def fake_put(prompt, response, role="", model=""):
             cache_calls["put"] += 1

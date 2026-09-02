@@ -10,7 +10,7 @@ import logging
 import math
 import os
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("capability_boundary")
 
@@ -27,7 +27,7 @@ class CapabilityBoundary:
         self._data_dir = data_dir
         self._experience_dir = os.path.join(data_dir, "experience")
 
-    def compute_confidence_map(self) -> Dict[str, Any]:
+    def compute_confidence_map(self) -> dict[str, Any]:
         """计算每个技能领域的置信度地图
 
         置信度 = f(规则数量, 平均有效性, 使用频率, 进化成功率)
@@ -38,7 +38,7 @@ class CapabilityBoundary:
             return {"domains": {}, "overall_confidence": 0.0}
 
         # 按 rule_type 和 keywords 分组
-        domain_data: Dict[str, List[Dict]] = defaultdict(list)
+        domain_data: dict[str, list[dict]] = defaultdict(list)
 
         for fname in os.listdir(rules_dir):
             if not fname.endswith(".yaml"):
@@ -119,7 +119,7 @@ class CapabilityBoundary:
             "unknown_domains": sum(1 for d in domains.values() if d["level"] == "unknown"),
         }
 
-    def detect_unknown_domain(self, task_keywords: List[str]) -> Dict[str, Any]:
+    def detect_unknown_domain(self, task_keywords: list[str]) -> dict[str, Any]:
         """检测任务是否落在未知/低置信领域
 
         Args:
@@ -176,7 +176,7 @@ class CapabilityBoundary:
                 "recommendation": f"高置信领域（{best:.0%}）：正常执行",
             }
 
-    def request_help(self, domain: str, team_id: str = "") -> Optional[Dict]:
+    def request_help(self, domain: str, team_id: str = "") -> dict | None:
         """低置信领域自动触发跨团队求助
 
         向共享进化池查询该领域的高置信规则
@@ -202,7 +202,7 @@ class CapabilityBoundary:
             "top_rule": None,
         }
 
-    def get_boundary_report(self) -> Dict[str, Any]:
+    def get_boundary_report(self) -> dict[str, Any]:
         """能力边界报告"""
         conf_map = self.compute_confidence_map()
         domains = conf_map.get("domains", {})
@@ -231,7 +231,7 @@ class CapabilityBoundary:
         }
 
     @staticmethod
-    def _generate_recommendations(sorted_domains: List[Dict]) -> List[str]:
+    def _generate_recommendations(sorted_domains: list[dict]) -> list[str]:
         """生成改进建议"""
         recs = []
         for d in sorted_domains:

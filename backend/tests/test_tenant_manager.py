@@ -1,5 +1,6 @@
 """Tests for TenantManager — 多租户基础"""
 import pytest
+
 from tenant_manager import TenantManager
 
 

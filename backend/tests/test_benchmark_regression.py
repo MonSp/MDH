@@ -3,14 +3,13 @@
 Verifies that current performance hasn't regressed from v0.3.1 baseline.
 All benchmarks use 5x tolerance (current must be < 5x baseline).
 """
-import pytest
-
 import json
 import os
 import sqlite3
 import sys
 import time
 
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -214,7 +213,7 @@ def test_04_evolution_event_no_regression(tmp_path):
     if not baseline:
         pytest.skip("No baseline to compare")
 
-    from evolution_events import EvolutionEventStore, EvolutionEvent, new_event_id
+    from evolution_events import EvolutionEvent, EvolutionEventStore, new_event_id
 
     db_path = str(tmp_path / "regression_evolution.db")
     store = EvolutionEventStore(db_path=db_path)
@@ -279,8 +278,11 @@ def test_06_prometheus_no_regression():
         pytest.skip("No baseline to compare")
 
     from prometheus_client import generate_latest
+
     from prometheus_metrics import (
-        LLM_CALLS, TASK_SUCCESS, EVOLUTION_EVENTS,
+        EVOLUTION_EVENTS,
+        LLM_CALLS,
+        TASK_SUCCESS,
         WS_CONNECTIONS,
     )
 

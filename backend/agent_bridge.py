@@ -5,7 +5,7 @@
 """
 
 import logging
-from typing import Callable, Awaitable, Optional
+from collections.abc import Awaitable, Callable
 
 from protocol import (
     AgentRole,
@@ -277,7 +277,7 @@ class AgentBridge:
         })
         logger.debug("消息已转发给 TS 智能体: %s -> %s", from_id, to_id)
 
-    def get_py_agent(self, agent_id: str) -> Optional[MeetingAgentInfo]:
+    def get_py_agent(self, agent_id: str) -> MeetingAgentInfo | None:
         """获取 Python 端智能体（可能是原生的或 TS 注册的）"""
         # 先查 TS 注册的
         if agent_id in self._ts_agents:
@@ -287,11 +287,11 @@ class AgentBridge:
             return self._meeting_session.get_agent(agent_id)
         return None
 
-    def get_ts_id(self, py_agent_id: str) -> Optional[str]:
+    def get_ts_id(self, py_agent_id: str) -> str | None:
         """获取 TS 端智能体 ID"""
         return self._reverse_map.get(py_agent_id)
 
-    def get_py_id(self, ts_agent_id: str) -> Optional[str]:
+    def get_py_id(self, ts_agent_id: str) -> str | None:
         """获取 Python 端智能体 ID"""
         return self._id_map.get(ts_agent_id)
 

@@ -10,9 +10,10 @@ import logging
 import os
 import uuid
 from collections import defaultdict, deque
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Callable, Dict, List, Optional
 
+from agentscope_task_bridge import AgentscopeTaskBridge
 from protocol import (
     WorkflowDefinition,
     WorkflowEdge,
@@ -23,7 +24,6 @@ from protocol import (
     workflow_definition_to_dict,
     workflow_execution_to_dict,
 )
-from agentscope_task_bridge import AgentscopeTaskBridge
 
 logger = logging.getLogger("workflow_engine")
 
@@ -35,20 +35,20 @@ class WorkflowEngine:
     支持顺序执行、并行执行和条件分支。
     """
 
-    def __init__(self, persistence_dir: Optional[str] = None):
-        self._definitions: Dict[str, WorkflowDefinition] = {}
-        self._executions: Dict[str, WorkflowExecution] = {}
-        self._running_tasks: Dict[str, asyncio.Task] = {}
-        self._node_executors: Dict[str, Callable] = {}
-        self._on_status_change: Optional[Callable] = None
-        self._on_node_status_change: Optional[Callable] = None
+    def __init__(self, persistence_dir: str | None = None):
+        self._definitions: dict[str, WorkflowDefinition] = {}
+        self._executions: dict[str, WorkflowExecution] = {}
+        self._running_tasks: dict[str, asyncio.Task] = {}
+        self._node_executors: dict[str, Callable] = {}
+        self._on_status_change: Callable | None = None
+        self._on_node_status_change: Callable | None = None
         # 执行状态磁盘持久化目录（None 表示不持久化）
         self._persistence_dir = persistence_dir
         if persistence_dir:
             os.makedirs(persistence_dir, exist_ok=True)
 
         # per-execution 持久化锁：串行化同一 execution 的并发落盘（execution_id → asyncio.Lock）
-        self._persist_locks: Dict[str, asyncio.Lock] = {}
+        self._persist_locks: dict[str, asyncio.Lock] = {}
 
         # 集成agentscope Task系统
         self._task_bridge = AgentscopeTaskBridge()
@@ -145,7 +145,7 @@ class WorkflowEngine:
         execution = self._executions.get(execution_id)
         if execution is None:
             return False
-        from protocol import workflow_execution_to_dict, workflow_definition_to_dict
+        from protocol import workflow_definition_to_dict, workflow_execution_to_dict
         data = workflow_execution_to_dict(execution)
         definition = self._definitions.get(execution.workflow_id)
         if definition is not None:
@@ -163,7 +163,7 @@ class WorkflowEngine:
             return False
         return True
 
-    def load_execution(self, execution_id: str) -> Optional[WorkflowExecution]:
+    def load_execution(self, execution_id: str) -> WorkflowExecution | None:
         """从磁盘恢复 execution（不存在或文件损坏返回 None）
 
         恢复语义：恢复时跳过已完成（COMPLETED）节点，FAILED/中断节点按重试语义重新执行。
@@ -174,7 +174,7 @@ class WorkflowEngine:
         path = os.path.join(self._persistence_dir, f"{execution_id}.json")
         if not os.path.exists(path):
             return None
-        from protocol import dict_to_workflow_execution, dict_to_workflow_definition
+        from protocol import dict_to_workflow_definition, dict_to_workflow_execution
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -192,7 +192,7 @@ class WorkflowEngine:
             self._definitions[execution.workflow_id] = dict_to_workflow_definition(definition_data)
         return execution
 
-    def load_all_executions(self) -> List[str]:
+    def load_all_executions(self) -> list[str]:
         """列出磁盘上已持久化的 execution_id 列表（仅匹配 execution-id 形态文件名）"""
         import re as _re
 
@@ -435,8 +435,8 @@ class WorkflowEngine:
         node_id: str,
         execution: WorkflowExecution,
         definition: WorkflowDefinition,
-        dependency_graph: Dict[str, List[str]],
-        in_degree: Dict[str, int],
+        dependency_graph: dict[str, list[str]],
+        in_degree: dict[str, int],
         new_ready_nodes: list,
     ):
         """标记节点为跳过，并传播到所有下游节点"""
@@ -539,7 +539,7 @@ class WorkflowEngine:
         await self.persist_execution(execution.execution_id)
         await self._notify_node_status_change(execution, node.node_id)
 
-    def _topological_sort(self, definition: WorkflowDefinition) -> List[WorkflowNode]:
+    def _topological_sort(self, definition: WorkflowDefinition) -> list[WorkflowNode]:
         """拓扑排序
 
         按照依赖关系对节点进行拓扑排序。
@@ -582,7 +582,7 @@ class WorkflowEngine:
         node_map = {node.node_id: node for node in definition.nodes}
         return [node_map[node_id] for node_id in sorted_node_ids]
 
-    def _build_dependency_graph(self, definition: WorkflowDefinition) -> Dict[str, List[str]]:
+    def _build_dependency_graph(self, definition: WorkflowDefinition) -> dict[str, list[str]]:
         """构建依赖图
 
         Returns:
@@ -593,7 +593,7 @@ class WorkflowEngine:
             graph[edge.source_node_id].append(edge.target_node_id)
         return graph
 
-    def _calculate_in_degree(self, definition: WorkflowDefinition) -> Dict[str, int]:
+    def _calculate_in_degree(self, definition: WorkflowDefinition) -> dict[str, int]:
         """计算入度
 
         Returns:
@@ -757,7 +757,7 @@ class WorkflowEngine:
 
         return input_data
 
-    def _get_incoming_edges(self, node: WorkflowNode, execution: WorkflowExecution) -> List[WorkflowEdge]:
+    def _get_incoming_edges(self, node: WorkflowNode, execution: WorkflowExecution) -> list[WorkflowEdge]:
         """获取指向节点的边
 
         Args:

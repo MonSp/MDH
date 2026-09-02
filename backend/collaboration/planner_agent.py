@@ -1,11 +1,16 @@
 import asyncio
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
+from typing import Any
 
-from .communication import CommunicationInterface, CommunicationManager, Message, MessageType
+from .communication import (
+    CommunicationInterface,
+    CommunicationManager,
+    Message,
+    MessageType,
+)
 
 try:
     from ..skill_registry import SkillRegistry
@@ -37,17 +42,17 @@ class SubTask:
     description: str = ""
     status: TaskStatus = TaskStatus.PENDING
     priority: TaskPriority = TaskPriority.MEDIUM
-    assigned_to: Optional[str] = None
-    dependencies: List[str] = field(default_factory=list)
+    assigned_to: str | None = None
+    dependencies: list[str] = field(default_factory=list)
     result: Any = None
-    error: Optional[str] = None
+    error: str | None = None
     created_at: datetime = field(default_factory=datetime.now)
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    acceptance_criteria: List[str] = field(default_factory=list)
-    required_skills: List[str] = field(default_factory=list)
-    input_spec: Dict[str, str] = field(default_factory=dict)
-    output_spec: Dict[str, str] = field(default_factory=dict)
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    acceptance_criteria: list[str] = field(default_factory=list)
+    required_skills: list[str] = field(default_factory=list)
+    input_spec: dict[str, str] = field(default_factory=dict)
+    output_spec: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -55,10 +60,10 @@ class TaskPlan:
     id: str = field(default_factory=lambda: uuid.uuid4().hex)
     title: str = ""
     description: str = ""
-    subtasks: List[SubTask] = field(default_factory=list)
+    subtasks: list[SubTask] = field(default_factory=list)
     status: TaskStatus = TaskStatus.PLANNING
     created_at: datetime = field(default_factory=datetime.now)
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
 
 class PlannerAgent:
@@ -72,15 +77,15 @@ class PlannerAgent:
         self.name = name
         self.communication = communication
         self.communication_manager = communication_manager
-        self.current_plan: Optional[TaskPlan] = None
-        self._child_agents: Dict[str, Any] = {}
+        self.current_plan: TaskPlan | None = None
+        self._child_agents: dict[str, Any] = {}
         self.skill_registry = skill_registry
 
     @property
     def agent_id(self) -> str:
         return self.name
 
-    async def plan_task(self, task_description: str, context: Dict[str, Any] = None) -> TaskPlan:
+    async def plan_task(self, task_description: str, context: dict[str, Any] = None) -> TaskPlan:
         subtasks = self._decompose_task(task_description, context)
         self.current_plan = TaskPlan(
             title=task_description[:100],
@@ -90,7 +95,7 @@ class PlannerAgent:
         )
         return self.current_plan
 
-    def _decompose_task(self, task_description: str, context: Dict[str, Any] = None) -> List[SubTask]:
+    def _decompose_task(self, task_description: str, context: dict[str, Any] = None) -> list[SubTask]:
         subtasks = []
         keywords = task_description.lower()
 
@@ -225,14 +230,14 @@ class PlannerAgent:
     def register_child_agent(self, agent_id: str, agent: Any) -> None:
         self._child_agents[agent_id] = agent
 
-    def get_available_agents(self) -> List[str]:
+    def get_available_agents(self) -> list[str]:
         return list(self._child_agents.keys())
 
-    async def assign_tasks(self) -> Dict[str, List[str]]:
+    async def assign_tasks(self) -> dict[str, list[str]]:
         if not self.current_plan:
             raise ValueError("No current plan to assign tasks")
 
-        assignments: Dict[str, List[str]] = {}
+        assignments: dict[str, list[str]] = {}
         available_agents = self.get_available_agents()
 
         if not available_agents:
@@ -283,7 +288,7 @@ class PlannerAgent:
 
         return assignments
 
-    def _query_matching_skills(self, required_skills: List[str]) -> List[Dict[str, str]]:
+    def _query_matching_skills(self, required_skills: list[str]) -> list[dict[str, str]]:
         if not self.skill_registry or SkillRegistry is None:
             return []
 
@@ -297,7 +302,7 @@ class PlannerAgent:
                     break
         return matched
 
-    def _select_agent_for_task(self, subtask: SubTask, available_agents: List[str]) -> str:
+    def _select_agent_for_task(self, subtask: SubTask, available_agents: list[str]) -> str:
         if not available_agents:
             raise ValueError("No available agents")
 
@@ -320,7 +325,7 @@ class PlannerAgent:
 
         return available_agents[0]
 
-    def _get_subtask(self, subtask_id: str) -> Optional[SubTask]:
+    def _get_subtask(self, subtask_id: str) -> SubTask | None:
         if not self.current_plan:
             return None
         for subtask in self.current_plan.subtasks:
@@ -359,7 +364,7 @@ class PlannerAgent:
                 self.current_plan.status = TaskStatus.COMPLETED
                 self.current_plan.completed_at = datetime.now()
 
-    def get_plan_status(self) -> Optional[Dict[str, Any]]:
+    def get_plan_status(self) -> dict[str, Any] | None:
         if not self.current_plan:
             return None
 
@@ -381,7 +386,7 @@ class PlannerAgent:
             "progress": completed / total if total > 0 else 0,
         }
 
-    async def execute_plan(self) -> Dict[str, Any]:
+    async def execute_plan(self) -> dict[str, Any]:
         if not self.current_plan:
             raise ValueError("No current plan to execute")
 
@@ -417,8 +422,8 @@ class PlannerAgent:
         self,
         task: SubTask,
         output: str,
-        context: Dict[str, Any] = None,
-    ) -> Dict[str, Any]:
+        context: dict[str, Any] = None,
+    ) -> dict[str, Any]:
         """生成结构化验收反馈
 
         根据任务的验收标准对产出进行检查，返回结构化的反馈结果。
@@ -432,7 +437,7 @@ class PlannerAgent:
             结构化验收反馈字典
         """
         context = context or {}
-        issues: List[Dict[str, str]] = []
+        issues: list[dict[str, str]] = []
 
         output_lower = output.lower() if output else ""
 

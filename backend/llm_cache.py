@@ -15,7 +15,7 @@ import logging
 import os
 import re
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger("llm_cache")
 
@@ -104,7 +104,7 @@ class LLMCache:
     """LLM 响应缓存 — 支持 SQLite 持久化和内存双层"""
 
     def __init__(self, max_size: int = 200, default_ttl: float = 300.0, db_path: str = ""):
-        self._cache: Dict[str, Dict] = {}  # key → {response, created_at, ttl, hit_count, prompt_type}
+        self._cache: dict[str, dict] = {}  # key → {response, created_at, ttl, hit_count, prompt_type}
         self._max_size = max_size
         self._default_ttl = default_ttl
         self._hits = 0
@@ -174,7 +174,7 @@ class LLMCache:
         content = f"{role}:{model}:{normalized}"
         return hashlib.md5(content.encode()).hexdigest()
 
-    def get(self, prompt: str, role: str = "", model: str = "") -> Optional[Any]:
+    def get(self, prompt: str, role: str = "", model: str = "") -> Any | None:
         self._ensure_db()
         if not self._loaded_from_db:
             self._load_from_db()

@@ -1,9 +1,11 @@
 import os
 import shutil
 import tempfile
+
 import pytest
+
 from tool_executor import ToolExecutor
-from tool_registry import ToolRegistry, ToolCall
+from tool_registry import ToolCall, ToolRegistry
 
 
 @pytest.fixture

@@ -16,8 +16,8 @@ from project_manager import (
     Project,
     ProjectManager,
 )
-from skill_registry import SkillRegistry
 from skill_packager import PackageResult, SkillPackager
+from skill_registry import SkillRegistry
 
 
 def _create_skill_package(base_dir: str, name: str = "test-skill",

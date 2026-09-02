@@ -2,14 +2,19 @@
 确定性门禁管理器测试
 """
 
-import pytest
 import json
 import os
 import tempfile
-from gate_manager import GateManager, GateResult, ChecksLedger
+
+import pytest
+
+from gate_manager import ChecksLedger, GateManager, GateResult
 from spec_tree import (
-    SpecTree, SpecTreeNode, SpecTreeNodeType,
-    SuccessCriterion, Provenance
+    Provenance,
+    SpecTree,
+    SpecTreeNode,
+    SpecTreeNodeType,
+    SuccessCriterion,
 )
 
 

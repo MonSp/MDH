@@ -8,7 +8,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger("session_persistence")
 
@@ -45,7 +45,7 @@ class SessionPersistence:
 
     # ── 会话快照 ──
 
-    def save_snapshot(self, session_id: str, state: Dict[str, Any]) -> bool:
+    def save_snapshot(self, session_id: str, state: dict[str, Any]) -> bool:
         """保存或更新会话快照
 
         Args:
@@ -74,7 +74,7 @@ class SessionPersistence:
             logger.warning("保存会话快照失败: %s", e)
             return False
 
-    def load_snapshot(self, session_id: str) -> Optional[Dict[str, Any]]:
+    def load_snapshot(self, session_id: str) -> dict[str, Any] | None:
         """加载会话快照
 
         Args:
@@ -95,7 +95,7 @@ class SessionPersistence:
             logger.warning("加载会话快照失败: %s", e)
         return None
 
-    def load_latest_snapshot(self) -> Optional[Dict[str, Any]]:
+    def load_latest_snapshot(self) -> dict[str, Any] | None:
         """加载最近的会话快照（用于崩溃恢复）
 
         Returns:
@@ -129,7 +129,7 @@ class SessionPersistence:
 
     # ── 任务幂等执行 ──
 
-    def check_task_executed(self, execution_key: str) -> Optional[str]:
+    def check_task_executed(self, execution_key: str) -> str | None:
         """检查任务是否已执行（幂等检查）
 
         Args:

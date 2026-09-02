@@ -1,6 +1,7 @@
 """Tests for WebhookManager — Webhook 集成"""
 import pytest
-from webhook_manager import WebhookManager, SUPPORTED_EVENTS
+
+from webhook_manager import SUPPORTED_EVENTS, WebhookManager
 
 
 @pytest.fixture

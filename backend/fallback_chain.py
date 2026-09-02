@@ -8,9 +8,10 @@ Fallback Chain - 回退链机制
 4. 回退全部失败后自动触发 CompensationEngine 补偿
 """
 
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Callable
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger("fallback_chain")
 
@@ -27,11 +28,11 @@ class FallbackStep:
 class FallbackChain:
     """回退链"""
     primary: str  # 首选目标
-    fallbacks: List[FallbackStep] = field(default_factory=list)  # 备选路径
+    fallbacks: list[FallbackStep] = field(default_factory=list)  # 备选路径
     strategy: str = "sequential"  # 回退策略：sequential（依次尝试）/ parallel（并行尝试）
     max_attempts: int = 3  # 最大尝试次数
 
-    def get_all_targets(self) -> List[str]:
+    def get_all_targets(self) -> list[str]:
         """获取所有目标（首选+备选）"""
         return [self.primary] + [f.target_id for f in self.fallbacks]
 
@@ -42,7 +43,7 @@ class FallbackResult:
     success: bool
     target_id: str  # 最终执行的目标
     attempts: int  # 尝试次数
-    results: List[Dict[str, Any]] = field(default_factory=list)  # 每次尝试的结果
+    results: list[dict[str, Any]] = field(default_factory=list)  # 每次尝试的结果
     fallback_used: bool = False  # 是否使用了回退
     compensated: bool = False  # 是否触发了补偿
 
@@ -57,7 +58,7 @@ class FallbackExecutor:
     3. 全部失败时触发补偿
     """
 
-    def __init__(self, compensation_callback: Optional[Callable] = None):
+    def __init__(self, compensation_callback: Callable | None = None):
         """
         Args:
             compensation_callback: 补偿回调函数，签名：async def callback(context) -> bool
@@ -68,7 +69,7 @@ class FallbackExecutor:
         self,
         chain: FallbackChain,
         executor: Callable[[str], Any],
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> FallbackResult:
         """
         带回退的执行
@@ -149,7 +150,7 @@ class RoutingFallbackBuilder:
 
     @staticmethod
     def build_from_candidates(
-        candidates: List[Dict[str, Any]],
+        candidates: list[dict[str, Any]],
         max_fallbacks: int = 2,
     ) -> FallbackChain:
         """
@@ -191,7 +192,7 @@ class WorkflowFallbackBuilder:
     @staticmethod
     def build_for_node(
         node_dept_id: str,
-        alternative_executors: List[str],
+        alternative_executors: list[str],
     ) -> FallbackChain:
         """
         为工作流节点构建回退链

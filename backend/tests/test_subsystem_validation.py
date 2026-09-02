@@ -204,8 +204,8 @@ async def test_03_semantic_analyzer(tmp_routing_file):
 
 @pytest.mark.asyncio
 async def test_04_simple_executor(tmp_path):
-    from simple_executor import SimpleExecutor
     from project_manager import ProjectManager
+    from simple_executor import SimpleExecutor
     from skill_registry import SkillRegistry
 
     projects_dir = str(tmp_path / "projects")
@@ -257,8 +257,9 @@ def test_05_meeting_coordinator_role_prompts():
 
 
 def test_05b_meeting_coordinator_routing_table_creation(tmp_path):
-    from meeting_coordinator import MeetingCoordinator
     import logging
+
+    from meeting_coordinator import MeetingCoordinator
 
     data_dir = str(tmp_path / "data")
     os.makedirs(data_dir, exist_ok=True)
@@ -283,8 +284,13 @@ def test_05b_meeting_coordinator_routing_table_creation(tmp_path):
 # ══════════════════════════════════════════════════════════════════════
 
 def test_06_workflow_engine_create(tmp_path):
+    from protocol import (
+        WorkflowDefinition,
+        WorkflowEdge,
+        WorkflowNode,
+        WorkflowNodeStatus,
+    )
     from workflow_engine import WorkflowEngine
-    from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge, WorkflowNodeStatus
 
     engine = WorkflowEngine(persistence_dir=str(tmp_path / "persist"))
 
@@ -461,7 +467,7 @@ def test_11_a2a_registry(tmp_path):
 @pytest.mark.asyncio
 async def test_12_a2a_client():
     from a2a_client import A2AClient
-    from a2a_registry import RegisteredAgent, AgentCard
+    from a2a_registry import AgentCard, RegisteredAgent
 
     client = A2AClient(timeout=10)
     agent = RegisteredAgent(
@@ -610,7 +616,7 @@ def test_15_state_sync(tmp_path):
 # ══════════════════════════════════════════════════════════════════════
 
 def test_16_evolution_event_store(tmp_path):
-    from evolution_events import EvolutionEventStore, EvolutionEvent, new_event_id
+    from evolution_events import EvolutionEvent, EvolutionEventStore, new_event_id
 
     db_path = str(tmp_path / "evolution.db")
     store = EvolutionEventStore(db_path=db_path)
@@ -654,6 +660,7 @@ def test_16_evolution_event_store(tmp_path):
 
 def test_17_ab_tracker(tmp_path):
     import sqlite3
+
     from evolution_events import ABTracker
 
     conn = sqlite3.connect(str(tmp_path / "ab.db"), check_same_thread=False)
@@ -727,7 +734,7 @@ async def test_18_tenant_middleware(tmp_path):
 # ══════════════════════════════════════════════════════════════════════
 
 def test_19_rate_limiter():
-    from rate_limiter import WSRateLimiter, RATE_LIMITS
+    from rate_limiter import RATE_LIMITS, WSRateLimiter
 
     # Verify HTTP rate limit config
     assert "read" in RATE_LIMITS
@@ -755,9 +762,12 @@ def test_19_rate_limiter():
 # ══════════════════════════════════════════════════════════════════════
 
 def test_20_prometheus_metrics():
-    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
     from prometheus_metrics import (
-        LLM_CALLS, TASK_SUCCESS, TASK_FAILURE,
+        LLM_CALLS,
+        TASK_FAILURE,
+        TASK_SUCCESS,
         WS_CONNECTIONS,
     )
 

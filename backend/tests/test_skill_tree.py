@@ -1,7 +1,9 @@
 # backend/tests/test_skill_tree.py
+import os
+
 import pytest
 import yaml
-import os
+
 
 @pytest.fixture
 def roles_config():

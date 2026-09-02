@@ -8,8 +8,8 @@ ComplexityClassifier - 复杂度判定器
 import json
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
 from agentscope.message import Msg
 
@@ -158,7 +158,7 @@ class ComplexityClassifier:
         logger.info("降级判定: level=%s confidence=%.2f", fallback.level, fallback.confidence)
         return fallback
 
-    def _rule_classify(self, message: str) -> Optional[ComplexityResult]:
+    def _rule_classify(self, message: str) -> ComplexityResult | None:
         """
         规则引擎判定
 

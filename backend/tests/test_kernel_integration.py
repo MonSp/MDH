@@ -10,21 +10,20 @@ Tests cover:
 """
 
 import os
-import sys
-import socket
 import signal
+import socket
 import subprocess
+import sys
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from kernel_integration import KernelIntegration
 from agent_kernel_client import AgentKernelClient, AgentKernelError, KernelAgent
-
+from kernel_integration import KernelIntegration
 
 # ── Fixtures: mock-based (no daemon needed) ────────────────────────
 
@@ -323,7 +322,8 @@ class TestKernelAPIEndpoints:
 
     @pytest.fixture
     async def api_client(self, tmp_path, monkeypatch):
-        from httpx import AsyncClient, ASGITransport
+        from httpx import ASGITransport, AsyncClient
+
         import server
         from agent_profile_manager import AgentProfileManager
 
@@ -380,7 +380,8 @@ class TestKernelAPIEndpoints:
     @pytest.mark.asyncio
     async def test_kernel_state_when_unavailable(self, tmp_path):
         """When kernel is not injected, state endpoint returns available=False."""
-        from httpx import AsyncClient, ASGITransport
+        from httpx import ASGITransport, AsyncClient
+
         import server
         from agent_profile_manager import AgentProfileManager
         from routers import agents as agents_router

@@ -12,12 +12,12 @@ AgentToolset - Agent工具集
 
 import logging
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Union
 
 import yaml
 
-from tool_registry import ToolRegistry, ToolCall, ToolResult
 from tool_executor import ToolExecutor
+from tool_registry import ToolCall, ToolRegistry, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +25,12 @@ logger = logging.getLogger(__name__)
 ROLES_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "roles_config.yaml")
 
 # 模块级缓存：避免重复读取磁盘
-_roles_config_cache: Optional[Dict] = None
+_roles_config_cache: dict | None = None
 _roles_config_mtime: float = 0.0
 _roles_config_path_cached: str = ""
 
 
-def load_roles_config(config_path: str = None) -> Dict:
+def load_roles_config(config_path: str = None) -> dict:
     """加载角色配置文件（带 mtime 缓存，文件未变化时直接返回缓存）
 
     Args:
@@ -81,7 +81,7 @@ class AgentToolset:
     """
 
     # 类级别配置缓存
-    _config_cache: Optional[Dict] = None
+    _config_cache: dict | None = None
 
     def __init__(
         self,
@@ -119,7 +119,7 @@ class AgentToolset:
             agent_id, agent_role, self._role_config.get("permissions", {}).get("tools", [])
         )
 
-    def _resolve_role_config(self, role_name: str) -> Dict:
+    def _resolve_role_config(self, role_name: str) -> dict:
         """解析角色配置，支持自定义角色继承
 
         Args:
@@ -208,7 +208,7 @@ class AgentToolset:
         return self._role_config.get("description", "")
 
     @property
-    def available_tools(self) -> List[str]:
+    def available_tools(self) -> list[str]:
         """获取可用工具列表（含 MCP 工具）"""
         tools = list(self._role_config.get("permissions", {}).get("tools", []))
         if self._mcp_adapter:
@@ -217,7 +217,7 @@ class AgentToolset:
         return tools
 
     @property
-    def skills(self) -> List[str]:
+    def skills(self) -> list[str]:
         """获取技能列表"""
         return self._role_config.get("skills", [])
 
@@ -267,7 +267,7 @@ class AgentToolset:
 
         return "\n\n".join(sections) if sections else "无特定技能"
 
-    def execute(self, tool_name: str, arguments: Dict[str, Any]) -> ToolResult:
+    def execute(self, tool_name: str, arguments: dict[str, Any]) -> ToolResult:
         """执行工具调用（支持 MCP 工具路由）
 
         Args:
@@ -482,7 +482,7 @@ def create_agent_toolset(
     agent_id: str,
     agent_role: str,
     workspace_root: str,
-    custom_config: Dict = None,
+    custom_config: dict = None,
     executor_url: str = "",
     location: str = "local",
     mcp_adapter=None,
@@ -536,9 +536,10 @@ class RemoteAgentToolset:
         self._workspace = workspace
         self._token = token or os.environ.get("EXECUTOR_TOKEN", "")
 
-    def _call(self, tool_name: str, arguments: Dict[str, Any]) -> "ToolResult":
-        from tool_registry import ToolResult
+    def _call(self, tool_name: str, arguments: dict[str, Any]) -> "ToolResult":
         import json as _json
+
+        from tool_registry import ToolResult
 
         payload = {
             "tool_name": tool_name,
@@ -568,7 +569,7 @@ class RemoteAgentToolset:
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 
-    def execute(self, tool_name: str, arguments: Dict[str, Any]) -> "ToolResult":
+    def execute(self, tool_name: str, arguments: dict[str, Any]) -> "ToolResult":
         return self._call(tool_name, arguments)
 
     def write_file(self, filename: str, content: str) -> "ToolResult":

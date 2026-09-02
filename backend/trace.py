@@ -1,7 +1,6 @@
-import uuid
 import time
+import uuid
 from dataclasses import dataclass, field
-from typing import List, Optional
 from enum import Enum
 
 
@@ -26,10 +25,10 @@ class LogEntry:
     timestamp: float
     level: LogLevel
     message: str
-    agent_id: Optional[str] = None
-    session_id: Optional[str] = None
-    message_type: Optional[str] = None
-    causal_message_id: Optional[str] = None
+    agent_id: str | None = None
+    session_id: str | None = None
+    message_type: str | None = None
+    causal_message_id: str | None = None
     data: dict = field(default_factory=dict)
 
 
@@ -37,16 +36,16 @@ class LogEntry:
 class TraceSpan:
     trace_id: str
     span_id: str
-    parent_span_id: Optional[str] = None
-    causal_message_id: Optional[str] = None
+    parent_span_id: str | None = None
+    causal_message_id: str | None = None
     start_time: float = 0.0
-    end_time: Optional[float] = None
-    label: Optional[str] = None
+    end_time: float | None = None
+    label: str | None = None
 
 
 class StructuredLogger:
     def __init__(self, max_size: int = 1000, min_level: LogLevel = LogLevel.DEBUG):
-        self._buffer: List[LogEntry] = []
+        self._buffer: list[LogEntry] = []
         self._max_size = max_size
         self._min_level = min_level
 
@@ -54,11 +53,11 @@ class StructuredLogger:
         self,
         level: LogLevel,
         message: str,
-        agent_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        message_type: Optional[str] = None,
-        causal_message_id: Optional[str] = None,
-        data: Optional[dict] = None,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        message_type: str | None = None,
+        causal_message_id: str | None = None,
+        data: dict | None = None,
     ) -> None:
         if LOG_LEVEL_ORDER[level] < LOG_LEVEL_ORDER[self._min_level]:
             return
@@ -94,11 +93,11 @@ class StructuredLogger:
 
     def get_entries(
         self,
-        level: Optional[LogLevel] = None,
-        agent_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        message_type: Optional[str] = None,
-    ) -> List[LogEntry]:
+        level: LogLevel | None = None,
+        agent_id: str | None = None,
+        session_id: str | None = None,
+        message_type: str | None = None,
+    ) -> list[LogEntry]:
         entries = list(self._buffer)
 
         if level is not None:
@@ -113,7 +112,7 @@ class StructuredLogger:
 
         return entries
 
-    def get_latest(self, count: int) -> List[LogEntry]:
+    def get_latest(self, count: int) -> list[LogEntry]:
         return self._buffer[-count:]
 
     def clear(self) -> None:
@@ -125,10 +124,10 @@ class StructuredLogger:
 
 class TraceContextManager:
     def __init__(self):
-        self._current_span: Optional[TraceSpan] = None
-        self._spans: List[TraceSpan] = []
+        self._current_span: TraceSpan | None = None
+        self._spans: list[TraceSpan] = []
 
-    def start_span(self, label: Optional[str] = None) -> TraceSpan:
+    def start_span(self, label: str | None = None) -> TraceSpan:
         span = TraceSpan(
             trace_id=uuid.uuid4().hex,
             span_id=uuid.uuid4().hex,
@@ -139,7 +138,7 @@ class TraceContextManager:
         self._spans.append(span)
         return span
 
-    def start_child_span(self, label: Optional[str] = None) -> TraceSpan:
+    def start_child_span(self, label: str | None = None) -> TraceSpan:
         if self._current_span is None:
             return self.start_span(label)
 
@@ -154,7 +153,7 @@ class TraceContextManager:
         self._spans.append(span)
         return span
 
-    def inject_from_message(self, message_id: str, label: Optional[str] = None) -> TraceSpan:
+    def inject_from_message(self, message_id: str, label: str | None = None) -> TraceSpan:
         span = TraceSpan(
             trace_id=self._current_span.trace_id if self._current_span else uuid.uuid4().hex,
             span_id=uuid.uuid4().hex,
@@ -167,7 +166,7 @@ class TraceContextManager:
         self._spans.append(span)
         return span
 
-    def get_current_span(self) -> Optional[TraceSpan]:
+    def get_current_span(self) -> TraceSpan | None:
         return self._current_span
 
     def end_current_span(self) -> None:
@@ -175,7 +174,7 @@ class TraceContextManager:
             self._current_span.end_time = time.time()
             self._current_span = None
 
-    def get_spans(self) -> List[TraceSpan]:
+    def get_spans(self) -> list[TraceSpan]:
         return list(self._spans)
 
     def clear(self) -> None:

@@ -3,9 +3,14 @@ Spec Tree 数据结构与校验器测试
 """
 
 import pytest
+
 from spec_tree import (
-    SpecTree, SpecTreeNode, SpecTreeNodeType,
-    SuccessCriterion, Provenance, SpecTreeValidator
+    Provenance,
+    SpecTree,
+    SpecTreeNode,
+    SpecTreeNodeType,
+    SpecTreeValidator,
+    SuccessCriterion,
 )
 
 

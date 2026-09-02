@@ -1,11 +1,12 @@
 """Tests for review_pipeline.py — structured feedback integration with LLM review"""
 import types
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock
-from review_pipeline import ReviewPipeline
+
 from collaboration.planner_agent import PlannerAgent
 from protocol import AgentRole
+from review_pipeline import ReviewPipeline
 
 
 class _FakeMsg:

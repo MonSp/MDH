@@ -18,7 +18,6 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import yaml
 
@@ -34,7 +33,7 @@ class SharedRule:
     trigger_condition: str = ""
     action: str = ""
     note: str = ""
-    keywords: List[str] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
     rule_type: str = "success_pattern"
     usage_count: int = 0          # 被 fork 次数
     fork_success_count: int = 0   # fork 后任务成功的次数
@@ -78,7 +77,7 @@ class SharedExperiencePool:
         self._rules_dir = self._pool_dir / "rules"
         self._index_path = self._pool_dir / "index.json"
         self._rules_dir.mkdir(parents=True, exist_ok=True)
-        self._index: Dict[str, dict] = {}
+        self._index: dict[str, dict] = {}
         self._load_index()
 
     def _load_index(self) -> None:
@@ -105,7 +104,7 @@ class SharedExperiencePool:
         rule_data: dict,
         source_project: str = "",
         source_team: str = "",
-    ) -> Optional[SharedRule]:
+    ) -> SharedRule | None:
         """发布经验规则到共享池。
 
         质量门禁：effectiveness_score >= 0.6 且 usage_count >= 2 的规则自动批准，
@@ -189,7 +188,7 @@ class SharedExperiencePool:
         logger.info("共享规则 %s 已拒绝: %s", rule_id, reason)
         return True
 
-    def get_pending_rules(self) -> List[SharedRule]:
+    def get_pending_rules(self) -> list[SharedRule]:
         """获取待审核规则"""
         results = []
         for rule_id in self._index:
@@ -202,11 +201,11 @@ class SharedExperiencePool:
     def search(
         self,
         task_type: str = "",
-        keywords: List[str] = None,
+        keywords: list[str] = None,
         rule_type: str = "",
         limit: int = 10,
         include_pending: bool = False,
-    ) -> List[SharedRule]:
+    ) -> list[SharedRule]:
         """搜索共享池中的经验规则（默认仅返回已批准规则）。
 
         Args:
@@ -253,7 +252,7 @@ class SharedExperiencePool:
         results.sort(key=lambda x: -x[0])
         return [rule for _, rule in results[:limit]]
 
-    def fork_rule(self, rule_id: str, target_project: str) -> Optional[dict]:
+    def fork_rule(self, rule_id: str, target_project: str) -> dict | None:
         """Fork 共享池规则到项目本地。
 
         Args:
@@ -326,7 +325,7 @@ class SharedExperiencePool:
         self._save_index()
         return True
 
-    def get_leaderboard(self, limit: int = 20) -> List[Dict]:
+    def get_leaderboard(self, limit: int = 20) -> list[dict]:
         """跨团队技能排行榜
 
         按 fork_effectiveness × usage_count 综合排序。
@@ -365,7 +364,7 @@ class SharedExperiencePool:
             encoding="utf-8",
         )
 
-    def _load_rule(self, rule_id: str) -> Optional[SharedRule]:
+    def _load_rule(self, rule_id: str) -> SharedRule | None:
         """加载单个规则"""
         rule_path = self._rules_dir / f"{rule_id}.yaml"
         if not rule_path.exists():
@@ -377,9 +376,9 @@ class SharedExperiencePool:
             logger.warning("加载共享规则失败 %s: %s", rule_id, e)
             return None
 
-    def _count_by_type(self) -> Dict[str, int]:
+    def _count_by_type(self) -> dict[str, int]:
         """按类型统计"""
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for meta in self._index.values():
             t = meta.get("rule_type", "unknown")
             counts[t] = counts.get(t, 0) + 1

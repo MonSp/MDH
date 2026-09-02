@@ -3,76 +3,80 @@ import hmac
 import json
 import logging
 import os
-import secrets
 import uuid
 from dataclasses import asdict
-from typing import Optional
 from urllib.parse import parse_qs
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body, Header, HTTPException, Request
+from fastapi import (
+    Body,
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
-# ── 速率限制 ──
-from rate_limiter import limiter, rate_limit_exceeded_handler, RATE_LIMITS
-from slowapi.errors import RateLimitExceeded
-from tenant_manager import TenantManager
-from tenant_middleware import TenantMiddleware
-
-from config import SKILLS_DIR
-from session import Session
 import ws_handlers
-from protocol import workflow_execution_to_dict
-from skill_registry import SkillRegistry
-from project_manager import ProjectManager
-from experience_extractor import ExperienceExtractor
-from skill_packager import SkillPackager
-from dynamic_router import DynamicRouter, RouteEntry
-from complexity_classifier import ComplexityClassifier
+from a2a_client import A2AClient
+from a2a_post_processor import A2APostProcessor
 
-from simple_executor import SimpleExecutor
+# ── A2A 协议（Agent-to-Agent 执行节点管理）──
+from a2a_registry import A2ARegistry
+from a2a_task_router import A2ATaskRouter
+from agent_memory import AgentMemory
 from agent_pool import AgentPool
-from key_manager import KeyManager
+from agent_profile_manager import AgentProfileManager
 from approval_manager import ApprovalManager
-from team import RuntimeType, TeamRuntime
-from team_assembler import TeamAssembler
+from complexity_classifier import ComplexityClassifier
+from config import SKILLS_DIR
+from dynamic_router import DynamicRouter
 from employee_directory import get_directory
+from experience_extractor import ExperienceExtractor
+from key_manager import KeyManager
+from onboarding_manager import OnboardingManager
+from project_manager import ProjectManager
+from protocol import workflow_execution_to_dict
+
+# ── 速率限制 ──
+from rate_limiter import RATE_LIMITS, limiter, rate_limit_exceeded_handler
+from routers import a2a as a2a_router
+from routers import agents as agents_router
+from routers import assets as assets_router
+from routers import browser as browser_router
+from routers import community as community_router
+from routers import experience as experience_router
+from routers import infrastructure as infra_router
+from routers import marketplace as marketplace_router
+from routers import mcp_config as mcp_router
+from routers import memory as memory_router
+from routers import monitoring as monitoring_router
+from routers import onboarding as onboarding_router
+from routers import ops as ops_router
+from routers import projects as projects_router
+from routers import roles as roles_router
 
 # ── 路由模块（渐进迁移：内联端点保留，新代码使用路由器）──
 from routers import skills as skills_router
-from routers import workflow as workflow_router
-from routers import marketplace as marketplace_router
-from routers import mcp_config as mcp_router
-from routers import community as community_router
-from routers import projects as projects_router
-from routers import roles as roles_router
-from routers import experience as experience_router
-from routers import browser as browser_router
-from routers import assets as assets_router
-from routers import agents as agents_router
-from routers import templates as templates_router
-from routers import onboarding as onboarding_router
-from routers import memory as memory_router
-from routers import a2a as a2a_router
-from routers import ops as ops_router
-from routers import infrastructure as infra_router
 from routers import team as team_router
+from routers import templates as templates_router
+from routers import workflow as workflow_router
 from routers import workspace as workspace_router
-from routers import monitoring as monitoring_router
-
-# ── A2A 协议（Agent-to-Agent 执行节点管理）──
-from a2a_registry import A2ARegistry, AgentCard, AgentSkill
-from a2a_client import A2AClient
-from a2a_task_router import A2ATaskRouter
+from session import Session
+from simple_executor import SimpleExecutor
+from skill_packager import SkillPackager
+from skill_registry import SkillRegistry
 from state_sync import StateSyncManager
-from agent_memory import AgentMemory
-from agent_profile_manager import AgentProfileManager
-from webhook_manager import WebhookManager
-from a2a_post_processor import A2APostProcessor
-from onboarding_manager import OnboardingManager
-from onboarding_tasks import get_onboarding_tasks
 from task_template_manager import TaskTemplateManager
+from team import RuntimeType, TeamRuntime
+from team_assembler import TeamAssembler
+from tenant_manager import TenantManager
+from tenant_middleware import TenantMiddleware
+from webhook_manager import WebhookManager
 
 # ── 请求模型 ──
 
@@ -282,14 +286,14 @@ def _make_llm_distill_caller():
     Returns a callable (prompt: str) -> str, or None if API key not configured.
     """
     import httpx
+
     from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
     api_key = DEEPSEEK_API_KEY
     if not api_key:
         return None
     base_url = DEEPSEEK_BASE_URL.rstrip("/")
     # Normalize: strip /v1 suffix for chat/completions endpoint
-    if base_url.endswith("/v1"):
-        base_url = base_url[:-3]
+    base_url = base_url.removesuffix("/v1")
 
     def _call(prompt: str) -> str:
         payload = {
@@ -314,7 +318,8 @@ def _make_llm_distill_caller():
     return _call
 
 
-from evolution_events import EvolutionEventStore, ABTracker
+from evolution_events import ABTracker, EvolutionEventStore
+
 evolution_event_store = EvolutionEventStore(os.path.join(_DATA_DIR, "evolution.db"))
 ab_tracker = ABTracker(evolution_event_store._conn)
 
@@ -341,8 +346,9 @@ a2a_task_router = A2ATaskRouter(a2a_registry)
 a2a_memory = AgentMemory(data_dir=_DATA_DIR)
 a2a_profile_manager = AgentProfileManager(profiles_dir=os.path.join(_DATA_DIR, "agent_profiles"), event_store=evolution_event_store)
 a2a_webhook_manager = WebhookManager(_DATA_DIR)
-from team_synergy import TeamSynergy
 from capability_boundary import CapabilityBoundary
+from team_synergy import TeamSynergy
+
 a2a_team_synergy = TeamSynergy(_DATA_DIR)
 a2a_capability_boundary = CapabilityBoundary(data_dir=_DATA_DIR)
 onboarding_mgr = OnboardingManager(_DATA_DIR)
@@ -379,6 +385,7 @@ agent_pool = AgentPool(
 
 # 安全中间件（全局单例，审计日志）
 from security import SecurityMiddleware
+
 security_guard = SecurityMiddleware()
 
 # WebSocket handler 上下文（延迟初始化，见 _init_ws_ctx）
@@ -507,6 +514,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 import ipaddress
 import socket
 from urllib.parse import urlparse
+
 
 async def _broadcast_a2a_update(event_type: str, agent_data: dict):
     """向所有 WebSocket 会话广播 A2A 节点状态变化"""
@@ -814,8 +822,8 @@ async def ws_handler(ws: WebSocket):
 
 # ──────────────────── WorkflowEngine REST API ────────────────────
 
+from protocol import WorkflowDefinition, WorkflowEdge, WorkflowNode
 from workflow_engine import WorkflowEngine
-from protocol import WorkflowDefinition, WorkflowNode, WorkflowEdge
 
 workflow_engine = WorkflowEngine(
     persistence_dir=os.path.join(os.path.dirname(__file__), "data", "workflows")
@@ -934,9 +942,9 @@ async def api_employees(request: Request):
 @app.post("/api/minutes")
 async def api_minutes_plan(body: dict):
     """演示：速记 → 会议纪要 DAG 规划 + 混合团队组装（把关经 /api/gates）。"""
-    from minutes_workflow import build_minutes_workflow
-    from mailer.seam import MailMessage, get_mailer
     from employee_directory import get_directory
+    from mailer.seam import MailMessage, get_mailer
+    from minutes_workflow import build_minutes_workflow
 
     transcript = body.get("transcript", "")
     submitter = body.get("submitter", "submitter")
@@ -981,11 +989,11 @@ async def api_minutes_plan(body: dict):
 
 # ── 资产沉淀端点（M3，[S7]）────────────────────────
 # 惰性单例组装 + monkeypatch 可测（TestClient 测试替换全局 helper）
-_asset_store: Optional[object] = None
-_template_confirmation: Optional[object] = None
-_skill_evolution: Optional[object] = None
-_asset_search: Optional[object] = None
-_asset_judge: Optional[object] = None
+_asset_store: object | None = None
+_template_confirmation: object | None = None
+_skill_evolution: object | None = None
+_asset_search: object | None = None
+_asset_judge: object | None = None
 
 
 def _get_asset_store():
@@ -1038,6 +1046,7 @@ def _get_asset_search():
 
 
 import sys
+
 assets_router.init(sys.modules[__name__])
 agents_router.init(sys.modules[__name__])
 templates_router.init(sys.modules[__name__])
@@ -1082,7 +1091,8 @@ async def health(request: Request):
 async def metrics():
     """Prometheus 格式指标 — 使用 prometheus_client 标准 registry + 补充自定义指标"""
     from fastapi.responses import PlainTextResponse
-    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
     from prometheus_metrics import WS_CONNECTIONS
 
     # 更新实时 gauge 指标
@@ -1236,6 +1246,7 @@ _skill_forks = SkillForkManager(
 )
 
 from skill_exporter import SkillExporter
+
 _skill_exporter = SkillExporter(
     skill_dir=os.path.join(os.path.dirname(__file__), "..", "skill_packs"),
     experience_dir=os.path.join(os.path.dirname(__file__), "data", "experience"),

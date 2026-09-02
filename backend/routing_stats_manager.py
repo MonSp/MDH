@@ -6,7 +6,7 @@ RoutingStatsManager — 路由统计管理
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger("routing_stats")
 
@@ -26,13 +26,13 @@ class RoutingStatsManager:
             router: DynamicRouter 实例（用于 update_stats）
         """
         self._router = router
-        self._task_routing: Dict[str, str] = {}  # task_id → dept_id
+        self._task_routing: dict[str, str] = {}  # task_id → dept_id
 
     def track_task(self, task_id: str, dept_id: str) -> None:
         """记录任务的路由映射"""
         self._task_routing[task_id] = dept_id
 
-    def update_stats(self, tasks: List[Any]) -> None:
+    def update_stats(self, tasks: list[Any]) -> None:
         """消费 _task_routing，更新路由统计
 
         Args:
@@ -47,7 +47,7 @@ class RoutingStatsManager:
             self._router.update_stats(dept_id, success=task.status == "completed")
             del self._task_routing[task_id]
 
-    def update_stats_safe(self, tasks: List[Any]) -> None:
+    def update_stats_safe(self, tasks: list[Any]) -> None:
         """安全包装：异常不中断后续流程"""
         try:
             self.update_stats(tasks)
@@ -58,7 +58,7 @@ class RoutingStatsManager:
             self._task_routing.clear()
 
     @property
-    def tracked_tasks(self) -> Dict[str, str]:
+    def tracked_tasks(self) -> dict[str, str]:
         """当前跟踪的任务路由映射"""
         return dict(self._task_routing)
 

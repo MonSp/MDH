@@ -4,7 +4,12 @@ from pathlib import Path
 import pytest
 
 from asset_evaluator import _JUDGE_THRESHOLD
-from asset_judge_benchmark import BENCHMARK_ITEMS, BenchmarkItem, evaluate_judge, load_benchmark_items
+from asset_judge_benchmark import (
+    BENCHMARK_ITEMS,
+    BenchmarkItem,
+    evaluate_judge,
+    load_benchmark_items,
+)
 
 
 def test_benchmark_items_well_formed():

@@ -3,15 +3,14 @@
 import asyncio
 import json
 
-
-from workflow_engine import WorkflowEngine
 from protocol import (
     WorkflowDefinition,
-    WorkflowNode,
     WorkflowEdge,
-    WorkflowNodeStatus,
     WorkflowExecutionStatus,
+    WorkflowNode,
+    WorkflowNodeStatus,
 )
+from workflow_engine import WorkflowEngine
 
 
 def _make_definition(workflow_id="wf-persist"):

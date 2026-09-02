@@ -5,10 +5,10 @@ Evidence Chain - 证据链追踪系统
 形成完整决策证据链。
 """
 
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 import json
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
 
 
 @dataclass
@@ -16,9 +16,9 @@ class Evidence:
     """证据"""
     stage: str  # 阶段：routing/decomposition/assignment/execution/review
     decision: str  # 决策描述
-    inputs: Dict[str, Any] = field(default_factory=dict)  # 输入
-    outputs: Dict[str, Any] = field(default_factory=dict)  # 输出
-    source_refs: List[str] = field(default_factory=list)  # 来源引用
+    inputs: dict[str, Any] = field(default_factory=dict)  # 输入
+    outputs: dict[str, Any] = field(default_factory=dict)  # 输出
+    source_refs: list[str] = field(default_factory=list)  # 来源引用
     timestamp: str = ""
 
     def __post_init__(self):
@@ -37,8 +37,8 @@ class EvidenceChain:
     """
 
     def __init__(self):
-        self._chains: Dict[str, List[Evidence]] = {}  # trace_id -> evidences
-        self._stage_index: Dict[str, Dict[str, List[Evidence]]] = {}  # trace_id -> stage -> evidences
+        self._chains: dict[str, list[Evidence]] = {}  # trace_id -> evidences
+        self._stage_index: dict[str, dict[str, list[Evidence]]] = {}  # trace_id -> stage -> evidences
 
     def add_evidence(self, trace_id: str, evidence: Evidence):
         """
@@ -60,7 +60,7 @@ class EvidenceChain:
             self._stage_index[trace_id][stage] = []
         self._stage_index[trace_id][stage].append(evidence)
 
-    def get_chain(self, trace_id: str) -> List[Evidence]:
+    def get_chain(self, trace_id: str) -> list[Evidence]:
         """
         获取完整证据链
 
@@ -72,7 +72,7 @@ class EvidenceChain:
         """
         return self._chains.get(trace_id, []).copy()
 
-    def get_decisions(self, trace_id: str, stage: str) -> List[Evidence]:
+    def get_decisions(self, trace_id: str, stage: str) -> list[Evidence]:
         """
         获取特定阶段的决策证据
 
@@ -87,7 +87,7 @@ class EvidenceChain:
             return []
         return self._stage_index[trace_id].get(stage, []).copy()
 
-    def get_stages(self, trace_id: str) -> List[str]:
+    def get_stages(self, trace_id: str) -> list[str]:
         """
         获取证据链包含的所有阶段
 
@@ -101,7 +101,7 @@ class EvidenceChain:
             return []
         return list(self._stage_index[trace_id].keys())
 
-    def link_to_spec_tree(self, trace_id: str, spec_tree_nodes: List[Dict[str, Any]]):
+    def link_to_spec_tree(self, trace_id: str, spec_tree_nodes: list[dict[str, Any]]):
         """
         与 SpecTree evidenceRefs 双向关联
 
@@ -129,7 +129,7 @@ class EvidenceChain:
             if linked_refs:
                 evidence.outputs["linked_evidence_nodes"] = linked_refs
 
-    def export_chain(self, trace_id: str) -> Dict[str, Any]:
+    def export_chain(self, trace_id: str) -> dict[str, Any]:
         """
         导出证据链为字典
 
@@ -158,7 +158,7 @@ class EvidenceChain:
             ],
         }
 
-    def has_evidence(self, trace_id: str, stage: Optional[str] = None) -> bool:
+    def has_evidence(self, trace_id: str, stage: str | None = None) -> bool:
         """
         检查是否有证据
 
@@ -173,7 +173,7 @@ class EvidenceChain:
             return len(self.get_decisions(trace_id, stage)) > 0
         return len(self.get_chain(trace_id)) > 0
 
-    def clear(self, trace_id: Optional[str] = None):
+    def clear(self, trace_id: str | None = None):
         """
         清除证据
 

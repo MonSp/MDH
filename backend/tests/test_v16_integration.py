@@ -1,8 +1,10 @@
 """v1.6 端到端集成测试 — SQLite + 缓存 + RBAC + Webhook 全链路"""
 
 import os
-import pytest
 import sys
+
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
@@ -61,6 +63,7 @@ class TestSQLiteConcurrency:
     def test_concurrent_xp_grant(self, data_dir):
         """多线程 XP 授予不崩溃"""
         import threading
+
         from agent_profile_manager import AgentProfileManager
 
         mgr = AgentProfileManager(os.path.join(data_dir, "agent_profiles"))

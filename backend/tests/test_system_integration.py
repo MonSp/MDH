@@ -54,7 +54,7 @@ class TestLLMCacheIntegration:
         assert c2.get("persist test") == "value"
 
     def test_tiered_ttl(self):
-        from llm_cache import llm_cache, TTL_PRESETS
+        from llm_cache import TTL_PRESETS, llm_cache
         llm_cache.put("实现一个函数", "code")
         key = llm_cache._make_key("实现一个函数")
         assert llm_cache._cache[key]["ttl"] == TTL_PRESETS["creative"]
@@ -98,10 +98,11 @@ class TestBenchmarkSystem:
         assert report.avg_latency_s >= 0
 
     def test_analysis_on_report(self, tmp_path):
-        from benchmark.runner import run_benchmark
-        from benchmark.analysis import analyze_report, format_analysis
-        from benchmark.tasks import get_benchmark_tasks
         from dataclasses import asdict
+
+        from benchmark.analysis import analyze_report, format_analysis
+        from benchmark.runner import run_benchmark
+        from benchmark.tasks import get_benchmark_tasks
         tasks = get_benchmark_tasks(category="simple")[:2]
         report = run_benchmark(tasks=tasks, workspace=str(tmp_path))
         analysis = analyze_report(asdict(report))
@@ -111,7 +112,7 @@ class TestBenchmarkSystem:
         assert "评测结果分析" in text
 
     def test_baseline_compare(self, tmp_path):
-        from benchmark.runner import compare_with_baseline, BenchmarkReport, TaskResult
+        from benchmark.runner import BenchmarkReport, TaskResult, compare_with_baseline
         bl = {"results": [{"task_id": "t1", "success": True, "llm_calls": 3, "latency_s": 1.0}]}
         bl_path = str(tmp_path / "bl.json")
         with open(bl_path, "w") as f:
@@ -124,7 +125,7 @@ class TestBenchmarkSystem:
         assert len(report.regressions) == 1
 
     def test_gate_self_check(self):
-        from benchmark_gate import run_self_check, check_thresholds
+        from benchmark_gate import check_thresholds, run_self_check
         report = run_self_check()
         failures = check_thresholds(report)
         assert failures == []  # 自检应通过

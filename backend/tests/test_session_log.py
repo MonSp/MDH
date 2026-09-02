@@ -2,7 +2,6 @@
 
 import json
 
-
 from meeting import MeetingSession, SessionEvent, SessionEventType
 
 
@@ -300,7 +299,7 @@ def test_restore_rebuild_events_role_mapping(tmp_path):
 
 def test_audit_event_persisted_to_jsonl(tmp_path):
     """_log_audit 在内存 append 外追加写入 audit.jsonl（event_type="audit"）。"""
-    from security import SecurityMiddleware, RiskLevel
+    from security import RiskLevel, SecurityMiddleware
 
     mw = SecurityMiddleware(audit_log_dir=str(tmp_path))
     mw._log_audit(

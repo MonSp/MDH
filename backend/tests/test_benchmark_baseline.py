@@ -209,7 +209,7 @@ def test_03_db_benchmark(tmp_path):
 # ══════════════════════════════════════════════════════════════════════
 
 def test_04_evolution_event_benchmark(tmp_path):
-    from evolution_events import EvolutionEventStore, EvolutionEvent, new_event_id
+    from evolution_events import EvolutionEvent, EvolutionEventStore, new_event_id
 
     db_path = str(tmp_path / "evolution_bench.db")
     store = EvolutionEventStore(db_path=db_path)
@@ -261,8 +261,11 @@ def test_05_ab_tracking_benchmark(tmp_path):
 
 def test_06_prometheus_metrics_benchmark():
     from prometheus_client import generate_latest
+
     from prometheus_metrics import (
-        LLM_CALLS, TASK_SUCCESS, EVOLUTION_EVENTS,
+        EVOLUTION_EVENTS,
+        LLM_CALLS,
+        TASK_SUCCESS,
         WS_CONNECTIONS,
     )
 

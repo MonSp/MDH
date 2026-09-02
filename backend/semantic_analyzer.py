@@ -8,13 +8,12 @@ Semantic Analyzer - 语义分析器
 import json
 import logging
 import re
-from typing import Optional
 
 from agentscope.message import Msg
-from llm_guard import safe_llm_reply
 
 from agent import _extract_text
 from dynamic_router import DynamicRouter, RoutingDecision
+from llm_guard import safe_llm_reply
 from minutes_workflow import MINUTES_FAMILY, MINUTES_VERBS, build_minutes_workflow
 from protocol import AgentRole, SemanticAnalysisResult
 
@@ -34,10 +33,10 @@ class SemanticAnalyzer:
         self._router = router
         self._get_model = get_model_fn
         self._meeting_agents = meeting_agents or []
-        self._last_routing_decision: Optional[RoutingDecision] = None
+        self._last_routing_decision: RoutingDecision | None = None
 
     @property
-    def last_routing_decision(self) -> Optional[RoutingDecision]:
+    def last_routing_decision(self) -> RoutingDecision | None:
         return self._last_routing_decision
 
     async def analyze(self, user_message: str, team_id: str = "") -> SemanticAnalysisResult:
@@ -223,6 +222,7 @@ class SemanticAnalyzer:
         依赖关系始终由确定性推断保证 DAG 结构正确性。
         """
         import uuid
+
         from protocol import WorkflowDefinition, WorkflowNode, WorkflowNodeStatus
 
         workflow_id = str(uuid.uuid4())[:8]
@@ -331,8 +331,9 @@ class SemanticAnalyzer:
 
     def _deterministic_generate_nodes(self, user_message: str, routing_decision: RoutingDecision):
         """确定性关键词匹配生成节点（回退路径）"""
-        from protocol import WorkflowNode, WorkflowNodeStatus
         import uuid
+
+        from protocol import WorkflowNode, WorkflowNodeStatus
 
         nodes = []
 

@@ -5,10 +5,9 @@
 
 import logging
 import uuid
-from typing import Optional
 
 from employee_directory import get_directory
-from team import Team, TeamMember, TeamRuntime, AgentLocation
+from team import AgentLocation, Team, TeamMember, TeamRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ SKILL_TO_TEAM_ROLE = {
 class TeamAssembler:
     """从DAG和角色配置组装Team实例"""
 
-    def __init__(self, roles_config_path: Optional[str] = None):
+    def __init__(self, roles_config_path: str | None = None):
         from agent_toolset import load_roles_config
         self._config = load_roles_config(roles_config_path)
         self._base_roles = self._config.get("base_roles", {})

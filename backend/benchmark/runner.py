@@ -12,7 +12,7 @@ import os
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from benchmark.tasks import BenchmarkTask, get_benchmark_tasks
 
@@ -30,7 +30,7 @@ class TaskResult:
     latency_s: float = 0.0
     path_used: str = ""
     error: str = ""
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -42,9 +42,9 @@ class BenchmarkReport:
     failed: int = 0
     avg_llm_calls: float = 0.0
     avg_latency_s: float = 0.0
-    results: List[TaskResult] = field(default_factory=list)
-    regressions: List[str] = field(default_factory=list)
-    improvements: List[str] = field(default_factory=list)
+    results: list[TaskResult] = field(default_factory=list)
+    regressions: list[str] = field(default_factory=list)
+    improvements: list[str] = field(default_factory=list)
 
 
 class MetricsCollector:
@@ -180,9 +180,9 @@ def run_single_task(task: BenchmarkTask, workspace: str) -> TaskResult:
 
 
 def run_benchmark(
-    tasks: Optional[List[BenchmarkTask]] = None,
-    category: Optional[str] = None,
-    workspace: Optional[str] = None,
+    tasks: list[BenchmarkTask] | None = None,
+    category: str | None = None,
+    workspace: str | None = None,
 ) -> BenchmarkReport:
     """运行评测基准
 

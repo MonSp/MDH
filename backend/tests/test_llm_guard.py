@@ -1,8 +1,10 @@
 """Tests for llm_guard — safe_llm_reply timeout and retry behavior"""
 import asyncio
+
 import pytest
-from llm_guard import safe_llm_reply, safe_llm_call
+
 from llm_cache import llm_cache
+from llm_guard import safe_llm_call, safe_llm_reply
 
 
 @pytest.fixture(autouse=True)

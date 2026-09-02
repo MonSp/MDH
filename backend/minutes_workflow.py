@@ -3,6 +3,7 @@
 被 SemanticAnalyzer 文档模式分支与演示端点共用；gate 把关人占位 submitter。
 """
 import hashlib
+
 from protocol import WorkflowDefinition, WorkflowEdge, WorkflowNode
 
 MINUTES_KEYWORDS = ("会议纪要", "会议记录", "速记", "待办", "行动项", "纪要")

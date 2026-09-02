@@ -9,9 +9,9 @@ import os
 from dataclasses import asdict
 
 from fastapi import APIRouter, Body, Request
-from rate_limiter import limiter, RATE_LIMITS
 
-from routers.common import ok, fail
+from rate_limiter import RATE_LIMITS, limiter
+from routers.common import fail, ok
 
 logger = logging.getLogger("routers.monitoring")
 

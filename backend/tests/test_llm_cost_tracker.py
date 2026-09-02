@@ -1,5 +1,6 @@
 """Tests for LLM cost tracker"""
 import pytest
+
 from llm_cost_tracker import LLMCostTracker
 
 

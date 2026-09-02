@@ -13,8 +13,8 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Dict, List, Optional, Union
 
 import httpx
 
@@ -38,23 +38,23 @@ class A2ATextPart:
 class A2AMessage:
     """A2A 消息"""
     role: str = "user"
-    parts: List[A2ATextPart] = field(default_factory=list)
-    metadata: Dict = field(default_factory=dict)
+    parts: list[A2ATextPart] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass
 class A2AArtifact:
     """A2A 产出物"""
     name: str = ""
-    parts: List[A2ATextPart] = field(default_factory=list)
-    metadata: Dict = field(default_factory=dict)
+    parts: list[A2ATextPart] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass
 class A2ATaskStatus:
     """A2A 任务状态"""
     state: str = "submitted"  # submitted | working | completed | failed | canceled
-    message: Optional[str] = None
+    message: str | None = None
     timestamp: float = field(default_factory=time.time)
 
 
@@ -62,9 +62,9 @@ class A2ATaskStatus:
 class A2ATaskEvent:
     """A2A 任务事件（SSE 流中的单条事件）"""
     task_id: str
-    status: Optional[A2ATaskStatus] = None
-    artifact: Optional[A2AArtifact] = None
-    metadata: Dict = field(default_factory=dict)
+    status: A2ATaskStatus | None = None
+    artifact: A2AArtifact | None = None
+    metadata: dict = field(default_factory=dict)
 
 
 class A2AClient:
@@ -76,8 +76,8 @@ class A2AClient:
 
     def __init__(self, timeout: float = 300):
         self._timeout = timeout
-        self._client: Optional[httpx.AsyncClient] = None
-        self._task_log: Dict[str, Dict] = {}
+        self._client: httpx.AsyncClient | None = None
+        self._task_log: dict[str, dict] = {}
         self._log_lock = asyncio.Lock()
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -95,8 +95,8 @@ class A2AClient:
         self,
         agent: RegisteredAgent,
         message: str,
-        metadata: Dict = None,
-        on_event: Callable[[A2ATaskEvent], Optional[Awaitable[None]]] = None,
+        metadata: dict = None,
+        on_event: Callable[[A2ATaskEvent], Awaitable[None] | None] = None,
         task_id: str = None,
     ) -> A2ATaskEvent:
         """发送任务到执行节点，返回最终结果
@@ -224,13 +224,13 @@ class A2AClient:
 
         return last_event
 
-    def get_task_log(self, task_id: str = None) -> Union[Dict, List[Dict]]:
+    def get_task_log(self, task_id: str = None) -> dict | list[dict]:
         """查询任务执行日志"""
         if task_id:
             return self._task_log.get(task_id, {})
         return list(self._task_log.values())
 
-    async def get_task(self, agent: RegisteredAgent, task_id: str) -> Optional[Dict]:
+    async def get_task(self, agent: RegisteredAgent, task_id: str) -> dict | None:
         """查询任务状态"""
         url = f"{agent.card.url.rstrip('/')}/a2a/tasks/{task_id}"
         try:
@@ -254,7 +254,7 @@ class A2AClient:
             logger.error("A2A 任务取消失败: %s %s", task_id, e)
             return False
 
-    def _parse_event(self, task_id: str, data: Dict) -> A2ATaskEvent:
+    def _parse_event(self, task_id: str, data: dict) -> A2ATaskEvent:
         """解析 A2A SSE 事件"""
         event = A2ATaskEvent(task_id=task_id)
 

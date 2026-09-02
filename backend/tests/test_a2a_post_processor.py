@@ -1,7 +1,8 @@
 """A2A Post Processor 测试"""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from a2a_post_processor import A2APostProcessor
 

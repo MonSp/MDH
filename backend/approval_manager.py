@@ -9,8 +9,8 @@ import asyncio
 import logging
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Callable, Awaitable, Optional, Dict
 
 from protocol import ApprovalStatus, RiskLevel
 
@@ -33,7 +33,7 @@ class PendingApproval:
     task_id: str = ""
     gate_id: str = ""
     approver: str = ""
-    _future: Optional[asyncio.Future] = field(default=None, repr=False)
+    _future: asyncio.Future | None = field(default=None, repr=False)
 
 
 class ApprovalManager:
@@ -46,7 +46,7 @@ class ApprovalManager:
     """
 
     def __init__(self, default_timeout: float = 300.0):
-        self._pending: Dict[str, PendingApproval] = {}
+        self._pending: dict[str, PendingApproval] = {}
         self._history: list[PendingApproval] = []
         self._default_timeout = default_timeout
         self._gate_audit: list[dict] = []
@@ -58,8 +58,8 @@ class ApprovalManager:
         description: str,
         risk_level: RiskLevel = RiskLevel.MEDIUM,
         confidence: float = 0.5,
-        send_fn: Optional[Callable[[dict], Awaitable[None]]] = None,
-        timeout: Optional[float] = None,
+        send_fn: Callable[[dict], Awaitable[None]] | None = None,
+        timeout: float | None = None,
         task_id: str = "",
         gate_id: str = "",
         approver: str = "",
@@ -126,7 +126,7 @@ class ApprovalManager:
         request_id: str,
         approved: bool,
         reason: str = "",
-        send_fn: Optional[Callable[[dict], Awaitable[None]]] = None,
+        send_fn: Callable[[dict], Awaitable[None]] | None = None,
     ) -> bool:
         """处理前端的审批响应
 
@@ -180,7 +180,7 @@ class ApprovalManager:
     async def wait_for_decision(
         self,
         request_id: str,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
     ) -> dict:
         """等待审批决策
 
@@ -220,8 +220,8 @@ class ApprovalManager:
         approver: str = "",
         risk_level: RiskLevel = RiskLevel.MEDIUM,
         confidence: float = 0.5,
-        send_fn: Optional[Callable[[dict], Awaitable[None]]] = None,
-        timeout: Optional[float] = None,
+        send_fn: Callable[[dict], Awaitable[None]] | None = None,
+        timeout: float | None = None,
     ) -> PendingApproval:
         """把关点请求：复用 request_approval，并记录 gate/requested 审计事件。"""
         pending = await self.request_approval(
@@ -250,7 +250,7 @@ class ApprovalManager:
         request_id: str,
         approved: bool,
         reason: str = "",
-        send_fn: Optional[Callable[[dict], Awaitable[None]]] = None,
+        send_fn: Callable[[dict], Awaitable[None]] | None = None,
     ) -> bool:
         """把关点决定：复用 handle_response，并记录 gate/decided 审计事件。
 
@@ -372,7 +372,7 @@ HIGH_RISK_BASH_PATTERNS = [
 def classify_approval_tier(
     operation: str,
     description: str = "",
-    context: Optional[Dict] = None,
+    context: dict | None = None,
 ) -> str:
     """分级判定审批层级。
 
@@ -404,8 +404,8 @@ def classify_approval_tier(
 def risk_classify(
     operation: str,
     description: str = "",
-    context: Optional[Dict] = None,
-) -> Dict:
+    context: dict | None = None,
+) -> dict:
     """风险分类器：对 classifier 层级的操作进行风险评估。
 
     Returns:

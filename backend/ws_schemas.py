@@ -5,9 +5,9 @@ WebSocket 消息 Pydantic 验证模型
 通过 validate_ws_message() 统一入口进行消息解析。
 """
 
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from typing import Any
 
+from pydantic import BaseModel, Field
 
 # ── 基础模型（允许 extra fields 通过，避免破坏现有字段） ──
 
@@ -21,41 +21,41 @@ class _Base(BaseModel):
 class UserMessage(_Base):
     type: str = Field(..., pattern=r"^(user_message|unified_message)$")
     content: str = Field("", max_length=50000)
-    provider: Optional[str] = None
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
-    model_name: Optional[str] = None
-    execution_preference: Optional[str] = None
-    workspace_type: Optional[str] = None
-    selected_roles: Optional[List[str]] = None
-    role_locations: Optional[Dict[str, str]] = None
-    reset: Optional[bool] = None
-    multimodal: Optional[bool] = None
+    provider: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
+    model_name: str | None = None
+    execution_preference: str | None = None
+    workspace_type: str | None = None
+    selected_roles: list[str] | None = None
+    role_locations: dict[str, str] | None = None
+    reset: bool | None = None
+    multimodal: bool | None = None
 
 
 class ToolResult(_Base):
     type: str = "tool_result"
-    call_id: Optional[str] = None
-    result: Optional[Any] = None
+    call_id: str | None = None
+    result: Any | None = None
 
 
 class ConfirmResult(_Base):
     type: str = "confirm_result"
-    call_id: Optional[str] = None
-    confirmed: Optional[bool] = True
+    call_id: str | None = None
+    confirmed: bool | None = True
 
 
 class WorkspaceConfirmResponse(_Base):
     type: str = "workspace_confirm_response"
-    workspace_type: Optional[str] = "standalone"
-    repo_path: Optional[str] = ""
-    branch_name: Optional[str] = ""
-    output_dir: Optional[str] = ""
+    workspace_type: str | None = "standalone"
+    repo_path: str | None = ""
+    branch_name: str | None = ""
+    output_dir: str | None = ""
 
 
 class PageContext(_Base):
     type: str = "page_context"
-    context: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    context: dict[str, Any] | None = Field(default_factory=dict)
 
 
 # ── 技能管理 ──
@@ -64,8 +64,8 @@ class SaveSkill(_Base):
     type: str = "save_skill"
     name: str = Field("", max_length=200)
     description: str = Field("", max_length=5000)
-    steps: List[Any] = Field(default_factory=list)
-    skill_type: Optional[str] = "strict"
+    steps: list[Any] = Field(default_factory=list)
+    skill_type: str | None = "strict"
 
 
 class GetSkills(_Base):
@@ -79,8 +79,8 @@ class DeleteSkill(_Base):
 
 class GenerateSkillSummary(_Base):
     type: str = "generate_skill_summary"
-    steps: List[Any] = Field(default_factory=list)
-    skill_type: Optional[str] = "strict"
+    steps: list[Any] = Field(default_factory=list)
+    skill_type: str | None = "strict"
 
 
 # ── 会议管理 ──
@@ -88,14 +88,14 @@ class GenerateSkillSummary(_Base):
 class StartMeeting(_Base):
     type: str = "start_meeting"
     content: str = ""
-    selected_roles: List[str] = Field(default_factory=list)
-    role_locations: Dict[str, str] = Field(default_factory=dict)
-    workspace_type: Optional[str] = None
-    provider: Optional[str] = None
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
-    model_name: Optional[str] = None
-    max_iterations: Optional[int] = Field(None, ge=1, le=10)
+    selected_roles: list[str] = Field(default_factory=list)
+    role_locations: dict[str, str] = Field(default_factory=dict)
+    workspace_type: str | None = None
+    provider: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
+    model_name: str | None = None
+    max_iterations: int | None = Field(None, ge=1, le=10)
 
 
 class MeetingMessage(_Base):
@@ -157,8 +157,8 @@ class CastVote(_Base):
     type: str = "cast_vote"
     proposalId: str = Field(..., min_length=1, max_length=200)
     voterId: str = Field("user", max_length=200)
-    approve: Optional[bool] = True
-    weight: Optional[float] = Field(None, ge=0.0, le=10.0)
+    approve: bool | None = True
+    weight: float | None = Field(None, ge=0.0, le=10.0)
     reason: str = Field("", max_length=2000)
 
 
@@ -169,7 +169,7 @@ class EvaluateConsensus(_Base):
 
 class RequestRetransmit(_Base):
     type: str = "request_retransmit"
-    from_sequence_no: Optional[int] = Field(0, ge=0)
+    from_sequence_no: int | None = Field(0, ge=0)
 
 
 # ── 工作区/Bridge/审批 ──
@@ -177,39 +177,39 @@ class RequestRetransmit(_Base):
 class WorkspaceAction(_Base):
     type: str = "workspace_action"
     action: str = Field("", max_length=100)
-    workspace_id: Optional[str] = Field(None, max_length=200)
+    workspace_id: str | None = Field(None, max_length=200)
 
 
 class ToolCall(_Base):
     type: str = "tool_call"
-    tool_name: Optional[str] = Field(None, max_length=200)
-    arguments: Dict[str, Any] = Field(default_factory=dict)
+    tool_name: str | None = Field(None, max_length=200)
+    arguments: dict[str, Any] = Field(default_factory=dict)
 
 
 class BridgeRegisterAgent(_Base):
     type: str = "bridge_register_agent"
-    tsAgentId: Optional[str] = Field(None, max_length=200)
+    tsAgentId: str | None = Field(None, max_length=200)
     name: str = Field("Unknown", max_length=200)
     role: str = Field("executor", max_length=100)
-    capabilities: List[str] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list)
 
 
 class BridgeUnregisterAgent(_Base):
     type: str = "bridge_unregister_agent"
-    tsAgentId: Optional[str] = Field(None, max_length=200)
+    tsAgentId: str | None = Field(None, max_length=200)
 
 
 class BridgeMessage(_Base):
     type: str = "bridge_message"
-    fromAgentId: Optional[str] = Field(None, max_length=200)
-    toAgentId: Optional[str] = Field(None, max_length=200)
-    payload: Dict[str, Any] = Field(default_factory=dict)
+    fromAgentId: str | None = Field(None, max_length=200)
+    toAgentId: str | None = Field(None, max_length=200)
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class HumanApprovalResponse(_Base):
     type: str = "human_approval_response"
     requestId: str = Field("", max_length=200)
-    approved: Optional[bool] = False
+    approved: bool | None = False
     reason: str = Field("", max_length=2000)
 
 
@@ -223,7 +223,7 @@ class RequestApproval(_Base):
     operation: str = Field("unknown_operation", max_length=500)
     description: str = Field("", max_length=5000)
     riskLevel: str = Field("medium", max_length=20)
-    confidence: Optional[float] = Field(0.5, ge=0.0, le=1.0)
+    confidence: float | None = Field(0.5, ge=0.0, le=1.0)
 
 
 # ── 检查点 ──
@@ -231,8 +231,8 @@ class RequestApproval(_Base):
 class CheckpointSave(_Base):
     type: str = "checkpoint_save"
     taskId: str = Field("", max_length=200)
-    stepIndex: Optional[int] = Field(0, ge=0)
-    state: Dict[str, Any] = Field(default_factory=dict)
+    stepIndex: int | None = Field(0, ge=0)
+    state: dict[str, Any] = Field(default_factory=dict)
 
 
 class CheckpointRestore(_Base):
@@ -252,7 +252,7 @@ class CheckpointDelete(_Base):
 
 class SetMaxIterations(_Base):
     type: str = "set_max_iterations"
-    maxIterations: Optional[int] = Field(3, ge=1, le=10)
+    maxIterations: int | None = Field(3, ge=1, le=10)
 
 
 class SaveMeetingSnapshot(_Base):
@@ -275,9 +275,9 @@ class CriticalBlocker(_Base):
 
 class GetAuditLog(_Base):
     type: str = "get_audit_log"
-    agentId: Optional[str] = Field(None, max_length=200)
-    operation: Optional[str] = Field(None, max_length=200)
-    riskLevel: Optional[str] = Field(None, max_length=20)
+    agentId: str | None = Field(None, max_length=200)
+    operation: str | None = Field(None, max_length=200)
+    riskLevel: str | None = Field(None, max_length=20)
 
 
 class LogAudit(_Base):
@@ -285,14 +285,14 @@ class LogAudit(_Base):
     agentId: str = Field("unknown", max_length=200)
     operation: str = Field("unknown", max_length=200)
     target: str = Field("", max_length=500)
-    capability: Optional[str] = Field(None, max_length=200)
-    allowed: Optional[bool] = True
+    capability: str | None = Field(None, max_length=200)
+    allowed: bool | None = True
     reason: str = Field("", max_length=2000)
 
 
 # ── 注册表：type string → model ──
 
-MESSAGE_MODELS: Dict[str, type[BaseModel]] = {
+MESSAGE_MODELS: dict[str, type[BaseModel]] = {
     # 会话管理
     "user_message": UserMessage,
     "unified_message": UserMessage,
@@ -347,7 +347,6 @@ MESSAGE_MODELS: Dict[str, type[BaseModel]] = {
 
 class WSValidationError(ValueError):
     """WebSocket 消息验证失败"""
-    pass
 
 
 def validate_ws_message(data: dict) -> BaseModel:

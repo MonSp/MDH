@@ -18,9 +18,9 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, List
-from urllib.request import Request, urlopen
+from typing import Any
 from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 from db import get_db
 
@@ -39,7 +39,7 @@ SUPPORTED_EVENTS = [
 class WebhookSubscription:
     sub_id: str
     url: str
-    events: List[str]
+    events: list[str]
     secret: str
     is_active: bool = True
     created_at: str = ""
@@ -80,7 +80,7 @@ class WebhookManager:
         """)
         self._db.commit()
 
-    def subscribe(self, url: str, events: List[str]) -> WebhookSubscription:
+    def subscribe(self, url: str, events: list[str]) -> WebhookSubscription:
         """注册 webhook 订阅"""
         sub_id = f"wh-{secrets.token_urlsafe(8)}"
         secret = secrets.token_urlsafe(32)
@@ -101,7 +101,7 @@ class WebhookManager:
             self._db.commit()
             return cursor.rowcount > 0
 
-    def list_subscriptions(self) -> List[WebhookSubscription]:
+    def list_subscriptions(self) -> list[WebhookSubscription]:
         """列出所有订阅"""
         rows = self._db.execute("SELECT * FROM webhook_subscriptions WHERE is_active = 1").fetchall()
         return [
@@ -114,7 +114,7 @@ class WebhookManager:
             for r in rows
         ]
 
-    def trigger(self, event_type: str, payload: Dict[str, Any]) -> int:
+    def trigger(self, event_type: str, payload: dict[str, Any]) -> int:
         """触发事件，通知所有匹配的订阅者
 
         Returns:
@@ -176,7 +176,7 @@ class WebhookManager:
             )
             self._db.commit()
 
-    def get_delivery_log(self, sub_id: str = "", limit: int = 20) -> List[Dict]:
+    def get_delivery_log(self, sub_id: str = "", limit: int = 20) -> list[dict]:
         """获取投递日志"""
         if sub_id:
             rows = self._db.execute(
@@ -188,7 +188,7 @@ class WebhookManager:
             ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """投递统计"""
         rows = self._db.execute("SELECT status, COUNT(*) as cnt FROM webhook_deliveries GROUP BY status").fetchall()
         by_status = {r["status"]: r["cnt"] for r in rows}

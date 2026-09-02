@@ -1,6 +1,8 @@
-import json
 import asyncio
+import json
+
 import websockets
+
 
 async def test_marketing_team():
     uri = 'ws://localhost:8765/ws'

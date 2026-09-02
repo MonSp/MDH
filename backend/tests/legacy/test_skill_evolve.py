@@ -1,5 +1,6 @@
-import requests
 import sys
+
+import requests
 
 BASE = "http://localhost:8765"
 TIMEOUT = 10
@@ -46,8 +47,10 @@ print(f"  Total approved: {len(approved)}")
 # 4. Test local retrieval
 print("\n[4] Testing local rule retrieval...")
 sys.path.insert(0, 'backend')
-from experience_extractor import ExperienceExtractor
 import os
+
+from experience_extractor import ExperienceExtractor
+
 data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, 'experience'))
 rules_found = extractor.retrieve_relevant_rules('software-dev', ['python', 'flask', 'api'])

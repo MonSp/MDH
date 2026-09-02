@@ -13,9 +13,9 @@ evaluator 不同）会因 _template_bridge_installed 静默跳过接线，新实
 on_gate_result 不会被 gate 决定驱动。
 """
 
+from approval_manager import ApprovalManager
 from asset_evaluator import AssetEvaluator
 from asset_store import AssetStore
-from approval_manager import ApprovalManager
 
 
 class TemplateConfirmation:

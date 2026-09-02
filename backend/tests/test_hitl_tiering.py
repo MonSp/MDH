@@ -1,6 +1,10 @@
 """Tests for HITL tiered approval — classify_approval_tier + risk_classify"""
-from approval_manager import classify_approval_tier, risk_classify, WHITELIST_OPERATIONS, HIGH_RISK_OPERATIONS
-
+from approval_manager import (
+    HIGH_RISK_OPERATIONS,
+    WHITELIST_OPERATIONS,
+    classify_approval_tier,
+    risk_classify,
+)
 
 # ── Tier 1: 白名单自动通过 ──
 

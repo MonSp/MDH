@@ -12,12 +12,11 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from team import Team, TeamStatus
-from skill_registry import SkillRegistry
-from project_manager import ProjectManager
-from ceo_agent import team_to_meeting_template, _build_dag
 from agent_toolset import load_roles_config
-
+from ceo_agent import _build_dag, team_to_meeting_template
+from project_manager import ProjectManager
+from skill_registry import SkillRegistry
+from team import Team, TeamStatus
 
 # ─── 使用真实配置的 Fixture ───────────────────────────────────────────────────
 
@@ -232,5 +231,5 @@ class TestFullChainReal:
         print()
         print("会议模板:")
         for item in template:
-            print(f"  {item['name']:15s} role={str(item['role']):15s} caps={item['capabilities']}")
+            print(f"  {item['name']:15s} role={item['role']!s:15s} caps={item['capabilities']}")
         print("=" * 60)

@@ -1,7 +1,12 @@
 import pytest
+
 from team import (
-    Team, TeamRuntime, TeamStatus, RuntimeType, AgentLocation,
+    AgentLocation,
+    RuntimeType,
+    Team,
     TeamMember,
+    TeamRuntime,
+    TeamStatus,
 )
 
 

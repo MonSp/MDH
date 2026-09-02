@@ -3,10 +3,9 @@
 """
 
 import re
-from typing import List, Dict
 
 
-def extract_code_blocks(text: str) -> List[Dict[str, str]]:
+def extract_code_blocks(text: str) -> list[dict[str, str]]:
     """
     从Agent回复中提取代码块
 

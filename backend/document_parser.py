@@ -11,7 +11,6 @@ import logging
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
 logger = logging.getLogger("document_parser")
 
@@ -37,7 +36,7 @@ class DocumentParser:
         os.makedirs(self._docs_dir, exist_ok=True)
         self._index = self._load_index()
 
-    def _load_index(self) -> List[Dict]:
+    def _load_index(self) -> list[dict]:
         try:
             if os.path.isfile(self._index_path):
                 with open(self._index_path, encoding="utf-8") as f:
@@ -55,7 +54,7 @@ class DocumentParser:
         except Exception:
             pass
 
-    def parse_file(self, file_path: str, team_id: str = "") -> Optional[Dict]:
+    def parse_file(self, file_path: str, team_id: str = "") -> dict | None:
         """解析单个文件
 
         Returns:
@@ -120,7 +119,7 @@ class DocumentParser:
         logger.info("文档解析完成: %s (%s, %d bytes)", filename, doc_id, size)
         return doc
 
-    def get_document(self, doc_id: str) -> Optional[Dict]:
+    def get_document(self, doc_id: str) -> dict | None:
         """获取文档内容"""
         doc_path = os.path.join(self._docs_dir, f"{doc_id}.json")
         if not os.path.isfile(doc_path):
@@ -131,7 +130,7 @@ class DocumentParser:
         except Exception:
             return None
 
-    def search_documents(self, query: str, team_id: str = "") -> List[Dict]:
+    def search_documents(self, query: str, team_id: str = "") -> list[dict]:
         """搜索文档（关键词匹配）"""
         query_lower = query.lower()
         results = []
@@ -188,7 +187,7 @@ class DocumentParser:
 
         return "\n".join(parts) if len(parts) > 1 else ""
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """文档统计"""
         by_type = {}
         for entry in self._index:
@@ -212,7 +211,7 @@ class DocumentParser:
         return content[:200].replace("\n", " ").strip()
 
     @staticmethod
-    def _extract_keywords(content: str, filename: str) -> List[str]:
+    def _extract_keywords(content: str, filename: str) -> list[str]:
         """提取关键词"""
         import re
         # 提取中英文关键词

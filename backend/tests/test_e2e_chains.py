@@ -10,10 +10,12 @@
 import json
 import os
 import subprocess
+
 import pytest
 
 sys_path = os.path.join(os.path.dirname(__file__), "..")
 import sys
+
 sys.path.insert(0, sys_path)
 
 
@@ -147,8 +149,8 @@ class TestCollaborationChain:
 
     def test_skill_level_routing_integration(self, data_dir):
         """技能等级→路由加成完整流程"""
-        from dynamic_router import DynamicRouter
         from agent_profile_manager import AgentProfileManager
+        from dynamic_router import DynamicRouter
 
         # 初始化路由表
         routing_path = os.path.join(data_dir, "routing_table.json")
@@ -242,6 +244,7 @@ class TestMonitorChain:
     def test_reflection_priority_flow(self, data_dir):
         """反思优先级队列"""
         import yaml
+
         from reflection_priority import ReflectionPriorityQueue
 
         # 创建不同质量的规则
@@ -268,6 +271,7 @@ class TestMonitorChain:
     def test_introspection_flow(self, data_dir):
         """系统自省"""
         import yaml
+
         from system_introspection import SystemIntrospection
 
         # 创建规则

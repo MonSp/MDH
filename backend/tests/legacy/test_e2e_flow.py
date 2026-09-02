@@ -11,15 +11,15 @@
 
 import argparse
 import asyncio
+import os
 import re
 import sys
-import os
 
 # 添加backend目录到path
 sys.path.insert(0, os.path.dirname(__file__))
 
-from meeting_coordinator import MeetingCoordinator
 from meeting import MeetingSession
+from meeting_coordinator import MeetingCoordinator
 
 
 def parse_args():

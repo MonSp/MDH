@@ -6,7 +6,7 @@ GateEngine — 确定性门禁引擎
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger("gate_engine")
 
@@ -35,7 +35,7 @@ class GateEngine:
     - 区分工具缺失（fail-open）和真实失败（fail-closed）
     """
 
-    def run_gate(self, workspace_root: Optional[str] = None) -> Dict[str, Any]:
+    def run_gate(self, workspace_root: str | None = None) -> dict[str, Any]:
         """运行确定性门禁检查
 
         Args:
@@ -44,7 +44,7 @@ class GateEngine:
         Returns:
             {"passed": bool, "failures": List, "skipped": List}
         """
-        result: Dict[str, Any] = {"passed": True, "failures": [], "skipped": []}
+        result: dict[str, Any] = {"passed": True, "failures": [], "skipped": []}
         if not workspace_root:
             return result
 

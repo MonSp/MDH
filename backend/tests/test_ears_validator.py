@@ -3,6 +3,7 @@ EARS验收句式校验器测试
 """
 
 import pytest
+
 from ears_validator import EarsValidator, validate_ears
 
 

@@ -18,10 +18,13 @@ import sys
 # 确保 backend 目录在 path 中
 sys.path.insert(0, os.path.dirname(__file__))
 
-from benchmark.tasks import get_benchmark_tasks
 from benchmark.runner import (
-    run_benchmark, compare_with_baseline, save_baseline, format_report,
+    compare_with_baseline,
+    format_report,
+    run_benchmark,
+    save_baseline,
 )
+from benchmark.tasks import get_benchmark_tasks
 
 logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 logger = logging.getLogger("benchmark_cli")
@@ -62,8 +65,9 @@ def main():
 
     # 分析报告
     if args.analyze:
-        from benchmark.analysis import analyze_report, format_analysis, compare_versions
         from dataclasses import asdict
+
+        from benchmark.analysis import analyze_report, compare_versions, format_analysis
         report_dict = asdict(report)
         analysis = analyze_report(report_dict)
 

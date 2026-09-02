@@ -4,7 +4,6 @@ import os
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Tuple
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -32,7 +31,7 @@ class AuditEntry:
     allowed: bool
     reason: str
     timestamp: float
-    signers: List[str] = field(default_factory=list)
+    signers: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """转为 JSON 序列化 dict；复用 SessionEvent 事件结构判别字段（event_type='audit'）。"""
@@ -68,11 +67,11 @@ class OperationRequest:
     capability: str
     operation: str
     target: str
-    params: Optional[Dict] = None
+    params: dict | None = None
 
 
 class SecurityMiddleware:
-    def __init__(self, audit_log_dir: Optional[str] = None) -> None:
+    def __init__(self, audit_log_dir: str | None = None) -> None:
         self._high_risk_capabilities: set[str] = {"browser_automation", "file_operation"}
         self._dual_signature_capabilities: set[str] = {"browser_automation"}
         # 工具级风险映射：高危操作需要明确批准
@@ -86,17 +85,17 @@ class SecurityMiddleware:
             "nc -e", "ncat -e",  # reverse shell
             "python -c 'import os;os.system",  # python injection
         ]
-        self._rate_limits: Dict[str, RateLimitConfig] = {
+        self._rate_limits: dict[str, RateLimitConfig] = {
             "browser_automation": RateLimitConfig("browser_automation", 10, 60.0),
             "file_operation": RateLimitConfig("file_operation", 10, 60.0),
             "bash": RateLimitConfig("bash", 20, 60.0),
             "git_push": RateLimitConfig("git_push", 5, 60.0),
         }
-        self._audit_log: List[AuditEntry] = []
-        self._operation_counts: Dict[str, Tuple[int, float]] = {}
-        self._pending_signatures: Dict[str, dict] = {}
+        self._audit_log: list[AuditEntry] = []
+        self._operation_counts: dict[str, tuple[int, float]] = {}
+        self._pending_signatures: dict[str, dict] = {}
         # 审计事件持久化目录（None → 默认 backend/data/session_logs；写入失败降级内存）
-        self._audit_log_dir: Optional[str] = (
+        self._audit_log_dir: str | None = (
             audit_log_dir if audit_log_dir is not None else DEFAULT_AUDIT_LOG_DIR
         )
 
@@ -177,10 +176,10 @@ class SecurityMiddleware:
 
     def get_audit_log(
         self,
-        agent_id: Optional[str] = None,
-        operation: Optional[str] = None,
-        risk_level: Optional[RiskLevel] = None,
-    ) -> List[AuditEntry]:
+        agent_id: str | None = None,
+        operation: str | None = None,
+        risk_level: RiskLevel | None = None,
+    ) -> list[AuditEntry]:
         entries = self._audit_log
         if agent_id:
             entries = [e for e in entries if e.agent_id == agent_id]
@@ -227,7 +226,7 @@ class SecurityMiddleware:
         capability: str,
         allowed: bool,
         reason: str,
-        signers: List[str],
+        signers: list[str],
     ) -> None:
         risk_level = self._determine_risk_level(capability)
         entry = AuditEntry(
@@ -253,7 +252,7 @@ class SecurityMiddleware:
             path = os.path.join(self._audit_log_dir, "audit.jsonl")
             with open(path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry.to_dict(), ensure_ascii=False) + "\n")
-        except (IOError, OSError):
+        except OSError:
             # IOError 静默降级为纯内存模式，不破坏 _log_audit 调用方行为；
             # 一次性关闭持久化（置 None），防磁盘满场景无限重试刷屏
             logger.warning(

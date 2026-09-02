@@ -1,6 +1,7 @@
 """Tests for model_factory — shared model creation"""
 import pytest
-from model_factory import create_agent, get_default_base_url, _auto_init
+
+from model_factory import _auto_init, create_agent, get_default_base_url
 
 
 class TestGetDefaultBaseUrl:

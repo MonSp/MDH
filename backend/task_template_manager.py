@@ -5,7 +5,6 @@ import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
 from task_templates_preset import PRESET_TEMPLATES
 
@@ -18,11 +17,11 @@ class TaskTemplate:
     category: str  # development/testing/documentation/devops/design
     difficulty: str  # 简单/中等/高级
     task_prompt: str
-    recommended_roles: List[str] = field(default_factory=list)
-    recommended_skills: List[str] = field(default_factory=list)
+    recommended_roles: list[str] = field(default_factory=list)
+    recommended_skills: list[str] = field(default_factory=list)
     expected_output: str = ""
     icon: str = ""
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     usage_count: int = 0
     is_preset: bool = True
     created_at: str = ""
@@ -38,7 +37,7 @@ class TaskTemplateManager:
         os.makedirs(self._custom_dir, exist_ok=True)
 
         # 加载预置模板
-        self._templates: Dict[str, dict] = {}
+        self._templates: dict[str, dict] = {}
         for t in PRESET_TEMPLATES:
             entry = dict(t)
             entry.setdefault("usage_count", 0)
@@ -70,14 +69,14 @@ class TaskTemplateManager:
 
     # ── 公开接口 ─────────────────────────────────────────────
 
-    def list_templates(self, category: Optional[str] = None) -> List[dict]:
+    def list_templates(self, category: str | None = None) -> list[dict]:
         """列出模板，可选按 category 过滤。"""
         templates = list(self._templates.values())
         if category:
             templates = [t for t in templates if t.get("category") == category]
         return templates
 
-    def get_template(self, template_id: str) -> Optional[dict]:
+    def get_template(self, template_id: str) -> dict | None:
         """按 ID 获取单个模板。"""
         return self._templates.get(template_id)
 
@@ -105,7 +104,7 @@ class TaskTemplateManager:
         self._save_custom()
         return entry
 
-    def update_template(self, template_id: str, data: dict) -> Optional[dict]:
+    def update_template(self, template_id: str, data: dict) -> dict | None:
         """更新自定义模板（预置模板不可修改）。"""
         existing = self._templates.get(template_id)
         if existing is None:

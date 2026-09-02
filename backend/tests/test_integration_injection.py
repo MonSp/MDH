@@ -8,7 +8,7 @@ import json
 import os
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 import server
 from routers import experience as experience_router
@@ -257,10 +257,10 @@ class TestAssetInjectionChain:
     async def test_full_injection_chain(self, asset_data):
         """完整链路：增量区 + 资产 → 合并注入。"""
         from agent_pool import AgentPool
-        from key_manager import KeyManager
         from asset_injection import build_asset_context
         from asset_store import AssetStore
         from experience_extractor import ExperienceExtractor
+        from key_manager import KeyManager
 
         # 1. 增量区注入
         inc_dir = os.path.join(asset_data, "experience")

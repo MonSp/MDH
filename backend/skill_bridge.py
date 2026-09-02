@@ -12,7 +12,6 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
 
 import yaml
 
@@ -29,9 +28,9 @@ class SkillDescriptor:
     category: str = ""
     methodology: str = ""       # 核心方法论
     instructions: str = ""      # 完整指令（system prompt 等价物）
-    required_tools: List[str] = field(default_factory=list)
-    keywords: List[str] = field(default_factory=list)
-    references: List[str] = field(default_factory=list)  # references/ 下的文件路径
+    required_tools: list[str] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
+    references: list[str] = field(default_factory=list)  # references/ 下的文件路径
     has_scripts: bool = False
     source_format: str = "legacy"  # "legacy" | "skill_md"
     base_path: str = ""
@@ -51,7 +50,7 @@ class SkillBridge:
     def __init__(self, skill_dir: str):
         self._skill_dir = Path(skill_dir)
 
-    def discover(self) -> List[SkillDescriptor]:
+    def discover(self) -> list[SkillDescriptor]:
         """发现所有技能（不加载完整内容，仅元数据）。"""
         skills = []
         if not self._skill_dir.exists():
@@ -68,14 +67,14 @@ class SkillBridge:
                 logger.warning("技能 %s 加载失败: %s", entry.name, e)
         return skills
 
-    def load(self, skill_name: str) -> Optional[SkillDescriptor]:
+    def load(self, skill_name: str) -> SkillDescriptor | None:
         """加载单个技能的完整描述符。"""
         skill_path = self._skill_dir / skill_name
         if not skill_path.exists():
             return None
         return self._load_descriptor(skill_path)
 
-    def _load_descriptor(self, path: Path) -> Optional[SkillDescriptor]:
+    def _load_descriptor(self, path: Path) -> SkillDescriptor | None:
         """根据目录内容自动检测格式并加载。"""
         skill_md = path / "SKILL.md"
         manifest_yaml = path / "manifest.yaml"
@@ -175,7 +174,7 @@ class SkillBridge:
             return meta, body
         return {}, content
 
-    def export_to_skill_md(self, skill_name: str, output_path: Optional[str] = None) -> bool:
+    def export_to_skill_md(self, skill_name: str, output_path: str | None = None) -> bool:
         """将旧格式技能导出为 SKILL.md 格式（单向转换）。"""
         desc = self.load(skill_name)
         if not desc or desc.source_format != "legacy":

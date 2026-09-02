@@ -5,7 +5,6 @@ ModelManager — 模型生命周期管理
 """
 
 import logging
-from typing import Dict
 
 from agentscope.agent import Agent
 
@@ -46,8 +45,8 @@ class ModelManager:
         self._base_url = base_url
         self._model_name = model_name
         self._agent_pool = agent_pool
-        self._models: Dict[str, Agent] = {}
-        self._model_pool_ids: Dict[str, str] = {}
+        self._models: dict[str, Agent] = {}
+        self._model_pool_ids: dict[str, str] = {}
 
     def get_model(self, role: AgentRole) -> Agent:
         """获取指定角色的模型实例（缓存优先，池优先）"""
