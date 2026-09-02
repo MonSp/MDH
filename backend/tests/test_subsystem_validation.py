@@ -244,7 +244,8 @@ async def test_04_simple_executor(tmp_path):
 # ══════════════════════════════════════════════════════════════════════
 
 def test_05_meeting_coordinator_role_prompts():
-    from meeting_coordinator import AGENT_ROLE_PROMPTS, AGENT_ROLE_TOOLS
+    from meeting_coordinator import AGENT_ROLE_PROMPTS
+    from coordinator_routing import AGENT_ROLE_TOOLS
     from protocol import AgentRole
 
     # Verify all 6 roles have prompts
