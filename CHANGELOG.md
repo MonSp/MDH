@@ -9,7 +9,7 @@
 **Agent-Kernel L4/L5 客户端方法**
 - `agent_kernel_client.py`: 新增 `agent_decide()`、`agent_tick()`、`run_simulation()` 三个 IPC 方法
 - 支持 L4 LLM 决策（action/confidence/reasoning）和 L5 Agent Tick（感知→决策→执行→效果）
-- 6 个新测试覆盖 happy path + invalid entity 锺误处理
+- 6 个新测试覆盖 happy path + invalid entity 错误处理
 
 **Kernel 集成到任务执行流水线**
 - `kernel_integration.py`: 新增 `agent_decide()`、`agent_tick()`、`run_simulation()` 桥接方法
