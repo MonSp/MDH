@@ -2,6 +2,35 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.5.6] - 2026-09-02
+
+### Added
+
+**Agent-Kernel L4/L5 客户端方法**
+- `agent_kernel_client.py`: 新增 `agent_decide()`、`agent_tick()`、`run_simulation()` 三个 IPC 方法
+- 支持 L4 LLM 决策（action/confidence/reasoning）和 L5 Agent Tick（感知→决策→执行→效果）
+- 6 个新测试覆盖 happy path + invalid entity 锺误处理
+
+**Kernel 集成到任务执行流水线**
+- `kernel_integration.py`: 新增 `agent_decide()`、`agent_tick()`、`run_simulation()` 桥接方法
+- `task_orchestrator.py`: 在 LLM 循环前调用 `agent_tick()`，将内核决策注入 prompt 作为 `[内核决策建议]` 上下文
+- 使用 `asyncio.to_thread()` 包装同步内核调用，避免阻塞事件循环
+- `meeting_coordinator.py` / `ceo_agent.py` / `ws_handlers.py` / `server.py`: `kernel_integration` 参数通过构造函数链传递
+
+### Fixed
+
+- `protocol/__init__.py`: 添加 `# noqa: F403` 抑制 wildcard import 告警
+- `tests/test_subsystem_validation.py`: 修复 `AGENT_ROLE_TOOLS` 导入路径（已迁移至 `coordinator_routing.py`）
+- CI ruff lint 20 个错误全部修复（F401 unused imports + F403 noqa + auto-fixes）
+- `task_orchestrator.py`: 修复 `kernel_decision` 在 prompt 构建前未初始化的 bug（UnboundLocalError）
+- `task_orchestrator.py`: `confidence` 格式化添加 null-safe 防护
+
+### Test Results
+
+- Python 客户端: 21/21 通过
+- 内核集成: 43/43 通过
+- CI: 全部 9 个 job 通过
+
 ## [0.5.5] - 2026-08-27
 
 ### Fixed
