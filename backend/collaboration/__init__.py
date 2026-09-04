@@ -1,6 +1,5 @@
 # Multi-Agent Collaboration Module
-# This module provides extensions for multi-agent collaboration
-# without modifying the original agentscope submodule code.
+# This module provides extensions for multi-agent collaboration.
 
 from .collaborative_agent import CollaborativeAgent
 from .communication import (

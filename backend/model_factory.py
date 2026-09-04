@@ -1,7 +1,7 @@
 """
 模型创建工厂 — 共享的 LLM Agent 创建逻辑
 
-使用自建 llm_client + chat_agent 替代 agentscope。
+使用 llm_client + chat_agent 构建 Agent 实例。
 所有主流 LLM 提供商都支持 OpenAI Chat Completions API 格式，
 因此用一个统一客户端即可覆盖。
 """

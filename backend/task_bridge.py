@@ -1,6 +1,4 @@
 """TaskBridge — 工作流节点与 Task 的双向转换桥接
-
-自建轻量 Task 类替代 agentscope.state._task.Task。
 """
 
 import logging
@@ -19,7 +17,7 @@ logger = logging.getLogger("task_bridge")
 
 @dataclass
 class Task:
-    """轻量 Task — 替代 agentscope.state._task.Task"""
+    """轻量 Task"""
     id: str = ""
     subject: str = ""
     description: str = ""
@@ -31,10 +29,6 @@ class Task:
     def __post_init__(self):
         if not self.id:
             self.id = str(uuid.uuid4())[:8]
-
-
-# 兼容旧代码引用
-AgentscopeTaskBridge = None  # 将在下方定义后赋值
 
 
 class TaskBridge:
@@ -186,6 +180,3 @@ class TaskBridge:
         task.state = state_map.get(status, "pending")
         task.metadata["workflow_node_status"] = status.value
 
-
-# 兼容旧代码引用
-AgentscopeTaskBridge = TaskBridge

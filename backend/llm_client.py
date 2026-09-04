@@ -1,7 +1,7 @@
 """
 llm_client — 轻量级 OpenAI 兼容 LLM 客户端
 
-替代 agentscope 的 model 层。所有主流 LLM 提供商（DeepSeek、OpenAI、
+所有主流 LLM 提供商（DeepSeek、OpenAI、
 Anthropic、DashScope、Gemini、Moonshot、Ollama、xAI）都支持 OpenAI
 Chat Completions API 格式，因此用一个统一客户端即可覆盖。
 

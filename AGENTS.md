@@ -320,7 +320,7 @@ MDH/
 │   ├── git_integration.py        # Git 操作封装 (分支/commit/push/PR)
 │   ├── template_confirmation.py  # 模板固化流程 (评测→把关→入库)
 │   ├── minutes_workflow.py       # 会议纪要 DAG 构建
-│   ├── agentscope_task_bridge.py # 工作流↔AgentScope Task 桥接
+│   ├── task_bridge.py            # 工作流↔Task 桥接
 │   ├── executor_server.py        # 远端工具执行服务 (local/docker/nfs/s3)
 │   ├── skill_evolution.py        # 技能进化接线 (反馈→经验→增量区)
 │   ├── skill_generator.py        # AI 技能生成服务
@@ -1192,7 +1192,7 @@ def _select_roles_for_dag(dag):
 | `executor_server.py` | 远端工具执行服务：多存储后端（local/docker/nfs/s3）+ API Token 认证 |
 | `discussion_utils.py` | 讨论投影共享辅助函数：STANCE 标签剥离/立场解析，消除重复实现 |
 | `minutes_workflow.py` | 会议纪要 DAG 构建（速记文本→纪要流水线） |
-| `agentscope_task_bridge.py` | 工作流节点与 AgentScope Task 系统的双向转换与同步 |
+| `task_bridge.py` | 工作流节点与 Task 系统的双向转换与同步 |
 | `skill_evolution.py` | 技能进化接线：审查反馈→经验规则→CoW 增量区 |
 | `skill_generator.py` | AI 技能生成服务：根据用户需求描述生成技能配置 |
 

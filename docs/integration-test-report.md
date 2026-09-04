@@ -6,9 +6,9 @@
 |---|---|
 | 前端 | React 18 + TypeScript + Vite 6 |
 | 后端 | Python 3.11 + FastAPI + WebSocket |
-| AI | AgentScope + DeepSeek API (deepseek-chat) |
+| AI | DeepSeek API (deepseek-chat) |
 | 测试框架 | Vitest (TS) + pytest (Python) |
-| Conda 环境 | `agentscope` (Python 3.11.15) |
+| Conda 环境 | `mdh` (Python 3.11.15) |
 
 ## 测试结果汇总
 
@@ -111,7 +111,7 @@ Duration: 27.5s
 ### 10. Python 测试修复
 
 - 532 tests passing (从 94 提升)
-- conftest.py agentscope mock
+- conftest.py mock 配置
 - 导入路径、断言、mock 修复
 
 ## 下一步开发计划
@@ -169,7 +169,7 @@ npx vitest run
 
 # Python 测试 (Conda)
 export PATH="$HOME/miniconda3/bin:$PATH"
-conda activate agentscope
+conda activate mdh
 cd backend && python -m pytest tests/ --timeout=10
 
 # LLM 集成测试

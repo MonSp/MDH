@@ -143,7 +143,7 @@ class ComplexityClassifier:
         流程：
         1. 规则引擎快速判定
         2. agent-kernel agent_decide（替代 LLM）
-        3. 降级到 agentscope LLM
+        3. 降级到 LLM
         4. 最终降级：默认复杂路径
 
         Args:
@@ -170,7 +170,7 @@ class ComplexityClassifier:
             )
             return kernel_result
 
-        # 3. 降级到 agentscope LLM
+        # 3. 降级到 LLM
         if self._get_model:
             try:
                 llm_result = await self._llm_classify(message)

@@ -77,7 +77,7 @@ class MetricsCollector:
         self._patched_models.clear()
 
 
-# ── 代码块生成（不依赖 agentscope）──
+# ── 代码块生成 ──
 
 _CODE_TEMPLATES = {
     "go": [('main.go', 'package main\n\nfunc reverse(s string) string {\n    r := []rune(s)\n    for i, j := 0, len(r)-1; i < j; i, j = i+1, j-1 {\n        r[i], r[j] = r[j], r[i]\n    }\n    return string(r)\n}')],
@@ -129,7 +129,7 @@ _KEYWORD_MAP = [
 
 
 def _generate_code_blocks(task_desc: str) -> list:
-    """根据任务描述生成代码块（不依赖 agentscope）"""
+    """根据任务描述生成代码块"""
     task_lower = task_desc.lower()
     for key, keywords in _KEYWORD_MAP:
         if any(kw in task_lower for kw in keywords):
@@ -151,7 +151,7 @@ def run_single_task(task: BenchmarkTask, workspace: str) -> TaskResult:
     result = TaskResult(task_id=task.id, success=False)
 
     try:
-        # 使用轻量执行（不依赖 agentscope）
+        # 使用轻量执行
         # BenchmarkModel 生成代码块，直接提取并写入文件
         task_lower = task.task.lower()
         code_blocks = _generate_code_blocks(task.task)

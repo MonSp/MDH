@@ -24,7 +24,7 @@ def mock_modules():
         'dynamic_router': MagicMock(),
         'meeting': MagicMock(),
         'workflow_engine': MagicMock(),
-        'agentscope_task_bridge': MagicMock(),
+        'task_bridge': MagicMock(),
         'collaboration': MagicMock(),
         'collaboration.planner_agent': MagicMock(),
         'collaboration.critic_agent': MagicMock(),

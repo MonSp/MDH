@@ -15,7 +15,7 @@
 - `backend/mixed_location_discussion.py:422-430` — 同样修复混合位置讨论的共识评估流程
 - `backend/test_loop_modules.py` — 新增 3 个测试用例验证立场投票逻辑
 
-**验证**: 71 passed, 4 failed (均为预先存在的 agentscope 依赖缺失)。新增 3 个测试全部通过：`test_stance_based_voting_accepted`、`test_stance_based_voting_rejected`、`test_modify_stance_counts_as_approve`。
+**验证**: 71 passed, 4 failed (均为预先存在的依赖缺失)。新增 3 个测试全部通过：`test_stance_based_voting_accepted`、`test_stance_based_voting_rejected`、`test_modify_stance_counts_as_approve`。
 
 **影响**: 修复后讨论管理器的共识评估将正确反映各智能体的立场，`vote_result` 可被下游用于判断是否需要追加讨论轮次或终止流程。
 
@@ -115,7 +115,7 @@
 - `backend/meeting.py` — 新增 `MeetingSession.add_agent()` 方法，支持向会议动态添加智能体
 - `backend/tests/test_workflow_integration.py` — 将 `_detect_complex_task` 和 `_generate_workflow_definition` 调用改为通过 `meeting_coordinator._semantic_analyzer` 访问
 
-**验证**: 869 passed, 2 failed (均为预先存在的 agentscope/事件循环问题)，2 skipped。从之前 780 passed 提升到 869 passed。
+**验证**: 869 passed, 2 failed (均为预先存在的事件循环问题)，2 skipped。从之前 780 passed 提升到 869 passed。
 
 **影响**: 集成测试恢复正常运行，`MeetingSession` 获得了动态添加智能体的能力。
 
@@ -680,7 +680,7 @@
 
 **问题**: `workspace_sync.py` 有 323 行代码实现工作区同步器（FileState/WorkspaceState 数据类、文件锁定/解锁、远端状态合并、冲突回调、start/stop 生命周期），但没有测试文件。该模块是多智能体协作的文件级并发控制核心。
 
-**根因**: 该模块在项目中期编写，依赖 asyncio 但无 agentscope 依赖，从未被纳入测试套件。
+**根因**: 该模块在项目中期编写，依赖 asyncio，从未被纳入测试套件。
 
 **改动**:
 - `backend/tests/test_workspace_sync.py` — 新增 19 个测试：FileState/WorkspaceState 数据类默认值、初始化和 get_state、文件锁定（成功/已锁定/解锁成功/未锁定/错误 Agent/更新所有者/新文件）、远端状态合并（新文件/合并锁定/不覆盖现有）、冲突回调设置、start/stop 生命周期（创建任务/取消任务/幂等启动/未启动时停止）

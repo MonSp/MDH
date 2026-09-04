@@ -1,7 +1,7 @@
 """
-chat_agent — 轻量级 Agent 类，替代 agentscope.agent.Agent
+chat_agent — 轻量级 Agent 类
 
-提供与 agentscope 兼容的 reply() 接口，内部使用 llm_client.LLMClient。
+提供 reply() 接口，内部使用 llm_client.LLMClient。
 
 用法：
     from llm_client import LLMClient
@@ -24,7 +24,7 @@ logger = logging.getLogger("chat_agent")
 
 @dataclass
 class Msg:
-    """消息对象 — 兼容 agentscope.message.Msg 接口"""
+    """消息对象"""
     name: str = ""
     role: str = "user"
     content: Any = ""
@@ -63,10 +63,9 @@ class Msg:
 
 
 def extract_text(msg: Any) -> str:
-    """从 Msg 或 agentscope Msg 提取纯文本（兼容两者）"""
+    """从 Msg 提取纯文本"""
     if isinstance(msg, Msg):
         return msg.text
-    # 兼容 agentscope Msg
     if hasattr(msg, "content"):
         content = msg.content
         if isinstance(content, str):
@@ -84,9 +83,9 @@ def extract_text(msg: Any) -> str:
 
 
 class ChatAgent:
-    """轻量级 Agent — 替代 agentscope.agent.Agent
+    """轻量级 Agent
 
-    接口兼容：reply(msg) -> Msg
+    接口：reply(msg) -> Msg
     """
 
     def __init__(
@@ -121,7 +120,7 @@ class ChatAgent:
             self._history = self._history[-self._max_history:]
 
     async def reply(self, msg: Any) -> Msg:
-        """回复消息 — 兼容 agentscope Agent.reply() 接口
+        """回复消息
 
         Args:
             msg: Msg 对象或任何有 .content 属性的对象
@@ -131,8 +130,6 @@ class ChatAgent:
         """
         if not self._client:
             raise RuntimeError(f"ChatAgent '{self.name}' 未配置 LLM 客户端")
-
-        # 兼容 agentscope Msg
         if isinstance(msg, Msg):
             user_msg = msg
         else:

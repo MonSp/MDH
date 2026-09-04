@@ -13,7 +13,7 @@ from collections import defaultdict, deque
 from collections.abc import Callable
 from datetime import datetime, timezone
 
-from agentscope_task_bridge import AgentscopeTaskBridge
+from task_bridge import TaskBridge
 from protocol import (
     WorkflowDefinition,
     WorkflowEdge,
@@ -50,8 +50,8 @@ class WorkflowEngine:
         # per-execution 持久化锁：串行化同一 execution 的并发落盘（execution_id → asyncio.Lock）
         self._persist_locks: dict[str, asyncio.Lock] = {}
 
-        # 集成agentscope Task系统
-        self._task_bridge = AgentscopeTaskBridge()
+        # Task 桥接
+        self._task_bridge = TaskBridge()
 
     def register_node_executor(self, dept_id: str, executor: Callable):
         """注册节点执行器
@@ -99,7 +99,7 @@ class WorkflowEngine:
         self._definitions[definition.workflow_id] = definition
         self._executions[execution_id] = execution
 
-        # 集成agentscope Task系统：将工作流节点转换为Task
+        # 将工作流节点转换为Task
         tasks = []
         for node in definition.nodes:
             task = self._task_bridge.workflow_node_to_task(node)
@@ -471,7 +471,7 @@ class WorkflowEngine:
         execution.node_states[node.node_id] = WorkflowNodeStatus.RUNNING
         node.status = WorkflowNodeStatus.RUNNING
 
-        # 同步状态到agentscope Task
+        # 同步状态到 Task
         self._task_bridge.update_node_status(node.node_id, WorkflowNodeStatus.RUNNING)
 
         await self._notify_node_status_change(execution, node.node_id)
@@ -502,7 +502,7 @@ class WorkflowEngine:
                 node.status = WorkflowNodeStatus.FAILED
                 node.result = result
 
-                # 同步状态到agentscope Task
+                # 同步状态到 Task
                 self._task_bridge.update_node_status(node.node_id, WorkflowNodeStatus.FAILED)
 
                 logger.info("节点 %s 把关拒绝，置 FAILED: %s", node.node_id, result["gate"].get("reason", ""))
@@ -512,7 +512,7 @@ class WorkflowEngine:
                 node.status = WorkflowNodeStatus.COMPLETED
                 node.result = result
 
-                # 同步状态到agentscope Task
+                # 同步状态到 Task
                 self._task_bridge.update_node_status(node.node_id, WorkflowNodeStatus.COMPLETED)
 
                 logger.info("节点 %s 执行完成", node.node_id)
@@ -521,7 +521,7 @@ class WorkflowEngine:
             execution.node_states[node.node_id] = WorkflowNodeStatus.FAILED
             node.status = WorkflowNodeStatus.FAILED
 
-            # 同步状态到agentscope Task
+            # 同步状态到 Task
             self._task_bridge.update_node_status(node.node_id, WorkflowNodeStatus.FAILED)
 
             raise
@@ -532,7 +532,7 @@ class WorkflowEngine:
             node.status = WorkflowNodeStatus.FAILED
             execution.results[node.node_id] = {"error": str(e)}
 
-            # 同步状态到agentscope Task
+            # 同步状态到 Task
             self._task_bridge.update_node_status(node.node_id, WorkflowNodeStatus.FAILED)
 
         # 节点完成/失败即落盘（节点级持久化）

@@ -20,7 +20,7 @@ async def _send_event_async(event_type: str, **data):
 
 
 def _extract_text(msg) -> str:
-    """从 Msg 提取纯文本（兼容 chat_agent.Msg 和 agentscope.Msg）"""
+    """从 Msg 提取纯文本"""
     if not msg or not hasattr(msg, "content"):
         return ""
     if isinstance(msg.content, str):

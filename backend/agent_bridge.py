@@ -1,6 +1,6 @@
 """Agent Bridge — 桥接 TS 智能体和 Python 智能体
 
-让前端 TS 创建的智能体实例和后端 Python 创建的 agentscope 智能体实例
+让前端 TS 创建的智能体实例和后端 Python 创建的智能体实例
 可以互相发送消息、协作完成任务。
 """
 
@@ -181,7 +181,7 @@ class AgentBridge:
         send_fn: Callable[[dict], Awaitable[None]],
         coordinator=None,
     ) -> None:
-        """调用 Python 端的 agentscope 智能体"""
+        """调用 Python 端的智能体"""
         if not coordinator:
             logger.warning("无 MeetingCoordinator，无法调用 Python 智能体 %s", to_id)
             await send_fn({
@@ -202,7 +202,7 @@ class AgentBridge:
             content = str(payload)
 
         try:
-            # 使用 coordinator 的 _get_model 获取 agentscope Agent
+            # 使用 coordinator 的 _get_model 获取 Agent
             # 映射 agent ID 到 role
             role_map = {
                 "agent-ceo": "ceo",
