@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from agentscope.message import Msg
+from chat_agent import Msg
 
 from agent import _extract_text
 from protocol import AgentRole

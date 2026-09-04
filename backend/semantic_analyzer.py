@@ -9,7 +9,7 @@ import json
 import logging
 import re
 
-from agentscope.message import Msg
+from chat_agent import Msg
 
 from agent import _extract_text
 from dynamic_router import DynamicRouter, RoutingDecision

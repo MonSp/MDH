@@ -53,8 +53,8 @@ class SkillGenerator:
 
         try:
             # 创建模型
-            from agentscope.agent import Agent
-            from agentscope.message import Msg
+            from chat_agent import ChatAgent as Agent
+            from chat_agent import Msg
 
             from agent import _extract_text
             from model_factory import create_agent, get_default_base_url

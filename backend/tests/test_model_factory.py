@@ -1,28 +1,18 @@
 """Tests for model_factory — shared model creation"""
 import pytest
 
-from model_factory import _auto_init, create_agent, get_default_base_url
+from model_factory import create_agent, get_default_base_url
 
 
 class TestGetDefaultBaseUrl:
     def test_deepseek(self):
-        assert get_default_base_url("deepseek") == "https://api.deepseek.com"
+        assert get_default_base_url("deepseek") == "https://api.deepseek.com/v1"
 
     def test_openai(self):
         assert get_default_base_url("openai") == "https://api.openai.com/v1"
 
     def test_unknown(self):
         assert get_default_base_url("unknown") == ""
-
-
-class TestAutoInit:
-    def test_auto_init_from_agent_module(self):
-        """_auto_init 从 agent 模块获取 provider registry"""
-        # 这个测试依赖 agentscope mock
-        _auto_init()
-        # 如果 agent 模块可用，应该初始化成功
-        # 如果不可用，应该静默跳过
-        assert True  # 不抛异常即通过
 
 
 class TestCreateAgent:
@@ -35,6 +25,29 @@ class TestCreateAgent:
                 system_prompt="test",
                 agent_name="test",
             )
+
+    def test_create_agent_deepseek(self):
+        """DeepSeek 提供商创建成功"""
+        agent = create_agent(
+            provider="deepseek",
+            api_key="test-key",
+            system_prompt="你是CTO",
+            agent_name="ceo",
+        )
+        assert agent.name == "ceo"
+        assert agent.system_prompt == "你是CTO"
+        assert agent._client is not None
+
+    def test_create_agent_openai(self):
+        """OpenAI 提供商创建成功"""
+        agent = create_agent(
+            provider="openai",
+            api_key="test-key",
+            system_prompt="test",
+            agent_name="test",
+        )
+        assert agent.name == "test"
+        assert agent._client is not None
 
     def test_get_default_base_url_returns_empty_for_unknown(self):
         assert get_default_base_url("unknown_provider") == ""

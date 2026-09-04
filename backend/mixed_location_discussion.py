@@ -16,8 +16,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from agentscope.agent import Agent
-from agentscope.message import Msg
+from chat_agent import ChatAgent as Agent
+from chat_agent import Msg
 
 from agenda import AgendaStateMachine
 from agent import _extract_text

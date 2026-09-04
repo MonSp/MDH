@@ -5,11 +5,9 @@ import re
 from collections.abc import Awaitable, Callable
 from typing import Any, Optional
 
-from agentscope.agent import Agent
-from agentscope.message import Msg
+from chat_agent import ChatAgent as Agent, Msg, extract_text as _extract_text
 
 from agenda import AgendaStateMachine
-from agent import _extract_text
 from agent_pool import AgentPool
 from approval_manager import ApprovalManager
 from collaboration.planner_agent import PlannerAgent

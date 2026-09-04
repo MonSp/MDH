@@ -55,7 +55,7 @@ async def generate_skill_summary(session, steps: list[dict], skill_type: str = "
             formatter=reg["formatter_cls"](),
         )
 
-        from agentscope.message import Msg
+        from chat_agent import Msg
         steps_text = _build_steps_text(steps)
         prompt_tpl = SUMMARY_PROMPT_STRICT if skill_type == "strict" else SUMMARY_PROMPT_GENERAL
         prompt = prompt_tpl.format(steps_text=steps_text)

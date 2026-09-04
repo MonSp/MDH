@@ -11,7 +11,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from agentscope.message import Msg
+from chat_agent import Msg
 
 from agent import _extract_text
 

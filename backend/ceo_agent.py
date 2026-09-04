@@ -16,7 +16,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from agentscope.agent import Agent
+from chat_agent import ChatAgent as Agent
 
 from agenda import AgendaStateMachine
 from complexity_classifier import ComplexityClassifier

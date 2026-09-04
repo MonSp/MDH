@@ -88,7 +88,7 @@ async def run_agent_execution_loop(
             logger.debug("Kernel 预规划失败: %s", e)
 
     # ── 阶段B: LLM 代码生成循环 ──
-    from agentscope.message import Msg
+    from chat_agent import Msg
 
     # 如果 kernel 给出了策略，注入到 prompt 中
     if kernel_plan and kernel_plan.get("strategy"):

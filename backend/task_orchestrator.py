@@ -13,7 +13,7 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from agentscope.message import Msg
+from chat_agent import Msg
 
 from agent import _extract_text
 from code_extractor import extract_code_blocks

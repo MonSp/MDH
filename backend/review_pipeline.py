@@ -11,7 +11,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from agentscope.message import Msg
+from chat_agent import Msg
 
 from agent import _extract_text
 from collaboration.critic_agent import CriticAgent, CriticResult

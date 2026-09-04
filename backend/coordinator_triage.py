@@ -10,9 +10,7 @@ import re
 import uuid
 from typing import Any
 
-from agentscope.message import Msg
-
-from agent import _extract_text
+from chat_agent import Msg, extract_text as _extract_text
 from protocol import AgentRole
 
 logger = logging.getLogger("coordinator_triage")
