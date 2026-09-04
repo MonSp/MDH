@@ -617,17 +617,22 @@ def test_15_state_sync(tmp_path):
 # ══════════════════════════════════════════════════════════════════════
 
 def test_16_evolution_event_store(tmp_path):
+    from datetime import datetime, timezone
+
     from evolution_events import EvolutionEvent, EvolutionEventStore, new_event_id
 
     db_path = str(tmp_path / "evolution.db")
     store = EvolutionEventStore(db_path=db_path)
+
+    # Use current timestamps so get_summary's 7-day window always includes them
+    now = datetime.now(timezone.utc).isoformat()
 
     # Record events
     store.record_event(EvolutionEvent(
         event_id=new_event_id(),
         event_type="xp_granted",
         agent_id="agent-1",
-        timestamp="2026-08-27T10:00:00Z",
+        timestamp=now,
         details={"xp_gained": 20, "skill_id": "frontend_dev"},
         task_id="task-1",
     ))
@@ -635,7 +640,7 @@ def test_16_evolution_event_store(tmp_path):
         event_id=new_event_id(),
         event_type="skill_level_up",
         agent_id="agent-1",
-        timestamp="2026-08-27T10:05:00Z",
+        timestamp=now,
         details={"skill_id": "frontend_dev", "new_level": 1},
         task_id="task-1",
     ))
