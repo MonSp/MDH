@@ -451,20 +451,40 @@ async def _start_background_tasks():
     """后台定时任务：A2A 健康检查 + 主动式监控 + kernel 连接"""
     import asyncio
 
-    # ── Agent-kernel daemon connection (optional) ──
+    # ── Agent-kernel daemon connection (primary state layer) ──
     try:
+        import subprocess, shutil
         from kernel_integration import KernelIntegration
+
         _ki = KernelIntegration()
-        if _ki.connect():
-            logger.info("Agent-kernel daemon connected")
-            agents_router.set_kernel_integration(_ki)
-            app.state.kernel_integration = _ki
-            if _ws_ctx:
-                _ws_ctx.kernel_integration = _ki
+        if not _ki.connect():
+            # Try to auto-spawn the daemon
+            daemon_bin = os.environ.get(
+                "AGENT_KERNEL_DAEMON",
+                os.path.join(os.path.dirname(__file__), "..", "agent-kernel", "build", "agent-kernel-daemon"),
+            )
+            if os.path.exists(daemon_bin):
+                logger.info("Starting agent-kernel daemon from %s", daemon_bin)
+                subprocess.Popen(
+                    [daemon_bin, "--socket", "/tmp/agent-kernel.sock"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                import time
+                time.sleep(1)
+                _ki.connect()
+
+        if _ki.is_available():
+            logger.info("Agent-kernel daemon connected — primary state layer active")
         else:
-            logger.info("Agent-kernel daemon not available; running without kernel")
+            logger.warning("Agent-kernel unavailable — falling back to SQLite only")
+
+        agents_router.set_kernel_integration(_ki)
+        app.state.kernel_integration = _ki
+        if _ws_ctx:
+            _ws_ctx.kernel_integration = _ki
     except Exception as e:
-        logger.info("Kernel integration skipped: %s", e)
+        logger.warning("Kernel integration error: %s", e)
 
     async def _a2a_health_loop():
         while True:

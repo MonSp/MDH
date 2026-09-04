@@ -343,6 +343,21 @@ class TestKernelAPIEndpoints:
                 "avg_review_score": 7.5, "skills": {},
             }
         ]
+        mock_agent = MagicMock()
+        mock_agent.entity_id = 0
+        mock_agent.id = "a1"
+        mock_agent.name = "Alice"
+        mock_agent.department = "Eng"
+        mock_agent.company_role = "Dev"
+        mock_agent.role = "Worker"
+        mock_agent.team_id = ""
+        mock_agent.total_xp = 100
+        mock_agent.career_stage = "Mid"
+        mock_agent.tasks_completed = 5
+        mock_agent.tasks_succeeded = 4
+        mock_agent.avg_review_score = 7.5
+        mock_agent.skills = {}
+        mock_ki.list_agents.return_value = [mock_agent]
         mock_ki.sync_all_from_company.return_value = {
             "a1": {"entity_id": 0, "id": "a1", "name": "Alice"},
         }

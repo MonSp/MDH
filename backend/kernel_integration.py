@@ -94,6 +94,70 @@ class KernelIntegration:
             logger.warning("sync_agent_to_kernel failed for %s: %s", agent_id, e)
             return None
 
+    # ── Agent CRUD (kernel-first) ────────────────────────────────────
+
+    def get_agent(self, agent_id: str) -> KernelAgent | None:
+        """Get agent from kernel by ID. Returns None if not found or unavailable."""
+        if not self._connected:
+            return None
+        entity_id = self._entity_map.get(agent_id)
+        if entity_id is None:
+            return None
+        try:
+            return self._client.get_agent(entity_id)
+        except (AgentKernelError, ConnectionError, OSError):
+            return None
+
+    def update_agent(self, agent_id: str, **fields) -> KernelAgent | None:
+        """Update agent fields in kernel. Returns updated agent or None."""
+        if not self._connected:
+            return None
+        entity_id = self._entity_map.get(agent_id)
+        if entity_id is None:
+            return None
+        try:
+            return self._client.update_agent(entity_id, **fields)
+        except (AgentKernelError, ConnectionError, OSError) as e:
+            logger.debug("update_agent failed for %s: %s", agent_id, e)
+            return None
+
+    def delete_agent(self, agent_id: str) -> bool:
+        """Delete agent from kernel. Returns True on success."""
+        if not self._connected:
+            return False
+        entity_id = self._entity_map.get(agent_id)
+        if entity_id is None:
+            return False
+        try:
+            self._client.delete_agent(entity_id)
+            self._entity_map.pop(agent_id, None)
+            return True
+        except (AgentKernelError, ConnectionError, OSError) as e:
+            logger.debug("delete_agent failed for %s: %s", agent_id, e)
+            return False
+
+    def list_agents(self) -> list[KernelAgent]:
+        """List all agents from kernel. Returns empty list if unavailable."""
+        if not self._connected:
+            return []
+        try:
+            return self._client.list_agents()
+        except (ConnectionError, OSError) as e:
+            logger.warning("list_agents failed: %s", e)
+            return []
+
+    def get_skills(self, agent_id: str) -> dict[str, dict]:
+        """Get all skills for an agent from kernel."""
+        if not self._connected:
+            return {}
+        entity_id = self._entity_map.get(agent_id)
+        if entity_id is None:
+            return {}
+        try:
+            return self._client.get_skills(entity_id)
+        except (AgentKernelError, ConnectionError, OSError):
+            return {}
+
     def grant_xp_via_kernel(
         self, agent_id: str, skill_id: str, xp: int
     ) -> bool:

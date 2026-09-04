@@ -35,9 +35,26 @@ def set_kernel_integration(ki):
 @limiter.limit(RATE_LIMITS["read"])
 async def get_agent_profile(agent_id: str, request: Request):
     try:
+        # ── Kernel-first: try kernel, fall back to SQLite ──
+        if _kernel_integration and _kernel_integration.is_available():
+            kernel_agent = _kernel_integration.get_agent(agent_id)
+            if kernel_agent:
+                return ok({
+                    "agent_id": kernel_agent.id,
+                    "name": kernel_agent.name,
+                    "department": kernel_agent.department,
+                    "total_xp": kernel_agent.total_xp,
+                    "career_stage": kernel_agent.career_stage,
+                    "tasks_completed": kernel_agent.tasks_completed,
+                    "tasks_succeeded": kernel_agent.tasks_succeeded,
+                    "avg_review_score": kernel_agent.avg_review_score,
+                    "skills": kernel_agent.skills,
+                    "source": "kernel",
+                })
+        # Fallback to SQLite
         mgr = _srv._get_agent_profile_manager()
         profile = mgr.get_or_create(agent_id, agent_id)
-        return ok(asdict(profile))
+        return ok({**asdict(profile), "source": "sqlite"})
     except Exception as e:
         logger.exception("get_agent_profile 失败")
         return fail(str(e))
@@ -78,16 +95,15 @@ async def grant_agent_xp(agent_id: str, request: Request):
             mgr.save_profile(profile)
             result["promoted_to"] = promotion
 
-        # ── Dual-write: also grant XP via kernel when available ──
-        if _kernel_integration and _kernel_integration.is_available():
-            xp_amount = result.get("xp_gained", 0)
-            if xp_amount > 0:
-                kernel_ok = _kernel_integration.grant_xp_via_kernel(
-                    agent_id, skill_id, xp_amount
-                )
-                result["kernel_xp_granted"] = kernel_ok
-            else:
-                result["kernel_xp_granted"] = False
+        # ── Kernel-first: write XP to kernel, then SQLite ──
+        xp_amount = result.get("xp_gained", 0)
+        if _kernel_integration and _kernel_integration.is_available() and xp_amount > 0:
+            kernel_ok = _kernel_integration.grant_xp_via_kernel(
+                agent_id, skill_id, xp_amount
+            )
+            result["kernel_xp_granted"] = kernel_ok
+        else:
+            result["kernel_xp_granted"] = False
 
         return ok(result)
     except Exception as e:
@@ -186,10 +202,41 @@ async def get_kernel_state():
     try:
         if not _kernel_integration or not _kernel_integration.is_available():
             return ok({"available": False, "agents": []})
-        agents = _kernel_integration.get_kernel_state()
-        return ok({"available": True, "agents": agents, "count": len(agents)})
+        agents = _kernel_integration.list_agents()
+        result = [
+            {
+                "entity_id": a.entity_id,
+                "id": a.id,
+                "name": a.name,
+                "department": a.department,
+                "total_xp": a.total_xp,
+                "career_stage": a.career_stage,
+                "skills": a.skills,
+            }
+            for a in agents
+        ]
+        return ok({"available": True, "agents": result, "count": len(result)})
     except Exception as e:
         logger.exception("get_kernel_state 失败")
+        return fail(str(e))
+
+
+@router.get("/api/agents/{agent_id}/skills")
+async def get_agent_skills(agent_id: str):
+    """Get agent skills — kernel-first, SQLite fallback."""
+    try:
+        if _kernel_integration and _kernel_integration.is_available():
+            skills = _kernel_integration.get_skills(agent_id)
+            if skills:
+                return ok({"skills": skills, "source": "kernel"})
+        # Fallback: read from SQLite profile
+        mgr = _srv._get_agent_profile_manager()
+        profile = mgr.get_profile(agent_id)
+        if not profile:
+            return fail("agent 不存在")
+        return ok({"skills": profile.skills or {}, "source": "sqlite"})
+    except Exception as e:
+        logger.exception("get_agent_skills 失败")
         return fail(str(e))
 
 
