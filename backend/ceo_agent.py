@@ -224,8 +224,9 @@ class CeoAgent:
         # CEO确认收到任务
         await self._emit(send_message, f"CEO：收到任务「{content[:50]}...」，正在分析意图。")
 
-        # 1. 复杂度判定
+        # 1. 复杂度判定（kernel-first, LLM fallback）
         self._complexity_classifier._get_model = self._create_model
+        self._complexity_classifier._kernel = self._kernel
         complexity = await self._complexity_classifier.classify(content)
 
         await self._emit(send_message, f"CEO：任务复杂度判定为 {complexity.level}（置信度 {complexity.confidence:.0%}）")

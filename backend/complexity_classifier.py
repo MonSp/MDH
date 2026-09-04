@@ -106,12 +106,35 @@ VERBS = [
 class ComplexityClassifier:
     """复杂度判定器"""
 
-    def __init__(self, get_model_fn: Callable = None):
+    def __init__(self, get_model_fn: Callable = None, kernel_integration=None):
         """
         Args:
             get_model_fn: 获取 LLM 模型的函数，签名 (role) -> Agent
+            kernel_integration: KernelIntegration 实例（agent-kernel 主状态层）
         """
         self._get_model = get_model_fn
+        self._kernel = kernel_integration
+        self._classifier_entity_id: int | None = None
+
+    async def _ensure_classifier_entity(self) -> int | None:
+        """确保 kernel 中存在用于分类的 CEO 实体，返回 entity_id。"""
+        if self._classifier_entity_id is not None:
+            return self._classifier_entity_id
+        if not self._kernel or not self._kernel.is_available():
+            return None
+        try:
+            agent = self._kernel.sync_agent_to_kernel(
+                agent_id="ceo-classifier",
+                name="CEO分类器",
+                department="Management",
+                company_role="CTO",
+            )
+            if agent:
+                self._classifier_entity_id = agent.entity_id
+                return self._classifier_entity_id
+        except Exception as e:
+            logger.debug("创建分类器实体失败: %s", e)
+        return None
 
     async def classify(self, message: str) -> ComplexityResult:
         """
@@ -119,7 +142,9 @@ class ComplexityClassifier:
 
         流程：
         1. 规则引擎快速判定
-        2. 若规则引擎置信度不足，调用 LLM 分类
+        2. agent-kernel agent_decide（替代 LLM）
+        3. 降级到 agentscope LLM
+        4. 最终降级：默认复杂路径
 
         Args:
             message: 用户消息
@@ -136,7 +161,16 @@ class ComplexityClassifier:
             )
             return rule_result
 
-        # 2. LLM 分类
+        # 2. agent-kernel 分类（主路径）
+        kernel_result = await self._kernel_classify(message)
+        if kernel_result:
+            logger.info(
+                "Kernel 判定: level=%s confidence=%.2f reason=%s",
+                kernel_result.level, kernel_result.confidence, kernel_result.reason
+            )
+            return kernel_result
+
+        # 3. 降级到 agentscope LLM
         if self._get_model:
             try:
                 llm_result = await self._llm_classify(message)
@@ -148,7 +182,7 @@ class ComplexityClassifier:
             except Exception as e:
                 logger.warning("LLM 分类失败，降级到复杂路径: %s", e)
 
-        # 3. 降级：默认走复杂路径（宁重勿轻）
+        # 4. 最终降级：默认走复杂路径（宁重勿轻）
         fallback = ComplexityResult(
             level="complex",
             confidence=0.5,
@@ -217,6 +251,63 @@ class ComplexityClassifier:
 
         # 无法判定
         return None
+
+    async def _kernel_classify(self, message: str) -> ComplexityResult | None:
+        """
+        使用 agent-kernel 的 agent_decide 进行复杂度分类。
+
+        Kernel 返回的 action 映射：
+        - execute → simple（可直接执行）
+        - delegate → complex（需要多人协作）
+        - reflect/requestInfo → complex（需要更多分析）
+        - decline → complex（任务不可行）
+
+        Returns:
+            ComplexityResult 或 None（kernel 不可用时）
+        """
+        entity_id = await self._ensure_classifier_entity()
+        if entity_id is None:
+            return None
+
+        task = (
+            f"请判断以下任务的复杂度。"
+            f"如果这是一个简单任务（单步操作、单人即可完成），请选择 execute。"
+            f"如果这是一个复杂任务（多步骤、需要多人协作、跨领域），请选择 delegate。\n\n"
+            f"任务：{message}"
+        )
+
+        try:
+            decision = self._kernel.agent_decide("ceo-classifier", task)
+            if not decision:
+                return None
+
+            action = decision.get("action", "")
+            confidence = float(decision.get("confidence", 0.5))
+            reasoning = decision.get("reasoning", "")
+
+            # Map kernel action to complexity level
+            if action == "execute":
+                level = "simple"
+            elif action in ("delegate", "decline"):
+                level = "complex"
+            elif action == "reflect":
+                level = "complex"
+                confidence = max(confidence, 0.6)  # reflect 暗示不确定 → 倾向复杂
+            elif action == "requestInfo":
+                level = "complex"
+                confidence = max(confidence, 0.55)
+            else:
+                return None  # 未知 action，降级到 LLM
+
+            return ComplexityResult(
+                level=level,
+                confidence=min(confidence, 0.99),
+                reason=f"Kernel 决策: {action} — {reasoning[:100]}",
+                method="kernel",
+            )
+        except Exception as e:
+            logger.debug("Kernel 分类失败: %s", e)
+            return None
 
     async def _llm_classify(self, message: str) -> ComplexityResult:
         """
