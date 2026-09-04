@@ -50,25 +50,53 @@ async def run_agent_execution_loop(
     max_tool_rounds: int = 5,
     on_model_error: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
-    """LLM + 工具执行循环：环境检查、代码块写文件、工具调用、产物收集"""
-    from agentscope.message import Msg
-
+    """执行循环：kernel 规划 → LLM 代码生成 → 工具执行 → 产物验证"""
     from code_extractor import extract_code_blocks
     from llm_guard import safe_llm_reply
 
+    files_written: list[str] = []
+    tool_outputs: list[dict[str, Any]] = []
+    last_text = ""
+
     # ── 阶段A: 环境检查 ──
+    env_info = ""
     if agent_toolset:
         ls_result = agent_toolset.list_directory(".")
         env_info = ls_result.output if ls_result.success else "(空目录)"
         prompt = f"工作区当前内容：\n{env_info}\n\n{prompt}"
 
+    # ── 阶段A.5: Kernel 预规划 ──
+    kernel = getattr(coordinator, '_kernel', None)
+    kernel_plan = None
+    if kernel and kernel.is_available():
+        try:
+            plan_prompt = (
+                f"请分析以下执行任务，制定文件创建计划。\n"
+                f"任务：{prompt[:500]}\n"
+                f"工作区：{env_info[:200]}\n\n"
+                f"请在 details 中返回 JSON 格式的计划：\n"
+                f'{{"files": [{{"name": "文件名", "purpose": "用途"}}], "tools": ["需要的工具"], "strategy": "执行策略"}}'
+            )
+            decision = kernel.agent_decide("executor", plan_prompt)
+            if decision and decision.get("details"):
+                try:
+                    kernel_plan = json.loads(decision["details"])
+                    logger.info("Kernel 预规划: %s", kernel_plan.get("strategy", ""))
+                except (json.JSONDecodeError, TypeError):
+                    kernel_plan = None
+        except Exception as e:
+            logger.debug("Kernel 预规划失败: %s", e)
+
+    # ── 阶段B: LLM 代码生成循环 ──
+    from agentscope.message import Msg
+
+    # 如果 kernel 给出了策略，注入到 prompt 中
+    if kernel_plan and kernel_plan.get("strategy"):
+        prompt = f"执行策略（来自内核分析）：{kernel_plan['strategy']}\n\n{prompt}"
+
     msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
     conversation = [msg]
-    files_written: list[str] = []
-    tool_outputs: list[dict[str, Any]] = []
-    last_text = ""
 
-    # ── 阶段B: 文件创建循环 ──
     for _ in range(max_tool_rounds + 1):
         try:
             response = await safe_llm_reply(model, conversation, timeout=120)
@@ -148,6 +176,7 @@ async def run_agent_execution_loop(
         "files_written": files_written,
         "tool_outputs": tool_outputs,
         "verification": verification_results,
+        "kernel_plan": kernel_plan,
     }
 
 
