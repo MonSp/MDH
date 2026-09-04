@@ -10,10 +10,11 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from agentscope.agent import Agent
-from agentscope.message import Msg
+from chat_agent import ChatAgent as Agent, Msg
+from llm_client import PROVIDER_DEFAULTS, LLMClient
 
-from agent import PROVIDER_REGISTRY
+# 兼容旧测试引用
+PROVIDER_REGISTRY = {name: {"default_model": d["default_model"]} for name, d in PROVIDER_DEFAULTS.items()}
 from key_manager import KeyManager
 
 logger = logging.getLogger("agent_pool")
@@ -130,32 +131,13 @@ class AgentPool:
         """
         # 获取provider配置
         provider_name = config.provider or self._key_manager.get_default_provider()
-        reg = PROVIDER_REGISTRY.get(provider_name)
-        if reg is None:
+        if provider_name not in PROVIDER_DEFAULTS:
             raise ValueError(f"不支持的模型提供商: {provider_name}")
 
         # 获取API密钥
         api_key = config.api_key or self._key_manager.get_default_api_key()
         base_url = config.base_url or self._key_manager.get_default_base_url()
-
-        # 创建session对象
-        class _Session:
-            pass
-
-        session = _Session()
-        session.api_key = api_key
-        session.base_url = base_url
-
-        # 创建credential和model
-        credential = reg["credential_cls"](**reg["credential_kwargs"](session))
-        formatter = reg["formatter_cls"]()
-        model_name = config.model_name or reg["default_model"]
-        model = reg["model_cls"](
-            credential=credential,
-            model=model_name,
-            stream=True,
-            formatter=formatter,
-        )
+        model_name = config.model_name or ""
 
         # 获取系统提示词
         system_prompt = config.system_prompt or self._role_prompts.get(
@@ -167,10 +149,16 @@ class AgentPool:
             system_prompt = self._inject_incremental_context(system_prompt)
 
         # 创建Agent
+        client = LLMClient(
+            api_key=api_key,
+            base_url=base_url,
+            model=model_name,
+            provider=provider_name,
+        )
         agent = Agent(
             name=config.name,
             system_prompt=system_prompt,
-            model=model,
+            client=client,
         )
 
         return agent

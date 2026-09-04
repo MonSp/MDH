@@ -6,7 +6,7 @@ ModelManager — 模型生命周期管理
 
 import logging
 
-from agentscope.agent import Agent
+from chat_agent import ChatAgent as Agent
 
 from protocol import AgentRole
 
