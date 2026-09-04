@@ -15,7 +15,6 @@ Chat Completions API 格式，因此用一个统一客户端即可覆盖。
 
 import json
 import logging
-import os
 from dataclasses import dataclass, field
 from typing import Any
 

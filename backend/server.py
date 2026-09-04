@@ -453,7 +453,7 @@ async def _start_background_tasks():
 
     # ── Agent-kernel daemon connection (primary state layer) ──
     try:
-        import subprocess, shutil
+        import subprocess
         from kernel_integration import KernelIntegration
 
         _ki = KernelIntegration()
