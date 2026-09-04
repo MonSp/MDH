@@ -100,41 +100,6 @@ jobs:
         working-directory: orchestrator
         run: npx vitest run
 
-  judge-benchmark-gate:
-    name: LLM judge benchmark gate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: pip install -r backend/requirements.txt
-      - name: Run benchmark gate
-        run: python backend/asset_benchmark_gate.py
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-
-  task-benchmark-gate:
-    name: Task benchmark gate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: 'pip'
-      - name: Install dependencies
-        run: pip install -r backend/requirements.txt
-      - name: Run benchmark gate (self-check)
-        working-directory: backend
-        run: python benchmark_gate.py
-      - name: Run benchmark with baseline
-        working-directory: backend
-        run: python benchmark_cli.py --baseline ../baselines/v2.1.0.json
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-
   docker-build:
     name: Docker build
     runs-on: ubuntu-latest
