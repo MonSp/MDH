@@ -22,50 +22,6 @@ def _ensure_mock_module(name, attrs=None):
             setattr(mod, k, v)
     return mod
 
-
-# Mock agentscope 及其子模块
-if "agentscope" not in sys.modules:
-    _ensure_mock_module("agentscope")
-    _ensure_mock_module("agentscope.agent", {"Agent": MagicMock, "ContextConfig": MagicMock})
-    _ensure_mock_module("agentscope.message", {
-        "Msg": MagicMock, "TextBlock": MagicMock,
-        "ToolResultBlock": MagicMock, "ToolResultState": MagicMock,
-    })
-    _ensure_mock_module("agentscope.credential", {
-        "OpenAICredential": MagicMock, "AnthropicCredential": MagicMock,
-        "DashScopeCredential": MagicMock, "DeepSeekCredential": MagicMock,
-        "GeminiCredential": MagicMock, "MoonshotCredential": MagicMock,
-        "OllamaCredential": MagicMock, "XAICredential": MagicMock,
-    })
-    _event_attrs = {}
-    for _name in [
-        "ConfirmResult", "DataBlockDeltaEvent", "DataBlockEndEvent", "DataBlockStartEvent",
-        "ExternalExecutionResultEvent", "ModelCallEndEvent", "ModelCallStartEvent",
-        "ReplyEndEvent", "ReplyStartEvent", "RequireExternalExecutionEvent",
-        "RequireUserConfirmEvent", "TextBlockDeltaEvent", "TextBlockEndEvent",
-        "TextBlockStartEvent", "ThinkingBlockDeltaEvent", "ThinkingBlockEndEvent",
-        "ThinkingBlockStartEvent", "ToolCallDeltaEvent", "ToolCallEndEvent",
-        "ToolCallStartEvent", "ToolResultDataDeltaEvent", "ToolResultEndEvent",
-        "ToolResultStartEvent", "ToolResultTextDeltaEvent", "UserConfirmResultEvent",
-        "ExceedMaxItersEvent",
-    ]:
-        _event_attrs[_name] = MagicMock
-    _ensure_mock_module("agentscope.event", _event_attrs)
-    _ensure_mock_module("agentscope.formatter", {
-        "OpenAIChatFormatter": MagicMock, "AnthropicChatFormatter": MagicMock,
-        "DashScopeChatFormatter": MagicMock, "DeepSeekChatFormatter": MagicMock,
-        "GeminiChatFormatter": MagicMock, "MoonshotChatFormatter": MagicMock,
-        "OllamaChatFormatter": MagicMock, "XAIChatFormatter": MagicMock,
-    })
-    _ensure_mock_module("agentscope.model", {
-        "OpenAIChatModel": MagicMock, "AnthropicChatModel": MagicMock,
-        "DashScopeChatModel": MagicMock, "DeepSeekChatModel": MagicMock,
-        "GeminiChatModel": MagicMock, "MoonshotChatModel": MagicMock,
-        "OllamaChatModel": MagicMock, "XAIChatModel": MagicMock,
-    })
-    _ensure_mock_module("agentscope.skill", {"LocalSkillLoader": MagicMock})
-    _ensure_mock_module("agentscope.tool", {"FunctionTool": MagicMock, "Toolkit": MagicMock})
-
 # Mock fastapi（session.py 需要）
 if "fastapi" not in sys.modules:
     _ensure_mock_module("fastapi", {"WebSocket": MagicMock})

@@ -12,14 +12,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 
-# Mock agentscope依赖
+# Mock 外部依赖
 @pytest.fixture(autouse=True)
-def mock_agentscope():
-    """Mock agentscope依赖"""
+def mock_modules():
+    """Mock 外部依赖"""
     mock_modules = {
-        'agentscope': MagicMock(),
-        'agentscope.agent': MagicMock(),
-        'agentscope.message': MagicMock(),
         'agent': MagicMock(),
         'agenda': MagicMock(),
         'negotiation': MagicMock(),

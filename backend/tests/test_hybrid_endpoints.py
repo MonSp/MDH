@@ -6,7 +6,7 @@
 - GET  /api/gates/pending         查看待处理把关请求
 - POST /api/gates/{id}/decide     对把关请求做出决定
 
-使用 FastAPI TestClient + 既有 server 构造方式（conftest 注入 agentscope mock），
+使用 FastAPI TestClient + 既有 server 构造方式（conftest 注入 mock），
 并关闭 REST 认证中间件（与既有 test_workflow_endpoints.py 一致）。
 """
 import os
@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# 复用 conftest 的 agentscope sys.modules 注入，随后再导入 server
+# 复用 conftest 的 sys.modules 注入，随后再导入 server
 import conftest  # noqa: F401
 
 import server

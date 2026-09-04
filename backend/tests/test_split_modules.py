@@ -1,7 +1,5 @@
 """
 拆分模块测试（SemanticAnalyzer、DiscussionManager、ReviewPipeline、TaskOrchestrator）
-
-由于这些模块依赖agentscope等外部库，使用sys.modules mock进行测试。
 """
 
 import sys
@@ -10,14 +8,11 @@ from unittest.mock import MagicMock
 import pytest
 
 
-# Mock agentscope modules before importing
+# Mock modules before importing
 @pytest.fixture(autouse=True)
-def mock_agentscope():
-    """Mock agentscope依赖"""
+def mock_modules():
+    """Mock 外部依赖"""
     mock_modules = {
-        'agentscope': MagicMock(),
-        'agentscope.agent': MagicMock(),
-        'agentscope.message': MagicMock(),
         'agent': MagicMock(),
         'agenda': MagicMock(),
         'negotiation': MagicMock(),

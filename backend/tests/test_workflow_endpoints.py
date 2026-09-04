@@ -9,7 +9,7 @@
   - RUNNING 守卫 → success False
   - 内存终态守卫（COMPLETED/FAILED/CANCELLED/CREATED）→ success False，不覆盖内存状态
 
-使用 FastAPI TestClient + 既有 server 构造方式（conftest 注入 agentscope mock）。
+使用 FastAPI TestClient + 既有 server 构造方式（conftest 注入 mock）。
 """
 
 import os
@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# 复用 conftest 的 agentscope sys.modules 注入，随后再导入 server
+# 复用 conftest 的 sys.modules 注入，随后再导入 server
 import conftest  # noqa: F401
 
 import server

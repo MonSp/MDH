@@ -15,17 +15,6 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# 模拟 agentscope 模块
-sys.modules['agentscope'] = MagicMock()
-sys.modules['agentscope.agent'] = MagicMock()
-sys.modules['agentscope.message'] = MagicMock()
-sys.modules['agentscope.model'] = MagicMock()
-sys.modules['agentscope.formatter'] = MagicMock()
-sys.modules['agentscope.credential'] = MagicMock()
-sys.modules['agentscope.event'] = MagicMock()
-sys.modules['agentscope.skill'] = MagicMock()
-sys.modules['agentscope.tool'] = MagicMock()
-
 from agent_bridge import AgentBridge
 from protocol import AgentRole, MeetingAgentInfo, MeetingAgentStatus
 
