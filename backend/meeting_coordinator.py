@@ -496,19 +496,32 @@ class MeetingCoordinator:
 
         if planner_id:
             self.agenda.force_token(planner_id, "emergency response")
-            model = self._get_model(AgentRole.PLANNER)
             prompt = (
                 f"紧急情况！{agent_id}报告了关键阻塞问题：\n{content}\n\n"
                 f"请作为规划者提出应急解决方案（2-3句话）。"
             )
-            msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-            try:
-                response = await model.reply(msg)
-                text = _extract_text(response)
-            except Exception as e:
-                self.logger.warning("紧急响应LLM调用失败: %s", e)
-                self._safe_mark_model_failed(AgentRole.PLANNER)
-                text = LLM_FALLBACK_TEMPLATE.format(role="planner", content_type="应急方案")
+            text = None
+
+            # ── Kernel-first: use agent_decide ──
+            if self._kernel and self._kernel.is_available():
+                try:
+                    decision = self._kernel.agent_decide("planner", prompt)
+                    if decision:
+                        text = decision.get("reasoning", "")
+                except Exception as e:
+                    self.logger.debug("Kernel 紧急响应失败: %s", e)
+
+            # ── LLM fallback ──
+            if not text:
+                model = self._get_model(AgentRole.PLANNER)
+                msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+                try:
+                    response = await model.reply(msg)
+                    text = _extract_text(response)
+                except Exception as e:
+                    self.logger.warning("紧急响应LLM调用失败: %s", e)
+                    self._safe_mark_model_failed(AgentRole.PLANNER)
+                    text = LLM_FALLBACK_TEMPLATE.format(role="planner", content_type="应急方案")
             await self._msg(planner_id, text)
             self.meeting.add_message("agent", text, planner_id)
 

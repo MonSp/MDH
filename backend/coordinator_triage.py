@@ -86,23 +86,41 @@ def triage_task(user_message: str) -> dict[str, Any]:
 
 
 async def decompose_task(coordinator, task_description: str) -> list[dict[str, Any]]:
-    """LLM-based task decomposition into subtasks."""
-    planner = coordinator._get_model(AgentRole.PLANNER)
+    """Task decomposition into subtasks — kernel-first, LLM fallback."""
     prompt = (
-        f"请将以下任务分解为多个子任务，以JSON数组格式返回。"
+        f"请将以下任务分解为多个子任务。"
         f"每个子任务包含 name(名称)、description(描述)、priority(优先级：high/medium/low)、"
         f"dependencies(依赖的子任务名称列表)。\n\n"
-        f"任务：{task_description}\n\n"
-        f"请只返回JSON数组，不要其他内容。"
+        f"任务：{task_description}"
     )
-    msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-    try:
-        response = await planner.reply(msg)
-        text = _extract_text(response)
-    except Exception as e:
-        logger.warning("任务分解 LLM 调用失败: %s", e)
-        coordinator._safe_mark_model_failed(AgentRole.PLANNER)
-        text = "[]"
+
+    text = None
+
+    # ── Kernel-first: use agent_decide ──
+    kernel = getattr(coordinator, '_kernel', None)
+    if kernel and kernel.is_available():
+        try:
+            decision = kernel.agent_decide("planner", prompt)
+            if decision:
+                # Try to extract JSON from details or reasoning
+                raw = decision.get("details", "") or decision.get("reasoning", "")
+                json_match = re.search(r'\[.*\]', raw, re.DOTALL)
+                if json_match:
+                    text = json_match.group()
+        except Exception as e:
+            logger.debug("Kernel 任务分解失败: %s", e)
+
+    # ── LLM fallback ──
+    if text is None:
+        planner = coordinator._get_model(AgentRole.PLANNER)
+        msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
+        try:
+            response = await planner.reply(msg)
+            text = _extract_text(response)
+        except Exception as e:
+            logger.warning("任务分解 LLM 调用失败: %s", e)
+            coordinator._safe_mark_model_failed(AgentRole.PLANNER)
+            text = "[]"
 
     try:
         subtasks = json.loads(text)
