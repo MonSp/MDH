@@ -14,10 +14,6 @@ COPY backend/requirements.txt .
 # 安装Python依赖
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 安装agentscope子模块
-COPY third_party/agentscope /tmp/agentscope
-RUN pip install --no-cache-dir /tmp/agentscope && rm -rf /tmp/agentscope
-
 # 复制应用代码
 COPY backend/ .
 
