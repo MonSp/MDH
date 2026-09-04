@@ -307,11 +307,8 @@ class TestRouterStatsUpdate:
         coordinator.meeting.update_task_status(task.id, "assigned")
         # 不设置 _task_routing[task.id]
 
-        mock_model = MagicMock()
-        mock_model.reply = AsyncMock(return_value=MagicMock(
-            content=[{"type": "text", "text": "完成"}]
-        ))
-        coordinator._get_model = MagicMock(return_value=mock_model)
+        # Mock the task orchestrator to return immediately
+        coordinator._task_orchestrator.execute = AsyncMock(return_value=[])
 
         with patch.object(coordinator.router, "update_stats") as mock_stats:
             asyncio.run(coordinator.execute_assigned_tasks())
