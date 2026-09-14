@@ -15,14 +15,23 @@ from typing import Any
 logger = logging.getLogger("reflection_priority")
 
 
+def _rule_to_dict(rule) -> dict:
+    """Convert ExperienceRule dataclass to dict (compatible with legacy YAML dicts)."""
+    if isinstance(rule, dict):
+        return rule
+    from dataclasses import asdict
+    return asdict(rule)
+
+
 class ReflectionPriorityQueue:
     """反思优先级队列 — 计算每个领域的健康度和反思优先级"""
 
-    def __init__(self, data_dir: str):
+    def __init__(self, data_dir: str, experience_extractor=None):
         self._data_dir = data_dir
         self._experience_dir = os.path.join(data_dir, "experience")
         self._evolution_log_path = os.path.join(self._experience_dir, "evolution_log.json")
         self._queue_path = os.path.join(data_dir, "reflection_queue.json")
+        self._extractor = experience_extractor
 
     def compute_priorities(self) -> dict[str, Any]:
         """计算反思优先级队列
@@ -78,7 +87,13 @@ class ReflectionPriorityQueue:
         return result
 
     def _load_all_rules(self) -> list[dict]:
-        """加载所有规则"""
+        """加载所有规则（优先从 SQLite，回退到 YAML）"""
+        if self._extractor is not None:
+            try:
+                return [_rule_to_dict(r) for r in self._extractor.get_all_rules()]
+            except Exception:
+                logger.debug("SQLite 规则加载失败，回退 YAML", exc_info=True)
+        # 回退：YAML 文件（兼容旧数据）
         import yaml
         rules_dir = os.path.join(self._experience_dir, "rules")
         rules = []
@@ -240,7 +255,15 @@ class ReflectionPriorityQueue:
         return queue
 
     def _find_rule(self, rule_id: str) -> dict:
-        """查找规则"""
+        """查找规则（优先从 SQLite，回退到 YAML）"""
+        if self._extractor is not None:
+            try:
+                rule = self._extractor._load_rule(rule_id)
+                if rule is not None:
+                    return _rule_to_dict(rule)
+            except Exception:
+                pass
+        # 回退：YAML 文件
         import yaml
         rules_dir = os.path.join(self._experience_dir, "rules")
         path = os.path.join(rules_dir, f"{rule_id}.yaml")
@@ -255,6 +278,13 @@ class ReflectionPriorityQueue:
             return {}
 
     def _get_evolution_log(self) -> list[dict]:
+        # 优先从 SQLite
+        if self._extractor is not None:
+            try:
+                return self._extractor.get_evolution_log()
+            except Exception:
+                pass
+        # 回退：JSON 文件
         try:
             if os.path.isfile(self._evolution_log_path):
                 with open(self._evolution_log_path, encoding="utf-8") as f:

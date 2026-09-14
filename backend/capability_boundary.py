@@ -20,26 +20,35 @@ CONFIDENCE_MEDIUM = 0.4
 CONFIDENCE_LOW = 0.2
 
 
+def _rule_to_dict(rule) -> dict:
+    """Convert ExperienceRule dataclass to dict (compatible with legacy YAML dicts)."""
+    if isinstance(rule, dict):
+        return rule
+    from dataclasses import asdict
+    return asdict(rule)
+
+
 class CapabilityBoundary:
     """能力边界感知器"""
 
-    def __init__(self, data_dir: str):
+    def __init__(self, data_dir: str, experience_extractor=None):
         self._data_dir = data_dir
         self._experience_dir = os.path.join(data_dir, "experience")
+        self._extractor = experience_extractor
 
-    def compute_confidence_map(self) -> dict[str, Any]:
-        """计算每个技能领域的置信度地图
-
-        置信度 = f(规则数量, 平均有效性, 使用频率, 进化成功率)
-        """
+    def _load_all_rules(self) -> list[dict]:
+        """加载所有规则（优先从 SQLite，回退到 YAML）"""
+        if self._extractor is not None:
+            try:
+                return [_rule_to_dict(r) for r in self._extractor.get_all_rules()]
+            except Exception:
+                logger.debug("SQLite 规则加载失败，回退 YAML", exc_info=True)
+        # 回退：YAML 文件
         import yaml
         rules_dir = os.path.join(self._experience_dir, "rules")
+        rules = []
         if not os.path.isdir(rules_dir):
-            return {"domains": {}, "overall_confidence": 0.0}
-
-        # 按 rule_type 和 keywords 分组
-        domain_data: dict[str, list[dict]] = defaultdict(list)
-
+            return rules
         for fname in os.listdir(rules_dir):
             if not fname.endswith(".yaml"):
                 continue
@@ -47,16 +56,36 @@ class CapabilityBoundary:
                 with open(os.path.join(rules_dir, fname), encoding="utf-8") as f:
                     data = yaml.safe_load(f)
                 for r in data.get("rules", []):
-                    if r.get("status") not in ("approved", "evolved"):
-                        continue
-                    # 按 rule_type 分组
-                    rt = r.get("rule_type", "unknown")
-                    domain_data[rt].append(r)
-                    # 按 keywords 分组
-                    for kw in r.get("keywords", []):
-                        domain_data[kw].append(r)
+                    rules.append(r)
             except Exception:
                 pass
+        return rules
+
+    def compute_confidence_map(self) -> dict[str, Any]:
+        """计算每个技能领域的置信度地图
+
+        置信度 = f(规则数量, 平均有效性, 使用频率, 进化成功率)
+        """
+        all_rules = self._load_all_rules()
+        if not all_rules:
+            return {
+                "domains": {}, "overall_confidence": 0.0, "total_domains": 0,
+                "high_confidence": 0, "medium_confidence": 0, "low_confidence": 0,
+                "unknown_domains": 0,
+            }
+
+        # 按 rule_type 和 keywords 分组
+        domain_data: dict[str, list[dict]] = defaultdict(list)
+
+        for r in all_rules:
+            if r.get("status") not in ("approved", "evolved"):
+                continue
+            # 按 rule_type 分组
+            rt = r.get("rule_type", "unknown")
+            domain_data[rt].append(r)
+            # 按 keywords 分组
+            for kw in r.get("keywords", []):
+                domain_data[kw].append(r)
 
         domains = {}
         for domain, rules in domain_data.items():

@@ -1247,6 +1247,7 @@ class ExperienceExtractor:
         """根据任务特征检索相关经验规则
 
         基于关键词匹配实现：计算规则关键词与查询关键词的交集大小作为相关度。
+        SQL 层先按 status/team 过滤，再在 Python 侧做关键词评分。
 
         Args:
             task_type: 任务类型
@@ -1255,17 +1256,24 @@ class ExperienceExtractor:
         Returns:
             按相关度排序的规则列表
         """
-        all_rule_ids = self._list_rule_ids()
         query_keywords = set(k.lower() for k in keywords)
         query_keywords.add(task_type.lower())
 
+        # SQL 层过滤：只加载 approved 规则（+ 可选 team 隔离）
+        with self._lock:
+            if team_id:
+                rows = self._db.execute(
+                    "SELECT * FROM experience_rules WHERE status = 'approved' AND team_id = ?",
+                    (team_id,),
+                ).fetchall()
+            else:
+                rows = self._db.execute(
+                    "SELECT * FROM experience_rules WHERE status = 'approved'"
+                ).fetchall()
+
         scored: list[tuple] = []
-        for rule_id in all_rule_ids:
-            rule = self._load_rule(rule_id)
-            if rule is None or rule.status != "approved":
-                continue
-            if team_id and rule.team_id != team_id:
-                continue  # 团队隔离：非空 team_id 时仅返回同团队规则（空=全局，向后兼容）
+        for row in rows:
+            rule = self._row_to_rule(row)
             rule_keywords = set(k.lower() for k in rule.keywords)
             overlap = len(rule_keywords & query_keywords)
             # 类型匹配加分

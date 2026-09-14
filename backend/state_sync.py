@@ -76,24 +76,24 @@ class StateSyncManager:
             except Exception as e:
                 logger.debug("能力边界检测跳过: %s", e)
 
-        # 检索相关经验规则
+        # 检索相关经验规则（带老化降权 + 探索/利用平衡）
         try:
-            rules = self._experience.retrieve_relevant_rules(
+            rules = self._experience.retrieve_with_aging(
                 task_type="general",
                 keywords=keywords,
             )
             if rules:
                 metadata["experience_rules"] = [
                     {
-                        "rule_id": r.get("rule_id", ""),
-                        "action": r.get("action", ""),
-                        "note": r.get("note", ""),
-                        "effectiveness_score": r.get("effectiveness_score", 0),
-                        "keywords": r.get("keywords", []),
+                        "rule_id": r.rule_id,
+                        "action": r.action,
+                        "note": r.note,
+                        "effectiveness_score": r.effectiveness_score,
+                        "keywords": r.keywords,
                     }
-                    for r in rules
+                    for r in rules[:max_rules]
                 ]
-                logger.info("注入 %d 条经验规则到任务 (agent=%s)", len(rules), agent_id)
+                logger.info("注入 %d 条经验规则到任务 (agent=%s)", len(metadata["experience_rules"]), agent_id)
         except Exception as e:
             logger.warning("经验规则检索失败: %s", e)
 
@@ -182,8 +182,6 @@ class StateSyncManager:
                 keywords=keywords,
             )
             for rule in rules[:3]:
-                rule_id = rule.get("rule_id")
-                if rule_id:
-                    self._experience.update_rule_effectiveness(rule_id, success)
+                self._experience.update_rule_effectiveness(rule.rule_id, success)
         except Exception as e:
             logger.warning("规则有效性更新失败: %s", e)

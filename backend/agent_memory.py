@@ -93,14 +93,40 @@ class AgentMemory:
         return entry_data
 
     def recall(self, agent_id: str, query: str, limit: int = 5) -> list[dict]:
-        """检索相关记忆"""
-        memory = self.get_memory(agent_id)
-        if not memory["entries"]:
+        """检索相关记忆（SQL 层预过滤，Python 侧精排）"""
+        query_lower = query.lower()
+        # 从查询中提取候选词用于 SQL 预过滤（中文 2-gram + 英文单词）
+        import re as _re
+        cn_bigrams = [query_lower[i:i+2] for i in range(len(query_lower) - 1)
+                      if '一' <= query_lower[i] <= '鿿' and '一' <= query_lower[i+1] <= '鿿']
+        en_words = _re.findall(r'[a-z_]{2,}', query_lower)
+        candidates = list(dict.fromkeys(cn_bigrams + en_words))[:8]
+
+        if candidates:
+            # SQL 预过滤：content 或 keywords 命中任一候选词
+            conditions = " OR ".join(
+                ["LOWER(content) LIKE ?", "LOWER(keywords) LIKE ?"] * len(candidates)
+            )
+            params = []
+            for c in candidates:
+                params.extend([f"%{c}%", f"%{c}%"])
+            with self._lock:
+                rows = self._db.execute(
+                    f"SELECT * FROM agent_memories WHERE agent_id = ? AND ({conditions})",
+                    [agent_id] + params,
+                ).fetchall()
+        else:
+            # 无候选词时回退到全量（仍比 get_memory 轻量，跳过 summary 计算）
+            with self._lock:
+                rows = self._db.execute(
+                    "SELECT * FROM agent_memories WHERE agent_id = ?", (agent_id,)
+                ).fetchall()
+        if not rows:
             return []
 
-        query_lower = query.lower()
         scored = []
-        for entry in memory["entries"]:
+        for row in rows:
+            entry = self._row_to_entry(row)
             score = 0.0
             for kw in entry.get("keywords", []):
                 if kw.lower() in query_lower or query_lower in kw.lower():

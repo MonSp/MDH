@@ -15,6 +15,7 @@ import pytest
 from a2a_client import A2AClient
 from a2a_registry import A2ARegistry, AgentCard, AgentSkill
 from a2a_task_router import A2ATaskRouter
+from experience_extractor import ExperienceRule
 from state_sync import StateSyncManager
 
 # ── Fixtures ────────────────────────────────────────────────────────
@@ -73,23 +74,21 @@ def browser_card():
 @pytest.fixture
 def mock_experience():
     """模拟 ExperienceExtractor"""
+    def _make_rule(rule_id, action, keywords, score):
+        return ExperienceRule(
+            rule_id=rule_id, trigger_condition="task_type is general",
+            action=action, note="来自之前的任务", source_task_id="task-001",
+            source_task_type="general", rule_type="success_pattern",
+            status="approved", keywords=keywords, created_at="2026-01-01T00:00:00Z",
+            effectiveness_score=score, usage_count=5, success_count=4,
+        )
     exp = MagicMock()
-    exp.retrieve_relevant_rules.return_value = [
-        {
-            "rule_id": "rule-e2e-001",
-            "action": "配置文件修改后需要运行 TypeScript 检查",
-            "note": "来自之前的任务",
-            "effectiveness_score": 0.85,
-            "keywords": ["config", "typescript"],
-        },
-        {
-            "rule_id": "rule-e2e-002",
-            "action": "端口修改后需要更新 docker-compose.yml",
-            "note": "来自之前的任务",
-            "effectiveness_score": 0.72,
-            "keywords": ["port", "docker"],
-        },
+    rules = [
+        _make_rule("rule-e2e-001", "配置文件修改后需要运行 TypeScript 检查", ["config", "typescript"], 0.85),
+        _make_rule("rule-e2e-002", "端口修改后需要更新 docker-compose.yml", ["port", "docker"], 0.72),
     ]
+    exp.retrieve_with_aging.return_value = rules
+    exp.retrieve_relevant_rules.return_value = rules
     exp.update_rule_effectiveness.return_value = None
     return exp
 
@@ -405,10 +404,10 @@ class TestStateSyncInjectsExperience:
         assert len(metadata["experience_rules"]) == 2
         assert metadata["experience_rules"][0]["rule_id"] == "rule-e2e-001"
         assert metadata["experience_rules"][0]["effectiveness_score"] == 0.85
-        mock_experience.retrieve_relevant_rules.assert_called_once()
+        mock_experience.retrieve_with_aging.assert_called_once()
 
     def test_prepare_metadata_no_matching_rules(self, mock_experience):
-        mock_experience.retrieve_relevant_rules.return_value = []
+        mock_experience.retrieve_with_aging.return_value = []
         sync = StateSyncManager(experience_extractor=mock_experience)
 
         metadata = sync.prepare_task_metadata("翻译这段文字", "claude-code")

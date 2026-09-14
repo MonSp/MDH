@@ -350,7 +350,7 @@ from capability_boundary import CapabilityBoundary
 from team_synergy import TeamSynergy
 
 a2a_team_synergy = TeamSynergy(_DATA_DIR)
-a2a_capability_boundary = CapabilityBoundary(data_dir=_DATA_DIR)
+a2a_capability_boundary = CapabilityBoundary(data_dir=_DATA_DIR, experience_extractor=experience_extractor)
 onboarding_mgr = OnboardingManager(_DATA_DIR)
 task_template_mgr = TaskTemplateManager(_DATA_DIR)
 state_sync = StateSyncManager(

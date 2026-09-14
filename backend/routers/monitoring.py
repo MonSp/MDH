@@ -147,7 +147,8 @@ async def get_knowledge_network_stats():
 async def get_reflection_priority_queue():
     try:
         from reflection_priority import ReflectionPriorityQueue
-        return ok(ReflectionPriorityQueue(_data_dir).compute_priorities())
+        extractor = getattr(_srv, "experience_extractor", None)
+        return ok(ReflectionPriorityQueue(_data_dir, experience_extractor=extractor).compute_priorities())
     except Exception as e:
         logger.exception("get_reflection_priority_queue 失败")
         return fail(str(e))
@@ -182,7 +183,8 @@ async def get_federation_feed(team_id: str = "", keywords: str = ""):
 async def get_capability_boundary():
     try:
         from capability_boundary import CapabilityBoundary
-        return ok(CapabilityBoundary(_data_dir).get_boundary_report())
+        extractor = getattr(_srv, "experience_extractor", None)
+        return ok(CapabilityBoundary(_data_dir, experience_extractor=extractor).get_boundary_report())
     except Exception as e:
         logger.exception("get_capability_boundary 失败")
         return fail(str(e))
@@ -192,7 +194,8 @@ async def get_capability_boundary():
 async def get_confidence_map():
     try:
         from capability_boundary import CapabilityBoundary
-        return ok(CapabilityBoundary(_data_dir).compute_confidence_map())
+        extractor = getattr(_srv, "experience_extractor", None)
+        return ok(CapabilityBoundary(_data_dir, experience_extractor=extractor).compute_confidence_map())
     except Exception as e:
         logger.exception("get_confidence_map 失败")
         return fail(str(e))
@@ -202,8 +205,9 @@ async def get_confidence_map():
 async def detect_unknown_domain(keywords: str = ""):
     try:
         from capability_boundary import CapabilityBoundary
+        extractor = getattr(_srv, "experience_extractor", None)
         kw_list = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
-        return ok(CapabilityBoundary(_data_dir).detect_unknown_domain(kw_list))
+        return ok(CapabilityBoundary(_data_dir, experience_extractor=extractor).detect_unknown_domain(kw_list))
     except Exception as e:
         logger.exception("detect_unknown_domain 失败")
         return fail(str(e))
