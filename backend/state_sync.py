@@ -13,15 +13,34 @@ from experience_extractor import ExperienceExtractor
 
 logger = logging.getLogger("state_sync")
 
+# 中文常见无意义 bigram 停用词
+_CN_STOPWORDS = frozenset([
+    "我们", "他们", "你们", "这个", "那个", "什么", "怎么", "这样", "那样",
+    "可以", "需要", "进行", "通过", "根据", "对于", "关于", "因为", "所以",
+    "但是", "如果", "虽然", "然后", "或者", "以及", "并且", "而且", "其中",
+    "一个", "一些", "一种", "这些", "那些", "所有", "没有", "不是", "就是",
+    "还是", "只有", "只要", "已经", "正在", "将会", "能够", "应该", "必须",
+    "的了", "了的", "的是", "在在", "了了",
+])
+
+# 英文停用词
+_EN_STOPWORDS = frozenset([
+    "the", "and", "for", "with", "this", "that", "from", "are", "was",
+    "has", "can", "will", "not", "but", "you", "all", "any", "our",
+    "their", "they", "them", "these", "those", "been", "were", "said",
+])
+
 
 def extract_keywords(text: str, max_keywords: int = 10) -> list[str]:
-    """从文本中提取关键词（中文 bigram + 英文分词）"""
+    """从文本中提取关键词（中文 bigram + 英文分词，含停用词过滤）"""
     cn_words = []
     for i in range(len(text) - 1):
         if '\u4e00' <= text[i] <= '\u9fff' and '\u4e00' <= text[i+1] <= '\u9fff':
-            cn_words.append(text[i:i+2])
-    en_words = re.findall(r'[a-zA-Z_]{3,}', text)
-    return list(set(cn_words + en_words))[:max_keywords]
+            bigram = text[i:i+2]
+            if bigram not in _CN_STOPWORDS:
+                cn_words.append(bigram)
+    en_words = [w for w in re.findall(r'[a-zA-Z_]{3,}', text) if w.lower() not in _EN_STOPWORDS]
+    return list(dict.fromkeys(cn_words + en_words))[:max_keywords]
 
 
 class StateSyncManager:
@@ -36,16 +55,19 @@ class StateSyncManager:
         experience_extractor: ExperienceExtractor,
         memory_manager: AgentMemory = None,
         capability_boundary=None,
+        ab_tracker=None,
     ):
         self._experience = experience_extractor
         self._memory = memory_manager
         self._boundary = capability_boundary
+        self._ab_tracker = ab_tracker
 
     def prepare_task_metadata(
         self,
         task_description: str,
         agent_id: str,
         max_rules: int = 5,
+        team_id: str = "",
     ) -> dict:
         """任务前: 检索相关经验规则，构建注入 metadata
 
@@ -53,6 +75,7 @@ class StateSyncManager:
             task_description: 任务描述
             agent_id: 执行节点 ID
             max_rules: 最多注入的规则数
+            team_id: 团队 ID（非空时检索该团队专属规则）
 
         Returns:
             包含经验规则和技能上下文的 metadata dict
@@ -76,24 +99,25 @@ class StateSyncManager:
             except Exception as e:
                 logger.debug("能力边界检测跳过: %s", e)
 
-        # 检索相关经验规则
+        # 检索相关经验规则（带老化降权 + 探索/利用平衡）
         try:
-            rules = self._experience.retrieve_relevant_rules(
+            rules = self._experience.retrieve_with_aging(
                 task_type="general",
                 keywords=keywords,
+                team_id=team_id,
             )
             if rules:
                 metadata["experience_rules"] = [
                     {
-                        "rule_id": r.get("rule_id", ""),
-                        "action": r.get("action", ""),
-                        "note": r.get("note", ""),
-                        "effectiveness_score": r.get("effectiveness_score", 0),
-                        "keywords": r.get("keywords", []),
+                        "rule_id": r.rule_id,
+                        "action": r.action,
+                        "note": r.note,
+                        "effectiveness_score": r.effectiveness_score,
+                        "keywords": r.keywords,
                     }
-                    for r in rules
+                    for r in rules[:max_rules]
                 ]
-                logger.info("注入 %d 条经验规则到任务 (agent=%s)", len(rules), agent_id)
+                logger.info("注入 %d 条经验规则到任务 (agent=%s)", len(metadata["experience_rules"]), agent_id)
         except Exception as e:
             logger.warning("经验规则检索失败: %s", e)
 
@@ -116,6 +140,7 @@ class StateSyncManager:
         result_text: str,
         success: bool,
         task_id: str = "",
+        has_rules: bool = False,
     ):
         """任务后: 从执行结果提取信息，写入 Agent 记忆
 
@@ -125,7 +150,16 @@ class StateSyncManager:
             result_text: 执行结果文本
             success: 是否成功
             task_id: A2A 任务 ID
+            has_rules: 本次任务是否注入了经验规则（用于 A/B 统计）
         """
+        # A/B 统计：记录任务类型成功率
+        if self._ab_tracker:
+            try:
+                task_type = self._experience._infer_task_type(task_description)
+                self._ab_tracker.record_task(task_type, success, has_rules)
+            except Exception as e:
+                logger.debug("AB 统计记录跳过: %s", e)
+
         if not self._memory:
             return
 
@@ -182,8 +216,6 @@ class StateSyncManager:
                 keywords=keywords,
             )
             for rule in rules[:3]:
-                rule_id = rule.get("rule_id")
-                if rule_id:
-                    self._experience.update_rule_effectiveness(rule_id, success)
+                self._experience.update_rule_effectiveness(rule.rule_id, success)
         except Exception as e:
             logger.warning("规则有效性更新失败: %s", e)

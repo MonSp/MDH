@@ -323,10 +323,21 @@ from evolution_events import ABTracker, EvolutionEventStore
 evolution_event_store = EvolutionEventStore(os.path.join(_DATA_DIR, "evolution.db"))
 ab_tracker = ABTracker(evolution_event_store._conn)
 
+from knowledge_network import KnowledgeNetwork
+from team_federation import TeamFederation
+
+_knowledge_network = KnowledgeNetwork(
+    data_dir=_DATA_DIR,
+    skill_packs_dir=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skill_packs"),
+)
+_team_federation = TeamFederation(_DATA_DIR)
+
 experience_extractor = ExperienceExtractor(
     incremental_dir=os.path.join(_DATA_DIR, "experience"),
     llm_caller=_make_llm_distill_caller(),
     event_store=evolution_event_store,
+    knowledge_network=_knowledge_network,
+    team_federation=_team_federation,
 )
 skills_router.init(skill_registry, skill_packager, experience_extractor)
 experience_router.init(experience_extractor, evolution_event_store, ab_tracker)
@@ -350,13 +361,14 @@ from capability_boundary import CapabilityBoundary
 from team_synergy import TeamSynergy
 
 a2a_team_synergy = TeamSynergy(_DATA_DIR)
-a2a_capability_boundary = CapabilityBoundary(data_dir=_DATA_DIR)
+a2a_capability_boundary = CapabilityBoundary(data_dir=_DATA_DIR, experience_extractor=experience_extractor)
 onboarding_mgr = OnboardingManager(_DATA_DIR)
 task_template_mgr = TaskTemplateManager(_DATA_DIR)
 state_sync = StateSyncManager(
     experience_extractor=experience_extractor,
     memory_manager=a2a_memory,
     capability_boundary=a2a_capability_boundary,
+    ab_tracker=ab_tracker,
 )
 a2a_post_processor = A2APostProcessor(
     experience_extractor=experience_extractor,
@@ -504,8 +516,25 @@ async def _start_background_tasks():
                 logger.warning("主动式监控异常: %s", e)
             await asyncio.sleep(300)  # 每 5 分钟
 
+    async def _memory_aging_loop():
+        while True:
+            try:
+                a2a_memory.age_all_agents(aging_days=30)
+                # 合并高重叠记忆 + 清除低重要度条目
+                with a2a_memory._lock:
+                    agent_ids = [r["agent_id"] for r in a2a_memory._db.execute(
+                        "SELECT DISTINCT agent_id FROM agent_memories"
+                    ).fetchall()]
+                for aid in agent_ids:
+                    a2a_memory.consolidate_memories(aid)
+                    a2a_memory.purge_decayed(aid, min_importance=0.1)
+            except Exception as e:
+                logger.warning("记忆老化异常: %s", e)
+            await asyncio.sleep(86400)  # 每 24 小时
+
     asyncio.create_task(_a2a_health_loop())
     asyncio.create_task(_proactive_monitor_loop())
+    asyncio.create_task(_memory_aging_loop())
 
 
 # ── 统一异常处理 ──
@@ -1050,9 +1079,8 @@ def _get_template_confirmation():
 def _get_skill_evolution():
     global _skill_evolution
     if _skill_evolution is None:
-        from experience_extractor import ExperienceExtractor
         from skill_evolution import SkillEvolution
-        _skill_evolution = SkillEvolution(ExperienceExtractor(os.path.join(_DATA_DIR, "rules")))
+        _skill_evolution = SkillEvolution(experience_extractor)
     return _skill_evolution
 
 
@@ -1060,8 +1088,7 @@ def _get_asset_search():
     global _asset_search
     if _asset_search is None:
         from asset_search import AssetSearch
-        from experience_extractor import ExperienceExtractor
-        _asset_search = AssetSearch(_get_asset_store(), ExperienceExtractor(os.path.join(_DATA_DIR, "rules")))
+        _asset_search = AssetSearch(_get_asset_store(), experience_extractor)
     return _asset_search
 
 

@@ -235,6 +235,7 @@ class SimpleExecutor:
                 result_text=result_text,
                 success=success,
                 task_id=event.task_id,
+                has_rules=bool(metadata.get("experience_rules")),
             )
 
         # 任务后完整经验闭环（经验提炼 + XP + 记忆 + 路由统计）

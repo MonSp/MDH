@@ -126,7 +126,8 @@ class ExperienceExtractor:
     将通过审核的规则写入技能增量区。
     """
 
-    def __init__(self, incremental_dir: str, llm_caller: Callable | None = None, event_store=None):
+    def __init__(self, incremental_dir: str, llm_caller: Callable | None = None, event_store=None,
+                 knowledge_network=None, team_federation=None):
         """初始化经验提炼器
 
         Args:
@@ -134,6 +135,8 @@ class ExperienceExtractor:
             llm_caller: 可选的 LLM 调用函数 (prompt: str) -> str。
                         提供后启用 LLM 蒸馏；为 None 时跳过 LLM 蒸馏。
             event_store: 可选的 EvolutionEventStore 实例，用于记录进化事件
+            knowledge_network: 可选的 KnowledgeNetwork 实例，用于联动进化
+            team_federation: 可选的 TeamFederation 实例，用于跨团队发布
         """
         self._incremental_dir = incremental_dir
         self._llm_caller = llm_caller
@@ -146,6 +149,8 @@ class ExperienceExtractor:
         self._db = get_db(self._db_path)
         self._lock = threading.Lock()
         self._event_store = event_store
+        self._knowledge_network = knowledge_network
+        self._team_federation = team_federation
 
     # ──────────────────── 规则存储 (SQLite) ────────────────────
 
@@ -574,14 +579,50 @@ class ExperienceExtractor:
 
     # ──────────────────── 审核流程 ────────────────────
 
+    DEDUP_KEYWORD_THRESHOLD = 0.8  # 关键词 Jaccard 相似度阈值
+
+    def _find_duplicate_rule(self, rule: ExperienceRule) -> ExperienceRule | None:
+        """查找与给定规则高度相似的已有规则（关键词 Jaccard > 阈值且 action 前缀相似）"""
+        rule_kw = set(k.lower() for k in rule.keywords)
+        if not rule_kw:
+            return None
+        action_prefix = rule.action[:50].lower()
+
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT * FROM experience_rules WHERE status IN ('approved', 'pending_review')"
+            ).fetchall()
+        for row in rows:
+            if row["rule_id"] == rule.rule_id:
+                continue
+            existing = self._row_to_rule(row)
+            existing_kw = set(k.lower() for k in existing.keywords)
+            if not existing_kw:
+                continue
+            # Jaccard 相似度
+            intersection = len(rule_kw & existing_kw)
+            union = len(rule_kw | existing_kw)
+            jaccard = intersection / union if union else 0.0
+            if jaccard >= self.DEDUP_KEYWORD_THRESHOLD:
+                # 关键词高度重叠时再检查 action 前缀
+                if existing.action[:50].lower() == action_prefix:
+                    return existing
+        return None
+
     def submit_for_review(self, rule: ExperienceRule) -> str:
-        """提交规则审核
+        """提交规则审核（自动去重：高度相似的已有规则会合并 usage 而非新增）
 
         Args:
             rule: 待审核的经验规则
         Returns:
-            规则 ID
+            规则 ID（去重命中时返回已有规则 ID）
         """
+        # 去重检查
+        duplicate = self._find_duplicate_rule(rule)
+        if duplicate is not None:
+            logger.info("Rule %s 与已有规则 %s 高度相似，合并而非新增", rule.rule_id[:8], duplicate.rule_id[:8])
+            return duplicate.rule_id
+
         rule.status = "pending_review"
         self._save_rule(rule)
         logger.info("Rule %s submitted for review", rule.rule_id)
@@ -911,34 +952,46 @@ class ExperienceExtractor:
         self._append_evolution_log(rule, evolved, failure_reason)
 
         # 联动进化：更新关联技能包和资产
-        try:
-            from knowledge_network import KnowledgeNetwork
-            network = KnowledgeNetwork(
-                data_dir=os.path.dirname(self._incremental_dir),
-                skill_packs_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skill_packs"),
-            )
-            network.propagate_rule_evolution(rule.rule_id, evolved.rule_id, rule.keywords)
-        except Exception as e:
-            logger.debug("联动进化跳过: %s", e)
+        network = self._knowledge_network
+        if network is None:
+            try:
+                from knowledge_network import KnowledgeNetwork
+                network = KnowledgeNetwork(
+                    data_dir=os.path.dirname(self._incremental_dir),
+                    skill_packs_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skill_packs"),
+                )
+            except Exception:
+                network = None
+        if network is not None:
+            try:
+                network.propagate_rule_evolution(rule.rule_id, evolved.rule_id, rule.keywords)
+            except Exception as e:
+                logger.debug("联动进化跳过: %s", e)
 
         # 多团队联邦：高分进化规则自动发布到共享池
-        try:
-            from team_federation import TeamFederation
-            federation = TeamFederation(os.path.dirname(self._incremental_dir))
-            federation.publish_evolution(
-                team_id=rule.team_id or "global",
-                rule_data={
-                    "rule_id": evolved.rule_id,
-                    "trigger_condition": evolved.trigger_condition,
-                    "action": evolved.action,
-                    "keywords": evolved.keywords,
-                    "rule_type": evolved.rule_type,
-                    "effectiveness_score": evolved.effectiveness_score,
-                    "usage_count": evolved.usage_count,
-                },
-            )
-        except Exception as e:
-            logger.debug("联邦发布跳过: %s", e)
+        federation = self._team_federation
+        if federation is None:
+            try:
+                from team_federation import TeamFederation
+                federation = TeamFederation(os.path.dirname(self._incremental_dir))
+            except Exception:
+                federation = None
+        if federation is not None:
+            try:
+                federation.publish_evolution(
+                    team_id=rule.team_id or "global",
+                    rule_data={
+                        "rule_id": evolved.rule_id,
+                        "trigger_condition": evolved.trigger_condition,
+                        "action": evolved.action,
+                        "keywords": evolved.keywords,
+                        "rule_type": evolved.rule_type,
+                        "effectiveness_score": evolved.effectiveness_score,
+                        "usage_count": evolved.usage_count,
+                    },
+                )
+            except Exception as e:
+                logger.debug("联邦发布跳过: %s", e)
 
         return evolved
 
@@ -946,21 +999,27 @@ class ExperienceExtractor:
         """生成改进版规则（基于原规则 + 失败原因）
 
         策略：
-        1. 保留原规则的核心意图
-        2. 根据失败原因调整 trigger_condition 或 action
+        1. 优先尝试 LLM 生成改进版（更精准的约束和动作调整）
+        2. LLM 不可用时回退到模板策略
         3. 重置统计计数，保留 parent_rule_id 链
         """
-        # 简单进化策略：调整 action，添加更具体的约束
         evolved_action = original.action
-        if failure_reason:
-            # 从失败原因中提取关键约束
+        evolved_trigger = original.trigger_condition
+
+        # 尝试 LLM 进化
+        llm_result = self._try_llm_evolve_sync(original, failure_reason)
+        if llm_result:
+            evolved_action = llm_result.get("action", evolved_action)
+            evolved_trigger = llm_result.get("trigger_condition", evolved_trigger)
+        elif failure_reason:
+            # 回退：模板策略
             constraints = self._extract_constraints_from_failure(failure_reason)
             if constraints:
                 evolved_action = f"{original.action}（注意：{constraints}）"
 
         evolved = ExperienceRule(
             rule_id=_new_rule_id(),
-            trigger_condition=original.trigger_condition,
+            trigger_condition=evolved_trigger,
             action=evolved_action,
             note=f"从 {original.rule_id[:8]} 进化而来。原规则有效性: {original.effectiveness_score:.0%}",
             source_task_id=original.source_task_id,
@@ -980,6 +1039,62 @@ class ExperienceExtractor:
         self._save_rule(original)
 
         return evolved
+
+    def _try_llm_evolve_sync(self, original: ExperienceRule, failure_reason: str) -> dict | None:
+        """尝试用 LLM 生成改进版规则，失败返回 None"""
+        if self._llm_caller is None:
+            return None
+        prompt = (
+            "你是一位经验规则优化专家。请根据以下信息改进这条经验规则。\n\n"
+            f"## 原规则\n"
+            f"- 触发条件: {original.trigger_condition}\n"
+            f"- 建议动作: {original.action}\n"
+            f"- 有效性: {original.effectiveness_score:.0%} ({original.success_count}/{original.usage_count})\n"
+        )
+        if failure_reason:
+            prompt += f"\n## 最近失败原因\n{failure_reason[:500]}\n"
+        prompt += (
+            "\n请输出改进后的规则，JSON 格式（不要 markdown 代码块）：\n"
+            '{"trigger_condition": "改进后的触发条件", "action": "改进后的建议动作"}\n'
+            "只输出 JSON，不要其他内容。"
+        )
+        try:
+            import asyncio
+            if asyncio.iscoroutinefunction(self._llm_caller):
+                raw = asyncio.get_event_loop().run_until_complete(
+                    asyncio.wait_for(self._llm_caller(prompt), timeout=20)
+                )
+            else:
+                raw = self._llm_caller(prompt)
+        except Exception:
+            logger.debug("LLM evolution call failed", exc_info=True)
+            return None
+
+        # 解析响应
+        import json as _json
+        import re as _re
+        text = raw.strip() if isinstance(raw, str) else ""
+        if text.startswith("```"):
+            text = _re.sub(r"^```(?:json)?\s*\n?", "", text)
+            text = _re.sub(r"\n?```\s*$", "", text).strip()
+        try:
+            data = _json.loads(text)
+        except _json.JSONDecodeError:
+            m = _re.search(r"\{.*\}", text, _re.DOTALL)
+            if not m:
+                return None
+            try:
+                data = _json.loads(m.group())
+            except _json.JSONDecodeError:
+                return None
+        if not isinstance(data, dict):
+            return None
+        result = {}
+        if data.get("action"):
+            result["action"] = str(data["action"])[:300]
+        if data.get("trigger_condition"):
+            result["trigger_condition"] = str(data["trigger_condition"])[:300]
+        return result if result else None
 
     @staticmethod
     def _extract_constraints_from_failure(failure_reason: str) -> str:
@@ -1247,6 +1362,7 @@ class ExperienceExtractor:
         """根据任务特征检索相关经验规则
 
         基于关键词匹配实现：计算规则关键词与查询关键词的交集大小作为相关度。
+        SQL 层先按 status/team 过滤，再在 Python 侧做关键词评分。
 
         Args:
             task_type: 任务类型
@@ -1255,17 +1371,24 @@ class ExperienceExtractor:
         Returns:
             按相关度排序的规则列表
         """
-        all_rule_ids = self._list_rule_ids()
         query_keywords = set(k.lower() for k in keywords)
         query_keywords.add(task_type.lower())
 
+        # SQL 层过滤：只加载 approved 规则（+ 可选 team 隔离）
+        with self._lock:
+            if team_id:
+                rows = self._db.execute(
+                    "SELECT * FROM experience_rules WHERE status = 'approved' AND team_id = ?",
+                    (team_id,),
+                ).fetchall()
+            else:
+                rows = self._db.execute(
+                    "SELECT * FROM experience_rules WHERE status = 'approved'"
+                ).fetchall()
+
         scored: list[tuple] = []
-        for rule_id in all_rule_ids:
-            rule = self._load_rule(rule_id)
-            if rule is None or rule.status != "approved":
-                continue
-            if team_id and rule.team_id != team_id:
-                continue  # 团队隔离：非空 team_id 时仅返回同团队规则（空=全局，向后兼容）
+        for row in rows:
+            rule = self._row_to_rule(row)
             rule_keywords = set(k.lower() for k in rule.keywords)
             overlap = len(rule_keywords & query_keywords)
             # 类型匹配加分
