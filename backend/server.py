@@ -1070,9 +1070,8 @@ def _get_template_confirmation():
 def _get_skill_evolution():
     global _skill_evolution
     if _skill_evolution is None:
-        from experience_extractor import ExperienceExtractor
         from skill_evolution import SkillEvolution
-        _skill_evolution = SkillEvolution(ExperienceExtractor(os.path.join(_DATA_DIR, "rules")))
+        _skill_evolution = SkillEvolution(experience_extractor)
     return _skill_evolution
 
 
@@ -1080,8 +1079,7 @@ def _get_asset_search():
     global _asset_search
     if _asset_search is None:
         from asset_search import AssetSearch
-        from experience_extractor import ExperienceExtractor
-        _asset_search = AssetSearch(_get_asset_store(), ExperienceExtractor(os.path.join(_DATA_DIR, "rules")))
+        _asset_search = AssetSearch(_get_asset_store(), experience_extractor)
     return _asset_search
 
 

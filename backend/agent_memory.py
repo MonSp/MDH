@@ -15,6 +15,8 @@ logger = logging.getLogger("agent_memory")
 class AgentMemory:
     """Agent 持久记忆管理器（SQLite 存储）"""
 
+    MARKDOWN_DEBOUNCE_SECONDS = 60
+
     def __init__(self, data_dir: str):
         self._data_dir = data_dir
         self._memory_dir = os.path.join(data_dir, "agent_memory")
@@ -22,6 +24,7 @@ class AgentMemory:
         self._db_path = os.path.join(data_dir, "agent_memory.db")
         self._db = get_db(self._db_path)
         self._lock = threading.Lock()
+        self._md_last_written: dict[str, float] = {}
 
     def _md_path(self, agent_id: str) -> str:
         return os.path.join(self._memory_dir, f"{agent_id}.md")
@@ -88,7 +91,7 @@ class AgentMemory:
                  entry_data["importance"], 0, now, now),
             )
             self._db.commit()
-        self._generate_markdown(agent_id)
+        self._generate_markdown_debounced(agent_id)
         logger.info("Agent %s 新增记忆: %s (%s)", agent_id, memory_id, entry_data["type"])
         return entry_data
 
@@ -280,3 +283,13 @@ class AgentMemory:
         md_path = self._md_path(agent_id)
         with open(md_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
+
+    def _generate_markdown_debounced(self, agent_id: str):
+        """防抖版本：距上次写入不足 MARKDOWN_DEBOUNCE_SECONDS 时跳过"""
+        import time
+        now = time.monotonic()
+        last = self._md_last_written.get(agent_id, 0.0)
+        if now - last < self.MARKDOWN_DEBOUNCE_SECONDS:
+            return
+        self._md_last_written[agent_id] = now
+        self._generate_markdown(agent_id)

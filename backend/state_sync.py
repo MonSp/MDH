@@ -46,6 +46,7 @@ class StateSyncManager:
         task_description: str,
         agent_id: str,
         max_rules: int = 5,
+        team_id: str = "",
     ) -> dict:
         """任务前: 检索相关经验规则，构建注入 metadata
 
@@ -53,6 +54,7 @@ class StateSyncManager:
             task_description: 任务描述
             agent_id: 执行节点 ID
             max_rules: 最多注入的规则数
+            team_id: 团队 ID（非空时检索该团队专属规则）
 
         Returns:
             包含经验规则和技能上下文的 metadata dict
@@ -81,6 +83,7 @@ class StateSyncManager:
             rules = self._experience.retrieve_with_aging(
                 task_type="general",
                 keywords=keywords,
+                team_id=team_id,
             )
             if rules:
                 metadata["experience_rules"] = [
