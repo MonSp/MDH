@@ -126,7 +126,8 @@ class ExperienceExtractor:
     将通过审核的规则写入技能增量区。
     """
 
-    def __init__(self, incremental_dir: str, llm_caller: Callable | None = None, event_store=None):
+    def __init__(self, incremental_dir: str, llm_caller: Callable | None = None, event_store=None,
+                 knowledge_network=None, team_federation=None):
         """初始化经验提炼器
 
         Args:
@@ -134,6 +135,8 @@ class ExperienceExtractor:
             llm_caller: 可选的 LLM 调用函数 (prompt: str) -> str。
                         提供后启用 LLM 蒸馏；为 None 时跳过 LLM 蒸馏。
             event_store: 可选的 EvolutionEventStore 实例，用于记录进化事件
+            knowledge_network: 可选的 KnowledgeNetwork 实例，用于联动进化
+            team_federation: 可选的 TeamFederation 实例，用于跨团队发布
         """
         self._incremental_dir = incremental_dir
         self._llm_caller = llm_caller
@@ -146,6 +149,8 @@ class ExperienceExtractor:
         self._db = get_db(self._db_path)
         self._lock = threading.Lock()
         self._event_store = event_store
+        self._knowledge_network = knowledge_network
+        self._team_federation = team_federation
 
     # ──────────────────── 规则存储 (SQLite) ────────────────────
 
@@ -911,34 +916,46 @@ class ExperienceExtractor:
         self._append_evolution_log(rule, evolved, failure_reason)
 
         # 联动进化：更新关联技能包和资产
-        try:
-            from knowledge_network import KnowledgeNetwork
-            network = KnowledgeNetwork(
-                data_dir=os.path.dirname(self._incremental_dir),
-                skill_packs_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skill_packs"),
-            )
-            network.propagate_rule_evolution(rule.rule_id, evolved.rule_id, rule.keywords)
-        except Exception as e:
-            logger.debug("联动进化跳过: %s", e)
+        network = self._knowledge_network
+        if network is None:
+            try:
+                from knowledge_network import KnowledgeNetwork
+                network = KnowledgeNetwork(
+                    data_dir=os.path.dirname(self._incremental_dir),
+                    skill_packs_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skill_packs"),
+                )
+            except Exception:
+                network = None
+        if network is not None:
+            try:
+                network.propagate_rule_evolution(rule.rule_id, evolved.rule_id, rule.keywords)
+            except Exception as e:
+                logger.debug("联动进化跳过: %s", e)
 
         # 多团队联邦：高分进化规则自动发布到共享池
-        try:
-            from team_federation import TeamFederation
-            federation = TeamFederation(os.path.dirname(self._incremental_dir))
-            federation.publish_evolution(
-                team_id=rule.team_id or "global",
-                rule_data={
-                    "rule_id": evolved.rule_id,
-                    "trigger_condition": evolved.trigger_condition,
-                    "action": evolved.action,
-                    "keywords": evolved.keywords,
-                    "rule_type": evolved.rule_type,
-                    "effectiveness_score": evolved.effectiveness_score,
-                    "usage_count": evolved.usage_count,
-                },
-            )
-        except Exception as e:
-            logger.debug("联邦发布跳过: %s", e)
+        federation = self._team_federation
+        if federation is None:
+            try:
+                from team_federation import TeamFederation
+                federation = TeamFederation(os.path.dirname(self._incremental_dir))
+            except Exception:
+                federation = None
+        if federation is not None:
+            try:
+                federation.publish_evolution(
+                    team_id=rule.team_id or "global",
+                    rule_data={
+                        "rule_id": evolved.rule_id,
+                        "trigger_condition": evolved.trigger_condition,
+                        "action": evolved.action,
+                        "keywords": evolved.keywords,
+                        "rule_type": evolved.rule_type,
+                        "effectiveness_score": evolved.effectiveness_score,
+                        "usage_count": evolved.usage_count,
+                    },
+                )
+            except Exception as e:
+                logger.debug("联邦发布跳过: %s", e)
 
         return evolved
 

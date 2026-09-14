@@ -323,10 +323,21 @@ from evolution_events import ABTracker, EvolutionEventStore
 evolution_event_store = EvolutionEventStore(os.path.join(_DATA_DIR, "evolution.db"))
 ab_tracker = ABTracker(evolution_event_store._conn)
 
+from knowledge_network import KnowledgeNetwork
+from team_federation import TeamFederation
+
+_knowledge_network = KnowledgeNetwork(
+    data_dir=_DATA_DIR,
+    skill_packs_dir=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skill_packs"),
+)
+_team_federation = TeamFederation(_DATA_DIR)
+
 experience_extractor = ExperienceExtractor(
     incremental_dir=os.path.join(_DATA_DIR, "experience"),
     llm_caller=_make_llm_distill_caller(),
     event_store=evolution_event_store,
+    knowledge_network=_knowledge_network,
+    team_federation=_team_federation,
 )
 skills_router.init(skill_registry, skill_packager, experience_extractor)
 experience_router.init(experience_extractor, evolution_event_store, ab_tracker)
@@ -504,8 +515,17 @@ async def _start_background_tasks():
                 logger.warning("主动式监控异常: %s", e)
             await asyncio.sleep(300)  # 每 5 分钟
 
+    async def _memory_aging_loop():
+        while True:
+            try:
+                a2a_memory.age_all_agents(aging_days=30)
+            except Exception as e:
+                logger.warning("记忆老化异常: %s", e)
+            await asyncio.sleep(86400)  # 每 24 小时
+
     asyncio.create_task(_a2a_health_loop())
     asyncio.create_task(_proactive_monitor_loop())
+    asyncio.create_task(_memory_aging_loop())
 
 
 # ── 统一异常处理 ──

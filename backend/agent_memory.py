@@ -220,6 +220,22 @@ class AgentMemory:
             logger.info("Agent %s: %d 条记忆已老化", agent_id, aged)
         return aged
 
+    def age_all_agents(self, aging_days: int = 30) -> dict[str, int]:
+        """老化所有 agent 的未引用记忆，返回 {agent_id: aged_count}"""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT DISTINCT agent_id FROM agent_memories"
+            ).fetchall()
+        agent_ids = [r["agent_id"] for r in rows]
+        result = {}
+        for aid in agent_ids:
+            aged = self.age_memories(aid, aging_days)
+            if aged:
+                result[aid] = aged
+        if result:
+            logger.info("记忆老化完成: %d 个 agent, 共 %d 条", len(result), sum(result.values()))
+        return result
+
     def get_stats(self) -> dict:
         """记忆统计"""
         with self._lock:
