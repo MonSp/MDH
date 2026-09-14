@@ -368,6 +368,7 @@ state_sync = StateSyncManager(
     experience_extractor=experience_extractor,
     memory_manager=a2a_memory,
     capability_boundary=a2a_capability_boundary,
+    ab_tracker=ab_tracker,
 )
 a2a_post_processor = A2APostProcessor(
     experience_extractor=experience_extractor,

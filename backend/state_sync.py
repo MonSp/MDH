@@ -36,10 +36,12 @@ class StateSyncManager:
         experience_extractor: ExperienceExtractor,
         memory_manager: AgentMemory = None,
         capability_boundary=None,
+        ab_tracker=None,
     ):
         self._experience = experience_extractor
         self._memory = memory_manager
         self._boundary = capability_boundary
+        self._ab_tracker = ab_tracker
 
     def prepare_task_metadata(
         self,
@@ -119,6 +121,7 @@ class StateSyncManager:
         result_text: str,
         success: bool,
         task_id: str = "",
+        has_rules: bool = False,
     ):
         """任务后: 从执行结果提取信息，写入 Agent 记忆
 
@@ -128,7 +131,16 @@ class StateSyncManager:
             result_text: 执行结果文本
             success: 是否成功
             task_id: A2A 任务 ID
+            has_rules: 本次任务是否注入了经验规则（用于 A/B 统计）
         """
+        # A/B 统计：记录任务类型成功率
+        if self._ab_tracker:
+            try:
+                task_type = self._experience._infer_task_type(task_description)
+                self._ab_tracker.record_task(task_type, success, has_rules)
+            except Exception as e:
+                logger.debug("AB 统计记录跳过: %s", e)
+
         if not self._memory:
             return
 
