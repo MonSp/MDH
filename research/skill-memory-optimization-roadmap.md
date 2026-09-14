@@ -1,14 +1,25 @@
 ---
 feature: skill-memory-optimization
-status: designed
+status: in-progress
 updated: 2026-08-27
 branch: analysis/skill-memory-optimization
-commits: (pending)
+commits: 51ec26b..37c3345
 ---
 
 # Skill Evolution & Memory Module Optimization Roadmap
 
 ## Report
+
+**Phase 1 (F1-F4) delivered.** Four high-ROI fixes implemented and verified:
+
+1. **F4** — `state_sync` now calls `retrieve_with_aging` (activates aging decay + 20% exploration)
+2. **F3** — `ReflectionPriorityQueue` + `CapabilityBoundary` read from SQLite via injected `ExperienceExtractor` (YAML fallback preserved)
+3. **F1** — `retrieve_relevant_rules` uses SQL `WHERE status='approved' AND team_id=?` instead of loading all rows
+4. **F2** — `AgentMemory.recall` uses SQL candidate-word pre-filtering (Chinese bigrams + English words)
+
+Also fixed: `ExperienceRule` attribute access bug in `state_sync` (was `.get()` on dataclass), missing thread lock on new SQL query.
+
+**Verification:** 2071 passed, 26 skipped, 0 failed.
 
 Comprehensive analysis of the skill evolution and agent memory subsystems in MDH. Identifies 15 optimization opportunities across 3 severity tiers, with root causes, affected files, and recommended fixes. No code changes — this document is the deliverable.
 
@@ -317,11 +328,11 @@ Chinese bigram extraction produces many noise keywords (every 2-char window). No
 
 ## Tasks
 
-- [ ] T1: Wire `retrieve_with_aging` into `state_sync.prepare_task_metadata` — acceptance: state_sync calls aging-aware retrieval (covers: F4)
-- [ ] T2: Migrate `ReflectionPriorityQueue` to read from SQLite via `ExperienceExtractor` — acceptance: `compute_priorities()` reflects all rules including pending_review (covers: F3)
-- [ ] T3: Migrate `CapabilityBoundary` to read from SQLite via `ExperienceExtractor` — acceptance: `compute_confidence_map()` reflects all rules (covers: F3; depends: T2)
-- [ ] T4: Add SQL-level filtering to `retrieve_relevant_rules` — acceptance: single query with WHERE status/team, no per-ID loads (covers: F1)
-- [ ] T5: Add SQL-level filtering to `AgentMemory.recall` — acceptance: keyword match in SQL or FTS5, no full-table load (covers: F2)
+- [x] T1: Wire `retrieve_with_aging` into `state_sync.prepare_task_metadata` — acceptance: state_sync calls aging-aware retrieval (covers: F4)
+- [x] T2: Migrate `ReflectionPriorityQueue` to read from SQLite via `ExperienceExtractor` — acceptance: `compute_priorities()` reflects all rules including pending_review (covers: F3)
+- [x] T3: Migrate `CapabilityBoundary` to read from SQLite via `ExperienceExtractor` — acceptance: `compute_confidence_map()` reflects all rules (covers: F3; depends: T2)
+- [x] T4: Add SQL-level filtering to `retrieve_relevant_rules` — acceptance: single query with WHERE status/team, no per-ID loads (covers: F1)
+- [x] T5: Add SQL-level filtering to `AgentMemory.recall` — acceptance: keyword match in SQL or FTS5, no full-table load (covers: F2)
 - [ ] T6: Add background aging scheduler for `AgentMemory` — acceptance: `age_memories` called periodically for all agents (covers: F5)
 - [ ] T7: Inject KnowledgeNetwork/TeamFederation into ExperienceExtractor constructor — acceptance: no new instances inside `_evolve_rule_impl` (covers: F8)
 - [ ] T8: Consolidate to single ExperienceExtractor instance in server.py — acceptance: one shared instance across all consumers (covers: F8; depends: T7)
