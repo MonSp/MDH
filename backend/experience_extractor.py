@@ -579,14 +579,50 @@ class ExperienceExtractor:
 
     # ──────────────────── 审核流程 ────────────────────
 
+    DEDUP_KEYWORD_THRESHOLD = 0.8  # 关键词 Jaccard 相似度阈值
+
+    def _find_duplicate_rule(self, rule: ExperienceRule) -> ExperienceRule | None:
+        """查找与给定规则高度相似的已有规则（关键词 Jaccard > 阈值且 action 前缀相似）"""
+        rule_kw = set(k.lower() for k in rule.keywords)
+        if not rule_kw:
+            return None
+        action_prefix = rule.action[:50].lower()
+
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT * FROM experience_rules WHERE status IN ('approved', 'pending_review')"
+            ).fetchall()
+        for row in rows:
+            if row["rule_id"] == rule.rule_id:
+                continue
+            existing = self._row_to_rule(row)
+            existing_kw = set(k.lower() for k in existing.keywords)
+            if not existing_kw:
+                continue
+            # Jaccard 相似度
+            intersection = len(rule_kw & existing_kw)
+            union = len(rule_kw | existing_kw)
+            jaccard = intersection / union if union else 0.0
+            if jaccard >= self.DEDUP_KEYWORD_THRESHOLD:
+                # 关键词高度重叠时再检查 action 前缀
+                if existing.action[:50].lower() == action_prefix:
+                    return existing
+        return None
+
     def submit_for_review(self, rule: ExperienceRule) -> str:
-        """提交规则审核
+        """提交规则审核（自动去重：高度相似的已有规则会合并 usage 而非新增）
 
         Args:
             rule: 待审核的经验规则
         Returns:
-            规则 ID
+            规则 ID（去重命中时返回已有规则 ID）
         """
+        # 去重检查
+        duplicate = self._find_duplicate_rule(rule)
+        if duplicate is not None:
+            logger.info("Rule %s 与已有规则 %s 高度相似，合并而非新增", rule.rule_id[:8], duplicate.rule_id[:8])
+            return duplicate.rule_id
+
         rule.status = "pending_review"
         self._save_rule(rule)
         logger.info("Rule %s submitted for review", rule.rule_id)
@@ -963,21 +999,27 @@ class ExperienceExtractor:
         """生成改进版规则（基于原规则 + 失败原因）
 
         策略：
-        1. 保留原规则的核心意图
-        2. 根据失败原因调整 trigger_condition 或 action
+        1. 优先尝试 LLM 生成改进版（更精准的约束和动作调整）
+        2. LLM 不可用时回退到模板策略
         3. 重置统计计数，保留 parent_rule_id 链
         """
-        # 简单进化策略：调整 action，添加更具体的约束
         evolved_action = original.action
-        if failure_reason:
-            # 从失败原因中提取关键约束
+        evolved_trigger = original.trigger_condition
+
+        # 尝试 LLM 进化
+        llm_result = self._try_llm_evolve_sync(original, failure_reason)
+        if llm_result:
+            evolved_action = llm_result.get("action", evolved_action)
+            evolved_trigger = llm_result.get("trigger_condition", evolved_trigger)
+        elif failure_reason:
+            # 回退：模板策略
             constraints = self._extract_constraints_from_failure(failure_reason)
             if constraints:
                 evolved_action = f"{original.action}（注意：{constraints}）"
 
         evolved = ExperienceRule(
             rule_id=_new_rule_id(),
-            trigger_condition=original.trigger_condition,
+            trigger_condition=evolved_trigger,
             action=evolved_action,
             note=f"从 {original.rule_id[:8]} 进化而来。原规则有效性: {original.effectiveness_score:.0%}",
             source_task_id=original.source_task_id,
@@ -997,6 +1039,62 @@ class ExperienceExtractor:
         self._save_rule(original)
 
         return evolved
+
+    def _try_llm_evolve_sync(self, original: ExperienceRule, failure_reason: str) -> dict | None:
+        """尝试用 LLM 生成改进版规则，失败返回 None"""
+        if self._llm_caller is None:
+            return None
+        prompt = (
+            "你是一位经验规则优化专家。请根据以下信息改进这条经验规则。\n\n"
+            f"## 原规则\n"
+            f"- 触发条件: {original.trigger_condition}\n"
+            f"- 建议动作: {original.action}\n"
+            f"- 有效性: {original.effectiveness_score:.0%} ({original.success_count}/{original.usage_count})\n"
+        )
+        if failure_reason:
+            prompt += f"\n## 最近失败原因\n{failure_reason[:500]}\n"
+        prompt += (
+            "\n请输出改进后的规则，JSON 格式（不要 markdown 代码块）：\n"
+            '{"trigger_condition": "改进后的触发条件", "action": "改进后的建议动作"}\n'
+            "只输出 JSON，不要其他内容。"
+        )
+        try:
+            import asyncio
+            if asyncio.iscoroutinefunction(self._llm_caller):
+                raw = asyncio.get_event_loop().run_until_complete(
+                    asyncio.wait_for(self._llm_caller(prompt), timeout=20)
+                )
+            else:
+                raw = self._llm_caller(prompt)
+        except Exception:
+            logger.debug("LLM evolution call failed", exc_info=True)
+            return None
+
+        # 解析响应
+        import json as _json
+        import re as _re
+        text = raw.strip() if isinstance(raw, str) else ""
+        if text.startswith("```"):
+            text = _re.sub(r"^```(?:json)?\s*\n?", "", text)
+            text = _re.sub(r"\n?```\s*$", "", text).strip()
+        try:
+            data = _json.loads(text)
+        except _json.JSONDecodeError:
+            m = _re.search(r"\{.*\}", text, _re.DOTALL)
+            if not m:
+                return None
+            try:
+                data = _json.loads(m.group())
+            except _json.JSONDecodeError:
+                return None
+        if not isinstance(data, dict):
+            return None
+        result = {}
+        if data.get("action"):
+            result["action"] = str(data["action"])[:300]
+        if data.get("trigger_condition"):
+            result["trigger_condition"] = str(data["trigger_condition"])[:300]
+        return result if result else None
 
     @staticmethod
     def _extract_constraints_from_failure(failure_reason: str) -> str:
