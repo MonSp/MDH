@@ -1,23 +1,22 @@
 ---
 feature: skill-memory-optimization
-status: in-progress
+status: delivered
 updated: 2026-08-27
 branch: analysis/skill-memory-optimization
-commits: 51ec26b..37c3345
+commits: 51ec26b..5432d22
 ---
 
 # Skill Evolution & Memory Module Optimization Roadmap
 
 ## Report
 
-**Phase 1 (F1-F4) delivered.** Four high-ROI fixes implemented and verified:
+**All 16 tasks (F1-F15) delivered across 3 phases.**
 
-1. **F4** — `state_sync` now calls `retrieve_with_aging` (activates aging decay + 20% exploration)
-2. **F3** — `ReflectionPriorityQueue` + `CapabilityBoundary` read from SQLite via injected `ExperienceExtractor` (YAML fallback preserved)
-3. **F1** — `retrieve_relevant_rules` uses SQL `WHERE status='approved' AND team_id=?` instead of loading all rows
-4. **F2** — `AgentMemory.recall` uses SQL candidate-word pre-filtering (Chinese bigrams + English words)
+**Phase 1 (F1-F4):** SQL-level retrieval for rules+memory, YAML→SQLite migration, aging-aware retrieval wired into production, ExperienceRule attribute access bugfix.
 
-Also fixed: `ExperienceRule` attribute access bug in `state_sync` (was `.get()` on dataclass), missing thread lock on new SQL query.
+**Phase 2 (F5-F10, F15):** Memory aging scheduler (24h loop), KnowledgeNetwork/TeamFederation DI, single extractor instance, team_id propagation, markdown debounce, LLM-powered rule evolution, Jaccard dedup, ABTracker wiring.
+
+**Phase 3 (F12-F14):** Chinese/English stopword filtering, memory consolidation (Jaccard >0.7 merge), memory purge (importance ≤0.1 removal).
 
 **Verification:** 2071 passed, 26 skipped, 0 failed.
 
@@ -341,6 +340,6 @@ Chinese bigram extraction produces many noise keywords (every 2-char window). No
 - [x] T11: Add LLM-powered rule evolution with template fallback — acceptance: `_generate_evolved_rule` uses llm_caller when available (covers: F7)
 - [x] T12: Add rule deduplication check before save — acceptance: rules with >80% keyword overlap merged or skipped (covers: F9)
 - [x] T13: Wire ABTracker.record_task into process_task_result — acceptance: A/B stats populated after task execution (covers: F15)
-- [ ] T14: Improve keyword extraction in state_sync — acceptance: stopword filtering for Chinese bigrams (covers: F14)
-- [ ] T15: Add memory consolidation pass — acceptance: high-overlap memories merged periodically (covers: F12)
-- [ ] T16: Add memory purge for decayed entries — acceptance: entries below importance threshold removable (covers: F13; depends: T6)
+- [x] T14: Improve keyword extraction in state_sync — acceptance: stopword filtering for Chinese bigrams (covers: F14)
+- [x] T15: Add memory consolidation pass — acceptance: high-overlap memories merged periodically (covers: F12)
+- [x] T16: Add memory purge for decayed entries — acceptance: entries below importance threshold removable (covers: F13; depends: T6)
