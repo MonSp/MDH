@@ -13,15 +13,34 @@ from experience_extractor import ExperienceExtractor
 
 logger = logging.getLogger("state_sync")
 
+# 中文常见无意义 bigram 停用词
+_CN_STOPWORDS = frozenset([
+    "我们", "他们", "你们", "这个", "那个", "什么", "怎么", "这样", "那样",
+    "可以", "需要", "进行", "通过", "根据", "对于", "关于", "因为", "所以",
+    "但是", "如果", "虽然", "然后", "或者", "以及", "并且", "而且", "其中",
+    "一个", "一些", "一种", "这些", "那些", "所有", "没有", "不是", "就是",
+    "还是", "只有", "只要", "已经", "正在", "将会", "能够", "应该", "必须",
+    "的了", "了的", "的是", "在在", "了了",
+])
+
+# 英文停用词
+_EN_STOPWORDS = frozenset([
+    "the", "and", "for", "with", "this", "that", "from", "are", "was",
+    "has", "can", "will", "not", "but", "you", "all", "any", "our",
+    "their", "they", "them", "these", "those", "been", "were", "said",
+])
+
 
 def extract_keywords(text: str, max_keywords: int = 10) -> list[str]:
-    """从文本中提取关键词（中文 bigram + 英文分词）"""
+    """从文本中提取关键词（中文 bigram + 英文分词，含停用词过滤）"""
     cn_words = []
     for i in range(len(text) - 1):
         if '\u4e00' <= text[i] <= '\u9fff' and '\u4e00' <= text[i+1] <= '\u9fff':
-            cn_words.append(text[i:i+2])
-    en_words = re.findall(r'[a-zA-Z_]{3,}', text)
-    return list(set(cn_words + en_words))[:max_keywords]
+            bigram = text[i:i+2]
+            if bigram not in _CN_STOPWORDS:
+                cn_words.append(bigram)
+    en_words = [w for w in re.findall(r'[a-zA-Z_]{3,}', text) if w.lower() not in _EN_STOPWORDS]
+    return list(dict.fromkeys(cn_words + en_words))[:max_keywords]
 
 
 class StateSyncManager:

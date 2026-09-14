@@ -520,6 +520,14 @@ async def _start_background_tasks():
         while True:
             try:
                 a2a_memory.age_all_agents(aging_days=30)
+                # 合并高重叠记忆 + 清除低重要度条目
+                with a2a_memory._lock:
+                    agent_ids = [r["agent_id"] for r in a2a_memory._db.execute(
+                        "SELECT DISTINCT agent_id FROM agent_memories"
+                    ).fetchall()]
+                for aid in agent_ids:
+                    a2a_memory.consolidate_memories(aid)
+                    a2a_memory.purge_decayed(aid, min_importance=0.1)
             except Exception as e:
                 logger.warning("记忆老化异常: %s", e)
             await asyncio.sleep(86400)  # 每 24 小时

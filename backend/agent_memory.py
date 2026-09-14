@@ -239,6 +239,83 @@ class AgentMemory:
             logger.info("记忆老化完成: %d 个 agent, 共 %d 条", len(result), sum(result.values()))
         return result
 
+    CONSOLIDATION_OVERLAP_THRESHOLD = 0.7
+
+    def consolidate_memories(self, agent_id: str) -> int:
+        """合并高关键词重叠的记忆条目，返回合并数量
+
+        策略：Jaccard(关键词) > 阈值时，保留 importance 更高的一条，
+        累加 referenced_count，删除另一条。
+        """
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT * FROM agent_memories WHERE agent_id = ? ORDER BY importance DESC",
+                (agent_id,),
+            ).fetchall()
+        if len(rows) < 2:
+            return 0
+
+        entries = [self._row_to_entry(r) for r in rows]
+        merged = 0
+        removed_ids: set = set()
+
+        for i in range(len(entries)):
+            if entries[i]["id"] in removed_ids:
+                continue
+            kw_i = set(k.lower() for k in entries[i].get("keywords", []))
+            if not kw_i:
+                continue
+            for j in range(i + 1, len(entries)):
+                if entries[j]["id"] in removed_ids:
+                    continue
+                kw_j = set(k.lower() for k in entries[j].get("keywords", []))
+                if not kw_j:
+                    continue
+                intersection = len(kw_i & kw_j)
+                union = len(kw_i | kw_j)
+                jaccard = intersection / union if union else 0.0
+                if jaccard >= self.CONSOLIDATION_OVERLAP_THRESHOLD:
+                    # 合并：entries[i] 已按 importance 降序，保留 i
+                    with self._lock:
+                        self._db.execute(
+                            """UPDATE agent_memories
+                               SET referenced_count = referenced_count + ?,
+                                   keywords = ?
+                               WHERE agent_id = ? AND memory_id = ?""",
+                            (
+                                entries[j].get("referenced_count", 0),
+                                json.dumps(sorted(kw_i | kw_j), ensure_ascii=False),
+                                agent_id,
+                                entries[i]["id"],
+                            ),
+                        )
+                        self._db.execute(
+                            "DELETE FROM agent_memories WHERE agent_id = ? AND memory_id = ?",
+                            (agent_id, entries[j]["id"]),
+                        )
+                        self._db.commit()
+                    removed_ids.add(entries[j]["id"])
+                    merged += 1
+
+        if merged:
+            self._generate_markdown(agent_id)
+            logger.info("Agent %s: 合并 %d 条高重叠记忆", agent_id, merged)
+        return merged
+
+    def purge_decayed(self, agent_id: str, min_importance: float = 0.1) -> int:
+        """删除重要度低于阈值的记忆条目，返回删除数量"""
+        with self._lock:
+            cursor = self._db.execute(
+                "DELETE FROM agent_memories WHERE agent_id = ? AND importance <= ?",
+                (agent_id, min_importance),
+            )
+            self._db.commit()
+            deleted = cursor.rowcount
+        if deleted:
+            self._generate_markdown(agent_id)
+            logger.info("Agent %s: 清除 %d 条低重要度记忆", agent_id, deleted)
+        return deleted
+
     def get_stats(self) -> dict:
         """记忆统计"""
         with self._lock:
