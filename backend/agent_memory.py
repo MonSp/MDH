@@ -287,6 +287,7 @@ class AgentMemory:
 
         策略：Jaccard(关键词) > 阈值时，保留 importance 更高的一条，
         累加 referenced_count，删除另一条。
+        用倒排索引避免 O(N²) 全对比：只比较共享至少一个关键词的条目对。
         """
         with self._lock:
             rows = self._db.execute(
@@ -297,46 +298,59 @@ class AgentMemory:
             return 0
 
         entries = [self._row_to_entry(r) for r in rows]
+
+        # 倒排索引：keyword → [entry_index, ...]
+        kw_index: dict[str, list[int]] = {}
+        entry_kws: list[set[str]] = []
+        for idx, e in enumerate(entries):
+            kws = set(k.lower() for k in e.get("keywords", []))
+            entry_kws.append(kws)
+            for kw in kws:
+                kw_index.setdefault(kw, []).append(idx)
+
+        # 收集候选对（共享至少一个关键词），再算 Jaccard
+        candidate_pairs: set[tuple[int, int]] = set()
+        for indices in kw_index.values():
+            for a in range(len(indices)):
+                for b in range(a + 1, len(indices)):
+                    i, j = min(indices[a], indices[b]), max(indices[a], indices[b])
+                    candidate_pairs.add((i, j))
+
         merged = 0
         removed_ids: set = set()
 
-        for i in range(len(entries)):
-            if entries[i]["id"] in removed_ids:
+        for i, j in sorted(candidate_pairs):
+            if entries[i]["id"] in removed_ids or entries[j]["id"] in removed_ids:
                 continue
-            kw_i = set(k.lower() for k in entries[i].get("keywords", []))
-            if not kw_i:
+            kw_i, kw_j = entry_kws[i], entry_kws[j]
+            if not kw_i or not kw_j:
                 continue
-            for j in range(i + 1, len(entries)):
-                if entries[j]["id"] in removed_ids:
-                    continue
-                kw_j = set(k.lower() for k in entries[j].get("keywords", []))
-                if not kw_j:
-                    continue
-                intersection = len(kw_i & kw_j)
-                union = len(kw_i | kw_j)
-                jaccard = intersection / union if union else 0.0
-                if jaccard >= self.CONSOLIDATION_OVERLAP_THRESHOLD:
-                    # 合并：entries[i] 已按 importance 降序，保留 i
-                    with self._lock:
-                        self._db.execute(
-                            """UPDATE agent_memories
-                               SET referenced_count = referenced_count + ?,
-                                   keywords = ?
-                               WHERE agent_id = ? AND memory_id = ?""",
-                            (
-                                entries[j].get("referenced_count", 0),
-                                json.dumps(sorted(kw_i | kw_j), ensure_ascii=False),
-                                agent_id,
-                                entries[i]["id"],
-                            ),
-                        )
-                        self._db.execute(
-                            "DELETE FROM agent_memories WHERE agent_id = ? AND memory_id = ?",
-                            (agent_id, entries[j]["id"]),
-                        )
-                        self._db.commit()
-                    removed_ids.add(entries[j]["id"])
-                    merged += 1
+            intersection = len(kw_i & kw_j)
+            union = len(kw_i | kw_j)
+            jaccard = intersection / union if union else 0.0
+            if jaccard >= self.CONSOLIDATION_OVERLAP_THRESHOLD:
+                # 合并：entries 已按 importance 降序，保留 i
+                with self._lock:
+                    self._db.execute(
+                        """UPDATE agent_memories
+                           SET referenced_count = referenced_count + ?,
+                               keywords = ?
+                           WHERE agent_id = ? AND memory_id = ?""",
+                        (
+                            entries[j].get("referenced_count", 0),
+                            json.dumps(sorted(kw_i | kw_j), ensure_ascii=False),
+                            agent_id,
+                            entries[i]["id"],
+                        ),
+                    )
+                    self._db.execute(
+                        "DELETE FROM agent_memories WHERE agent_id = ? AND memory_id = ?",
+                        (agent_id, entries[j]["id"]),
+                    )
+                    self._db.commit()
+                entry_kws[i] = kw_i | kw_j  # 更新合并后的关键词集
+                removed_ids.add(entries[j]["id"])
+                merged += 1
 
         if merged:
             self._invalidate_summary(agent_id)

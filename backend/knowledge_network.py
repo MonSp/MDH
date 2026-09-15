@@ -25,6 +25,31 @@ class KnowledgeNetwork:
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skill_packs"
         )
         self._evolution_log_path = os.path.join(data_dir, "network_evolution_log.json")
+        self._skill_index: dict[str, set[str]] | None = None  # skill_name → keywords
+
+    def _get_skill_index(self) -> dict[str, set[str]]:
+        """构建（或返回缓存的）技能包关键词索引"""
+        if self._skill_index is not None:
+            return self._skill_index
+        index: dict[str, set[str]] = {}
+        if os.path.isdir(self._skill_packs_dir):
+            import yaml
+            for skill_name in os.listdir(self._skill_packs_dir):
+                skill_path = os.path.join(self._skill_packs_dir, skill_name)
+                if not os.path.isdir(skill_path):
+                    continue
+                manifest_path = os.path.join(skill_path, "manifest.yaml")
+                kw_set: set[str] = set()
+                if os.path.isfile(manifest_path):
+                    try:
+                        with open(manifest_path, encoding="utf-8") as f:
+                            manifest = yaml.safe_load(f)
+                        kw_set = set(manifest.get("keywords", []))
+                    except Exception:
+                        pass
+                index[skill_name] = kw_set
+        self._skill_index = index
+        return index
 
     def propagate_rule_evolution(self, rule_id: str, evolved_rule_id: str, keywords: list[str]) -> dict:
         """规则进化后的联动传播
@@ -65,34 +90,14 @@ class KnowledgeNetwork:
         return result
 
     def _find_related_skills(self, keywords: list[str]) -> list[str]:
-        """根据关键词找到相关的技能包"""
+        """根据关键词找到相关的技能包（使用缓存索引）"""
+        index = self._get_skill_index()
+        kw_set = set(keywords)
         related = []
-        if not os.path.isdir(self._skill_packs_dir):
-            return related
-
-        for skill_name in os.listdir(self._skill_packs_dir):
-            skill_path = os.path.join(self._skill_packs_dir, skill_name)
-            if not os.path.isdir(skill_path):
-                continue
-
-            # 检查 manifest.yaml 中的 keywords
-            manifest_path = os.path.join(skill_path, "manifest.yaml")
-            if os.path.isfile(manifest_path):
-                try:
-                    import yaml
-                    with open(manifest_path, encoding="utf-8") as f:
-                        manifest = yaml.safe_load(f)
-                    skill_keywords = set(manifest.get("keywords", []))
-                    if skill_name in keywords or skill_keywords & set(keywords):
-                        related.append(skill_name)
-                except Exception:
-                    pass
-
-            # 也检查技能包名称是否在关键词中
-            if skill_name in keywords:
+        for skill_name, skill_keywords in index.items():
+            if skill_name in kw_set or skill_keywords & kw_set:
                 related.append(skill_name)
-
-        return list(set(related))
+        return related
 
     def _find_related_assets(self, keywords: list[str]) -> list[str]:
         """根据关键词找到相关的资产"""

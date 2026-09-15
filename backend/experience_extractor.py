@@ -904,6 +904,11 @@ class ExperienceExtractor:
             logger.info("Rule %s 已达最大进化次数 (%d)，跳过", rule.rule_id, self.EVOLUTION_MAX_COUNT)
             return None
 
+        # 防御性循环检测：沿 parent 链上溯，确认无环且深度合理
+        if self._has_cycle_in_chain(rule.rule_id):
+            logger.warning("Rule %s 进化链存在循环，跳过进化", rule.rule_id)
+            return None
+
         # 抗过拟合：多样性检查
         if not self._check_evolution_diversity(rule):
             logger.info("Rule %s 多样性检查未通过，跳过进化（该领域近期进化过多）", rule.rule_id)
@@ -1094,6 +1099,22 @@ class ExperienceExtractor:
         if data.get("trigger_condition"):
             result["trigger_condition"] = str(data["trigger_condition"])[:300]
         return result if result else None
+
+    def _has_cycle_in_chain(self, rule_id: str, max_depth: int = 20) -> bool:
+        """沿 parent_rule_id 链上溯检测循环，超过 max_depth 也视为异常"""
+        visited: set[str] = set()
+        current = rule_id
+        depth = 0
+        while current:
+            if current in visited or depth > max_depth:
+                return True
+            visited.add(current)
+            rule = self._load_rule(current)
+            if not rule:
+                break
+            current = rule.parent_rule_id
+            depth += 1
+        return False
 
     @staticmethod
     def _extract_constraints_from_failure(failure_reason: str) -> str:
