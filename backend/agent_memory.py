@@ -25,6 +25,7 @@ class AgentMemory:
         self._db = get_db(self._db_path)
         self._lock = threading.Lock()
         self._md_last_written: dict[str, float] = {}
+        self._summary_cache: dict[str, str] = {}
 
     def _md_path(self, agent_id: str) -> str:
         return os.path.join(self._memory_dir, f"{agent_id}.md")
@@ -36,14 +37,22 @@ class AgentMemory:
         return f"mem-{(row['cnt'] or 0) + 1:04d}"
 
     def get_memory(self, agent_id: str) -> dict[str, Any]:
-        """获取 agent 的完整记忆"""
+        """获取 agent 的完整记忆（summary 有缓存，变更时失效）"""
         with self._lock:
             rows = self._db.execute(
                 "SELECT * FROM agent_memories WHERE agent_id = ? ORDER BY created_at", (agent_id,)
             ).fetchall()
         entries = [self._row_to_entry(r) for r in rows]
-        summary = self._compute_summary(entries)
+        if agent_id in self._summary_cache:
+            summary = self._summary_cache[agent_id]
+        else:
+            summary = self._compute_summary(entries)
+            self._summary_cache[agent_id] = summary
         return {"agent_id": agent_id, "entries": entries, "summary": summary}
+
+    def _invalidate_summary(self, agent_id: str):
+        """使 summary 缓存失效"""
+        self._summary_cache.pop(agent_id, None)
 
     def _row_to_entry(self, row) -> dict:
         kw = row["keywords"]
@@ -91,39 +100,70 @@ class AgentMemory:
                  entry_data["importance"], 0, now, now),
             )
             self._db.commit()
+        self._invalidate_summary(agent_id)
         self._generate_markdown_debounced(agent_id)
         logger.info("Agent %s 新增记忆: %s (%s)", agent_id, memory_id, entry_data["type"])
         return entry_data
 
-    def recall(self, agent_id: str, query: str, limit: int = 5) -> list[dict]:
-        """检索相关记忆（SQL 层预过滤，Python 侧精排）"""
-        query_lower = query.lower()
-        # 从查询中提取候选词用于 SQL 预过滤（中文 2-gram + 英文单词）
-        import re as _re
-        cn_bigrams = [query_lower[i:i+2] for i in range(len(query_lower) - 1)
-                      if '一' <= query_lower[i] <= '鿿' and '一' <= query_lower[i+1] <= '鿿']
-        en_words = _re.findall(r'[a-z_]{2,}', query_lower)
-        candidates = list(dict.fromkeys(cn_bigrams + en_words))[:8]
+    def _fts_available(self) -> bool:
+        """检查 FTS5 表是否存在"""
+        try:
+            self._db.execute("SELECT 1 FROM agent_memories_fts LIMIT 1")
+            return True
+        except Exception:
+            return False
 
-        if candidates:
-            # SQL 预过滤：content 或 keywords 命中任一候选词
-            conditions = " OR ".join(
-                ["LOWER(content) LIKE ?", "LOWER(keywords) LIKE ?"] * len(candidates)
-            )
-            params = []
-            for c in candidates:
-                params.extend([f"%{c}%", f"%{c}%"])
-            with self._lock:
-                rows = self._db.execute(
-                    f"SELECT * FROM agent_memories WHERE agent_id = ? AND ({conditions})",
-                    [agent_id] + params,
-                ).fetchall()
-        else:
-            # 无候选词时回退到全量（仍比 get_memory 轻量，跳过 summary 计算）
-            with self._lock:
-                rows = self._db.execute(
-                    "SELECT * FROM agent_memories WHERE agent_id = ?", (agent_id,)
-                ).fetchall()
+    def recall(self, agent_id: str, query: str, limit: int = 5) -> list[dict]:
+        """检索相关记忆（FTS5 优先，回退 LIKE 预过滤）"""
+        query_lower = query.lower()
+        import re as _re
+
+        rows = []
+
+        # 尝试 FTS5 全文检索
+        if self._fts_available():
+            cn_bigrams = [query_lower[i:i+2] for i in range(len(query_lower) - 1)
+                          if '一' <= query_lower[i] <= '鿿' and '一' <= query_lower[i+1] <= '鿿']
+            en_words = _re.findall(r'[a-z_]{2,}', query_lower)
+            candidates = list(dict.fromkeys(cn_bigrams + en_words))[:8]
+            if candidates:
+                safe_terms = [f'"{c.replace(chr(34), chr(34)*2)}"' for c in candidates]
+                fts_query = " OR ".join(safe_terms)
+                try:
+                    with self._lock:
+                        rows = self._db.execute(
+                            """SELECT m.* FROM agent_memories m
+                               JOIN agent_memories_fts f ON m.agent_id = f.agent_id AND m.memory_id = f.memory_id
+                               WHERE f.agent_id = ? AND agent_memories_fts MATCH ?""",
+                            (agent_id, fts_query),
+                        ).fetchall()
+                except Exception:
+                    rows = []
+
+        # 回退：LIKE 预过滤
+        if not rows:
+            cn_bigrams = [query_lower[i:i+2] for i in range(len(query_lower) - 1)
+                          if '一' <= query_lower[i] <= '鿿' and '一' <= query_lower[i+1] <= '鿿']
+            en_words = _re.findall(r'[a-z_]{2,}', query_lower)
+            candidates = list(dict.fromkeys(cn_bigrams + en_words))[:8]
+            if candidates:
+                conditions = " OR ".join(
+                    ["LOWER(content) LIKE ?", "LOWER(keywords) LIKE ?"] * len(candidates)
+                )
+                params = []
+                for c in candidates:
+                    params.extend([f"%{c}%", f"%{c}%"])
+                with self._lock:
+                    rows = self._db.execute(
+                        f"SELECT * FROM agent_memories WHERE agent_id = ? AND ({conditions})",
+                        [agent_id] + params,
+                    ).fetchall()
+            else:
+                with self._lock:
+                    rows = self._db.execute(
+                        "SELECT * FROM agent_memories WHERE agent_id = ?", (agent_id,)
+                    ).fetchall()
+
         if not rows:
             return []
 
@@ -219,6 +259,7 @@ class AgentMemory:
                     pass
             self._db.commit()
         if aged:
+            self._invalidate_summary(agent_id)
             self._generate_markdown(agent_id)
             logger.info("Agent %s: %d 条记忆已老化", agent_id, aged)
         return aged
@@ -298,6 +339,7 @@ class AgentMemory:
                     merged += 1
 
         if merged:
+            self._invalidate_summary(agent_id)
             self._generate_markdown(agent_id)
             logger.info("Agent %s: 合并 %d 条高重叠记忆", agent_id, merged)
         return merged
@@ -312,6 +354,7 @@ class AgentMemory:
             self._db.commit()
             deleted = cursor.rowcount
         if deleted:
+            self._invalidate_summary(agent_id)
             self._generate_markdown(agent_id)
             logger.info("Agent %s: 清除 %d 条低重要度记忆", agent_id, deleted)
         return deleted

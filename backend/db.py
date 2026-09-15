@@ -137,6 +137,59 @@ def init_db(db_path: str) -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS idx_task_exec_session ON task_executions(session_id);
         CREATE INDEX IF NOT EXISTS idx_task_exec_status ON task_executions(status);
     """)
+    # FTS5 全文检索表（关键词以空格分隔存储，适配中文分词结果）
+    try:
+        conn.executescript("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS experience_rules_fts USING fts5(
+                rule_id UNINDEXED, keywords_text, action, trigger_condition,
+                tokenize='unicode61'
+            );
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS agent_memories_fts USING fts5(
+                agent_id UNINDEXED, memory_id UNINDEXED, keywords_text, content,
+                tokenize='unicode61'
+            );
+
+            -- 规则同步触发器
+            CREATE TRIGGER IF NOT EXISTS trg_rules_fts_insert AFTER INSERT ON experience_rules
+            BEGIN
+                INSERT INTO experience_rules_fts(rule_id, keywords_text, action, trigger_condition)
+                VALUES (NEW.rule_id, REPLACE(NEW.keywords, ',', ' '), NEW.action, NEW.trigger_condition);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_rules_fts_update AFTER UPDATE ON experience_rules
+            BEGIN
+                DELETE FROM experience_rules_fts WHERE rule_id = OLD.rule_id;
+                INSERT INTO experience_rules_fts(rule_id, keywords_text, action, trigger_condition)
+                VALUES (NEW.rule_id, REPLACE(NEW.keywords, ',', ' '), NEW.action, NEW.trigger_condition);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_rules_fts_delete AFTER DELETE ON experience_rules
+            BEGIN
+                DELETE FROM experience_rules_fts WHERE rule_id = OLD.rule_id;
+            END;
+
+            -- 记忆同步触发器
+            CREATE TRIGGER IF NOT EXISTS trg_memories_fts_insert AFTER INSERT ON agent_memories
+            BEGIN
+                INSERT INTO agent_memories_fts(agent_id, memory_id, keywords_text, content)
+                VALUES (NEW.agent_id, NEW.memory_id, REPLACE(NEW.keywords, ',', ' '), NEW.content);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_memories_fts_update AFTER UPDATE ON agent_memories
+            BEGIN
+                DELETE FROM agent_memories_fts WHERE agent_id = OLD.agent_id AND memory_id = OLD.memory_id;
+                INSERT INTO agent_memories_fts(agent_id, memory_id, keywords_text, content)
+                VALUES (NEW.agent_id, NEW.memory_id, REPLACE(NEW.keywords, ',', ' '), NEW.content);
+            END;
+
+            CREATE TRIGGER IF NOT EXISTS trg_memories_fts_delete AFTER DELETE ON agent_memories
+            BEGIN
+                DELETE FROM agent_memories_fts WHERE agent_id = OLD.agent_id AND memory_id = OLD.memory_id;
+            END;
+        """)
+    except sqlite3.OperationalError as e:
+        logger.warning("FTS5 不可用，回退到 LIKE 检索: %s", e)
     # 迁移：为已有表添加 tenant_id 列（已存在则跳过），在索引前执行
     _safe_add_column(conn, "agent_profiles", "tenant_id", "TEXT NOT NULL DEFAULT ''")
     _safe_add_column(conn, "session_snapshots", "tenant_id", "TEXT NOT NULL DEFAULT ''")

@@ -834,13 +834,12 @@ class ExperienceExtractor:
             scored.append((score, rule))
 
         # 探索/利用平衡
-        if len(scored) >= 3 and _random.random() < self.EXPLORE_RATIO:
-            # 探索：随机选一条规则替换末位
-            random_rule = _random.choice(scored)[1]
-            scored.sort(key=lambda x: x[0], reverse=True)
-            scored[-1] = (scored[-1][0], random_rule)
-
         scored.sort(key=lambda x: x[0], reverse=True)
+        if len(scored) >= 3 and _random.random() < self.EXPLORE_RATIO:
+            # 探索：从非首位中随机选一条，与首位交换（确保低分规则有机会被注入）
+            explore_idx = _random.randint(1, len(scored) - 1)
+            scored[0], scored[explore_idx] = scored[explore_idx], scored[0]
+
         return [rule for _, rule in scored]
 
     SHARE_MIN_SCORE = 0.7
@@ -1358,11 +1357,19 @@ class ExperienceExtractor:
 
     # ──────────────────── 检索与上下文 ────────────────────
 
+    def _fts_available(self) -> bool:
+        """检查 FTS5 表是否存在"""
+        try:
+            self._db.execute("SELECT 1 FROM experience_rules_fts LIMIT 1")
+            return True
+        except Exception:
+            return False
+
     def retrieve_relevant_rules(self, task_type: str, keywords: list[str], team_id: str = "") -> list[ExperienceRule]:
         """根据任务特征检索相关经验规则
 
-        基于关键词匹配实现：计算规则关键词与查询关键词的交集大小作为相关度。
-        SQL 层先按 status/team 过滤，再在 Python 侧做关键词评分。
+        优先使用 FTS5 全文检索预过滤候选集，再 Python 侧精排。
+        FTS5 不可用时回退到 SQL 全表扫描 + Python 关键词匹配。
 
         Args:
             task_type: 任务类型
@@ -1374,17 +1381,53 @@ class ExperienceExtractor:
         query_keywords = set(k.lower() for k in keywords)
         query_keywords.add(task_type.lower())
 
-        # SQL 层过滤：只加载 approved 规则（+ 可选 team 隔离）
+        # FTS5 预过滤：用关键词构造 MATCH 查询，缩小候选集
+        candidate_ids: set[str] | None = None
+        if self._fts_available() and query_keywords:
+            # 转义 FTS5 特殊字符，用 OR 连接关键词
+            safe_terms = []
+            for kw in list(query_keywords)[:10]:
+                escaped = kw.replace('"', '""')
+                safe_terms.append(f'"{escaped}"')
+            if safe_terms:
+                fts_query = " OR ".join(safe_terms)
+                try:
+                    with self._lock:
+                        fts_rows = self._db.execute(
+                            "SELECT rule_id FROM experience_rules_fts WHERE experience_rules_fts MATCH ?",
+                            (fts_query,),
+                        ).fetchall()
+                    candidate_ids = {r["rule_id"] for r in fts_rows}
+                except Exception:
+                    candidate_ids = None  # FTS 查询失败，回退全表
+
+        # 加载候选规则（FTS 命中集 或 SQL 全量 approved）
         with self._lock:
-            if team_id:
-                rows = self._db.execute(
-                    "SELECT * FROM experience_rules WHERE status = 'approved' AND team_id = ?",
-                    (team_id,),
-                ).fetchall()
+            if candidate_ids is not None:
+                if not candidate_ids:
+                    return []
+                placeholders = ",".join("?" * len(candidate_ids))
+                if team_id:
+                    rows = self._db.execute(
+                        f"SELECT * FROM experience_rules WHERE rule_id IN ({placeholders}) AND status = 'approved' AND team_id = ?",
+                        list(candidate_ids) + [team_id],
+                    ).fetchall()
+                else:
+                    rows = self._db.execute(
+                        f"SELECT * FROM experience_rules WHERE rule_id IN ({placeholders}) AND status = 'approved'",
+                        list(candidate_ids),
+                    ).fetchall()
             else:
-                rows = self._db.execute(
-                    "SELECT * FROM experience_rules WHERE status = 'approved'"
-                ).fetchall()
+                # 回退：SQL 全量过滤
+                if team_id:
+                    rows = self._db.execute(
+                        "SELECT * FROM experience_rules WHERE status = 'approved' AND team_id = ?",
+                        (team_id,),
+                    ).fetchall()
+                else:
+                    rows = self._db.execute(
+                        "SELECT * FROM experience_rules WHERE status = 'approved'"
+                    ).fetchall()
 
         scored: list[tuple] = []
         for row in rows:
