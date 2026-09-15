@@ -2,6 +2,26 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.5.8] - 2026-08-27
+
+### Fixed
+
+- `experience_extractor.py`: 修复 `retrieve_with_aging` 探索逻辑 bug — 原实现先随机选择再排序，可能选中排到末位的同一条规则导致探索空转；改为先排序后从非首位随机交换
+
+### Added
+
+**FTS5 全文检索**
+- `db.py`: 新增 `experience_rules_fts` 和 `agent_memories_fts` FTS5 虚拟表 + 同步触发器（INSERT/UPDATE/DELETE）
+- `experience_extractor.py`: `retrieve_relevant_rules` 优先用 FTS5 MATCH 预过滤候选集，不可用时回退 SQL 全表
+- `agent_memory.py`: `recall` 优先用 FTS5 检索，不可用时回退 LIKE 预过滤
+
+**Summary 缓存**
+- `agent_memory.py`: `_compute_summary` 结果按 agent 缓存，`add_memory`/`age_memories`/`consolidate_memories`/`purge_decayed` 时失效
+
+### Test Results
+
+- Python 后端: 2071 passed, 26 skipped, 0 failed
+
 ## [0.5.7] - 2026-08-27
 
 ### Fixed
