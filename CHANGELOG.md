@@ -2,6 +2,39 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.5.7] - 2026-08-27
+
+### Fixed
+
+**技能进化与记忆模块高 ROI 优化（15 项发现，16 任务，3 阶段）**
+
+Phase 1 — 性能与数据源修复:
+- `experience_extractor.py`: `retrieve_relevant_rules` 改用 SQL `WHERE status='approved' AND team_id=?` 过滤，消除 O(N) 逐条加载（10-100x 加速）
+- `agent_memory.py`: `recall` 改用 SQL 候选词预过滤（中文 2-gram + 英文单词），不再全表加载
+- `reflection_priority.py` / `capability_boundary.py`: 从 YAML 文件迁移到 SQLite（注入 `ExperienceExtractor`），消除数据源分裂；保留 YAML 回退
+- `state_sync.py`: 接入 `retrieve_with_aging`（激活老化降权 + 20% 探索），修复 `ExperienceRule` 属性访问 bug（原用 `.get()` 调 dataclass）
+- `experience_extractor.py`: 修复 `retrieve_relevant_rules` 缺失线程锁
+
+Phase 2 — 架构与进化增强:
+- `agent_memory.py`: 新增 `age_all_agents()`；`server.py` 启动 24h 后台老化循环
+- `experience_extractor.py`: 构造函数注入 `KnowledgeNetwork` / `TeamFederation`，`_evolve_rule_impl` 不再每次新建实例
+- `server.py`: `_get_skill_evolution` / `_get_asset_search` 复用共享 `experience_extractor` 实例
+- `state_sync.py`: `prepare_task_metadata` 接受 `team_id` 并传递到规则检索
+- `agent_memory.py`: `_generate_markdown_debounced` — 距上次写入 <60s 时跳过
+- `experience_extractor.py`: `_generate_evolved_rule` 优先 LLM 生成改进版（JSON prompt），失败回退模板策略
+- `experience_extractor.py`: `submit_for_review` 增加 Jaccard 关键词去重（>0.8 + action 前缀匹配）
+- `state_sync.py` / `simple_executor.py`: 接入 `ABTracker.record_task`，记录有/无规则注入的 A/B 成功率
+
+Phase 3 — 记忆生命周期:
+- `state_sync.py`: `extract_keywords` 增加中文/英文停用词过滤
+- `agent_memory.py`: 新增 `consolidate_memories` — Jaccard 关键词重叠 >0.7 的条目合并
+- `agent_memory.py`: 新增 `purge_decayed` — 清除 importance ≤0.1 的低重要度条目
+- `server.py`: 老化循环串联 age → consolidate → purge
+
+### Test Results
+
+- Python 后端: 2071 passed, 26 skipped, 0 failed
+
 ## [0.5.6] - 2026-09-02
 
 ### Added

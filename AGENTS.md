@@ -101,6 +101,8 @@ MDH-Company 是 **MDH 大荒界** 智能体世界的管理后台。所有数字�
 | **0.5.3** | 2026-08-27 | Minor 代码审查修复（冗余导入 + meeting_coordinator 17 单元测试） |
 | **0.5.4** | 2026-08-27 | CI/CD 增强（ruff/pip-audit/eslint/orchestrator-tests + README 徽章更新） |
 | **0.5.5** | 2026-08-27 | CI 流水线全面加固（ruff 1502 fix + 5 bug + 容差 + 基准 + README 同步） |
+| **0.5.6** | 2026-09-02 | Agent-Kernel L4/L5 客户端方法 + 内核集成到任务执行流水线 |
+| **0.5.7** | 2026-08-27 | 技能进化与记忆模块优化（SQL检索/数据源统一/老化调度/LLM进化/去重/AB统计/记忆合并清理） |
 
 详细变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -1656,6 +1658,7 @@ TS Orchestrator 内部仍保留工具路由能力：
 - [优化日志](docs/optimization-log.md) — 优化记录
 - [Agent 角色配置](docs/agent-roles.md)
 - [Agent 工具系统](docs/agent-tools.md)
+- [agent-kernel 架构](docs/agent-kernel-architecture.md) — Python Agent 与 C++ 内核的 IPC 集成详解
 - [设计文档](docs/design.md)
 - [用户指南](docs/user-guide.md)
 - [集成测试报告](docs/integration-test-report.md)
