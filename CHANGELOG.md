@@ -2,6 +2,34 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.0] - 2026-08-27
+
+### Added
+
+**自调优引擎 Phase 1+2（架构层 RSI 探索）**
+
+参数注册表 (`tuning_registry.py`):
+- 18 个系统调优参数统一注册（explore_ratio/aging_days/路由五维权重/降级阈值/去重阈值等）
+- 每个参数含边界约束 (min/max/step)、优化目标指标、方向、审批标记
+- JSON 持久化 + 版本化变更历史 + 自动 clamp
+
+离线优化器 (`tuning_optimizer.py`):
+- 从 AB Tracker 拉取历史数据，按参数变更时间区间分桶分析
+- 计算不同参数值下的任务成功率差异，生成调优提案
+- 置信度评分（样本量 + 提升幅度），低于阈值自动丢弃
+- `requires_approval` 参数只分析不自动应用
+
+REST API (`routers/tuning.py`):
+- `GET /api/tuning/params` — 列出所有可调参数
+- `GET/PUT /api/tuning/params/{name}` — 查询/设置参数值
+- `GET /api/tuning/history` — 参数变更历史
+- `GET /api/tuning/snapshot` — 当前参数快照
+- `POST /api/tuning/optimize` — 运行离线优化分析
+
+### Test Results
+
+- Python 后端: 2080 passed, 26 skipped
+
 ## [0.5.8] - 2026-08-27
 
 ### Fixed
