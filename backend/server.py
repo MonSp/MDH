@@ -334,22 +334,24 @@ _knowledge_network = KnowledgeNetwork(
 )
 _team_federation = TeamFederation(_DATA_DIR)
 
+# 自调优引擎（需在 ExperienceExtractor / AgentMemory 之前创建）
+from tuning_registry import create_default_registry
+from tuning_optimizer import TuningOptimizer
+from tuning_deployment import DeploymentManager
+
+tuning_registry = create_default_registry(os.path.join(_DATA_DIR, "tuning_config.json"))
+
 experience_extractor = ExperienceExtractor(
     incremental_dir=os.path.join(_DATA_DIR, "experience"),
     llm_caller=_make_llm_distill_caller(),
     event_store=evolution_event_store,
     knowledge_network=_knowledge_network,
     team_federation=_team_federation,
+    tuning_registry=tuning_registry,
 )
 skills_router.init(skill_registry, skill_packager, experience_extractor)
 experience_router.init(experience_extractor, evolution_event_store, ab_tracker)
 
-# 自调优引擎
-from tuning_registry import create_default_registry
-from tuning_optimizer import TuningOptimizer
-from tuning_deployment import DeploymentManager
-
-tuning_registry = create_default_registry(os.path.join(_DATA_DIR, "tuning_config.json"))
 tuning_optimizer = TuningOptimizer(tuning_registry, evolution_event_store._conn)
 tuning_deployment = DeploymentManager(
     tuning_registry, evolution_event_store._conn,
@@ -369,7 +371,7 @@ key_manager = KeyManager()
 a2a_registry = A2ARegistry(persist_path=os.path.join(_DATA_DIR, "a2a_agents.json"))
 a2a_client = A2AClient()
 a2a_task_router = A2ATaskRouter(a2a_registry)
-a2a_memory = AgentMemory(data_dir=_DATA_DIR)
+a2a_memory = AgentMemory(data_dir=_DATA_DIR, tuning_registry=tuning_registry)
 a2a_profile_manager = AgentProfileManager(profiles_dir=os.path.join(_DATA_DIR, "agent_profiles"), event_store=evolution_event_store)
 a2a_webhook_manager = WebhookManager(_DATA_DIR)
 from capability_boundary import CapabilityBoundary

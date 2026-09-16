@@ -127,7 +127,7 @@ class ExperienceExtractor:
     """
 
     def __init__(self, incremental_dir: str, llm_caller: Callable | None = None, event_store=None,
-                 knowledge_network=None, team_federation=None):
+                 knowledge_network=None, team_federation=None, tuning_registry=None):
         """初始化经验提炼器
 
         Args:
@@ -137,6 +137,7 @@ class ExperienceExtractor:
             event_store: 可选的 EvolutionEventStore 实例，用于记录进化事件
             knowledge_network: 可选的 KnowledgeNetwork 实例，用于联动进化
             team_federation: 可选的 TeamFederation 实例，用于跨团队发布
+            tuning_registry: 可选的 TuningRegistry 实例，提供动态参数覆盖
         """
         self._incremental_dir = incremental_dir
         self._llm_caller = llm_caller
@@ -151,6 +152,15 @@ class ExperienceExtractor:
         self._event_store = event_store
         self._knowledge_network = knowledge_network
         self._team_federation = team_federation
+        self._tuning = tuning_registry
+
+    def _tp(self, name: str, default: float) -> float:
+        """从 TuningRegistry 获取参数值，无 registry 或未注册时返回默认值"""
+        if self._tuning is not None:
+            val = self._tuning.get(name)
+            if val is not None:
+                return val
+        return default
 
     # ──────────────────── 规则存储 (SQLite) ────────────────────
 
@@ -581,10 +591,18 @@ class ExperienceExtractor:
 
     DEDUP_KEYWORD_THRESHOLD = 0.8  # 关键词 Jaccard 相似度阈值
 
+    @property
+    def dedup_keyword_threshold(self) -> float:
+        return self._tp("experience.dedup_keyword_threshold", self.DEDUP_KEYWORD_THRESHOLD)
+
     # 自动审批白名单：仅低风险规则类型可自动审批
     AUTO_APPROVE_RULE_TYPES = frozenset({"success_pattern", "correction_tip"})
     # 自动审批置信度阈值
     AUTO_APPROVE_MIN_CONFIDENCE = 0.7
+
+    @property
+    def auto_approve_min_confidence(self) -> float:
+        return self._tp("experience.auto_approve_min_confidence", self.AUTO_APPROVE_MIN_CONFIDENCE)
 
     def _find_duplicate_rule(self, rule: ExperienceRule) -> ExperienceRule | None:
         """查找与给定规则高度相似的已有规则（关键词 Jaccard > 阈值且 action 前缀相似）"""
@@ -608,7 +626,7 @@ class ExperienceExtractor:
             intersection = len(rule_kw & existing_kw)
             union = len(rule_kw | existing_kw)
             jaccard = intersection / union if union else 0.0
-            if jaccard >= self.DEDUP_KEYWORD_THRESHOLD:
+            if jaccard >= self.dedup_keyword_threshold:
                 # 关键词高度重叠时再检查 action 前缀
                 if existing.action[:50].lower() == action_prefix:
                     return existing
@@ -711,7 +729,7 @@ class ExperienceExtractor:
         confidence = float(data.get("confidence", 0.0))
         reason = str(data.get("reason", ""))[:200]
 
-        if approved and confidence >= self.AUTO_APPROVE_MIN_CONFIDENCE:
+        if approved and confidence >= self.auto_approve_min_confidence:
             rule.status = "approved"
             rule.note = f"{rule.note}\n[LLM自动审批] 置信度 {confidence:.0%}：{reason}"
             self._save_rule(rule)
@@ -886,6 +904,14 @@ class ExperienceExtractor:
     EXPLORE_RATIO = 0.2  # 探索比例：20% 的注入使用随机规则
     AGING_DAYS = 30  # 规则老化天数
 
+    @property
+    def explore_ratio(self) -> float:
+        return self._tp("experience.explore_ratio", self.EXPLORE_RATIO)
+
+    @property
+    def aging_days(self) -> float:
+        return self._tp("experience.aging_days", self.AGING_DAYS)
+
     def _check_evolution_diversity(self, rule: ExperienceRule) -> bool:
         """多样性检查：防止同一领域进化过多
 
@@ -929,7 +955,7 @@ class ExperienceExtractor:
             return []
 
         now = datetime.now(timezone.utc)
-        aging_threshold = now - timedelta(days=self.AGING_DAYS)
+        aging_threshold = now - timedelta(days=self.aging_days)
 
         # 计算每个规则的综合得分
         scored = []
@@ -949,7 +975,7 @@ class ExperienceExtractor:
 
         # 探索/利用平衡
         scored.sort(key=lambda x: x[0], reverse=True)
-        if len(scored) >= 3 and _random.random() < self.EXPLORE_RATIO:
+        if len(scored) >= 3 and _random.random() < self.explore_ratio:
             # 探索：从非首位中随机选一条，与首位交换（确保低分规则有机会被注入）
             explore_idx = _random.randint(1, len(scored) - 1)
             scored[0], scored[explore_idx] = scored[explore_idx], scored[0]
@@ -989,6 +1015,14 @@ class ExperienceExtractor:
 
     EVOLUTION_MIN_USAGE = 5
     EVOLUTION_MIN_SCORE = 0.3
+
+    @property
+    def evolution_min_usage(self) -> float:
+        return self._tp("experience.evolution_min_usage", self.EVOLUTION_MIN_USAGE)
+
+    @property
+    def evolution_min_score(self) -> float:
+        return self._tp("experience.evolution_min_score", self.EVOLUTION_MIN_SCORE)
     EVOLUTION_MAX_COUNT = 3  # 单条规则最多进化 3 次
 
     def evolve_rule(self, rule_id: str, failure_reason: str = "") -> ExperienceRule | None:
@@ -1010,9 +1044,9 @@ class ExperienceExtractor:
         # 检查进化条件
         if rule.status not in ("approved", "pending_review"):
             return None
-        if rule.usage_count < self.EVOLUTION_MIN_USAGE:
+        if rule.usage_count < self.evolution_min_usage:
             return None
-        if rule.effectiveness_score >= self.EVOLUTION_MIN_SCORE:
+        if rule.effectiveness_score >= self.evolution_min_score:
             return None
         if rule.evolution_count >= self.EVOLUTION_MAX_COUNT:
             logger.info("Rule %s 已达最大进化次数 (%d)，跳过", rule.rule_id, self.EVOLUTION_MAX_COUNT)
@@ -1365,6 +1399,10 @@ class ExperienceExtractor:
     DEMOTION_MIN_USAGE = 3
     DEMOTION_THRESHOLD = 0.4
 
+    @property
+    def demotion_threshold(self) -> float:
+        return self._tp("experience.demotion_threshold", self.DEMOTION_THRESHOLD)
+
     def update_rule_effectiveness(self, rule_id: str, success: bool) -> bool:
         """更新规则有效性评分，低于阈值自动降级为 pending_review
 
@@ -1385,9 +1423,9 @@ class ExperienceExtractor:
         # 自动降级：使用次数足够但有效性过低
         if (rule.status == "approved"
                 and rule.usage_count >= self.DEMOTION_MIN_USAGE
-                and rule.effectiveness_score < self.DEMOTION_THRESHOLD):
+                and rule.effectiveness_score < self.demotion_threshold):
             rule.status = "pending_review"
-            reason = f"score={rule.effectiveness_score:.2f} ({rule.success_count}/{rule.usage_count}) < {self.DEMOTION_THRESHOLD:.0%} threshold"
+            reason = f"score={rule.effectiveness_score:.2f} ({rule.success_count}/{rule.usage_count}) < {self.demotion_threshold:.0%} threshold"
             logger.warning("Rule %s auto-demoted: %s", rule_id, reason)
             self._append_demotion_log(rule, reason)
             # 记录 rule_demoted 事件
@@ -1406,7 +1444,7 @@ class ExperienceExtractor:
                 except Exception:
                     pass
         # 规则自进化：低分规则自动生成改进版（独立于降级检查）
-        if rule.effectiveness_score < self.EVOLUTION_MIN_SCORE and rule.usage_count >= self.EVOLUTION_MIN_USAGE:
+        if rule.effectiveness_score < self.evolution_min_score and rule.usage_count >= self.evolution_min_usage:
             self._evolve_rule_impl(rule)
         self._save_rule(rule)
         logger.info("Rule %s effectiveness updated: score=%.2f (%d/%d)",
@@ -1425,7 +1463,7 @@ class ExperienceExtractor:
             if (rule is not None
                     and rule.status == "approved"
                     and rule.usage_count >= self.DEMOTION_MIN_USAGE
-                    and rule.effectiveness_score < self.DEMOTION_THRESHOLD):
+                    and rule.effectiveness_score < self.demotion_threshold):
                 rule.status = "pending_review"
                 self._save_rule(rule)
                 demoted.append(rule_id)
