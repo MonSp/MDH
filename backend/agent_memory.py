@@ -26,6 +26,7 @@ class AgentMemory:
         self._lock = threading.Lock()
         self._md_last_written: dict[str, float] = {}
         self._summary_cache: dict[str, str] = {}
+        self._semantic_indexes: dict[str, Any] = {}  # agent_id → SemanticIndex
 
     def _md_path(self, agent_id: str) -> str:
         return os.path.join(self._memory_dir, f"{agent_id}.md")
@@ -101,9 +102,34 @@ class AgentMemory:
             )
             self._db.commit()
         self._invalidate_summary(agent_id)
+        self._update_semantic_index(agent_id, memory_id, entry_data["content"])
         self._generate_markdown_debounced(agent_id)
         logger.info("Agent %s 新增记忆: %s (%s)", agent_id, memory_id, entry_data["type"])
         return entry_data
+
+    def _get_semantic_index(self, agent_id: str):
+        """获取（或创建）agent 的语义索引"""
+        from semantic_similarity import SemanticIndex
+        if agent_id not in self._semantic_indexes:
+            idx = SemanticIndex()
+            # 从已有记忆构建索引
+            with self._lock:
+                rows = self._db.execute(
+                    "SELECT memory_id, content FROM agent_memories WHERE agent_id = ?",
+                    (agent_id,),
+                ).fetchall()
+            for row in rows:
+                idx.add(row["memory_id"], row["content"])
+            self._semantic_indexes[agent_id] = idx
+        return self._semantic_indexes[agent_id]
+
+    def _update_semantic_index(self, agent_id: str, memory_id: str, content: str):
+        """增量更新语义索引"""
+        try:
+            idx = self._get_semantic_index(agent_id)
+            idx.add(memory_id, content)
+        except Exception:
+            pass
 
     def _fts_available(self) -> bool:
         """检查 FTS5 表是否存在"""
@@ -114,7 +140,7 @@ class AgentMemory:
             return False
 
     def recall(self, agent_id: str, query: str, limit: int = 5) -> list[dict]:
-        """检索相关记忆（FTS5 优先，回退 LIKE 预过滤）"""
+        """检索相关记忆（FTS5 + 语义相似度融合排序）"""
         query_lower = query.lower()
         import re as _re
 
@@ -165,7 +191,32 @@ class AgentMemory:
                     ).fetchall()
 
         if not rows:
+            # 语义索引补充候选：当关键词检索无结果时，用语义相似度找候选
+            try:
+                idx = self._get_semantic_index(agent_id)
+                sem_hits = idx.query(query, top_k=limit * 2)
+                if sem_hits:
+                    mem_ids = [doc_id for doc_id, _ in sem_hits]
+                    placeholders = ",".join("?" * len(mem_ids))
+                    with self._lock:
+                        rows = self._db.execute(
+                            f"SELECT * FROM agent_memories WHERE agent_id = ? AND memory_id IN ({placeholders})",
+                            [agent_id] + mem_ids,
+                        ).fetchall()
+            except Exception:
+                pass
+
+        if not rows:
             return []
+
+        # 语义相似度分数（可选，失败时为 0）
+        semantic_scores: dict[str, float] = {}
+        try:
+            idx = self._get_semantic_index(agent_id)
+            for doc_id, sim in idx.query(query, top_k=20):
+                semantic_scores[doc_id] = sim
+        except Exception:
+            pass
 
         scored = []
         for row in rows:
@@ -176,6 +227,10 @@ class AgentMemory:
                     score += 2.0
             if query_lower in entry.get("content", "").lower():
                 score += 1.5
+            # 语义相似度加权（0-3 分）
+            sem = semantic_scores.get(entry["id"], 0.0)
+            if sem > 0:
+                score += sem * 3.0
             if score > 0:
                 score *= (0.5 + entry.get("importance", 0.5))
                 scored.append((score, entry))
