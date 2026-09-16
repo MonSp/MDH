@@ -2,6 +2,38 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.1] - 2026-08-27
+
+### Added
+
+**自调优引擎 Phase 3+4（影子验证 + 自动回滚，闭环完成）**
+
+影子验证 (`tuning_deployment.py`):
+- 新参数并行运行但不实际生效，记录新旧参数的决策对比
+- 决策一致率 ≥70% + 样本量 ≥20 才允许晋升为活跃部署
+- 一致率过低时标记为需人工审查
+
+受控部署 + 自动回滚:
+- 部署生命周期: shadow → active → promoted / rolled_back
+- 部署后 48 小时观察期，成功率下降 >5% 自动回滚到旧值
+- 手动回滚端点
+- 后台循环每小时检查活跃部署的指标
+
+REST API (7 个新端点):
+- `POST /api/tuning/deploy/shadow` — 启动影子验证
+- `POST /api/tuning/deploy/{id}/decision` — 记录影子决策
+- `GET /api/tuning/deploy/{id}/evaluate` — 评估影子结果
+- `POST /api/tuning/deploy/{id}/promote` — 晋升为活跃
+- `POST /api/tuning/deploy/{id}/rollback` — 手动回滚
+- `POST /api/tuning/deploy/check-rollbacks` — 检查自动回滚
+- `GET /api/tuning/deployments` — 列出部署记录
+
+完整闭环: 优化器提案 → 影子验证 → 晋升生效 → 指标监控 → 自动回滚
+
+### Test Results
+
+- Python 后端: 2080 passed, 26 skipped
+
 ## [0.6.0] - 2026-08-27
 
 ### Added
