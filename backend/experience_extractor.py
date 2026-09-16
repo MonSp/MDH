@@ -581,6 +581,11 @@ class ExperienceExtractor:
 
     DEDUP_KEYWORD_THRESHOLD = 0.8  # 关键词 Jaccard 相似度阈值
 
+    # 自动审批白名单：仅低风险规则类型可自动审批
+    AUTO_APPROVE_RULE_TYPES = frozenset({"success_pattern", "correction_tip"})
+    # 自动审批置信度阈值
+    AUTO_APPROVE_MIN_CONFIDENCE = 0.7
+
     def _find_duplicate_rule(self, rule: ExperienceRule) -> ExperienceRule | None:
         """查找与给定规则高度相似的已有规则（关键词 Jaccard > 阈值且 action 前缀相似）"""
         rule_kw = set(k.lower() for k in rule.keywords)
@@ -610,7 +615,7 @@ class ExperienceExtractor:
         return None
 
     def submit_for_review(self, rule: ExperienceRule) -> str:
-        """提交规则审核（自动去重：高度相似的已有规则会合并 usage 而非新增）
+        """提交规则审核（自动去重 + 低风险规则 LLM 自动审批）
 
         Args:
             rule: 待审核的经验规则
@@ -626,6 +631,11 @@ class ExperienceExtractor:
         rule.status = "pending_review"
         self._save_rule(rule)
         logger.info("Rule %s submitted for review", rule.rule_id)
+
+        # LLM 自动审批：仅低风险规则类型
+        if rule.rule_type in self.AUTO_APPROVE_RULE_TYPES and self._llm_caller is not None:
+            self._try_auto_approve(rule)
+
         # Prometheus 计数器
         try:
             from prometheus_metrics import EVOLUTION_EVENTS
@@ -647,6 +657,110 @@ class ExperienceExtractor:
             except Exception:
                 pass
         return rule.rule_id
+
+    def _try_auto_approve(self, rule: ExperienceRule) -> bool:
+        """用 LLM judge 评估规则质量，高置信时自动审批
+
+        仅对 AUTO_APPROVE_RULE_TYPES 中的低风险规则调用。
+        LLM 失败或置信度不足时保持 pending_review。
+        """
+        prompt = (
+            "你是经验规则质量审核员。请评估以下经验规则是否可以自动批准。\n\n"
+            f"## 规则内容\n"
+            f"- 类型: {rule.rule_type}\n"
+            f"- 触发条件: {rule.trigger_condition}\n"
+            f"- 建议动作: {rule.action}\n"
+            f"- 补充说明: {rule.note}\n"
+            f"- 关键词: {', '.join(rule.keywords)}\n\n"
+            "评估标准：\n"
+            "1. 规则是否具体可操作（非空泛描述）\n"
+            "2. 触发条件是否清晰\n"
+            "3. 建议动作是否合理安全\n"
+            "4. 是否存在明显错误或误导\n\n"
+            "输出 JSON（不要 markdown 代码块）：\n"
+            '{"approved": true/false, "confidence": 0.0-1.0, "reason": "评估理由"}\n'
+            "只输出 JSON。"
+        )
+
+        raw = self._sync_llm_call(prompt, timeout=15)
+        if not raw:
+            return False
+
+        # 解析响应
+        import json as _json
+        import re as _re
+        text = raw.strip()
+        if text.startswith("```"):
+            text = _re.sub(r"^```(?:json)?\s*\n?", "", text)
+            text = _re.sub(r"\n?```\s*$", "", text).strip()
+        try:
+            data = _json.loads(text)
+        except _json.JSONDecodeError:
+            m = _re.search(r"\{.*\}", text, _re.DOTALL)
+            if not m:
+                return False
+            try:
+                data = _json.loads(m.group())
+            except _json.JSONDecodeError:
+                return False
+
+        if not isinstance(data, dict):
+            return False
+
+        approved = data.get("approved", False)
+        confidence = float(data.get("confidence", 0.0))
+        reason = str(data.get("reason", ""))[:200]
+
+        if approved and confidence >= self.AUTO_APPROVE_MIN_CONFIDENCE:
+            rule.status = "approved"
+            rule.note = f"{rule.note}\n[LLM自动审批] 置信度 {confidence:.0%}：{reason}"
+            self._save_rule(rule)
+            logger.info("Rule %s LLM 自动审批通过 (confidence=%.2f)", rule.rule_id[:8], confidence)
+            # 记录事件
+            if self._event_store:
+                try:
+                    from evolution_events import EvolutionEvent, new_event_id
+                    self._event_store.record_event(EvolutionEvent(
+                        event_id=new_event_id(),
+                        event_type="rule_approved",
+                        agent_id=rule.source_agent_id or "",
+                        timestamp=_now_iso(),
+                        details={"rule_id": rule.rule_id, "auto_approved": True, "confidence": confidence},
+                        before_state={"status": "pending_review"},
+                        after_state={"status": "approved"},
+                    ))
+                except Exception:
+                    pass
+            return True
+
+        logger.info("Rule %s LLM 审核未通过 (approved=%s, confidence=%.2f)", rule.rule_id[:8], approved, confidence)
+        return False
+
+    def _sync_llm_call(self, prompt: str, timeout: int = 15) -> str | None:
+        """同步调用 LLM，失败返回 None"""
+        if self._llm_caller is None:
+            return None
+        try:
+            import asyncio
+            if asyncio.iscoroutinefunction(self._llm_caller):
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = None
+                if loop and loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        future = pool.submit(asyncio.run, self._llm_caller(prompt))
+                        return future.result(timeout=timeout + 5)
+                else:
+                    return asyncio.get_event_loop().run_until_complete(
+                        asyncio.wait_for(self._llm_caller(prompt), timeout=timeout)
+                    )
+            else:
+                return self._llm_caller(prompt)
+        except Exception:
+            logger.debug("LLM call failed", exc_info=True)
+            return None
 
     def approve_rule(self, rule_id: str, reviewer_comment: str = "") -> bool:
         """批准规则
@@ -1751,9 +1865,12 @@ class ExperienceExtractor:
             )
             rules = llm_rules
 
-        # 保存规则
+        # 保存规则 + 尝试自动审批
         for rule in rules:
             self._save_rule(rule)
+            # LLM 自动审批：仅低风险规则类型
+            if rule.rule_type in self.AUTO_APPROVE_RULE_TYPES and self._llm_caller is not None:
+                self._try_auto_approve(rule)
             # 记录 rule_created 事件
             if self._event_store:
                 try:
