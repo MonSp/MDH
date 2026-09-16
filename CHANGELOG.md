@@ -2,6 +2,22 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.2] - 2026-09-16
+
+### Added
+
+**TuningRegistry 运行时接线 — 参数真正生效**
+
+- `ExperienceExtractor`: 7 个参数（explore_ratio / aging_days / evolution_min_usage / evolution_min_score / demotion_threshold / dedup_keyword_threshold / auto_approve_min_confidence）通过 `_tp()` property 模式从 TuningRegistry 读取，无 registry 时回退类默认值
+- `AgentMemory`: 2 个参数（markdown_debounce_seconds / consolidation_overlap_threshold）同样模式
+- `server.py`: tuning_registry 在 ExperienceExtractor / AgentMemory 之前创建并注入构造函数
+- 实时生效：通过 API 修改 registry 值后，运行时行为立即改变，无需重启
+- 向后兼容：无 registry 的实例（测试）使用类默认值，行为不变
+
+### Test Results
+
+- Python 后端: 2080 passed, 26 skipped
+
 ## [0.6.1] - 2026-09-16
 
 ### Added
