@@ -42,6 +42,10 @@
 - `EvolutionProofCard.tsx`: 展示 avg_rule_count 和 avg_rule_score
 - `SkillEvolutionDashboard.tsx`: 新增"质量分析" tab
 
+**轻量语义检索**
+- `semantic_similarity.py`: 字符 n-gram TF-IDF + 余弦相似度（numpy 实现，无外部 embedding 依赖）
+- `agent_memory.py`: 每个 agent 维护 SemanticIndex，recall 融合语义相似度分数；FTS5/LIKE 无结果时语义索引提供回退候选
+
 ### Test Results
 
 - Python 后端: 2105 passed, 1 skipped
