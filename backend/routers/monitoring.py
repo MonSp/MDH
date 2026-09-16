@@ -57,7 +57,8 @@ def _get_capability_boundary():
     if _capability_boundary is None:
         from capability_boundary import CapabilityBoundary
         extractor = getattr(_srv, "experience_extractor", None)
-        _capability_boundary = CapabilityBoundary(_data_dir, experience_extractor=extractor)
+        tuning = getattr(_srv, "tuning_registry", None)
+        _capability_boundary = CapabilityBoundary(_data_dir, experience_extractor=extractor, tuning_registry=tuning)
     return _capability_boundary
 
 
