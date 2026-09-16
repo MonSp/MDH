@@ -48,6 +48,54 @@ Human feedback isn't "seen and forgotten" — structured review comments are aut
 
 ---
 
+## RSI Vision: Recursive Self-Improvement
+
+MDH is exploring the feasibility of **RSI (Recursive Self-Improvement)** at the agent level — not by having AI rewrite its own code, but by having the AI system continuously optimize its own knowledge, strategies, and behavioral parameters.
+
+### What RSI Means in MDH
+
+Traditional AI systems have static capabilities after deployment. MDH builds a **three-layer recursive improvement loop**:
+
+```
+Layer 1 · Skill Evolution (mature)
+  Agents distill experience rules from tasks → inject into future tasks →
+  track effectiveness → low-scoring rules auto-evolve
+  Positive feedback: better rules → higher success rate → better execution records → better rules
+
+Layer 2 · Rule Evolution (implemented)
+  Rules themselves can evolve — LLM generates improved versions,
+  evolution chains are traceable, diversity checks prevent overfitting
+  This is improvement of the improvement mechanism
+
+Layer 3 · System Self-Tuning (architecture-level RSI in progress)
+  The system optimizes its own runtime parameters — 18 tunable parameters
+  (routing weights, exploration rate, demotion thresholds, etc.)
+  Find optimal values from A/B data → shadow validation →
+  controlled deployment → auto-rollback on metric degradation
+  This is improvement of the learning strategy itself
+```
+
+### Implemented RSI Mechanisms
+
+| Mechanism | Description |
+|-----------|-------------|
+| **Experience Loop** | Task → distill rules → inject → track → evolve, full positive feedback cycle |
+| **Rule Self-Evolution** | LLM generates improved versions of low-scoring rules, traceable chains |
+| **Anti-Overfitting** | Diversity checks + aging decay + 20% explore/exploit balance |
+| **Auto-Approval** | LLM judge evaluates low-risk rules; high-risk still needs human review |
+| **A/B Measurement** | Quantifies success rate difference with vs without experience injection |
+| **Quality Bucketing** | Analyzes success rate impact by rule quality (low/medium/high) |
+| **Self-Tuning Engine** | Parameter registry + offline optimizer + shadow validation + auto-rollback |
+| **Capability Awareness** | System knows what it doesn't know, proactively seeks help in low-confidence domains |
+
+### RSI Boundaries
+
+MDH explores **knowledge-layer RSI** — agents become more "experienced," not more "intelligent." Reasoning capability improvements depend on underlying LLM advances. MDH's value is making the experience accumulation loop actually work, and building guardrails against degradation and loss of control.
+
+> **Core question**: How do you make the self-improvement loop actually spin, without it degrading or spiraling out of control? MDH answers this with 2080 tests and a complete measurement system.
+
+---
+
 ## 30-Second Quick Start
 
 ```bash
