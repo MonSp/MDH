@@ -55,6 +55,7 @@ from routers import marketplace as marketplace_router
 from routers import mcp_config as mcp_router
 from routers import memory as memory_router
 from routers import monitoring as monitoring_router
+from routers import tuning as tuning_router
 from routers import onboarding as onboarding_router
 from routers import ops as ops_router
 from routers import projects as projects_router
@@ -187,6 +188,7 @@ app.include_router(infra_router.router)
 app.include_router(team_router.router)
 app.include_router(workspace_router.router)
 app.include_router(monitoring_router.router)
+app.include_router(tuning_router.router)
 
 # M1 演示：把关点引擎（仅演示用；会话内审批接线保持不变）
 _demo_gate_manager = ApprovalManager()
@@ -341,6 +343,14 @@ experience_extractor = ExperienceExtractor(
 )
 skills_router.init(skill_registry, skill_packager, experience_extractor)
 experience_router.init(experience_extractor, evolution_event_store, ab_tracker)
+
+# 自调优引擎
+from tuning_registry import create_default_registry
+from tuning_optimizer import TuningOptimizer
+
+tuning_registry = create_default_registry(os.path.join(_DATA_DIR, "tuning_config.json"))
+tuning_optimizer = TuningOptimizer(tuning_registry, evolution_event_store._conn)
+tuning_router.init(tuning_registry, tuning_optimizer)
 dynamic_router = DynamicRouter(
     routing_table_path=os.path.join(_DATA_DIR, "routing_table.json"),
 )
