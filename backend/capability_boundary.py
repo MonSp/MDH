@@ -31,10 +31,26 @@ def _rule_to_dict(rule) -> dict:
 class CapabilityBoundary:
     """能力边界感知器"""
 
-    def __init__(self, data_dir: str, experience_extractor=None):
+    def __init__(self, data_dir: str, experience_extractor=None, tuning_registry=None):
         self._data_dir = data_dir
         self._experience_dir = os.path.join(data_dir, "experience")
         self._extractor = experience_extractor
+        self._tuning = tuning_registry
+
+    def _tp(self, name: str, default: float) -> float:
+        if self._tuning is not None:
+            val = self._tuning.get(name)
+            if val is not None:
+                return val
+        return default
+
+    @property
+    def confidence_high(self) -> float:
+        return self._tp("boundary.confidence_high", CONFIDENCE_HIGH)
+
+    @property
+    def confidence_medium(self) -> float:
+        return self._tp("boundary.confidence_medium", CONFIDENCE_MEDIUM)
 
     def _load_all_rules(self) -> list[dict]:
         """加载所有规则（优先从 SQLite，回退到 YAML）"""
@@ -117,9 +133,9 @@ class CapabilityBoundary:
             )
             confidence = min(1.0, max(0.0, confidence))
 
-            if confidence >= CONFIDENCE_HIGH:
+            if confidence >= self.confidence_high:
                 level = "high"
-            elif confidence >= CONFIDENCE_MEDIUM:
+            elif confidence >= self.confidence_medium:
                 level = "medium"
             elif confidence >= CONFIDENCE_LOW:
                 level = "low"
@@ -190,7 +206,7 @@ class CapabilityBoundary:
                 "best_confidence": best,
                 "recommendation": f"低置信领域（{best:.0%}）：建议额外审查或请求专家协助",
             }
-        elif best < CONFIDENCE_MEDIUM:
+        elif best < self.confidence_medium:
             return {
                 "is_unknown": False,
                 "matched_domains": best_domains,

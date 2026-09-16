@@ -109,18 +109,51 @@ class DynamicRouter:
     WEIGHT_PRIORITY = 0.10
     WEIGHT_SKILL_LEVEL = 0.10
 
-    def __init__(self, routing_table_path: str, profile_manager=None):
+    def __init__(self, routing_table_path: str, profile_manager=None, tuning_registry=None):
         """初始化动态路由器
 
         Args:
             routing_table_path: 路由表 JSON 文件路径
             profile_manager: AgentProfileManager 实例（可选，用于技能等级加权）
+            tuning_registry: TuningRegistry 实例（可选，提供动态参数覆盖）
         """
         self._path = routing_table_path
         self._lock = threading.Lock()
         self._table: dict[str, RouteEntry] = {}
         self._profile_manager = profile_manager
+        self._tuning = tuning_registry
         self.load_routing_table()
+
+    def _tp(self, name: str, default: float) -> float:
+        if self._tuning is not None:
+            val = self._tuning.get(name)
+            if val is not None:
+                return val
+        return default
+
+    @property
+    def weight_keyword(self) -> float:
+        return self._tp("router.keyword_weight", self.WEIGHT_KEYWORD)
+
+    @property
+    def weight_semantic(self) -> float:
+        return self._tp("router.semantic_weight", self.WEIGHT_SEMANTIC)
+
+    @property
+    def weight_success_rate(self) -> float:
+        return self._tp("router.success_rate_weight", self.WEIGHT_SUCCESS_RATE)
+
+    @property
+    def weight_priority(self) -> float:
+        return self._tp("router.priority_weight", self.WEIGHT_PRIORITY)
+
+    @property
+    def weight_skill_level(self) -> float:
+        return self._tp("router.skill_level_weight", self.WEIGHT_SKILL_LEVEL)
+
+    @property
+    def skill_level_boost_max(self) -> float:
+        return self._tp("router.skill_level_boost_max", 0.3)
 
     # ------------------------------------------------------------------
     # 路由表持久化
@@ -435,11 +468,11 @@ class DynamicRouter:
             skill_score = self._compute_skill_level_score(entry.dept_id, user_input)
 
             final_score = (
-                kw_score * self.WEIGHT_KEYWORD
-                + sem_score * self.WEIGHT_SEMANTIC
-                + sr * self.WEIGHT_SUCCESS_RATE
-                + pri * self.WEIGHT_PRIORITY
-                + skill_score * self.WEIGHT_SKILL_LEVEL
+                kw_score * self.weight_keyword
+                + sem_score * self.weight_semantic
+                + sr * self.weight_success_rate
+                + pri * self.weight_priority
+                + skill_score * self.weight_skill_level
                 + entry.skill_level_boost  # 技能升级自适应加成（直接加到总分）
             )
             candidate_scores.append((entry, final_score, matched_kw_map.get(entry.dept_id, [])))
@@ -532,7 +565,7 @@ class DynamicRouter:
             entry = self._table.get(dept_id)
             if entry is None:
                 return False
-            entry.skill_level_boost = min(0.3, entry.skill_level_boost + 0.05 * level_gained)
+            entry.skill_level_boost = min(self.skill_level_boost_max, entry.skill_level_boost + 0.05 * level_gained)
             entry.last_active = _now_iso()
         logger.info("部门 %s 技能加成提升至 %.2f", dept_id,
                      self._table[dept_id].skill_level_boost)

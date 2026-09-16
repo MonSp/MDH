@@ -332,14 +332,15 @@ _knowledge_network = KnowledgeNetwork(
     data_dir=_DATA_DIR,
     skill_packs_dir=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skill_packs"),
 )
-_team_federation = TeamFederation(_DATA_DIR)
 
-# 自调优引擎（需在 ExperienceExtractor / AgentMemory 之前创建）
+# 自调优引擎（需在各模块之前创建）
 from tuning_registry import create_default_registry
 from tuning_optimizer import TuningOptimizer
 from tuning_deployment import DeploymentManager
 
 tuning_registry = create_default_registry(os.path.join(_DATA_DIR, "tuning_config.json"))
+
+_team_federation = TeamFederation(_DATA_DIR, tuning_registry=tuning_registry)
 
 experience_extractor = ExperienceExtractor(
     incremental_dir=os.path.join(_DATA_DIR, "experience"),
@@ -360,6 +361,7 @@ tuning_deployment = DeploymentManager(
 tuning_router.init(tuning_registry, tuning_optimizer, tuning_deployment)
 dynamic_router = DynamicRouter(
     routing_table_path=os.path.join(_DATA_DIR, "routing_table.json"),
+    tuning_registry=tuning_registry,
 )
 
 # 自适应协作链路组件
@@ -378,7 +380,7 @@ from capability_boundary import CapabilityBoundary
 from team_synergy import TeamSynergy
 
 a2a_team_synergy = TeamSynergy(_DATA_DIR)
-a2a_capability_boundary = CapabilityBoundary(data_dir=_DATA_DIR, experience_extractor=experience_extractor)
+a2a_capability_boundary = CapabilityBoundary(data_dir=_DATA_DIR, experience_extractor=experience_extractor, tuning_registry=tuning_registry)
 onboarding_mgr = OnboardingManager(_DATA_DIR)
 task_template_mgr = TaskTemplateManager(_DATA_DIR)
 state_sync = StateSyncManager(

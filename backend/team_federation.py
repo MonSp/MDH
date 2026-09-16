@@ -42,13 +42,25 @@ class SharedEvolution:
 class TeamFederation:
     """多团队进化联邦管理器"""
 
-    def __init__(self, data_dir: str):
+    def __init__(self, data_dir: str, tuning_registry=None):
         self._data_dir = data_dir
         self._federation_path = os.path.join(data_dir, "team_federation.json")
         self._trust_path = os.path.join(data_dir, "team_trust.json")
         self._evolutions: list[dict] = []
         self._trust_scores: dict[str, float] = {}
+        self._tuning = tuning_registry
         self._load()
+
+    def _tp(self, name: str, default: float) -> float:
+        if self._tuning is not None:
+            val = self._tuning.get(name)
+            if val is not None:
+                return val
+        return default
+
+    @property
+    def trust_decay_rate(self) -> float:
+        return self._tp("federation.trust_decay_rate", TRUST_DECAY_RATE)
 
     def _load(self):
         try:
@@ -166,7 +178,7 @@ class TeamFederation:
                 if task_success:
                     self._adjust_trust(source_team, 0.01)  # 成功小增
                 else:
-                    self._adjust_trust(source_team, -TRUST_DECAY_RATE)  # 失败降信任
+                    self._adjust_trust(source_team, -self.trust_decay_rate)  # 失败降信任
 
             self._save()
             return True
