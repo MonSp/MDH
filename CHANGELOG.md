@@ -7,6 +7,8 @@
 ### Fixed
 
 - `experience_extractor.py`: 修复 `retrieve_with_aging` 探索逻辑 bug — 原实现先随机选择再排序，可能选中排到末位的同一条规则导致探索空转；改为先排序后从非首位随机交换
+- `db.py`: 启用 `PRAGMA recursive_triggers=ON` — `INSERT OR REPLACE` 现在正确触发 FTS5 DELETE 触发器，防止规则/记忆更新时 FTS 表产生重复行
+- `EvolutionProofCard.tsx`: 修复 API 响应字段不匹配 — 前端读 `data.task_types` 但 API 返回 `data.stats`，导致面板始终显示"无数据"
 
 ### Added
 
@@ -14,13 +16,36 @@
 - `db.py`: 新增 `experience_rules_fts` 和 `agent_memories_fts` FTS5 虚拟表 + 同步触发器（INSERT/UPDATE/DELETE）
 - `experience_extractor.py`: `retrieve_relevant_rules` 优先用 FTS5 MATCH 预过滤候选集，不可用时回退 SQL 全表
 - `agent_memory.py`: `recall` 优先用 FTS5 检索，不可用时回退 LIKE 预过滤
+- `tests/test_fts_triggers.py`: 9 个触发器同步单元测试
 
 **Summary 缓存**
-- `agent_memory.py`: `_compute_summary` 结果按 agent 缓存，`add_memory`/`age_memories`/`consolidate_memories`/`purge_decayed` 时失效
+- `agent_memory.py`: `_compute_summary` 结果按 agent 缓存，4 个变更方法（add/age/consolidate/purge）时失效
+
+**进化链循环检测**
+- `experience_extractor.py`: `_has_cycle_in_chain` 防御性检查 — 沿 parent_rule_id 链上溯，visited set + max_depth 防护
+
+**consolidate O(N) 优化**
+- `agent_memory.py`: 倒排关键词索引替代 O(N²) 全对比
+
+**KnowledgeNetwork 索引缓存**
+- `knowledge_network.py`: 技能包关键词索引首次构建后缓存，不再每次传播重读 43 个 manifest.yaml
+
+**ABTracker 质量粒度**
+- `evolution_events.py`: `task_type_performance` 新增 `rule_count_sum` + `rule_score_sum` 列；`get_quality_stats` 按规则质量分桶（low/medium/high vs 基线）；新端点 `GET /api/evolution/ab-quality`
+- `state_sync.py` / `simple_executor.py`: 传递 rule_count + avg_rule_score
+
+**monitoring.py 惰性单例**
+- KnowledgeNetwork / TeamFederation / CapabilityBoundary / SystemIntrospection 从每次请求新建改为模块级惰性 getter
+
+**前端质量分析面板**
+- `QualityAnalysisPanel.tsx`: 规则质量分桶可视化（low/medium/high vs 无规则基线），支持 7/30/90 天切换，自动生成 insight
+- `EvolutionProofCard.tsx`: 展示 avg_rule_count 和 avg_rule_score
+- `SkillEvolutionDashboard.tsx`: 新增"质量分析" tab
 
 ### Test Results
 
-- Python 后端: 2071 passed, 26 skipped, 0 failed
+- Python 后端: 2105 passed, 1 skipped
+- 前端: 1726 passed (98 files)
 
 ## [0.5.7] - 2026-08-27
 
