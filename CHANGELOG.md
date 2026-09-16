@@ -2,7 +2,7 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [0.6.1] - 2026-08-27
+## [0.6.1] - 2026-09-16
 
 ### Added
 
@@ -34,7 +34,7 @@ REST API (7 个新端点):
 
 - Python 后端: 2080 passed, 26 skipped
 
-## [0.6.0] - 2026-08-27
+## [0.6.0] - 2026-09-16
 
 ### Added
 
@@ -62,7 +62,7 @@ REST API (`routers/tuning.py`):
 
 - Python 后端: 2080 passed, 26 skipped
 
-## [0.5.8] - 2026-08-27
+## [0.5.8] - 2026-09-16
 
 ### Fixed
 
@@ -114,7 +114,7 @@ REST API (`routers/tuning.py`):
 - Python 后端: 2105 passed, 1 skipped
 - 前端: 1726 passed (98 files)
 
-## [0.5.7] - 2026-08-27
+## [0.5.7] - 2026-09-16
 
 ### Fixed
 

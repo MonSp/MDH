@@ -1,7 +1,7 @@
 ---
 feature: skill-memory-optimization
 status: delivered
-updated: 2026-08-27
+updated: 2026-09-16
 branch: analysis/skill-memory-optimization
 commits: 51ec26b..5432d22
 ---
