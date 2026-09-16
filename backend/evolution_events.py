@@ -223,8 +223,12 @@ class ABTracker:
     """A/B 任务类型成功率追踪器
 
     对比「有经验规则注入」vs「无经验规则注入」的任务成功率，
-    量化经验系统的实际价值。
+    量化经验系统的实际价值。支持按规则质量分桶分析。
     """
+
+    # 规则质量分桶阈值
+    QUALITY_LOW = 0.4
+    QUALITY_HIGH = 0.7
 
     def __init__(self, conn: sqlite3.Connection):
         """使用同一条 SQLite 连接（与 EvolutionEventStore 共享或独立均可）"""
@@ -241,9 +245,22 @@ class ABTracker:
                 tasks_with_rules INTEGER NOT NULL DEFAULT 0,
                 success_with_rules INTEGER NOT NULL DEFAULT 0,
                 success_without_rules INTEGER NOT NULL DEFAULT 0,
+                rule_count_sum INTEGER NOT NULL DEFAULT 0,
+                rule_score_sum REAL NOT NULL DEFAULT 0.0,
                 PRIMARY KEY (task_type, period_start)
             );
         """)
+        # 迁移：为已有表添加新列
+        for col, col_def in [
+            ("rule_count_sum", "INTEGER NOT NULL DEFAULT 0"),
+            ("rule_score_sum", "REAL NOT NULL DEFAULT 0.0"),
+        ]:
+            try:
+                existing = {r[1] for r in self._conn.execute("PRAGMA table_info(task_type_performance)").fetchall()}
+                if col not in existing:
+                    self._conn.execute(f"ALTER TABLE task_type_performance ADD COLUMN {col} {col_def}")
+            except Exception:
+                pass
         self._conn.commit()
 
     @staticmethod
@@ -251,27 +268,51 @@ class ABTracker:
         """当天日期作为周期 key"""
         return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    def record_task(self, task_type: str, success: bool, has_rules: bool) -> None:
-        """记录一次任务执行结果（upsert 到当天统计行）"""
+    @staticmethod
+    def quality_bucket(avg_score: float) -> str:
+        """规则质量分桶: low / medium / high"""
+        if avg_score >= ABTracker.QUALITY_HIGH:
+            return "high"
+        if avg_score >= ABTracker.QUALITY_LOW:
+            return "medium"
+        return "low"
+
+    def record_task(
+        self,
+        task_type: str,
+        success: bool,
+        has_rules: bool,
+        rule_count: int = 0,
+        avg_rule_score: float = 0.0,
+    ) -> None:
+        """记录一次任务执行结果（upsert 到当天统计行）
+
+        Args:
+            task_type: 任务类型
+            success: 是否成功
+            has_rules: 是否注入了经验规则
+            rule_count: 注入的规则数量
+            avg_rule_score: 注入规则的平均有效性评分
+        """
         period = self._period_key()
         with self._lock:
-            # 确保行存在
             self._conn.execute(
                 """INSERT OR IGNORE INTO task_type_performance
                    (task_type, period_start, total_tasks, tasks_with_rules,
-                    success_with_rules, success_without_rules)
-                   VALUES (?, ?, 0, 0, 0, 0)""",
+                    success_with_rules, success_without_rules, rule_count_sum, rule_score_sum)
+                   VALUES (?, ?, 0, 0, 0, 0, 0, 0.0)""",
                 (task_type, period),
             )
-            # 更新计数
             if has_rules:
                 self._conn.execute(
                     """UPDATE task_type_performance
                        SET total_tasks = total_tasks + 1,
                            tasks_with_rules = tasks_with_rules + 1,
-                           success_with_rules = success_with_rules + ?
+                           success_with_rules = success_with_rules + ?,
+                           rule_count_sum = rule_count_sum + ?,
+                           rule_score_sum = rule_score_sum + ?
                        WHERE task_type = ? AND period_start = ?""",
-                    (1 if success else 0, task_type, period),
+                    (1 if success else 0, rule_count, avg_rule_score, task_type, period),
                 )
             else:
                 self._conn.execute(
@@ -293,7 +334,8 @@ class ABTracker:
         Returns:
             列表，每项含 task_type, total, with_rules_total,
             with_rules_success_rate, without_rules_total,
-            without_rules_success_rate, improvement_pct
+            without_rules_success_rate, improvement_pct,
+            avg_rule_count, avg_rule_score
         """
         cutoff = (datetime.now(timezone.utc) - timedelta(days=period_days)).strftime("%Y-%m-%d")
         conditions = ["period_start >= ?"]
@@ -310,7 +352,9 @@ class ABTracker:
                            SUM(total_tasks) as total,
                            SUM(tasks_with_rules) as with_rules_total,
                            SUM(success_with_rules) as with_rules_success,
-                           SUM(success_without_rules) as without_rules_success
+                           SUM(success_without_rules) as without_rules_success,
+                           SUM(rule_count_sum) as rc_sum,
+                           SUM(rule_score_sum) as rs_sum
                     FROM task_type_performance
                     WHERE {where}
                     GROUP BY task_type
@@ -332,6 +376,9 @@ class ABTracker:
             if without_rules_rate > 0:
                 improvement = with_rules_rate - without_rules_rate
 
+            avg_rule_count = round((row["rc_sum"] or 0) / with_rules_total, 2) if with_rules_total > 0 else 0.0
+            avg_rule_score = round((row["rs_sum"] or 0.0) / with_rules_total, 4) if with_rules_total > 0 else 0.0
+
             results.append({
                 "task_type": row["task_type"],
                 "total": row["total"] or 0,
@@ -340,6 +387,80 @@ class ABTracker:
                 "without_rules_total": without_rules_total,
                 "without_rules_success_rate": round(without_rules_rate, 2),
                 "improvement_pct": round(improvement, 2),
+                "avg_rule_count": avg_rule_count,
+                "avg_rule_score": avg_rule_score,
             })
 
         return results
+
+    def get_quality_stats(self, period_days: int = 30) -> dict:
+        """按规则质量分桶的成功率统计
+
+        将有规则注入的任务按 avg_rule_score 分为 low/medium/high 三桶，
+        对比各桶成功率与无规则基线，回答"什么质量的规则才有用"。
+
+        Returns:
+            {
+                "buckets": {
+                    "low": {"total": int, "success_rate": float},
+                    "medium": {...}, "high": {...},
+                },
+                "baseline": {"total": int, "success_rate": float},
+                "insight": str,
+            }
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=period_days)).strftime("%Y-%m-%d")
+        with self._lock:
+            rows = self._conn.execute(
+                """SELECT tasks_with_rules, success_with_rules,
+                          rule_count_sum, rule_score_sum,
+                          total_tasks, success_without_rules
+                   FROM task_type_performance WHERE period_start >= ?""",
+                (cutoff,),
+            ).fetchall()
+
+        buckets = {"low": {"total": 0, "success": 0}, "medium": {"total": 0, "success": 0}, "high": {"total": 0, "success": 0}}
+        baseline_total = 0
+        baseline_success = 0
+
+        for row in rows:
+            twr = row["tasks_with_rules"] or 0
+            swr = row["success_with_rules"] or 0
+            rc = row["rule_count_sum"] or 0
+            rs = row["rule_score_sum"] or 0.0
+
+            # 无规则基线
+            total = row["total_tasks"] or 0
+            baseline_total += total - twr
+            baseline_success += row["success_without_rules"] or 0
+
+            if twr > 0:
+                avg_score = rs / twr
+                bucket = self.quality_bucket(avg_score)
+                buckets[bucket]["total"] += twr
+                buckets[bucket]["success"] += swr
+
+        def _rate(d: dict) -> float:
+            return round(d["success"] / d["total"] * 100, 2) if d["total"] > 0 else 0.0
+
+        result_buckets = {
+            k: {"total": v["total"], "success_rate": _rate(v)}
+            for k, v in buckets.items()
+        }
+        baseline_rate = round(baseline_success / baseline_total * 100, 2) if baseline_total > 0 else 0.0
+
+        # 生成 insight
+        high_rate = result_buckets["high"]["success_rate"]
+        low_rate = result_buckets["low"]["success_rate"]
+        if high_rate > baseline_rate + 5:
+            insight = f"高质量规则显著提升成功率 ({high_rate}% vs 基线 {baseline_rate}%)"
+        elif low_rate < baseline_rate:
+            insight = f"低质量规则反而降低成功率 ({low_rate}% vs 基线 {baseline_rate}%)，建议加强审核"
+        else:
+            insight = "规则质量与成功率关联不显著，样本量可能不足"
+
+        return {
+            "buckets": result_buckets,
+            "baseline": {"total": baseline_total, "success_rate": baseline_rate},
+            "insight": insight,
+        }

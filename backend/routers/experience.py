@@ -288,3 +288,14 @@ async def get_ab_stats(task_type: str = "", period: int = 30):
     except Exception as e:
         logger.exception("get_ab_stats 失败")
         return fail(str(e))
+
+
+@router.get("/api/evolution/ab-quality")
+async def get_ab_quality_stats(period: int = 30):
+    """按规则质量分桶的 A/B 统计（low/medium/high vs 无规则基线）"""
+    try:
+        result = _ab_tracker.get_quality_stats(period_days=period)
+        return ok(result)
+    except Exception as e:
+        logger.exception("get_ab_quality_stats 失败")
+        return fail(str(e))

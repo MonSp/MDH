@@ -229,13 +229,21 @@ class SimpleExecutor:
 
         # 任务后状态同步（轻量：记忆 + 规则有效性）
         if self._state_sync:
+            exp_rules = metadata.get("experience_rules") or []
+            rule_count = len(exp_rules)
+            avg_score = (
+                sum(r.get("effectiveness_score", 0) for r in exp_rules) / rule_count
+                if rule_count > 0 else 0.0
+            )
             self._state_sync.process_task_result(
                 agent_id=agent.agent_id,
                 task_description=content,
                 result_text=result_text,
                 success=success,
                 task_id=event.task_id,
-                has_rules=bool(metadata.get("experience_rules")),
+                has_rules=bool(exp_rules),
+                rule_count=rule_count,
+                avg_rule_score=avg_score,
             )
 
         # 任务后完整经验闭环（经验提炼 + XP + 记忆 + 路由统计）

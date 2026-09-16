@@ -141,6 +141,8 @@ class StateSyncManager:
         success: bool,
         task_id: str = "",
         has_rules: bool = False,
+        rule_count: int = 0,
+        avg_rule_score: float = 0.0,
     ):
         """任务后: 从执行结果提取信息，写入 Agent 记忆
 
@@ -151,12 +153,14 @@ class StateSyncManager:
             success: 是否成功
             task_id: A2A 任务 ID
             has_rules: 本次任务是否注入了经验规则（用于 A/B 统计）
+            rule_count: 注入的规则数量
+            avg_rule_score: 注入规则的平均有效性评分
         """
         # A/B 统计：记录任务类型成功率
         if self._ab_tracker:
             try:
                 task_type = self._experience._infer_task_type(task_description)
-                self._ab_tracker.record_task(task_type, success, has_rules)
+                self._ab_tracker.record_task(task_type, success, has_rules, rule_count, avg_rule_score)
             except Exception as e:
                 logger.debug("AB 统计记录跳过: %s", e)
 
