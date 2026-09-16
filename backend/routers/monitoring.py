@@ -20,11 +20,53 @@ router = APIRouter(tags=["monitoring"])
 _srv = None
 _data_dir = None
 
+# 惰性单例缓存
+_knowledge_network = None
+_team_federation = None
+_capability_boundary = None
+_system_introspection = None
+
 
 def init(server_module, data_dir: str):
     global _srv, _data_dir
     _srv = server_module
     _data_dir = data_dir
+
+
+def _get_knowledge_network():
+    global _knowledge_network
+    if _knowledge_network is None:
+        from knowledge_network import KnowledgeNetwork
+        _knowledge_network = KnowledgeNetwork(
+            data_dir=_data_dir,
+            skill_packs_dir=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "skill_packs"),
+        )
+    return _knowledge_network
+
+
+def _get_team_federation():
+    global _team_federation
+    if _team_federation is None:
+        from team_federation import TeamFederation
+        _team_federation = TeamFederation(_data_dir)
+    return _team_federation
+
+
+def _get_capability_boundary():
+    global _capability_boundary
+    if _capability_boundary is None:
+        from capability_boundary import CapabilityBoundary
+        extractor = getattr(_srv, "experience_extractor", None)
+        _capability_boundary = CapabilityBoundary(_data_dir, experience_extractor=extractor)
+    return _capability_boundary
+
+
+def _get_system_introspection():
+    global _system_introspection
+    if _system_introspection is None:
+        from system_introspection import SystemIntrospection
+        _system_introspection = SystemIntrospection(_data_dir)
+    return _system_introspection
 
 
 # ── LLM Costs ──
@@ -130,12 +172,7 @@ async def analyze_benchmark():
 @router.get("/api/knowledge/network-stats")
 async def get_knowledge_network_stats():
     try:
-        from knowledge_network import KnowledgeNetwork
-        network = KnowledgeNetwork(
-            data_dir=_data_dir,
-            skill_packs_dir=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "skill_packs"),
-        )
-        return ok(network.get_network_stats())
+        return ok(_get_knowledge_network().get_network_stats())
     except Exception as e:
         logger.exception("get_knowledge_network_stats 失败")
         return fail(str(e))
@@ -159,8 +196,7 @@ async def get_reflection_priority_queue():
 @router.get("/api/federation/stats")
 async def get_federation_stats():
     try:
-        from team_federation import TeamFederation
-        return ok(TeamFederation(_data_dir).get_federation_stats())
+        return ok(_get_team_federation().get_federation_stats())
     except Exception as e:
         logger.exception("get_federation_stats 失败")
         return fail(str(e))
@@ -169,9 +205,8 @@ async def get_federation_stats():
 @router.get("/api/federation/feed")
 async def get_federation_feed(team_id: str = "", keywords: str = ""):
     try:
-        from team_federation import TeamFederation
         kw_list = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
-        return ok(TeamFederation(_data_dir).get_team_feed(team_id, kw_list))
+        return ok(_get_team_federation().get_team_feed(team_id, kw_list))
     except Exception as e:
         logger.exception("get_federation_feed 失败")
         return fail(str(e))
@@ -182,9 +217,7 @@ async def get_federation_feed(team_id: str = "", keywords: str = ""):
 @router.get("/api/capability/boundary")
 async def get_capability_boundary():
     try:
-        from capability_boundary import CapabilityBoundary
-        extractor = getattr(_srv, "experience_extractor", None)
-        return ok(CapabilityBoundary(_data_dir, experience_extractor=extractor).get_boundary_report())
+        return ok(_get_capability_boundary().get_boundary_report())
     except Exception as e:
         logger.exception("get_capability_boundary 失败")
         return fail(str(e))
@@ -193,9 +226,7 @@ async def get_capability_boundary():
 @router.get("/api/capability/confidence-map")
 async def get_confidence_map():
     try:
-        from capability_boundary import CapabilityBoundary
-        extractor = getattr(_srv, "experience_extractor", None)
-        return ok(CapabilityBoundary(_data_dir, experience_extractor=extractor).compute_confidence_map())
+        return ok(_get_capability_boundary().compute_confidence_map())
     except Exception as e:
         logger.exception("get_confidence_map 失败")
         return fail(str(e))
@@ -204,10 +235,8 @@ async def get_confidence_map():
 @router.get("/api/capability/detect")
 async def detect_unknown_domain(keywords: str = ""):
     try:
-        from capability_boundary import CapabilityBoundary
-        extractor = getattr(_srv, "experience_extractor", None)
         kw_list = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
-        return ok(CapabilityBoundary(_data_dir, experience_extractor=extractor).detect_unknown_domain(kw_list))
+        return ok(_get_capability_boundary().detect_unknown_domain(kw_list))
     except Exception as e:
         logger.exception("detect_unknown_domain 失败")
         return fail(str(e))
@@ -218,8 +247,7 @@ async def detect_unknown_domain(keywords: str = ""):
 @router.get("/api/introspection/features")
 async def get_feature_utilization():
     try:
-        from system_introspection import SystemIntrospection
-        return ok(SystemIntrospection(_data_dir).get_feature_utilization())
+        return ok(_get_system_introspection().get_feature_utilization())
     except Exception as e:
         logger.exception("get_feature_utilization 失败")
         return fail(str(e))
@@ -228,8 +256,7 @@ async def get_feature_utilization():
 @router.get("/api/introspection/health")
 async def get_module_health():
     try:
-        from system_introspection import SystemIntrospection
-        return ok(SystemIntrospection(_data_dir).get_module_health())
+        return ok(_get_system_introspection().get_module_health())
     except Exception as e:
         logger.exception("get_module_health 失败")
         return fail(str(e))
@@ -238,8 +265,7 @@ async def get_module_health():
 @router.get("/api/introspection/proposals")
 async def get_improvement_proposals():
     try:
-        from system_introspection import SystemIntrospection
-        return ok({"proposals": SystemIntrospection(_data_dir).generate_improvement_proposals()})
+        return ok({"proposals": _get_system_introspection().generate_improvement_proposals()})
     except Exception as e:
         logger.exception("get_improvement_proposals 失败")
         return fail(str(e))
