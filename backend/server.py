@@ -347,10 +347,15 @@ experience_router.init(experience_extractor, evolution_event_store, ab_tracker)
 # 自调优引擎
 from tuning_registry import create_default_registry
 from tuning_optimizer import TuningOptimizer
+from tuning_deployment import DeploymentManager
 
 tuning_registry = create_default_registry(os.path.join(_DATA_DIR, "tuning_config.json"))
 tuning_optimizer = TuningOptimizer(tuning_registry, evolution_event_store._conn)
-tuning_router.init(tuning_registry, tuning_optimizer)
+tuning_deployment = DeploymentManager(
+    tuning_registry, evolution_event_store._conn,
+    os.path.join(_DATA_DIR, "tuning_deployments.json"),
+)
+tuning_router.init(tuning_registry, tuning_optimizer, tuning_deployment)
 dynamic_router = DynamicRouter(
     routing_table_path=os.path.join(_DATA_DIR, "routing_table.json"),
 )
@@ -542,9 +547,20 @@ async def _start_background_tasks():
                 logger.warning("记忆老化异常: %s", e)
             await asyncio.sleep(86400)  # 每 24 小时
 
+    async def _tuning_rollback_loop():
+        while True:
+            try:
+                rolled_back = tuning_deployment.check_rollbacks()
+                if rolled_back:
+                    logger.warning("自动回滚 %d 个部署: %s", len(rolled_back), rolled_back)
+            except Exception as e:
+                logger.warning("调优回滚检查异常: %s", e)
+            await asyncio.sleep(3600)  # 每 1 小时
+
     asyncio.create_task(_a2a_health_loop())
     asyncio.create_task(_proactive_monitor_loop())
     asyncio.create_task(_memory_aging_loop())
+    asyncio.create_task(_tuning_rollback_loop())
 
 
 # ── 统一异常处理 ──
