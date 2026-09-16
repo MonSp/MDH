@@ -13,8 +13,9 @@ import EvolutionTimelinePanel from './EvolutionTimelinePanel'
 import RuleLineageView from './RuleLineageView'
 import CapabilityRadarChart from './CapabilityRadarChart'
 import EvolutionProofCard from './EvolutionProofCard'
+import QualityAnalysisPanel from './QualityAnalysisPanel'
 
-type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles' | 'career' | 'dashboard' | 'feedback' | 'timeline' | 'lineage' | 'radar' | 'proof'
+type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles' | 'career' | 'dashboard' | 'feedback' | 'timeline' | 'lineage' | 'radar' | 'proof' | 'quality'
 
 const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'skills', label: '技能包', icon: '📦' },
@@ -29,6 +30,7 @@ const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'lineage', label: '规则链', icon: '🔗' },
   { key: 'radar', label: '能力雷达', icon: '🎯' },
   { key: 'proof', label: '进化验证', icon: '🏆' },
+  { key: 'quality', label: '质量分析', icon: '📊' },
 ]
 
 export default function SkillEvolutionDashboard() {
@@ -110,6 +112,7 @@ export default function SkillEvolutionDashboard() {
         )}
         {activeTab === 'radar' && <CapabilityRadarChart />}
         {activeTab === 'proof' && <EvolutionProofCard />}
+        {activeTab === 'quality' && <QualityAnalysisPanel />}
       </div>
     </div>
   )

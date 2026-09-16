@@ -3,30 +3,30 @@ import { apiGet } from '../../services/apiFetch'
 
 interface TaskTypeStats {
   task_type: string
-  with_rules_rate: number
-  without_rules_rate: number
-  improvement: number
-  with_rules_count?: number
-  without_rules_count?: number
+  total: number
+  with_rules_total: number
+  with_rules_success_rate: number
+  without_rules_total: number
+  without_rules_success_rate: number
+  improvement_pct: number
+  avg_rule_count?: number
+  avg_rule_score?: number
 }
 
-interface AbStatsData {
-  task_types: TaskTypeStats[]
-  summary?: {
-    avg_improvement: number
-    total_task_types: number
-  }
+interface AbStatsResponse {
+  stats: TaskTypeStats[]
+  total: number
 }
 
 export default function EvolutionProofCard() {
-  const [data, setData] = useState<AbStatsData | null>(null)
+  const [data, setData] = useState<AbStatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setLoading(true)
     setError(null)
-    apiGet<AbStatsData>('/api/evolution/ab-stats')
+    apiGet<AbStatsResponse>('/api/evolution/ab-stats')
       .then(d => setData(d))
       .catch((e: Error) => setError(e.message || '加载失败'))
       .finally(() => setLoading(false))
@@ -34,9 +34,10 @@ export default function EvolutionProofCard() {
 
   if (loading) return <div style={s.center}>加载中...</div>
   if (error) return <div style={{ ...s.center, color: '#ef4444' }}>{error}</div>
-  if (!data || !data.task_types || data.task_types.length === 0) return <div style={s.center}>无数据</div>
+  if (!data || !data.stats || data.stats.length === 0) return <div style={s.center}>无数据</div>
 
-  const sorted = [...data.task_types].sort((a, b) => b.improvement - a.improvement)
+  const sorted = [...data.stats].sort((a, b) => b.improvement_pct - a.improvement_pct)
+  const avgImprovement = sorted.reduce((sum, r) => sum + r.improvement_pct, 0) / sorted.length
 
   return (
     <div style={s.container}>
@@ -45,39 +46,38 @@ export default function EvolutionProofCard() {
         <span style={s.subtitle}>A/B 对比</span>
       </div>
 
-      {data.summary && (
-        <div style={s.summaryRow}>
-          <div style={s.summaryCard}>
-            <div style={{ ...s.summaryValue, color: data.summary.avg_improvement >= 0 ? '#10b981' : '#ef4444' }}>
-              {data.summary.avg_improvement >= 0 ? '+' : ''}{(data.summary.avg_improvement * 100).toFixed(1)}%
-            </div>
-            <div style={s.summaryLabel}>平均提升</div>
+      <div style={s.summaryRow}>
+        <div style={s.summaryCard}>
+          <div style={{ ...s.summaryValue, color: avgImprovement >= 0 ? '#10b981' : '#ef4444' }}>
+            {avgImprovement >= 0 ? '+' : ''}{avgImprovement.toFixed(1)}%
           </div>
-          <div style={s.summaryCard}>
-            <div style={s.summaryValue}>{data.summary.total_task_types}</div>
-            <div style={s.summaryLabel}>任务类型</div>
-          </div>
+          <div style={s.summaryLabel}>平均提升</div>
         </div>
-      )}
+        <div style={s.summaryCard}>
+          <div style={s.summaryValue}>{data.total}</div>
+          <div style={s.summaryLabel}>任务类型</div>
+        </div>
+      </div>
 
       <div style={s.body}>
         {sorted.map((item, idx) => {
-          const isPositive = item.improvement >= 0
-          const withPct = Math.min(item.with_rules_rate * 100, 100)
-          const withoutPct = Math.min(item.without_rules_rate * 100, 100)
+          const improvement = item.improvement_pct / 100
+          const isPositive = improvement >= 0
+          const withPct = Math.min(item.with_rules_success_rate, 100)
+          const withoutPct = Math.min(item.without_rules_success_rate, 100)
           return (
             <div key={item.task_type || idx} style={s.card}>
               <div style={s.cardHeader}>
                 <span style={s.taskType}>{item.task_type}</span>
                 <span style={{ ...s.improvementBadge, color: isPositive ? '#10b981' : '#ef4444', background: isPositive ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)' }}>
-                  {isPositive ? '↑' : '↓'} {isPositive ? '+' : ''}{(item.improvement * 100).toFixed(1)}%
+                  {isPositive ? '↑' : '↓'} {isPositive ? '+' : ''}{item.improvement_pct.toFixed(1)}%
                 </span>
               </div>
 
               <div style={s.barSection}>
                 <div style={s.barLabelRow}>
                   <span style={s.barLabel}>有规则</span>
-                  <span style={s.barPct}>{(item.with_rules_rate * 100).toFixed(1)}%</span>
+                  <span style={s.barPct}>{item.with_rules_success_rate.toFixed(1)}%</span>
                 </div>
                 <div style={s.barOuter}>
                   <div style={{ ...s.barInner, width: `${withPct}%`, background: '#10b981' }} />
@@ -87,19 +87,23 @@ export default function EvolutionProofCard() {
               <div style={s.barSection}>
                 <div style={s.barLabelRow}>
                   <span style={s.barLabel}>无规则</span>
-                  <span style={s.barPct}>{(item.without_rules_rate * 100).toFixed(1)}%</span>
+                  <span style={s.barPct}>{item.without_rules_success_rate.toFixed(1)}%</span>
                 </div>
                 <div style={s.barOuter}>
                   <div style={{ ...s.barInner, width: `${withoutPct}%`, background: '#6b7280' }} />
                 </div>
               </div>
 
-              {(item.with_rules_count !== undefined || item.without_rules_count !== undefined) && (
-                <div style={s.countRow}>
-                  {item.with_rules_count !== undefined && <span style={s.countText}>样本: {item.with_rules_count}</span>}
-                  {item.without_rules_count !== undefined && <span style={s.countText}>对照: {item.without_rules_count}</span>}
-                </div>
-              )}
+              <div style={s.countRow}>
+                <span style={s.countText}>样本: {item.with_rules_total}</span>
+                <span style={s.countText}>对照: {item.without_rules_total}</span>
+                {item.avg_rule_count !== undefined && item.avg_rule_count > 0 && (
+                  <span style={s.countText}>平均规则数: {item.avg_rule_count}</span>
+                )}
+                {item.avg_rule_score !== undefined && item.avg_rule_score > 0 && (
+                  <span style={s.countText}>平均评分: {(item.avg_rule_score * 100).toFixed(0)}%</span>
+                )}
+              </div>
             </div>
           )
         })}
