@@ -16,8 +16,9 @@ class AgentMemory:
     """Agent 持久记忆管理器（SQLite 存储）"""
 
     MARKDOWN_DEBOUNCE_SECONDS = 60
+    CONSOLIDATION_OVERLAP_THRESHOLD = 0.7
 
-    def __init__(self, data_dir: str):
+    def __init__(self, data_dir: str, tuning_registry=None):
         self._data_dir = data_dir
         self._memory_dir = os.path.join(data_dir, "agent_memory")
         os.makedirs(self._memory_dir, exist_ok=True)
@@ -27,6 +28,23 @@ class AgentMemory:
         self._md_last_written: dict[str, float] = {}
         self._summary_cache: dict[str, str] = {}
         self._semantic_indexes: dict[str, Any] = {}  # agent_id → SemanticIndex
+        self._tuning = tuning_registry
+
+    def _tp(self, name: str, default: float) -> float:
+        """从 TuningRegistry 获取参数值，无 registry 或未注册时返回默认值"""
+        if self._tuning is not None:
+            val = self._tuning.get(name)
+            if val is not None:
+                return val
+        return default
+
+    @property
+    def markdown_debounce_seconds(self) -> float:
+        return self._tp("memory.markdown_debounce_seconds", self.MARKDOWN_DEBOUNCE_SECONDS)
+
+    @property
+    def consolidation_overlap_threshold(self) -> float:
+        return self._tp("memory.consolidation_overlap_threshold", self.CONSOLIDATION_OVERLAP_THRESHOLD)
 
     def _md_path(self, agent_id: str) -> str:
         return os.path.join(self._memory_dir, f"{agent_id}.md")
@@ -335,8 +353,6 @@ class AgentMemory:
             logger.info("记忆老化完成: %d 个 agent, 共 %d 条", len(result), sum(result.values()))
         return result
 
-    CONSOLIDATION_OVERLAP_THRESHOLD = 0.7
-
     def consolidate_memories(self, agent_id: str) -> int:
         """合并高关键词重叠的记忆条目，返回合并数量
 
@@ -383,7 +399,7 @@ class AgentMemory:
             intersection = len(kw_i & kw_j)
             union = len(kw_i | kw_j)
             jaccard = intersection / union if union else 0.0
-            if jaccard >= self.CONSOLIDATION_OVERLAP_THRESHOLD:
+            if jaccard >= self.consolidation_overlap_threshold:
                 # 合并：entries 已按 importance 降序，保留 i
                 with self._lock:
                     self._db.execute(
@@ -478,7 +494,7 @@ class AgentMemory:
         import time
         now = time.monotonic()
         last = self._md_last_written.get(agent_id, 0.0)
-        if now - last < self.MARKDOWN_DEBOUNCE_SECONDS:
+        if now - last < self.markdown_debounce_seconds:
             return
         self._md_last_written[agent_id] = now
         self._generate_markdown(agent_id)
