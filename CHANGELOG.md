@@ -2,6 +2,24 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.3] - 2026-09-16
+
+### Added
+
+**TuningRegistry 全量接线 — 18/18 参数实时生效**
+
+- `DynamicRouter`: 5 个路由权重（keyword/semantic/success_rate/priority/skill_level）+ skill_level_boost_max
+- `CapabilityBoundary`: confidence_high + confidence_medium
+- `TeamFederation`: trust_decay_rate
+- `server.py`: tuning_registry 在所有模块之前创建，注入全部 5 个消费方
+- `monitoring.py`: 惰性单例也传递 tuning_registry
+
+至此 18 个注册参数全部接线：通过 API 修改 registry 值后，路由评分、边界判定、信任衰减、规则进化、记忆管理全部立即响应。
+
+### Test Results
+
+- Python 后端: 2080 passed, 26 skipped
+
 ## [0.6.2] - 2026-09-16
 
 ### Added
