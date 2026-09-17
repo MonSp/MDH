@@ -359,6 +359,10 @@ tuning_deployment = DeploymentManager(
     os.path.join(_DATA_DIR, "tuning_deployments.json"),
 )
 tuning_router.init(tuning_registry, tuning_optimizer, tuning_deployment)
+
+from auto_optimizer import AutoOptimizer
+auto_optimizer = AutoOptimizer(tuning_registry, tuning_optimizer, tuning_deployment)
+tuning_router.set_auto_optimizer(auto_optimizer)
 dynamic_router = DynamicRouter(
     routing_table_path=os.path.join(_DATA_DIR, "routing_table.json"),
     tuning_registry=tuning_registry,
@@ -551,20 +555,27 @@ async def _start_background_tasks():
                 logger.warning("记忆老化异常: %s", e)
             await asyncio.sleep(86400)  # 每 24 小时
 
-    async def _tuning_rollback_loop():
+    async def _auto_optimize_loop():
+        """自动优化循环：优化器分析 → 影子验证 → 晋升 → 回滚检查"""
+        # 启动后延迟 5 分钟执行首轮（等待积累初始数据）
+        await asyncio.sleep(300)
         while True:
             try:
-                rolled_back = tuning_deployment.check_rollbacks()
-                if rolled_back:
-                    logger.warning("自动回滚 %d 个部署: %s", len(rolled_back), rolled_back)
+                summary = auto_optimizer.run_cycle()
+                if summary["shadows_started"] or summary["promoted"] or summary["rolled_back"]:
+                    logger.info("自动优化 cycle #%d: shadows=%d, promoted=%d, rolled_back=%d",
+                                summary["cycle"],
+                                len(summary["shadows_started"]),
+                                len(summary["promoted"]),
+                                len(summary["rolled_back"]))
             except Exception as e:
-                logger.warning("调优回滚检查异常: %s", e)
+                logger.warning("自动优化异常: %s", e)
             await asyncio.sleep(3600)  # 每 1 小时
 
     asyncio.create_task(_a2a_health_loop())
     asyncio.create_task(_proactive_monitor_loop())
     asyncio.create_task(_memory_aging_loop())
-    asyncio.create_task(_tuning_rollback_loop())
+    asyncio.create_task(_auto_optimize_loop())
 
 
 # ── 统一异常处理 ──

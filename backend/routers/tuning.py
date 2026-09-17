@@ -238,3 +238,34 @@ async def get_deployment(deployment_id: str):
     except Exception as e:
         logger.exception("get_deployment 失败")
         return fail(str(e))
+
+
+# ── 自动优化 ──
+
+_auto_optimizer = None
+
+
+def set_auto_optimizer(ao):
+    global _auto_optimizer
+    _auto_optimizer = ao
+
+
+@router.post("/api/tuning/auto-optimize/run")
+async def run_auto_optimize():
+    """手动触发一轮自动优化"""
+    try:
+        summary = _auto_optimizer.run_cycle()
+        return ok(summary)
+    except Exception as e:
+        logger.exception("run_auto_optimize 失败")
+        return fail(str(e))
+
+
+@router.get("/api/tuning/auto-optimize/status")
+async def get_auto_optimize_status():
+    """自动优化器状态"""
+    try:
+        return ok(_auto_optimizer.get_status())
+    except Exception as e:
+        logger.exception("get_auto_optimize_status 失败")
+        return fail(str(e))
