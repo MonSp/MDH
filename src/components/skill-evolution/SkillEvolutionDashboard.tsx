@@ -14,8 +14,9 @@ import RuleLineageView from './RuleLineageView'
 import CapabilityRadarChart from './CapabilityRadarChart'
 import EvolutionProofCard from './EvolutionProofCard'
 import QualityAnalysisPanel from './QualityAnalysisPanel'
+import RsiMonitorPanel from './RsiMonitorPanel'
 
-type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles' | 'career' | 'dashboard' | 'feedback' | 'timeline' | 'lineage' | 'radar' | 'proof' | 'quality'
+type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles' | 'career' | 'dashboard' | 'feedback' | 'timeline' | 'lineage' | 'radar' | 'proof' | 'quality' | 'rsi'
 
 const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'skills', label: '技能包', icon: '📦' },
@@ -31,6 +32,7 @@ const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'radar', label: '能力雷达', icon: '🎯' },
   { key: 'proof', label: '进化验证', icon: '🏆' },
   { key: 'quality', label: '质量分析', icon: '📊' },
+  { key: 'rsi', label: 'RSI 引擎', icon: '🧬' },
 ]
 
 export default function SkillEvolutionDashboard() {
@@ -113,6 +115,7 @@ export default function SkillEvolutionDashboard() {
         {activeTab === 'radar' && <CapabilityRadarChart />}
         {activeTab === 'proof' && <EvolutionProofCard />}
         {activeTab === 'quality' && <QualityAnalysisPanel />}
+        {activeTab === 'rsi' && <RsiMonitorPanel />}
       </div>
     </div>
   )
