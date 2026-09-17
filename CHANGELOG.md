@@ -2,6 +2,23 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.4] - 2026-09-16
+
+### Added
+
+**AutoOptimizer — RSI 自动优化循环接入生产运行时**
+
+- `auto_optimizer.py`: 周期性编排器，每轮自动执行：回滚检查 → 影子评估与晋升 → 优化器分析与影子启动
+- 每轮最多启动 2 个影子验证、晋升 1 个部署；跳过 requires_approval 参数
+- `server.py`: `_auto_optimize_loop` 每小时执行一轮（启动后延迟 5 分钟等待初始数据）
+- REST API: `POST /api/tuning/auto-optimize/run` 手动触发，`GET /api/tuning/auto-optimize/status` 查看状态
+
+E2E 验证：影子启动 → 自动评估 → 自动晋升 → 运行时参数实时生效 → 回滚恢复
+
+### Test Results
+
+- Python 后端: 2080 passed, 26 skipped
+
 ## [0.6.3] - 2026-09-16
 
 ### Added
