@@ -2,6 +2,26 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.5] - 2026-09-16
+
+### Added
+
+**RSI 监控面板**
+
+- `RsiMonitorPanel.tsx`: 实时展示自调优引擎状态
+  - 概览卡片：可调参数数 / 影子验证中 / 活跃部署 / 已回滚
+  - 自动优化器状态：运行轮次、上次运行时间、配置参数
+  - 部署历史：状态徽章、参数变更、影子一致率、基线成功率
+  - 参数总览：18 个参数的当前值、范围、审批标记
+  - 手动"立即优化"触发按钮
+  - 30 秒自动刷新
+- Dashboard 新增"RSI 引擎" tab
+
+### Test Results
+
+- Python 后端: 2105 passed, 1 skipped
+- 前端: 1726 passed (98 files)
+
 ## [0.6.4] - 2026-09-16
 
 ### Added
