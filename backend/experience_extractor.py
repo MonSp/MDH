@@ -400,15 +400,17 @@ class ExperienceExtractor:
 
         llm_rules = self._try_llm_distill_sync(log.task_description, result_text)
         if llm_rules:
-            # 保存 LLM 蒸馏规则
+            # 保存 LLM 蒸馏规则（统一走 _save_new_rule：去重 + 自动审批）
+            saved = []
             for rule in llm_rules:
-                self._save_rule(rule)
+                self._save_new_rule(rule, auto_approve=True)
+                saved.append(rule)
             logger.info(
                 "LLM distillation produced %d rules for task %s",
-                len(llm_rules),
+                len(saved),
                 log.task_id,
             )
-            return llm_rules
+            return saved
 
         # 回退到模板提取
 
@@ -632,11 +634,15 @@ class ExperienceExtractor:
                     return existing
         return None
 
-    def submit_for_review(self, rule: ExperienceRule) -> str:
-        """提交规则审核（自动去重 + 低风险规则 LLM 自动审批）
+    def _save_new_rule(self, rule: ExperienceRule, auto_approve: bool = True) -> str:
+        """统一的新规则保存入口：去重 → 保存 → 自动审批
+
+        所有创建新规则的路径都应走此方法，确保去重检查不被绕过。
 
         Args:
-            rule: 待审核的经验规则
+            rule: 待保存的规则
+            auto_approve: 是否尝试 LLM 自动审批（仅低风险类型）
+
         Returns:
             规则 ID（去重命中时返回已有规则 ID）
         """
@@ -648,10 +654,10 @@ class ExperienceExtractor:
 
         rule.status = "pending_review"
         self._save_rule(rule)
-        logger.info("Rule %s submitted for review", rule.rule_id)
+        logger.info("Rule %s saved", rule.rule_id)
 
         # LLM 自动审批：仅低风险规则类型
-        if rule.rule_type in self.AUTO_APPROVE_RULE_TYPES and self._llm_caller is not None:
+        if auto_approve and rule.rule_type in self.AUTO_APPROVE_RULE_TYPES and self._llm_caller is not None:
             self._try_auto_approve(rule)
 
         # Prometheus 计数器
@@ -669,12 +675,26 @@ class ExperienceExtractor:
                     event_type="rule_created",
                     agent_id=rule.source_agent_id or "",
                     timestamp=_now_iso(),
-                    details={"rule_id": rule.rule_id, "rule_type": rule.rule_type},
+                    details={
+                        "rule_id": rule.rule_id,
+                        "rule_type": rule.rule_type,
+                        "source_task_type": rule.source_task_type,
+                    },
                     task_id=rule.source_task_id,
                 ))
             except Exception:
                 pass
         return rule.rule_id
+
+    def submit_for_review(self, rule: ExperienceRule) -> str:
+        """提交规则审核（委托给 _save_new_rule）
+
+        Args:
+            rule: 待审核的经验规则
+        Returns:
+            规则 ID（去重命中时返回已有规则 ID）
+        """
+        return self._save_new_rule(rule, auto_approve=True)
 
     def _try_auto_approve(self, rule: ExperienceRule) -> bool:
         """用 LLM judge 评估规则质量，高置信时自动审批
@@ -1903,33 +1923,21 @@ class ExperienceExtractor:
             )
             rules = llm_rules
 
-        # 保存规则 + 尝试自动审批
+        # 保存规则（统一走 _save_new_rule：去重 + 自动审批）
+        # 去重命中时用已有规则替换，确保返回值与数据库一致
+        deduped_rules = []
         for rule in rules:
-            self._save_rule(rule)
-            # LLM 自动审批：仅低风险规则类型
-            if rule.rule_type in self.AUTO_APPROVE_RULE_TYPES and self._llm_caller is not None:
-                self._try_auto_approve(rule)
-            # 记录 rule_created 事件
-            if self._event_store:
-                try:
-                    from evolution_events import EvolutionEvent, new_event_id
-                    self._event_store.record_event(EvolutionEvent(
-                        event_id=new_event_id(),
-                        event_type="rule_created",
-                        agent_id=rule.source_agent_id or "",
-                        timestamp=_now_iso(),
-                        details={
-                            "rule_id": rule.rule_id,
-                            "rule_type": rule.rule_type,
-                            "source_task_type": rule.source_task_type,
-                        },
-                        task_id=rule.source_task_id,
-                    ))
-                except Exception:
-                    pass
+            saved_id = self._save_new_rule(rule, auto_approve=True)
+            if saved_id != rule.rule_id:
+                # 去重命中：加载已有规则
+                existing = self._load_rule(saved_id)
+                if existing:
+                    deduped_rules.append(existing)
+            else:
+                deduped_rules.append(rule)
 
-        logger.info("从项目 %s 提取了 %d 条经验规则", project_id, len(rules))
-        return rules
+        logger.info("从项目 %s 提取了 %d 条经验规则", project_id, len(deduped_rules))
+        return deduped_rules
 
     @staticmethod
     def _infer_task_type(task_description: str) -> str:
