@@ -2,6 +2,22 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.6] - 2026-09-16
+
+### Fixed
+
+**规则去重统一 — 所有创建路径不再绕过检查**
+
+- 新增 `_save_new_rule()`: 新规则的统一入口（去重 → 保存 → 自动审批 → 事件记录）
+- `submit_for_review` 委托给 `_save_new_rule`
+- `extract_from_meeting` 使用 `_save_new_rule`，返回去重后的规则（命中重复时返回已有规则）
+- `extract_from_success` LLM 蒸馏路径使用 `_save_new_rule`
+- 验证：相同内容 3 次提取 → 数据库仅 1 条规则，返回 ID 一致
+
+### Test Results
+
+- Python 后端: 2080 passed, 26 skipped
+
 ## [0.6.5] - 2026-09-16
 
 ### Added
