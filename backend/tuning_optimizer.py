@@ -77,6 +77,10 @@ class TuningOptimizer:
     def run(self, period_days: int = 30) -> OptimizationReport:
         """运行一轮优化分析
 
+        两层分析策略：
+        1. 维度分析：基于 AB 数据的内在维度（规则效果、质量、数量）
+        2. 时间区间分析：基于参数变更历史（需要跨天数据）
+
         Returns:
             OptimizationReport 包含参数变更提案
         """
@@ -88,9 +92,12 @@ class TuningOptimizer:
 
         cutoff = (datetime.now(timezone.utc) - timedelta(days=period_days)).strftime("%Y-%m-%d")
 
-        # 分析每个已注册参数
+        # Layer 1: 维度分析（不需要跨天数据）
+        dim_proposals = self._analyze_dimensions(cutoff)
+        report.proposals.extend(dim_proposals)
+
+        # Layer 2: 时间区间分析（需要参数变更历史 + 跨天数据）
         for param in self._registry.list_params():
-            # 需要审批的参数只分析不提案
             proposals = self._analyze_param(param, cutoff, period_days)
             if proposals:
                 if param.requires_approval:
@@ -110,9 +117,139 @@ class TuningOptimizer:
         except Exception:
             pass
 
-        # 按预期提升排序
-        report.proposals.sort(key=lambda p: -p.expected_improvement)
+        # 去重：同名参数只保留最优提案
+        seen: dict[str, TuningProposal] = {}
+        for p in report.proposals:
+            if p.param_name not in seen or p.expected_improvement > seen[p.param_name].expected_improvement:
+                seen[p.param_name] = p
+        report.proposals = sorted(seen.values(), key=lambda p: -p.expected_improvement)
         return report
+
+    def _analyze_dimensions(self, cutoff: str) -> list[TuningProposal]:
+        """维度分析：从 AB 数据的内在维度推导参数提案
+
+        不依赖参数变更历史，单日数据即可分析。
+        """
+        proposals = []
+
+        # 拉取聚合数据
+        try:
+            row = self._ab_conn.execute(
+                """SELECT
+                       SUM(total_tasks) as total,
+                       SUM(tasks_with_rules) as with_rules,
+                       SUM(success_with_rules) as success_wr,
+                       SUM(success_without_rules) as success_wor,
+                       SUM(rule_count_sum) as rule_count,
+                       SUM(rule_score_sum) as rule_score
+                   FROM task_type_performance
+                   WHERE period_start >= ?""",
+                (cutoff,),
+            ).fetchone()
+        except Exception:
+            return proposals
+
+        total = row["total"] or 0
+        with_rules = row["with_rules"] or 0
+        success_wr = row["success_wr"] or 0
+        success_wor = row["success_wor"] or 0
+        rule_count = row["rule_count"] or 0
+        rule_score = row["rule_score"] or 0.0
+
+        if total < 20:
+            return proposals  # 总样本不足
+
+        without_rules = total - with_rules
+        wr_rate = success_wr / with_rules if with_rules > 0 else 0.0
+        wor_rate = success_wor / without_rules if without_rules > 0 else 0.0
+        improvement = (wr_rate - wor_rate) * 100  # 百分点
+        avg_rule_score = rule_score / with_rules if with_rules > 0 else 0.0
+        avg_rule_count = rule_count / with_rules if with_rules > 0 else 0.0
+
+        # ── 提案 1: explore_ratio ──
+        # 规则效果好 → 降低探索率（更多利用已知好规则）
+        # 规则效果差 → 提高探索率（需要探索新领域）
+        if with_rules >= self.MIN_SAMPLE_SIZE and without_rules >= self.MIN_SAMPLE_SIZE:
+            current_explore = self._registry.get("experience.explore_ratio") or 0.2
+            if improvement > 10:
+                # 规则效果显著 → 降低探索
+                proposed = max(0.05, current_explore - 0.05)
+                conf = self._compute_confidence(min(with_rules, without_rules), total, improvement)
+                proposals.append(TuningProposal(
+                    param_name="experience.explore_ratio",
+                    current_value=current_explore,
+                    proposed_value=proposed,
+                    expected_improvement=round(improvement * 0.1, 2),  # 预期收益的10%
+                    confidence=conf,
+                    sample_size=total,
+                    reason=f"规则注入提升成功率 {improvement:.1f}%（{wr_rate:.1%} vs {wor_rate:.1%}），降低探索率以利用已验证规则",
+                ))
+            elif improvement < -5:
+                # 规则反而有害 → 提高探索
+                proposed = min(0.5, current_explore + 0.05)
+                conf = self._compute_confidence(min(with_rules, without_rules), total, abs(improvement))
+                proposals.append(TuningProposal(
+                    param_name="experience.explore_ratio",
+                    current_value=current_explore,
+                    proposed_value=proposed,
+                    expected_improvement=round(abs(improvement) * 0.05, 2),
+                    confidence=conf,
+                    sample_size=total,
+                    reason=f"规则注入降低成功率 {improvement:.1f}%，提高探索率以跳出低质量规则",
+                ))
+
+        # ── 提案 2: demotion_threshold ──
+        # 平均规则分数低 → 提高降级阈值（更严格地淘汰差规则）
+        if with_rules >= self.MIN_SAMPLE_SIZE:
+            current_demo = self._registry.get("experience.demotion_threshold") or 0.4
+            if avg_rule_score < 0.5 and avg_rule_score > 0:
+                proposed = min(0.6, current_demo + 0.05)
+                conf = self._compute_confidence(with_rules, total, (0.5 - avg_rule_score) * 20)
+                proposals.append(TuningProposal(
+                    param_name="experience.demotion_threshold",
+                    current_value=current_demo,
+                    proposed_value=proposed,
+                    expected_improvement=round((0.5 - avg_rule_score) * 10, 2),
+                    confidence=conf,
+                    sample_size=with_rules,
+                    reason=f"平均规则分数 {avg_rule_score:.2f} 偏低，提高降级阈值以淘汰低质量规则",
+                ))
+
+        # ── 提案 3: auto_approve_min_confidence ──
+        # 规则分数低 → 提高自动审批门槛
+        if with_rules >= self.MIN_SAMPLE_SIZE:
+            current_conf = self._registry.get("experience.auto_approve_min_confidence") or 0.7
+            if avg_rule_score < 0.55:
+                proposed = min(0.95, current_conf + 0.05)
+                conf = self._compute_confidence(with_rules, total, (0.55 - avg_rule_score) * 15)
+                proposals.append(TuningProposal(
+                    param_name="experience.auto_approve_min_confidence",
+                    current_value=current_conf,
+                    proposed_value=proposed,
+                    expected_improvement=round((0.55 - avg_rule_score) * 8, 2),
+                    confidence=conf,
+                    sample_size=with_rules,
+                    reason=f"平均规则分数 {avg_rule_score:.2f} 偏低，提高自动审批门槛以保证规则质量",
+                ))
+
+        # ── 提案 4: evolution_min_usage ──
+        # 注入规则多但成功率不高 → 降低进化触发门槛（让差规则更快被进化）
+        if with_rules >= self.MIN_SAMPLE_SIZE and avg_rule_count > 3:
+            current_evo = self._registry.get("experience.evolution_min_usage") or 5
+            if wr_rate < 0.6:
+                proposed = max(2, current_evo - 1)
+                conf = self._compute_confidence(with_rules, total, (0.6 - wr_rate) * 10)
+                proposals.append(TuningProposal(
+                    param_name="experience.evolution_min_usage",
+                    current_value=current_evo,
+                    proposed_value=proposed,
+                    expected_improvement=round((0.6 - wr_rate) * 5, 2),
+                    confidence=conf,
+                    sample_size=with_rules,
+                    reason=f"注入 {avg_rule_count:.1f} 条规则但成功率仅 {wr_rate:.1%}，降低进化触发门槛加速规则迭代",
+                ))
+
+        return proposals
 
     def _analyze_param(self, param, cutoff: str, period_days: int) -> list[TuningProposal]:
         """分析单个参数的最优值"""
