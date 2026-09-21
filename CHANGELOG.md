@@ -85,9 +85,19 @@ E2E 验证：影子启动 → 自动评估 → 自动晋升 → 运行时参数�
 - 实时生效：通过 API 修改 registry 值后，运行时行为立即改变，无需重启
 - 向后兼容：无 registry 的实例（测试）使用类默认值，行为不变
 
+**优化器维度分析 — 单日数据即可出提案**
+
+- 新增 `_analyze_dimensions()`: 从 AB 数据内在维度（规则效果/质量/数量）推导参数提案
+- 维度分析规则：
+  - 规则效果好 → 降低 explore_ratio（利用已验证规则）
+  - 规则效果差 → 提高 explore_ratio（探索新领域）
+  - 平均规则分数低 → 提高 demotion_threshold + auto_approve_min_confidence
+  - 注入规则多但成功率低 → 降低 evolution_min_usage
+- 与时间区间分析互补，去重后保留最优提案
+
 ### Test Results
 
-- Python 后端: 2080 passed, 26 skipped
+- Python 后端: 2105 passed, 1 skipped
 
 ## [0.6.1] - 2026-09-16
 
