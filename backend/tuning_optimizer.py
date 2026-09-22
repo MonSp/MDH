@@ -321,7 +321,7 @@ class TuningOptimizer:
                         confidence=round(conf, 3),
                         sample_size=total,
                         reason=(
-                            f"配合 success_rate_weight 上调，降低关键词权重以保持五维权重和≈1.0 [需人工确认]"
+                            "配合 success_rate_weight 上调，降低关键词权重以保持五维权重和≈1.0 [需人工确认]"
                         ),
                     ))
 
