@@ -8,7 +8,7 @@ import json
 import logging
 import os
 import threading
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 
 logger = logging.getLogger("tuning_registry")

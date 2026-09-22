@@ -1,6 +1,5 @@
 """FTS5 触发器同步测试"""
 
-import tempfile
 
 import pytest
 
