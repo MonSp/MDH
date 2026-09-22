@@ -353,7 +353,11 @@ experience_extractor = ExperienceExtractor(
 skills_router.init(skill_registry, skill_packager, experience_extractor)
 experience_router.init(experience_extractor, evolution_event_store, ab_tracker)
 
-tuning_optimizer = TuningOptimizer(tuning_registry, evolution_event_store._conn)
+tuning_optimizer = TuningOptimizer(
+    tuning_registry,
+    evolution_event_store._conn,
+    routing_table_path=os.path.join(_DATA_DIR, "routing_table.json"),
+)
 tuning_deployment = DeploymentManager(
     tuning_registry, evolution_event_store._conn,
     os.path.join(_DATA_DIR, "tuning_deployments.json"),

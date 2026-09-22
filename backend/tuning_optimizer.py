@@ -7,6 +7,7 @@
 4. 生成参数变更提案
 """
 
+import json
 import logging
 import math
 import sqlite3
@@ -70,16 +71,18 @@ class TuningOptimizer:
     # 最小置信度：低于此值的提案直接丢弃
     MIN_CONFIDENCE = 0.3
 
-    def __init__(self, registry, ab_conn: sqlite3.Connection):
+    def __init__(self, registry, ab_conn: sqlite3.Connection, routing_table_path: str | None = None):
         self._registry = registry
         self._ab_conn = ab_conn
+        self._routing_table_path = routing_table_path
 
     def run(self, period_days: int = 30) -> OptimizationReport:
         """运行一轮优化分析
 
-        两层分析策略：
+        三层分析策略：
         1. 维度分析：基于 AB 数据的内在维度（规则效果、质量、数量）
         2. 时间区间分析：基于参数变更历史（需要跨天数据）
+        3. 路由权重分析：基于 routing_table 部门统计
 
         Returns:
             OptimizationReport 包含参数变更提案
@@ -106,6 +109,9 @@ class TuningOptimizer:
                     report.proposals.extend(proposals)
                 else:
                     report.proposals.extend(proposals)
+
+        # Layer 3: 路由权重分析（routing_table 部门统计）
+        report.proposals.extend(self._analyze_router_weights())
 
         # 统计总任务数
         try:
@@ -250,6 +256,146 @@ class TuningOptimizer:
                 ))
 
         return proposals
+
+    def _analyze_router_weights(self) -> list[TuningProposal]:
+        """路由权重分析：从 routing_table 部门统计推导 router.* 参数提案
+
+        数据源是部门级 total_tasks / success_rate / priority / skill_level_boost，
+        不依赖 AB 表。
+        """
+        proposals: list[TuningProposal] = []
+        if not self._routing_table_path:
+            return proposals
+
+        try:
+            with open(self._routing_table_path, encoding="utf-8") as fh:
+                raw = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            return proposals
+
+        depts = [d for d in raw.get("departments", []) if isinstance(d, dict)]
+        active = [
+            d for d in depts
+            if (d.get("total_tasks") or 0) >= self.MIN_SAMPLE_SIZE
+            and 0.0 <= float(d.get("success_rate") or 0.0) <= 1.0
+        ]
+        total = sum(int(d.get("total_tasks") or 0) for d in active)
+        if len(active) < 2 or total < self.MIN_SAMPLE_SIZE * 3:
+            return proposals
+
+        rates = [float(d["success_rate"]) for d in active]
+        spread = max(rates) - min(rates)
+        min_sample = min(int(d["total_tasks"]) for d in active)
+
+        # ── 提案 1: success_rate_weight ↑（部门成功率离散度高时）──
+        current_sr = self._registry.get("router.success_rate_weight")
+        if current_sr is None:
+            current_sr = 0.20
+        if spread >= 0.15 and current_sr < 0.5:
+            proposed_sr = min(0.5, round(current_sr + 0.05, 2))
+            conf = self._compute_confidence(min_sample, total, spread * 100)
+            if conf >= self.MIN_CONFIDENCE:
+                proposals.append(TuningProposal(
+                    param_name="router.success_rate_weight",
+                    current_value=current_sr,
+                    proposed_value=proposed_sr,
+                    expected_improvement=round(spread * 5, 2),
+                    confidence=round(conf, 3),
+                    sample_size=total,
+                    reason=(
+                        f"{len(active)} 个部门成功率离散度 {spread:.1%}"
+                        f"（{min(rates):.1%}~{max(rates):.1%}），提高历史成功率权重以更好区分优劣部门 [需人工确认]"
+                    ),
+                ))
+
+                # 权重总和保持 ~1.0：从 keyword_weight 回收 0.05
+                current_kw = self._registry.get("router.keyword_weight")
+                if current_kw is None:
+                    current_kw = 0.35
+                if current_kw > 0.15:
+                    proposals.append(TuningProposal(
+                        param_name="router.keyword_weight",
+                        current_value=current_kw,
+                        proposed_value=max(0.1, round(current_kw - 0.05, 2)),
+                        expected_improvement=round(spread * 2, 2),
+                        confidence=round(conf, 3),
+                        sample_size=total,
+                        reason=(
+                            f"配合 success_rate_weight 上调，降低关键词权重以保持五维权重和≈1.0 [需人工确认]"
+                        ),
+                    ))
+
+        # ── 提案 2: skill_level_boost_max ↑（部门加成触顶）──
+        boosts = [float(d.get("skill_level_boost") or 0.0) for d in depts]
+        current_max = self._registry.get("router.skill_level_boost_max")
+        if current_max is None:
+            current_max = 0.3
+        if boosts and max(boosts) >= current_max - 0.01 and current_max < 0.5:
+            conf = self._compute_confidence(total, total, 5.0)
+            if conf >= self.MIN_CONFIDENCE:
+                proposals.append(TuningProposal(
+                    param_name="router.skill_level_boost_max",
+                    current_value=current_max,
+                    proposed_value=min(0.5, round(current_max + 0.05, 2)),
+                    expected_improvement=0.5,
+                    confidence=round(conf, 3),
+                    sample_size=total,
+                    reason=(
+                        f"部门 skill_level_boost 已触达上限 {current_max:.2f}，提高加成上限以保留升级信号"
+                    ),
+                ))
+
+        # ── 提案 3: priority_weight（priority 与 success_rate 相关性）──
+        if len(active) >= 3:
+            prios = [float(d.get("priority") or 0.0) for d in active]
+            corr = self._pearson(prios, rates)
+            current_pri = self._registry.get("router.priority_weight")
+            if current_pri is None:
+                current_pri = 0.10
+            conf = self._compute_confidence(min_sample, total, abs(corr) * 20)
+            if conf < self.MIN_CONFIDENCE:
+                pass
+            elif corr < 0.1 and current_pri > 0.05:
+                proposals.append(TuningProposal(
+                    param_name="router.priority_weight",
+                    current_value=current_pri,
+                    proposed_value=max(0.0, round(current_pri - 0.05, 2)),
+                    expected_improvement=round(abs(corr) * 3 + 0.3, 2),
+                    confidence=round(conf, 3),
+                    sample_size=total,
+                    reason=(
+                        f"priority 与成功率相关性 {corr:.2f}≈0，降低优先级权重让成功率主导路由"
+                    ),
+                ))
+            elif corr > 0.4 and current_pri < 0.3:
+                proposals.append(TuningProposal(
+                    param_name="router.priority_weight",
+                    current_value=current_pri,
+                    proposed_value=min(0.3, round(current_pri + 0.05, 2)),
+                    expected_improvement=round(corr * 3, 2),
+                    confidence=round(conf, 3),
+                    sample_size=total,
+                    reason=(
+                        f"priority 与成功率正相关 {corr:.2f}，提高优先级权重"
+                    ),
+                ))
+
+        return proposals
+
+    @staticmethod
+    def _pearson(xs: list[float], ys: list[float]) -> float:
+        """Pearson 相关系数（样本数 <3 或方差为 0 时返回 0）"""
+        n = len(xs)
+        if n < 3:
+            return 0.0
+        mx = sum(xs) / n
+        my = sum(ys) / n
+        num = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+        dx = math.sqrt(sum((x - mx) ** 2 for x in xs))
+        dy = math.sqrt(sum((y - my) ** 2 for y in ys))
+        if dx == 0.0 or dy == 0.0:
+            return 0.0
+        return num / (dx * dy)
 
     def _analyze_param(self, param, cutoff: str, period_days: int) -> list[TuningProposal]:
         """分析单个参数的最优值"""
