@@ -17,9 +17,19 @@ def _clear_cache():
         get_cache().clear()
     except ImportError:
         pass
+    try:
+        from llm_cache import llm_cache
+        llm_cache.clear()
+    except ImportError:
+        pass
     yield
     try:
         from cache import get_cache
         get_cache().clear()
+    except ImportError:
+        pass
+    try:
+        from llm_cache import llm_cache
+        llm_cache.clear()
     except ImportError:
         pass
