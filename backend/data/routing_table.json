@@ -26,12 +26,12 @@
         "webpack",
         "vite"
       ],
-      "success_rate": 0.88,
-      "total_tasks": 0,
-      "successful_tasks": 0,
-      "last_active": "",
+      "success_rate": 0.85,
+      "total_tasks": 40,
+      "successful_tasks": 34,
+      "last_active": "2026-09-16T12:00:00+00:00",
       "priority": 10,
-      "skill_level_boost": 0.0
+      "skill_level_boost": 0.25
     },
     {
       "dept_id": "dept-backend",
@@ -57,12 +57,12 @@
         "linter",
         "docker"
       ],
-      "success_rate": 0.85,
-      "total_tasks": 0,
-      "successful_tasks": 0,
-      "last_active": "",
+      "success_rate": 0.7714,
+      "total_tasks": 35,
+      "successful_tasks": 27,
+      "last_active": "2026-09-16T12:00:00+00:00",
       "priority": 10,
-      "skill_level_boost": 0.0
+      "skill_level_boost": 0.15
     },
     {
       "dept_id": "dept-fullstack",
@@ -85,12 +85,12 @@
         "webpack",
         "docker"
       ],
-      "success_rate": 0.82,
-      "total_tasks": 0,
-      "successful_tasks": 0,
-      "last_active": "",
+      "success_rate": 0.8214,
+      "total_tasks": 28,
+      "successful_tasks": 23,
+      "last_active": "2026-09-16T12:00:00+00:00",
       "priority": 9,
-      "skill_level_boost": 0.0
+      "skill_level_boost": 0.2
     },
     {
       "dept_id": "dept-qa",
@@ -114,12 +114,12 @@
         "linter",
         "security_scanner"
       ],
-      "success_rate": 0.92,
-      "total_tasks": 0,
-      "successful_tasks": 0,
-      "last_active": "",
+      "success_rate": 0.68,
+      "total_tasks": 25,
+      "successful_tasks": 17,
+      "last_active": "2026-09-16T12:00:00+00:00",
       "priority": 8,
-      "skill_level_boost": 0.0
+      "skill_level_boost": 0.1
     },
     {
       "dept_id": "dept-devops",
@@ -144,12 +144,12 @@
         "terraform",
         "monitoring"
       ],
-      "success_rate": 0.87,
-      "total_tasks": 0,
-      "successful_tasks": 0,
-      "last_active": "",
+      "success_rate": 0.55,
+      "total_tasks": 20,
+      "successful_tasks": 11,
+      "last_active": "2026-09-22T03:01:30Z",
       "priority": 7,
-      "skill_level_boost": 0.0
+      "skill_level_boost": 0.15000000000000002
     },
     {
       "dept_id": "dept-data",
@@ -170,12 +170,12 @@
         "statistical_analyzer",
         "ml_trainer"
       ],
-      "success_rate": 0.8,
-      "total_tasks": 0,
-      "successful_tasks": 0,
-      "last_active": "",
+      "success_rate": 0.7,
+      "total_tasks": 30,
+      "successful_tasks": 21,
+      "last_active": "2026-09-16T12:00:00+00:00",
       "priority": 7,
-      "skill_level_boost": 0.0
+      "skill_level_boost": 0.1
     },
     {
       "dept_id": "dept-security",
@@ -195,12 +195,12 @@
         "security_scanner",
         "linter"
       ],
-      "success_rate": 0.9,
-      "total_tasks": 0,
-      "successful_tasks": 0,
-      "last_active": "",
+      "success_rate": 0.8667,
+      "total_tasks": 15,
+      "successful_tasks": 13,
+      "last_active": "2026-09-22T03:01:30Z",
       "priority": 8,
-      "skill_level_boost": 0.0
+      "skill_level_boost": 0.3
     },
     {
       "dept_id": "dept-content",
@@ -220,12 +220,12 @@
         "chart_maker",
         "doc_writer"
       ],
-      "success_rate": 0.9,
-      "total_tasks": 0,
-      "successful_tasks": 0,
-      "last_active": "",
+      "success_rate": 0.7222,
+      "total_tasks": 18,
+      "successful_tasks": 13,
+      "last_active": "2026-09-16T12:00:00+00:00",
       "priority": 8,
-      "skill_level_boost": 0.0
+      "skill_level_boost": 0.05
     },
     {
       "dept_id": "dept-test",
