@@ -490,11 +490,15 @@ class AgentMemory:
             f.write("\n".join(lines))
 
     def _generate_markdown_debounced(self, agent_id: str):
-        """防抖版本：距上次写入不足 MARKDOWN_DEBOUNCE_SECONDS 时跳过"""
+        """防抖版本：距上次写入不足 MARKDOWN_DEBOUNCE_SECONDS 时跳过
+
+        首次写入必须执行。time.monotonic() 在新启动的 runner 上可能 <60s，
+        若用 0.0 作为"从未写过"的默认值，首次写入会被误跳过。
+        """
         import time
         now = time.monotonic()
-        last = self._md_last_written.get(agent_id, 0.0)
-        if now - last < self.markdown_debounce_seconds:
+        last = self._md_last_written.get(agent_id)
+        if last is not None and now - last < self.markdown_debounce_seconds:
             return
         self._md_last_written[agent_id] = now
         self._generate_markdown(agent_id)
