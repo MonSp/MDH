@@ -174,6 +174,7 @@ class MeetingCoordinator:
         executor_url: str = "",
         session_persistence=None,
         kernel_integration=None,
+        experience_extractor=None,
     ):
         self._max_iterations = max_iterations
         self._executor_url = executor_url
@@ -183,7 +184,7 @@ class MeetingCoordinator:
         self._approval_timeout = approval_timeout
         self._asset_context_builder = asset_context_builder
         self._data_dir = data_dir
-        self._experience_extractor = None  # lazy init
+        self._experience_extractor = experience_extractor  # 注入共享实例（含 llm_caller/event_store）；None 时懒初始化
         self.meeting = meeting_session
         self.provider = provider
         self.model_name = model_name

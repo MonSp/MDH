@@ -118,7 +118,7 @@ async def run_agent_execution_loop(
                     files_written.append(block["filename"])
                     files_this_round.append(block["filename"])
                 else:
-                    logger.warning("工作流节点写文件失败: %s", block["filename"])
+                    logger.warning("工作流节点写文件失败: %s (%s)", block["filename"], wf.error)
 
         if not code_blocks and agent_toolset:
             tool_calls = extract_tool_calls_from_text(last_text)

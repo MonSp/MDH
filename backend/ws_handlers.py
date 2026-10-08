@@ -148,6 +148,7 @@ async def handle_unified_message(msg, session, ctx):
             approval_manager=session._approval_manager,
             on_coordinator_created=ctx.register_active_coordinator,
             kernel_integration=ctx.kernel_integration,
+            experience_extractor=ctx.experience_extractor,
         )
 
     ceo = session._ceo_agent
@@ -296,6 +297,7 @@ async def handle_start_meeting(msg, session, ctx):
         session_persistence=session_persistence,
         asset_context_builder=asset_context_builder,
         kernel_integration=ctx.kernel_integration,
+        experience_extractor=ctx.experience_extractor,
     )
     session._meeting_coordinator = coordinator
     ctx.active_coordinator = coordinator
@@ -310,6 +312,7 @@ async def handle_start_meeting(msg, session, ctx):
             approval_manager=session._approval_manager,
             on_coordinator_created=ctx.register_active_coordinator,
             kernel_integration=ctx.kernel_integration,
+            experience_extractor=ctx.experience_extractor,
         )
     session._ceo_agent._meeting_coordinator = coordinator
     session._ceo_agent._agenda = coordinator.agenda

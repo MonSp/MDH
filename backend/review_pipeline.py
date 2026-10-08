@@ -216,6 +216,11 @@ class ReviewPipeline:
         """
         reviewer_id = self._find_agent_id(AgentRole.REVIEWER)
         if not reviewer_id:
+            # 团队无 Reviewer 时回退给协调器承接审查结果，
+            # 避免 reviewer/monitor/summary 三连空导致经验提取无输入
+            reviewer_id = self._find_agent_id(AgentRole.COORDINATOR)
+            logger.warning("团队无 Reviewer，合并审查回退到协调器: %s", reviewer_id)
+        if not reviewer_id:
             return ("", "", "")
         model = self._get_model(AgentRole.REVIEWER)
 

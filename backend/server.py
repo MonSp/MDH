@@ -414,6 +414,7 @@ simple_executor = SimpleExecutor(
     state_sync=state_sync,
     a2a_post_processor=a2a_post_processor,
     ab_tracker=ab_tracker,
+    experience_extractor=experience_extractor,
 )
 
 agent_pool = AgentPool(

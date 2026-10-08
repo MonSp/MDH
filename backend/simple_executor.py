@@ -49,6 +49,7 @@ class SimpleExecutor:
         state_sync=None,
         a2a_post_processor=None,
         ab_tracker=None,
+        experience_extractor=None,
     ):
         """
         Args:
@@ -69,6 +70,7 @@ class SimpleExecutor:
         self._state_sync = state_sync
         self._post_processor = a2a_post_processor
         self._ab_tracker = ab_tracker
+        self._experience_extractor = experience_extractor
 
     async def execute(
         self,
@@ -438,6 +440,7 @@ class SimpleExecutor:
                 base_url=session.base_url or "",
                 workflow_engine=self._workflow_engine,
                 approval_manager=approval_manager,
+                experience_extractor=self._experience_extractor,
             )
             if self._on_coordinator_created:
                 self._on_coordinator_created(coordinator)
