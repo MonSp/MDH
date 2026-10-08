@@ -245,6 +245,12 @@ class SemanticAnalyzer:
             # 3. 回退到确定性生成
             nodes = self._deterministic_generate_nodes(user_message, routing_decision)
 
+        # 3.5 将用户原始任务注入每个节点（执行器仅读取 node.task_description/input_spec，
+        # 确定性生成的硬编码描述会丢失用户真实意图）
+        for n in nodes:
+            n.task_description = f"{n.task_description}｜用户任务：{user_message[:200]}"
+            n.input_spec = {**(n.input_spec or {}), "user_task": user_message}
+
         # 4. 依赖推断（两种路径共用）
         edges = self._infer_dependencies(nodes)
 

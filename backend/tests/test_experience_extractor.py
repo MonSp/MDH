@@ -1181,5 +1181,84 @@ class TestExperienceInjection:
         assert len(enriched_results) >= len(basic_results)
 
 
+# ──────────────────── 检索注入回归（T29：FTS 空命中回退 + 内容级重叠） ────────────────────
+
+
+def test_retrieve_content_fallback_when_no_exact_overlap(extractor):
+    """查询词与关键词零交集时，靠触发条件/动作文本包含关系仍能命中（E1→E5 场景）"""
+    rule = ExperienceRule(
+        rule_id="content-fallback-1",
+        trigger_condition="实现递归拍平/转换函数时遇到空容器",
+        action="显式定义空容器的输出语义，避免静默丢失",
+        note="",
+        source_task_id="proj-e1",
+        source_task_type="general",
+        rule_type="failure_avoidance",
+        status="approved",
+        keywords=["空容器", "静默丢失"],  # 与查询词零交集
+        created_at="2026-10-08T00:00:00Z",
+        source_agent_id="executor",
+    )
+    extractor._save_rule(rule)  # 检索读 SQLite；YAML 增量区与检索无关
+
+    # "函数"/"拍平" 不在 keywords 中，但在 trigger_condition 文本里
+    results = extractor.retrieve_relevant_rules("general", ["函数", "toml", "配置拍平"])
+    assert any(r.rule_id == "content-fallback-1" for r in results)
+
+
+def test_retrieve_fts_empty_hit_falls_back_to_scan(extractor):
+    """FTS 整词匹配为空（中文不分词）时不直接返回空集"""
+    rule = ExperienceRule(
+        rule_id="fts-fallback-1",
+        trigger_condition="在交付物中提供完整可运行的测试文件",
+        action="测试文件需覆盖正常分支与关键边界分支",
+        note="",
+        source_task_id="proj-e1",
+        source_task_type="general",
+        rule_type="success_pattern",
+        status="approved",
+        keywords=["测试", "交付"],
+        created_at="2026-10-08T00:00:00Z",
+        source_agent_id="executor",
+    )
+    extractor._save_rule(rule)  # 检索读 SQLite；YAML 增量区与检索无关
+
+    # "单元测试" 是查询短语，FTS 里 "测试" 是整词 token —— 精确 MATCH 命不中
+    results = extractor.retrieve_relevant_rules("general", ["单元测试", "pytest"])
+    assert any(r.rule_id == "fts-fallback-1" for r in results)
+
+
+def test_retrieve_no_match_still_empty(extractor):
+    """内容级重叠不能把完全无关的规则拉进来"""
+    rule = ExperienceRule(
+        rule_id="irrelevant-1",
+        trigger_condition="数据库连接池耗尽时",
+        action="扩大池容量并加入健康检查",
+        note="",
+        source_task_id="proj-db",
+        source_task_type="data-analysis",
+        rule_type="failure_avoidance",
+        status="approved",
+        keywords=["连接池", "数据库"],
+        created_at="2026-10-08T00:00:00Z",
+        source_agent_id="executor",
+    )
+    extractor._save_rule(rule)  # 检索读 SQLite；YAML 增量区与检索无关
+
+    results = extractor.retrieve_relevant_rules("general", ["倒计时组件", "react"])
+    assert all(r.rule_id != "irrelevant-1" for r in results)
+
+
+def test_llm_distill_rules_store_task_type_not_rule_type(extractor):
+    """llm_distill 规则的 source_task_type 必须是任务类型（可参与类型加分），不是 rule_type"""
+    raw = '[{"trigger_condition": "拍平时遇到嵌套数组", "action": "按索引展开并转字符串", "rule_type": "success_pattern", "keywords": ["数组"]}]'
+    desc = "写一个 Python 函数，把嵌套 JSON 拍平成 key.path=value 的字典"
+    rules = extractor._parse_llm_rules(raw, desc)
+    assert len(rules) == 1
+    expected_task_type = extractor._infer_task_type(desc)
+    assert rules[0].source_task_type == expected_task_type
+    assert rules[0].source_task_type != rules[0].rule_type  # rule_type=success_pattern
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

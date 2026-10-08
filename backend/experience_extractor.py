@@ -280,9 +280,9 @@ class ExperienceExtractor:
             return []
 
         # 解析 LLM 响应
-        return self._parse_llm_rules(raw)
+        return self._parse_llm_rules(raw, task_description)
 
-    def _parse_llm_rules(self, raw: str) -> list[ExperienceRule]:
+    def _parse_llm_rules(self, raw: str, task_description: str = "") -> list[ExperienceRule]:
         """Parse LLM JSON response into ExperienceRule objects.
 
         Handles markdown code blocks and malformed JSON gracefully.
@@ -312,7 +312,7 @@ class ExperienceExtractor:
             return []
 
         rules: list[ExperienceRule] = []
-        task_type = self._infer_task_type(task_description="")
+        task_type = self._infer_task_type(task_description)
         for item in items:
             if not isinstance(item, dict):
                 continue
@@ -327,7 +327,7 @@ class ExperienceExtractor:
                     action=str(action)[:300],
                     note=str(item.get("note", ""))[:200],
                     source_task_id="llm_distill",
-                    source_task_type=str(item.get("rule_type", "success_pattern")),
+                    source_task_type=task_type,
                     rule_type=str(item.get("rule_type", "success_pattern")),
                     status="pending_review",
                     keywords=item.get("keywords", []) if isinstance(item.get("keywords"), list) else [],
@@ -1593,6 +1593,10 @@ class ExperienceExtractor:
                     candidate_ids = {r["rule_id"] for r in fts_rows}
                 except Exception:
                     candidate_ids = None  # FTS 查询失败，回退全表
+            if candidate_ids is not None and not candidate_ids:
+                # FTS 空命中不判负：unicode61 对中文不分词，短查询词
+                # （如"函数"）匹配不到规则里的整词 token，回退全表交给精排
+                candidate_ids = None
 
         # 加载候选规则（FTS 命中集 或 SQL 全量 approved）
         with self._lock:
@@ -1630,6 +1634,21 @@ class ExperienceExtractor:
             # 类型匹配加分
             if rule.source_task_type.lower() == task_type.lower():
                 overlap += 2
+            if overlap == 0:
+                # 内容级重叠：查询词与规则文本（关键词/触发条件/动作）的包含关系，
+                # 弥补精确交集与整词 FTS 都命不中的情况（如 E5"拍平"类任务查 E1 规则）
+                rule_text = (
+                    " ".join(rule_keywords) + " "
+                    + (rule.trigger_condition or "").lower() + " "
+                    + (rule.action or "").lower()
+                )
+                query_text = " ".join(query_keywords)
+                for qk in query_keywords:
+                    if len(qk) >= 2 and qk in rule_text:
+                        overlap += 1
+                for rk in rule_keywords:
+                    if len(rk) >= 2 and rk in query_text:
+                        overlap += 1
             if overlap > 0:
                 scored.append((overlap, rule))
 

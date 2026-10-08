@@ -308,6 +308,19 @@ class ToolExecutor:
             # Execute with timeout protection
             timeout = getattr(definition, 'timeout', 30) or 30
             import signal
+            import threading
+
+            if threading.current_thread() is not threading.main_thread():
+                # signal.alarm 仅主线程可用；工作线程（asyncio.to_thread 门禁等）
+                # 改用 future 超时，超时异常与外层 TimeoutError 分支汇合
+                import concurrent.futures
+                pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                try:
+                    return pool.submit(executor, tool_call).result(timeout=timeout)
+                except (concurrent.futures.TimeoutError, TimeoutError) as e:
+                    raise TimeoutError(f"Tool {tool_call.tool_name} timed out after {timeout}s") from e
+                finally:
+                    pool.shutdown(wait=False, cancel_futures=True)
 
             def timeout_handler(signum, frame):
                 raise TimeoutError(f"Tool {tool_call.tool_name} timed out after {timeout}s")

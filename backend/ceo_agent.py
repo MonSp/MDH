@@ -127,6 +127,7 @@ class CeoAgent:
         approval_manager=None,
         on_coordinator_created=None,
         kernel_integration=None,
+        experience_extractor=None,
     ):
         self._session = session
         self._kernel = kernel_integration
@@ -135,6 +136,7 @@ class CeoAgent:
         self._simple_executor = simple_executor
         self._workflow_engine = workflow_engine
         self._approval_manager = approval_manager
+        self._experience_extractor = experience_extractor
         # 协调器创建回调：server 注入以更新 _active_coordinator，
         # 保证 CEO 对话（unified_message）路径创建的协调器可被共享引擎委托执行。
         self._on_coordinator_created = on_coordinator_created
@@ -347,10 +349,18 @@ class CeoAgent:
             },
         })
 
-        # 等待用户响应（不设超时，由前端控制）
+        # 等待用户响应（60s 超时后按建议自动确认，避免无头客户端永久阻塞）
         logger.info("等待工作区确认: project_id=%s", project.project_id)
-        await self._workspace_confirm_event.wait()
-        logger.info("收到工作区确认响应")
+        try:
+            await asyncio.wait_for(self._workspace_confirm_event.wait(), timeout=60.0)
+            logger.info("收到工作区确认响应")
+        except asyncio.TimeoutError:
+            logger.warning("工作区确认超时（60s），按建议自动确认: type=%s", suggested_type)
+            if self._workspace_confirm_response is None:
+                self._workspace_confirm_response = {
+                    "workspace_type": suggested_type,
+                    "repo_path": suggested_path,
+                }
 
         # 根据用户选择创建工作区
         resp = self._workspace_confirm_response or {}
@@ -406,8 +416,12 @@ class CeoAgent:
                 },
             })
 
-            # 等待用户响应
-            await self._workspace_confirm_event.wait()
+            # 等待用户响应（超时视为取消，避免永久阻塞；不自动写入既有目录）
+            try:
+                await asyncio.wait_for(self._workspace_confirm_event.wait(), timeout=60.0)
+            except asyncio.TimeoutError:
+                logger.warning("目录非空确认超时（60s），视为用户取消")
+                self._workspace_confirm_response = None
             resp2 = self._workspace_confirm_response or {}
 
             if resp2.get("action") == "continue":
@@ -501,6 +515,7 @@ class CeoAgent:
             executor_url=os.environ.get("MDH_EXECUTOR_URL", ""),
             session_persistence=SessionPersistence(),
             kernel_integration=self._kernel,
+            experience_extractor=self._experience_extractor,
         )
         # 传递Team实例给协调器，用于并行讨论
         coordinator._team = team

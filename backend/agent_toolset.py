@@ -279,6 +279,10 @@ class AgentToolset:
         """
         # 检查工具是否可用
         if tool_name not in self.available_tools:
+            logger.warning(
+                "Agent %s 工具权限拒绝: %s（可用工具: %s）",
+                self._agent_id, tool_name, ", ".join(self.available_tools),
+            )
             return ToolResult(
                 success=False,
                 error=f"工具 {tool_name} 不在您的权限范围内。可用工具: {', '.join(self.available_tools)}",
