@@ -2,6 +2,86 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.7.0] - 2026-10-09
+
+### Added
+
+**路由权重调优 — 优化器第三层分析**
+
+- `tuning_optimizer.py` 新增 `_analyze_router_weights()`: 读取 `routing_table.json` 部门统计生成 `router.*` 提案
+  - 部门成功率离散度 ≥15% → 提高 success_rate_weight（并从 keyword_weight 回收 0.05 保持五维和≈1.0）
+  - skill_level_boost 触顶 → 提高 skill_level_boost_max
+  - priority 与成功率 Pearson 相关 → 调整 priority_weight
+- `server.py` 构造优化器时注入 `routing_table_path`；全部 `router.*` 参数 requires_approval（只进影子验证，不自动部署）
+- 本地种子数据实测：4 条提案，影子验证 → 晋升 priority_weight 0.1→0.15、boost_max 0.30→0.35 生效
+
+**AB Tracker 接入 complex + workflow 路径**
+
+- 此前 `task_type_performance` 恒为 0（仅 simple/A2A 路径入表），优化器维度层对真实流量休眠
+- `MeetingCoordinator` 新增 `ab_tracker` 注入（4 个构造点 + `WSContext`）：串行交付后记录（含注入规则的有效性均分）、工作流完成后记录
+- 评测 R5 实测：0 → 3 行（general / software-dev / data-analysis），维度层首次吃到真实数据
+
+**工作流路径审查**
+
+- `_run_workflow_mode` 执行完成后补跑合并审查（此前 E1–E4 评测中 workflow 路径零审查）
+- `ceo_agent` 工作流分支透传 `structured_feedback` / `review_completed`，CEO 状态诚实三分支播报
+- R5 实测：critic 抓到"节点宣称全过但 QA bash 实际失败"级真问题
+
+**五任务评测体系 + 排行榜**
+
+- `research/eval-real-tasks-2026-09-24.md`: 5 个真实任务（E1–E5）× 双维评分（完成度+过程 40 / 技能进化 10）× R1–R5 五轮完整评审
+- `research/eval-leaderboard.md`: 跨轮总榜、分项演进、关键指标榜
+- 演进：R2 34 → R3 37 → R4 38 → **R5 42/50（首达优秀线）**
+- `docs/agent-kernel-architecture.md`: Python Agent ↔ C++ 内核 IPC 集成文档（PR #2）
+
+### Fixed
+
+**评测暴露的链路缺陷（PR #4，全部经 R2 实测验证）**
+
+- `tool_executor`: 非主线程执行工具时改用 ThreadPoolExecutor 超时 — 修复 run_tests/run_linter 100% 崩溃（`signal only works in main thread`，单轮 48 次）
+- `roles_config`: coordinator 角色补 `write_file` 权限 + 权限拒绝记日志 — 修复代码只进聊天、产物不落盘
+- `meeting_coordinator`: 注入共享 ExperienceExtractor（llm_caller + event_store）— 修复 complex 路径 0 规则 0 进化事件；无 Reviewer 团队回退协调器承接审查
+- `semantic_analyzer`: 工作流节点注入用户真实任务文本 — 修复 E4 节点拿到硬编码"后端开发任务"+`{}`
+- `ceo_agent`: `workspace_confirm_request` 60 秒超时自动确认 — 修复复杂路径无头客户端 600s 永久阻塞
+- `experience_extractor`（T29）: 经验检索注入断裂三处断点 — FTS 空命中回退全表（unicode61 中文不分词）、精排增加内容级包含匹配、llm_distill 规则改存真实 task_type — 修复 20 条规则 0 次注入
+
+**审查修订环幻影截断（PR #5，E1 回归，issue #6）**
+
+- `_combined_review` 审查输入 1000→8000 字符、artifact 单文件 2000→6000 字符 — 修复审查者永远看到半截文件、连续 3 轮误报"源码截断"烧尽迭代
+- 门禁 test_failure 详情注入修复轮反馈 — 修复修复轮看不到测试失败原因
+- CEO 审查状态消息改诚实三分支 — 修复终态 revision_required 仍播报"审查已通过"
+- E1 实测：3 轮/26 处截断抱怨/1-3 测试 → **1 轮/0 截断/3-3 测试**
+
+**其他**
+
+- `agent_memory`: markdown 首次写入不再被防抖吞掉（新 runner `time.monotonic()<60s` 场景）（PR #3）
+- `tests/conftest`: 测试间清理 `llm_cache`，消除跨测试污染（PR #1）
+- `task_orchestrator`: 同名文件重复写入保留更长内容（短稿不再覆盖完整稿）+ 文档完整性提示硬约束 — R5 实测 E3 README 195B→1289B、E2 测试 16→29 全过
+- `routing_table.json` 部门任务统计种子数据，供路由权重分析使用
+
+### Test Results
+
+- Python 后端: 2116 passed, 1 skipped
+- 评测: 5 任务 R5 全部 success，评委实跑产出测试全过（E2 29 个）
+
+## [0.6.7] - 2026-09-21
+
+### Added
+
+**优化器维度分析 — 单日数据即可出提案**
+
+- 新增 `_analyze_dimensions()`: 从 AB 数据内在维度（规则效果/质量/数量）推导参数提案
+- 维度分析规则：
+  - 规则效果好 → 降低 explore_ratio（利用已验证规则）
+  - 规则效果差 → 提高 explore_ratio（探索新领域）
+  - 平均规则分数低 → 提高 demotion_threshold + auto_approve_min_confidence
+  - 注入规则多但成功率低 → 降低 evolution_min_usage
+- 与时间区间分析互补，去重后保留最优提案
+
+### Test Results
+
+- Python 后端: 2105 passed, 1 skipped
+
 ## [0.6.6] - 2026-09-16
 
 ### Fixed
@@ -84,16 +164,6 @@ E2E 验证：影子启动 → 自动评估 → 自动晋升 → 运行时参数�
 - `server.py`: tuning_registry 在 ExperienceExtractor / AgentMemory 之前创建并注入构造函数
 - 实时生效：通过 API 修改 registry 值后，运行时行为立即改变，无需重启
 - 向后兼容：无 registry 的实例（测试）使用类默认值，行为不变
-
-**优化器维度分析 — 单日数据即可出提案**
-
-- 新增 `_analyze_dimensions()`: 从 AB 数据内在维度（规则效果/质量/数量）推导参数提案
-- 维度分析规则：
-  - 规则效果好 → 降低 explore_ratio（利用已验证规则）
-  - 规则效果差 → 提高 explore_ratio（探索新领域）
-  - 平均规则分数低 → 提高 demotion_threshold + auto_approve_min_confidence
-  - 注入规则多但成功率低 → 降低 evolution_min_usage
-- 与时间区间分析互补，去重后保留最优提案
 
 ### Test Results
 
