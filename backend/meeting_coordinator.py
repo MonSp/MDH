@@ -175,6 +175,7 @@ class MeetingCoordinator:
         session_persistence=None,
         kernel_integration=None,
         experience_extractor=None,
+        ab_tracker=None,
     ):
         self._max_iterations = max_iterations
         self._executor_url = executor_url
@@ -185,6 +186,7 @@ class MeetingCoordinator:
         self._asset_context_builder = asset_context_builder
         self._data_dir = data_dir
         self._experience_extractor = experience_extractor  # 注入共享实例（含 llm_caller/event_store）；None 时懒初始化
+        self._ab_tracker = ab_tracker  # complex 路径 AB 记录（None 时不记录）
         self.meeting = meeting_session
         self.provider = provider
         self.model_name = model_name
@@ -936,6 +938,22 @@ class MeetingCoordinator:
                 execution_summary=exec_result.get("result", "")[:200],
             )
 
+        # AB Tracker：complex 路径此前从未入表 → task_type_performance 恒 0，维度层休眠
+        if self._ab_tracker:
+            try:
+                extractor = self._get_experience_extractor()
+                task_type = extractor._infer_task_type(user_message)
+                inj = list(injected_rule_ids or [])
+                scores = []
+                for rid in inj:
+                    r = extractor._load_rule(rid)
+                    if r is not None:
+                        scores.append(r.effectiveness_score or 0.0)
+                avg_rule_score = sum(scores) / len(scores) if scores else 0.0
+                self._ab_tracker.record_task(task_type, review_approved, bool(inj), len(inj), avg_rule_score)
+            except Exception as e:
+                logger.warning("AB 任务记录失败: %s", e)
+
         project_summary = self._generate_project_summary(
             user_message, analysis, discussion_results, assign_result, review_result, execution_results,
         )
@@ -1000,7 +1018,39 @@ class MeetingCoordinator:
         await self._msg(coordinator_id, text)
         self.meeting.add_message("agent", text, coordinator_id)
         workflow_result = await self._execute_workflow(analysis.workflow_definition, on_message)
-        return {"type": "workflow_executed", "analysis": semantic_analysis_to_dict(analysis), "workflow_result": workflow_result}
+
+        # 工作流路径此前零审查零 AB 记录：完成后补一次合并审查 + 入表
+        task_text = (analysis.workflow_definition.description or "") if analysis.workflow_definition else ""
+        node_lines = []
+        for nid, res in (workflow_result.get("results") or {}).items():
+            if isinstance(res, dict):
+                node_lines.append(f"- {nid}: {str(res.get('result', ''))[:500]}")
+            else:
+                node_lines.append(f"- {nid}: {str(res)[:500]}")
+        execution_text = "工作流节点执行结果：\n" + ("\n".join(node_lines) if node_lines else str(workflow_result)[:1000])
+
+        review_result = {}
+        try:
+            review_result = await self._review_pipeline.review(
+                task_text or "工作流任务", execution_text, on_message,
+            )
+        except Exception as e:
+            logger.warning("工作流审查失败: %s", e)
+
+        if self._ab_tracker:
+            try:
+                task_type = self._get_experience_extractor()._infer_task_type(task_text)
+                success = workflow_result.get("status") == "completed"
+                self._ab_tracker.record_task(task_type, success, False, 0, 0.0)
+            except Exception as e:
+                logger.warning("AB 工作流记录失败: %s", e)
+
+        return {
+            "type": "workflow_executed",
+            "analysis": semantic_analysis_to_dict(analysis),
+            "workflow_result": workflow_result,
+            "review_result": review_result,
+        }
 
     async def _inject_experience(self, coordinator_id, original_description, enhanced_description, discussion_results, target_agent_id: str = ""):
         return await _inject_experience_impl(self, coordinator_id, original_description, enhanced_description, discussion_results, target_agent_id)

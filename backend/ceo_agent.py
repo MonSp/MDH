@@ -128,6 +128,7 @@ class CeoAgent:
         on_coordinator_created=None,
         kernel_integration=None,
         experience_extractor=None,
+        ab_tracker=None,
     ):
         self._session = session
         self._kernel = kernel_integration
@@ -137,6 +138,7 @@ class CeoAgent:
         self._workflow_engine = workflow_engine
         self._approval_manager = approval_manager
         self._experience_extractor = experience_extractor
+        self._ab_tracker = ab_tracker
         # 协调器创建回调：server 注入以更新 _active_coordinator，
         # 保证 CEO 对话（unified_message）路径创建的协调器可被共享引擎委托执行。
         self._on_coordinator_created = on_coordinator_created
@@ -516,6 +518,7 @@ class CeoAgent:
             session_persistence=SessionPersistence(),
             kernel_integration=self._kernel,
             experience_extractor=self._experience_extractor,
+            ab_tracker=self._ab_tracker,
         )
         # 传递Team实例给协调器，用于并行讨论
         coordinator._team = team
@@ -589,7 +592,30 @@ class CeoAgent:
                 "results": workflow_result.get("results", {}),
                 "analysis": result.get("analysis", {}),
             })
-            await self._emit(send_message, "CEO：工作流执行完成。")
+            review_result = result.get("review_result", {}) or {}
+            if review_result.get("structured_feedback"):
+                await send_message({
+                    "type": "structured_feedback",
+                    "taskId": workflow_result.get("execution_id", ""),
+                    "agentId": "agent-reviewer",
+                    "feedback": review_result["structured_feedback"],
+                    "sequence_no": self._session.next_sequence(),
+                })
+            if review_result:
+                await send_message({
+                    "type": "review_completed",
+                    "taskId": workflow_result.get("execution_id", ""),
+                    "critic_result": review_result.get("critic_result", {}),
+                    "grounding_result": review_result.get("grounding_result", {}),
+                    "sequence_no": self._session.next_sequence(),
+                })
+            _wf_review_status = (review_result.get("structured_feedback") or {}).get("status", "")
+            if _wf_review_status == "approved":
+                await self._emit(send_message, "CEO：工作流执行完成，质量审查已通过。")
+            elif _wf_review_status:
+                await self._emit(send_message, "CEO：工作流执行完成，但审查仍有未闭环问题，建议人工复核。")
+            else:
+                await self._emit(send_message, "CEO：工作流执行完成。")
             task_result = {
                 "type": "task_result",
                 "path_used": "complex",

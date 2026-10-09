@@ -233,7 +233,9 @@ class TaskOrchestrator:
         prompt = (
             f"请执行以下任务：\n{task.description}\n\n"
             f"重要：直接使用代码块写入文件，格式为：\n```文件路径.扩展名\n文件内容\n```\n"
-            f"注意：不要使用bash/mkdir创建目录；每个文件单独一个代码块；代码必须完整可运行"
+            f"注意：不要使用bash/mkdir创建目录；每个文件单独一个代码块；代码必须完整可运行；"
+            f"同一文件只输出一次（如需更新必须包含完整内容，禁止只写标题或空章节）；"
+            f"文档（README 等）若任务有明确章节要求，必须写出每个章节的实际内容"
             f"{kernel_context}{experience_context}{tool_prompt}"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
@@ -241,6 +243,7 @@ class TaskOrchestrator:
 
         try:
             written_files, all_tool_results, last_text = [], [], ""
+            written_sizes: dict[str, int] = {}  # 同一执行轮内：重复文件保留更长内容，防止短稿覆盖完整稿
 
             # 阶段A: 环境检查
             if agent_toolset:
@@ -254,10 +257,18 @@ class TaskOrchestrator:
                 code_blocks = extract_code_blocks(last_text)
                 if code_blocks and agent_toolset:
                     for block in code_blocks:
-                        r = agent_toolset.write_file(block["filename"], block["content"])
+                        fname = block["filename"]
+                        prev_size = written_sizes.get(fname)
+                        if prev_size is not None and len(block["content"]) <= prev_size:
+                            logger.info("跳过重复短写入 %s（%d ≤ 已写 %d 字符）", fname, len(block["content"]), prev_size)
+                            files_this_round.append(fname)  # 告知模型已处理，避免死循环
+                            continue
+                        r = agent_toolset.write_file(fname, block["content"])
                         if r.success:
-                            written_files.append(block["filename"])
-                            files_this_round.append(block["filename"])
+                            written_sizes[fname] = len(block["content"])
+                            if fname not in written_files:
+                                written_files.append(fname)
+                            files_this_round.append(fname)
                 if not files_this_round:
                     tool_calls = self._extract_tool_calls(last_text)
                     if tool_calls and agent_toolset:
