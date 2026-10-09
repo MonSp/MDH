@@ -655,7 +655,13 @@ class CeoAgent:
                     "sequence_no": self._session.next_sequence(),
                 })
 
-            await self._emit(send_message, "CEO：任务执行完成，质量审查已通过。")
+            review_status = ((review_result or {}).get("structured_feedback") or {}).get("status", "")
+            if review_status == "approved":
+                await self._emit(send_message, "CEO：任务执行完成，质量审查已通过。")
+            elif review_status == "revision_required":
+                await self._emit(send_message, "CEO：任务执行完成，但审查仍有未闭环问题，建议人工复核。")
+            else:
+                await self._emit(send_message, "CEO：任务执行完成。")
 
             # 提取写入的文件信息
             execution_results = result.get("execution_results", [])

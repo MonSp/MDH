@@ -228,7 +228,7 @@ class ReviewPipeline:
         prompt = (
             f"你是团队的质量审查专家。请审查以下任务执行结果，从三个角度给出意见。\n\n"
             f"任务：{task_description}{context_block}\n"
-            f"执行结果：{execution_result[:1000]}\n\n"
+            f"执行结果：{execution_result[:8000]}\n\n"
             f"请按以下格式回复：\n"
             f"[审查意见] 代码质量、完整性、潜在问题、改进建议（2-3句）\n"
             f"[监控评估] 性能、稳定性、运维风险（1-2句）\n"
