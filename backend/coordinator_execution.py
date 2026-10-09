@@ -197,7 +197,7 @@ async def run_dev_loop(coordinator, coordinator_id, enhanced_description, discus
 
         if coordinator._artifact_store and exec_results:
             task_ids = [r.get("task_id") or r.get("agent_id", "") for r in exec_results if r.get("written_files")]
-            artifact_context = coordinator._artifact_store.build_artifact_context(task_ids, max_chars_per_file=2000)
+            artifact_context = coordinator._artifact_store.build_artifact_context(task_ids, max_chars_per_file=6000)
             if artifact_context:
                 execution_text = f"{execution_text}\n\n[文件内容]\n{artifact_context}"
 
@@ -214,9 +214,24 @@ async def run_dev_loop(coordinator, coordinator_id, enhanced_description, discus
         reviewer_feedback = review_result.get("reviewer_feedback", "")
         monitor_feedback = review_result.get("monitor_feedback", "")
         coordinator_summary = review_result.get("coordinator_summary", "")
-        feedback_text = f"[审查反馈]\n{reviewer_feedback}\n\n[评估反馈]\n{monitor_feedback}\n\n[总结]\n{coordinator_summary}"
         structured = review_result.get("structured_feedback", {})
         feedback_status = structured.get("status", "approved")
+        # 结构化问题（含确定性门禁 test/lint 失败）必须进入修复轮反馈，
+        # 否则修复轮只看到 LLM 三段评语，不知道测试为什么挂
+        issues_text = ""
+        issues = structured.get("issues") or []
+        if issues:
+            issue_lines = [
+                f"- [{i.get('type', 'issue')}] {i.get('location', '')}: "
+                f"{str(i.get('detail', ''))[:600]} {i.get('suggestion', '')}".strip()
+                for i in issues
+            ]
+            issues_text = "\n\n[结构化问题清单（含确定性门禁失败）]\n" + "\n".join(issue_lines)
+        feedback_text = (
+            f"[审查反馈]\n{reviewer_feedback}\n\n"
+            f"[评估反馈]\n{monitor_feedback}\n\n"
+            f"[总结]\n{coordinator_summary}{issues_text}"
+        )
 
         if on_message:
             try:
