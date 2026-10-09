@@ -444,6 +444,7 @@ def _init_ws_ctx():
         skill_packager=skill_packager,
         project_manager=project_manager,
         experience_extractor=experience_extractor,
+        ab_tracker=ab_tracker,
         dynamic_router=dynamic_router,
         complexity_classifier=complexity_classifier,
         simple_executor=simple_executor,

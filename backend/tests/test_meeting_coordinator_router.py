@@ -1154,6 +1154,11 @@ class TestTeamIdPassThrough:
 
         monkeypatch.setattr(coordinator, "semantic_analyze", fake_semantic_analyze)
         monkeypatch.setattr(coordinator, "_execute_workflow", fake_execute_workflow)
+        async def fake_review(task_description, execution_result, on_message, **kwargs):
+            return {"structured_feedback": {"status": "approved", "issues": [], "max_iterations": 3},
+                    "reviewer_feedback": "", "monitor_feedback": "", "coordinator_summary": ""}
+
+        monkeypatch.setattr(coordinator._review_pipeline, "review", fake_review)
         asyncio.run(coordinator.process_user_message(
             "透传测试专用消息 B1", on_message, team_id="team-x"
         ))
@@ -1186,6 +1191,11 @@ class TestTeamIdPassThrough:
 
         monkeypatch.setattr(coordinator, "semantic_analyze", fake_semantic_analyze)
         monkeypatch.setattr(coordinator, "_execute_workflow", fake_execute_workflow)
+        async def fake_review(task_description, execution_result, on_message, **kwargs):
+            return {"structured_feedback": {"status": "approved", "issues": [], "max_iterations": 3},
+                    "reviewer_feedback": "", "monitor_feedback": "", "coordinator_summary": ""}
+
+        monkeypatch.setattr(coordinator._review_pipeline, "review", fake_review)
         asyncio.run(coordinator.process_user_message("透传测试专用消息 B2", on_message))
         assert captured["team_id"] == ""
 

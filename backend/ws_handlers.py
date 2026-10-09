@@ -32,6 +32,7 @@ class WSContext:
     skill_packager: Any = None
     project_manager: Any = None
     experience_extractor: Any = None
+    ab_tracker: Any = None
     dynamic_router: Any = None
     complexity_classifier: Any = None
     simple_executor: Any = None
@@ -149,6 +150,7 @@ async def handle_unified_message(msg, session, ctx):
             on_coordinator_created=ctx.register_active_coordinator,
             kernel_integration=ctx.kernel_integration,
             experience_extractor=ctx.experience_extractor,
+            ab_tracker=ctx.ab_tracker,
         )
 
     ceo = session._ceo_agent
@@ -298,6 +300,7 @@ async def handle_start_meeting(msg, session, ctx):
         asset_context_builder=asset_context_builder,
         kernel_integration=ctx.kernel_integration,
         experience_extractor=ctx.experience_extractor,
+        ab_tracker=ctx.ab_tracker,
     )
     session._meeting_coordinator = coordinator
     ctx.active_coordinator = coordinator
@@ -313,6 +316,7 @@ async def handle_start_meeting(msg, session, ctx):
             on_coordinator_created=ctx.register_active_coordinator,
             kernel_integration=ctx.kernel_integration,
             experience_extractor=ctx.experience_extractor,
+            ab_tracker=ctx.ab_tracker,
         )
     session._ceo_agent._meeting_coordinator = coordinator
     session._ceo_agent._agenda = coordinator.agenda

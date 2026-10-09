@@ -441,6 +441,7 @@ class SimpleExecutor:
                 workflow_engine=self._workflow_engine,
                 approval_manager=approval_manager,
                 experience_extractor=self._experience_extractor,
+                ab_tracker=self._ab_tracker,
             )
             if self._on_coordinator_created:
                 self._on_coordinator_created(coordinator)
