@@ -26,10 +26,10 @@
         "webpack",
         "vite"
       ],
-      "success_rate": 0.8666666666666667,
-      "total_tasks": 45,
-      "successful_tasks": 39,
-      "last_active": "2026-10-09T06:48:38Z",
+      "success_rate": 0.8695652173913043,
+      "total_tasks": 46,
+      "successful_tasks": 40,
+      "last_active": "2026-10-10T06:21:46Z",
       "priority": 10,
       "skill_level_boost": 0.25
     },
@@ -85,10 +85,10 @@
         "webpack",
         "docker"
       ],
-      "success_rate": 0.8484848484848485,
-      "total_tasks": 33,
-      "successful_tasks": 28,
-      "last_active": "2026-10-09T06:48:00Z",
+      "success_rate": 0.8529411764705882,
+      "total_tasks": 34,
+      "successful_tasks": 29,
+      "last_active": "2026-10-10T06:20:58Z",
       "priority": 9,
       "skill_level_boost": 0.2
     },
@@ -114,10 +114,10 @@
         "linter",
         "security_scanner"
       ],
-      "success_rate": 0.7714285714285715,
-      "total_tasks": 35,
-      "successful_tasks": 27,
-      "last_active": "2026-10-09T06:50:05Z",
+      "success_rate": 0.7837837837837838,
+      "total_tasks": 37,
+      "successful_tasks": 29,
+      "last_active": "2026-10-10T06:24:01Z",
       "priority": 8,
       "skill_level_boost": 0.1
     },
