@@ -171,6 +171,9 @@ async def run_dev_loop(coordinator, coordinator_id, enhanced_description, discus
     review_result = {}
     execution_results = []
     review_report = ReviewReport(task_id=coordinator_id)
+    # 跨轮累计：修复轮常不再重写已有文件（written_files=[]），
+    # 只取最后一轮会把之前轮次的产出丢掉（E2 task_result.written_files=[] 复现）
+    cumulative_written: dict[str, list[str]] = {}
 
     for dev_iter in range(1, max_dev_iterations + 1):
         await coordinator._msg(coordinator_id, f"项目经理：第 {dev_iter} 轮开发，监督任务执行。")
@@ -180,6 +183,11 @@ async def run_dev_loop(coordinator, coordinator_id, enhanced_description, discus
             exec_results = await coordinator.execute_assigned_tasks()
             execution_results = exec_results
             for er in exec_results:
+                tid = er.get("task_id") or er.get("agent_id", "")
+                acc = cumulative_written.setdefault(tid, [])
+                for fname in er.get("written_files", []) or []:
+                    if fname not in acc:
+                        acc.append(fname)
                 await on_message(er["agent_id"], er["result"], "")
                 written = er.get("written_files", [])
                 if written:
@@ -269,6 +277,15 @@ async def run_dev_loop(coordinator, coordinator_id, enhanced_description, discus
                 task.status = "assigned"
                 task.description = fix_description
         logger.info("第 %d 轮审查未通过，启动第 %d 轮修复", dev_iter, dev_iter + 1)
+
+    # 合并各轮累计产出到最终结果（去重）
+    for er in execution_results:
+        tid = er.get("task_id") or er.get("agent_id", "")
+        merged = list(er.get("written_files", []) or [])
+        for fname in cumulative_written.get(tid, []):
+            if fname not in merged:
+                merged.append(fname)
+        er["written_files"] = merged
 
     return execution_results, review_result, review_report
 

@@ -16,10 +16,11 @@ async def notify_agent_status(coordinator, agent_id: str, status: str, current_t
     if not coordinator._current_on_message:
         return
     try:
+        # agent_id 已作第一个位置参数传入（send 回调签名），再传 kwarg 会
+        # "got multiple values for argument 'agent_id'" 导致通知全部静默失败
         await coordinator._current_on_message(
             agent_id, "", "",
             msg_type="agent_status_update",
-            agent_id=agent_id,
             status=status,
             current_tool=current_tool,
             artifact_count=artifact_count,
@@ -36,7 +37,6 @@ async def notify_artifact_created(coordinator, agent_id: str, files_count: int, 
         await coordinator._current_on_message(
             agent_id, "", "",
             msg_type="artifact_created",
-            agent_id=agent_id,
             files_count=files_count,
             file_types=file_types,
             summary=summary[:200],
