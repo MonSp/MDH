@@ -263,3 +263,42 @@
 | **R5** | **32** | **10** | **42 / 50** | **优秀** ✅ |
 
 **R5 结论**：**42 ≥ 40，达成优秀线**。三缺口两修复一收窄：AB/E4 审查完全修复，E3 对接从空壳升到 api.js 实现层（README 正文一切仍遗留）。
+
+## 12. 补测记录：E3 的 8 条 vitest 与组件 bug 修复（2026-10-09）
+
+> R5 五个工作区中唯一没有测试套件的是 E3（E1 3 / E2 29 / E4 7 / E5 3 均已有）。为 R5 的 E3 产物补齐 **8 条 vitest 用例**，并借此捕获并修复一个组件真 bug。
+
+### 12.1 新增用例（`~/.agent-workspaces/6420ed57/src/__tests__/CountdownTimer.test.jsx`）
+
+| # | 用例 | 覆盖点 |
+|---|------|--------|
+| 1 | 初始渲染 | 秒数显示 + 暂停/重置按钮（data-testid） |
+| 2 | tick 递减 | 时间戳校准，每秒剩余下降 |
+| 3 | 暂停冻结 | 暂停后推进时间剩余不变 |
+| 4 | 恢复续算 | 从冻结值继续倒计时 |
+| 5 | 重置恢复初始 | 回到初始时长并重新开始 |
+| 6 | 归零回调 | `onComplete` 恰好触发一次 |
+| 7 | 非法入参 | `durationMs ≤0` / 非数字直接抛错 |
+| 8 | 对接层 api.js | `deadlineToDurationMs`（有效/过期/非法）、`fetchTask` 成功/HTTP 500、`notifyCountdownComplete` |
+
+**结果：8/8 passed**（vitest + jsdom + @testing-library/react，环境就绪于该工作区 `package.json`）。
+
+### 12.2 测试捕获的组件真 bug（已修复）
+
+- **现象**：用例 5 失败——运行中点「重置」后，显示停在 5s 不再 tick
+- **根因**：`reset()` 先 `clearTimer()` 杀掉 interval，再 `setIsRunning(true)`；当 `isRunning` 本已为 true 时 state 无变化，启动 effect 不重跑 → **定时器死亡**
+- **修复**：`reset` 内按 `isRunning` 分支——运行中则手动 `tick()` + 重启 `setInterval`；否则走 `setIsRunning(true)` 由 effect 启动
+- 修复后 8/8 全绿
+
+### 12.3 R5 测试全景（补齐后）
+
+| 工作区 | 套件 | 结果 |
+|--------|------|------|
+| E1 | pytest × 3 | ✅ |
+| E2 | pytest × 29 | ✅（原生运行需 `-o addopts=` 绕过 pytest.ini 的 `--cov`，本机缺 pytest-cov） |
+| E3 | **vitest × 8** | ✅（本节新增 + 组件修复） |
+| E4 | jest × 7 | ✅（`npm install` 后） |
+| E5 | pytest × 3 | ✅ |
+| **合计** | **50** | **全绿** |
+
+注：E3 测试文件、`package.json` 依赖与组件修复均位于评测工作区（`~/.agent-workspaces/6420ed57/`），不改动 MDH 仓库代码。
