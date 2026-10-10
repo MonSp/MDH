@@ -51,6 +51,6 @@
 ## 关联证据
 
 - 评审报告（含 R1–R5 全部分项依据）：`eval-real-tasks-2026-09-24.md`
-- 各轮原始证据：`eval-run-2026-09-24/`、`eval-run-r2-2026-09-24/`、`eval-run-r3-2026-10-08/`、`eval-run-r4-2026-10-09/`、`eval-run-r5-2026-10-09/`
+- 各轮原始证据：`eval-run-2026-09-24/`、`eval-run-r2-rerun-2026-10-10/`（R2 原始证据被误重跑覆盖，见报告 §13）、`eval-run-r3-2026-10-08/`、`eval-run-r4-2026-10-09/`、`eval-run-r5-2026-10-09/`
 - E1 回归 issue（已关闭）：https://github.com/MonSp/MDH/issues/6
 - E1 修复 PR：https://github.com/MonSp/MDH/pull/5
