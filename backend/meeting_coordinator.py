@@ -884,6 +884,14 @@ class MeetingCoordinator:
         if triage["level"] == "complex":
             vote_passed = await self._run_voting_phase(coordinator_id, enhanced_description, discussion_results, on_message)
             if not vote_passed:
+                # 投票否决 = 任务未执行交付，按失败入表（此前静默丢数据）
+                if self._ab_tracker:
+                    try:
+                        task_type = self._get_experience_extractor()._infer_task_type(user_message)
+                        inj = list(injected_rule_ids or [])
+                        self._ab_tracker.record_task(task_type, False, bool(inj), len(inj), 0.0)
+                    except Exception as e:
+                        logger.debug("vote_rejected AB 记录失败: %s", e)
                 return {"type": "vote_rejected"}
         else:
             await self._msg(coordinator_id, "项目经理：标准任务，跳过投票环节直接分派。")
@@ -1037,25 +1045,7 @@ class MeetingCoordinator:
         except Exception as e:
             logger.warning("工作流审查失败: %s", e)
 
-        if self._ab_tracker:
-            try:
-                extractor = self._get_experience_extractor()
-                task_type = extractor._infer_task_type(task_text)
-                success = workflow_result.get("status") == "completed"
-                # 节点级经验注入的真实回填（此前恒记 False/0）
-                injected_ids: list[str] = []
-                for res in (workflow_result.get("results") or {}).values():
-                    if isinstance(res, dict):
-                        injected_ids.extend(res.get("injected_rule_ids") or [])
-                scores = []
-                for rid in injected_ids:
-                    rule = extractor._load_rule(rid)
-                    if rule is not None:
-                        scores.append(rule.effectiveness_score or 0.0)
-                avg_rule_score = sum(scores) / len(scores) if scores else 0.0
-                self._ab_tracker.record_task(task_type, success, bool(injected_ids), len(injected_ids), avg_rule_score)
-            except Exception as e:
-                logger.warning("AB 工作流记录失败: %s", e)
+        # AB 由共享 WorkflowEngine 统一入表（engine._record_ab），此处不再重复记录
 
         return {
             "type": "workflow_executed",

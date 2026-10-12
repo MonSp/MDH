@@ -96,16 +96,6 @@ class A2APostProcessor:
         if self._synergy:
             self._record_synergy(xp_target, task_description, success)
 
-        # 7. A/B 任务类型成功率追踪
-        if self._ab_tracker:
-            try:
-                self._ab_tracker.record_task(
-                    task_type=self._infer_task_type(task_description),
-                    success=success,
-                    has_rules=self._experience is not None,
-                )
-            except Exception:
-                pass
 
     @staticmethod
     def _infer_task_type(description: str) -> str:

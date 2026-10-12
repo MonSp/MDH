@@ -135,6 +135,24 @@ async def run_simple_path(coordinator, user_message: str, ceo_id: str, on_messag
 
     coordinator._save_snapshot()
 
+    # AB：complex 内分流到 simple 的路径此前静默不入表
+    if getattr(coordinator, "_ab_tracker", None):
+        try:
+            extractor = coordinator._get_experience_extractor()
+            task_type = extractor._infer_task_type(user_message)
+            inj = list(injected_rule_ids or [])
+            scores = []
+            for rid in inj:
+                rule = extractor._load_rule(rid)
+                if rule is not None:
+                    scores.append(rule.effectiveness_score or 0.0)
+            avg_rule_score = sum(scores) / len(scores) if scores else 0.0
+            coordinator._ab_tracker.record_task(
+                task_type, review_approved, bool(inj), len(inj), avg_rule_score,
+            )
+        except Exception as e:
+            logger.debug("simple 分流 AB 记录失败: %s", e)
+
     return {
         "type": "simple_completed",
         "execution_results": exec_results,

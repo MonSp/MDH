@@ -545,7 +545,9 @@ async def test_13_a2a_post_processor(tmp_path):
     # Verify hooks were called
     mock_profiles.grant_xp.assert_called_once()
     mock_router.update_stats.assert_called_once_with("dept-frontend", True)
-    mock_ab.record_task.assert_called_once()
+    # AB 入表职责已移至 state_sync（A2A）/ simple_executor（内部）——
+    # post_processor 不再重复记录，且原 has_rules 语义恒真会污染统计
+    mock_ab.record_task.assert_not_called()
 
 
 # ══════════════════════════════════════════════════════════════════════

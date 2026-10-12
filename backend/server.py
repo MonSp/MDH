@@ -922,7 +922,9 @@ from protocol import WorkflowDefinition, WorkflowEdge, WorkflowNode
 from workflow_engine import WorkflowEngine
 
 workflow_engine = WorkflowEngine(
-    persistence_dir=os.path.join(os.path.dirname(__file__), "data", "workflows")
+    persistence_dir=os.path.join(os.path.dirname(__file__), "data", "workflows"),
+    ab_tracker=ab_tracker,
+    experience_extractor=experience_extractor,
 )
 workflow_router.init(lambda: globals()["workflow_engine"], workflow_execution_to_dict, WorkflowDefinition, WorkflowNode, WorkflowEdge)
 _ws_ctx.workflow_engine = workflow_engine  # 延迟设置（测试 fixture 可替换）
