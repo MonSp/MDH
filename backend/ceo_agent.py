@@ -572,6 +572,18 @@ class CeoAgent:
         send_message: Callable[[dict[str, Any]], Awaitable[None]],
     ) -> dict[str, Any]:
         """处理Coordinator返回的结果，转换为前端消息"""
+        # 任务完成：落盘工作区指针（写在完成时而非创建时，
+        # 否则下一任务建工作区会先覆盖掉上一任务的指针）
+        if self._workspace and getattr(self._workspace, "root_path", ""):
+            try:
+                from workspace_manager import write_last_workspace
+                write_last_workspace(
+                    self._workspace.root_path,
+                    project_id=getattr(project, "project_id", ""),
+                    brief=str(getattr(project, "brief", ""))[:200],
+                )
+            except Exception as e:
+                logger.debug("记录工作区指针失败: %s", e)
 
         if not result:
             task_result = {"type": "task_result", "path_used": "complex", "success": True, "project_id": project.project_id, "meeting_id": meeting_id}

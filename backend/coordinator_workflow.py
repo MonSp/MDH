@@ -312,12 +312,19 @@ async def execute_workflow_node(coordinator, node: WorkflowNode, input_data: dic
     experience_context, injected_rules = build_node_experience_context(
         coordinator, node.task_description or "",
     )
+    try:
+        from workspace_manager import build_previous_workspace_context
+        prev_context = build_previous_workspace_context(
+            coordinator._workspace.root_path if coordinator._workspace else "",
+        )
+    except Exception:
+        prev_context = ""
 
     prompt = (
         f"请执行以下任务：\n"
         f"任务描述：{node.task_description}\n"
         f"输入数据：{json.dumps(input_data, ensure_ascii=False)}\n"
-        f"{tool_prompt}{asset_context}{experience_context}\n\n"
+        f"{tool_prompt}{asset_context}{experience_context}{prev_context}\n\n"
         f"需要产出文件时，用代码块输出：```文件名\n内容\n```；需要调用工具时输出 JSON："
         f'{{"tool": "工具名", "arguments": {{...}}}}。'
     )

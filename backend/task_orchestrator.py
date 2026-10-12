@@ -230,13 +230,19 @@ class TaskOrchestrator:
                     f"分析: {reasoning}\n"
                 )
 
+        try:
+            from workspace_manager import build_previous_workspace_context
+            prev_context = build_previous_workspace_context(self._workspace_root or "")
+        except Exception:
+            prev_context = ""
+
         prompt = (
             f"请执行以下任务：\n{task.description}\n\n"
             f"重要：直接使用代码块写入文件，格式为：\n```文件路径.扩展名\n文件内容\n```\n"
             f"注意：不要使用bash/mkdir创建目录；每个文件单独一个代码块；代码必须完整可运行；"
             f"同一文件只输出一次（如需更新必须包含完整内容，禁止只写标题或空章节）；"
             f"文档（README 等）若任务有明确章节要求，必须写出每个章节的实际内容"
-            f"{kernel_context}{experience_context}{tool_prompt}"
+            f"{kernel_context}{experience_context}{prev_context}{tool_prompt}"
         )
         msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
         conversation = [msg]
@@ -346,6 +352,11 @@ class TaskOrchestrator:
             tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}"
 
         experience_context = self._get_experience_context(task.description)
+        try:
+            from workspace_manager import build_previous_workspace_context
+            prev_context = build_previous_workspace_context(getattr(self, "_workspace_root", "") or "")
+        except Exception:
+            prev_context = ""
 
         return (
             f"请执行以下任务：\n{task.description}\n\n"
@@ -357,7 +368,7 @@ class TaskOrchestrator:
             f"- 每个文件单独一个代码块\n"
             f"- 不要使用tool_call格式\n"
             f"- 代码必须完整可运行，不要省略"
-            f"{experience_context}{tool_prompt}"
+            f"{experience_context}{prev_context}{tool_prompt}"
         )
 
     @staticmethod
