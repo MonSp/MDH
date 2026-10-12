@@ -110,3 +110,52 @@ body { color: red; }
     assert blocks[0]["filename"] == "app.js"
     assert blocks[1]["filename"] == "index.js"  # javascript -> index.js
     assert blocks[2]["filename"] == "styles.css"
+
+def test_nested_fence_does_not_truncate_readme():
+    """README 内嵌 ```json 示例时，外层块不得被内层围栏提前闭合（R5 E3 截断回归）"""
+    text = """```README.md
+# 任务对接说明
+
+## 3. 与上一任务 API 的对接
+
+上一任务约定接口：
+
+```json
+{"id": "t1", "deadline": "2026-10-10T00:00:00Z"}
+```
+
+以上即完整契约。
+```
+
+```src/app.js
+console.log('app');
+```
+"""
+    blocks = extract_code_blocks(text)
+    assert len(blocks) == 2
+    readme = blocks[0]
+    assert readme["filename"] == "README.md"
+    assert '{"id": "t1"' in readme["content"]  # 内层示例完整保留
+    assert "以上即完整契约。" in readme["content"]  # 示例之后的正文不再被截断
+    assert blocks[1]["filename"] == "src/app.js"
+
+
+def test_unterminated_markdown_kept_to_eof():
+    """max_tokens 截断的 .md 块保留残卷（文档可读）"""
+    text = """```README.md
+# 标题
+
+正文到这里被截断
+"""
+    blocks = extract_code_blocks(text)
+    assert len(blocks) == 1
+    assert blocks[0]["filename"] == "README.md"
+    assert "正文到这里被截断" in blocks[0]["content"]
+
+
+def test_unterminated_code_block_dropped():
+    """max_tokens 截断的代码块仍然丢弃（半截代码比缺失更糟）"""
+    text = """```src/test.jsx
+import React from 'react';
+import { render } from '@testing-li"""
+    assert extract_code_blocks(text) == []

@@ -1,69 +1,149 @@
 """
 代码提取工具 - 从Agent回复中提取代码块
+
+支持格式：
+```filename.js
+// code content
+```
+
+或
+
+```javascript
+// code content (无文件名，使用默认名)
+```
+
+历史 bug（2026-10-10 修复）：旧正则 `` ```(.*?)``` `` 对内层围栏敏感——
+文档块（README 等）内嵌 ```json 示例时，内层围栏的开栏会提前"闭合"
+外层块，导致文档恰好截断在示例之前（R5 E3/E2 README 截断复现）。
+本实现按行扫描：文件块用语言围栏深度跟踪，内层示例不再截断外层内容。
+
+未闭合的尾部块（max_tokens 截断）策略：仅文本类扩展名
+(.md/.txt/.markdown/.rst) 保留到 EOF（文档截断保留可读残卷），
+代码类扩展名仍然丢弃（半截代码入库比缺失更糟）。
 """
 
 import re
 
+_FENCE_RE = re.compile(r"^```(.*)$")
+# 截断时可保留残卷的文本类扩展名
+_KEEP_UNTERMINATED_EXTS = {".md", ".markdown", ".txt", ".rst"}
+
 
 def extract_code_blocks(text: str) -> list[dict[str, str]]:
-    """
-    从Agent回复中提取代码块
-
-    支持格式：
-    ```filename.js
-    // code content
-    ```
-
-    或
-
-    ```javascript
-    // code content (无文件名，使用默认名)
-    ```
+    """从Agent回复中提取代码块（文件围栏 + 内层语言围栏深度感知）
 
     Returns:
         [{"filename": "path/to/file.js", "content": "...", "language": "javascript"}, ...]
     """
-    blocks = []
-    # 匹配 ```language\n...\n``` 或 ```path/filename.ext\n...\n```
-    pattern = r'```([\w/\\]+(?:\.\w+)?)\s*\n(.*?)```'
+    lines = text.splitlines(keepends=True)
+    n = len(lines)
+    blocks: list[dict[str, str]] = []
+    i = 0
 
-    for match in re.finditer(pattern, text, re.DOTALL):
-        lang_or_file = match.group(1)
-        content = match.group(2).strip()
+    def _tag(idx: int) -> str | None:
+        m = _FENCE_RE.match(lines[idx].strip())
+        return m.group(1).strip() if m else None
 
-        if not content:
+    def _is_filename(tag: str) -> bool:
+        return ("." in tag or "/" in tag or "\\" in tag) and tag != "tool_call"
+
+    while i < n:
+        tag = _tag(i)
+        if tag is None:
+            i += 1
             continue
 
-        # 跳过 tool_call 块（由 _extract_tool_calls 处理）
-        if lang_or_file == 'tool_call':
+        # tool_call 块由 _extract_tool_calls 处理：跳到下一个裸围栏
+        if tag == "tool_call":
+            i += 1
+            while i < n and _tag(i) != "":
+                i += 1
+            i += 1  # 跳过闭合裸围栏
             continue
 
-        # 判断是文件名/路径还是语言标识
-        if '.' in lang_or_file or '/' in lang_or_file or '\\' in lang_or_file:
-            # 有扩展名或路径分隔符，认为是文件名
-            filename = lang_or_file
-            language = filename.rsplit('.', 1)[-1] if '.' in filename else ''
+        if _is_filename(tag):
+            filename = tag
+            language = filename.rsplit(".", 1)[-1] if "." in filename else ""
+            j = i + 1
+            depth = 0
+            end = None
+            closed = False
+            while j < n:
+                t = _tag(j)
+                if t is None:
+                    j += 1
+                    continue
+                if _is_filename(t):
+                    # 下一个文件块开始：当前块未闭合
+                    break
+                if t == "":
+                    if depth == 0:
+                        end = j
+                        closed = True
+                        break
+                    depth -= 1  # 内层示例的闭合围栏（保留在内容中）
+                else:
+                    depth += 1  # 内层语言围栏开栏（如 ```json）
+                j += 1
+
+            if closed:
+                content = "".join(lines[i + 1:end])
+                next_i = end + 1
+            else:
+                # EOF 或下一个文件块前未闭合
+                if j >= n and ("." + filename.rsplit(".", 1)[-1].lower()) in _KEEP_UNTERMINATED_EXTS:
+                    content = "".join(lines[i + 1:])
+                    next_i = n
+                    closed = True  # 按保留处理，避免死循环
+                else:
+                    # 代码类未闭合块丢弃（max_tokens 截断的半截代码）
+                    i = j if j > i else i + 1
+                    continue
+
+            i = next_i
+            content = content.strip()
+            if not content:
+                continue
+            blocks.append(_dedupe(blocks, filename, content, language))
+            continue
+
+        # 顶层语言块（无文件名）：闭合于下一个裸围栏
+        language = tag
+        filename = _lang_to_filename(language)
+        j = i + 1
+        while j < n:
+            t = _tag(j)
+            if t is None:
+                j += 1
+                continue
+            if t == "":
+                content = "".join(lines[i + 1:j]).strip()
+                if content:
+                    blocks.append(_dedupe(blocks, filename, content, language))
+                i = j + 1
+                break
+            if _is_filename(t):
+                # 未闭合即遇到文件块：丢弃半截语言块
+                i = j
+                break
         else:
-            # 语言标识，生成默认文件名
-            language = lang_or_file
-            filename = _lang_to_filename(language)
-
-        # 如果文件名已存在，添加数字后缀
-        existing = [b["filename"] for b in blocks]
-        if filename in existing:
-            name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, '')
-            counter = 2
-            while f"{name}_{counter}.{ext}" in existing:
-                counter += 1
-            filename = f"{name}_{counter}.{ext}" if ext else f"{name}_{counter}"
-
-        blocks.append({
-            "filename": filename,
-            "content": content,
-            "language": language,
-        })
+            # EOF 未闭合的语言块：丢弃（与旧行为一致）
+            i = n
+        continue
 
     return blocks
+
+
+def _dedupe(blocks: list[dict], filename: str, content: str, language: str) -> dict:
+    """重复文件名加数字后缀（server.js → server_2.js）；只构造不写入，由调用方 append"""
+    existing = [b["filename"] for b in blocks]
+    if filename in existing:
+        name, ext = filename.rsplit(".", 1) if "." in filename else (filename, "")
+        counter = 2
+        while f"{name}_{counter}.{ext}" in existing:
+            counter += 1
+        filename = f"{name}_{counter}.{ext}" if ext else f"{name}_{counter}"
+    return {"filename": filename, "content": content, "language": language}
 
 
 def _lang_to_filename(language: str) -> str:
@@ -78,15 +158,13 @@ def _lang_to_filename(language: str) -> str:
         "python": "main.py",
         "py": "main.py",
         "html": "index.html",
-        "css": "style.css",
-        "json": "config.json",
-        "sql": "schema.sql",
+        "css": "styles.css",
+        "json": "data.json",
         "bash": "script.sh",
         "sh": "script.sh",
-        "dockerfile": "Dockerfile",
         "yaml": "config.yaml",
         "yml": "config.yaml",
-        "md": "README.md",
         "markdown": "README.md",
+        "md": "README.md",
     }
-    return lang_map.get(language.lower(), f"file.{language}")
+    return lang_map.get(language.lower(), f"file.{language}" if language else "file.txt")
