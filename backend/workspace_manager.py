@@ -1,4 +1,5 @@
 import enum
+import json
 import logging
 import os
 import shutil
@@ -184,3 +185,106 @@ class DirectoryNotEmptyError(ValueError):
             f"已有文件: {file_list}\n"
             f"项目特征: {hints}"
         )
+
+# ---------------------------------------------------------------------------
+# 跨任务产物指针（方案 A：上一任务工作区上下文注入）
+# ---------------------------------------------------------------------------
+
+_LAST_WS_PATH = os.path.join(os.path.dirname(__file__), "data", "last_workspace.json")
+
+# 遍历产物时跳过的目录 / 文件
+_SKIP_DIRS = {".git", "node_modules", "__pycache__", ".pytest_cache", ".artifacts",
+              ".venv", "venv", "dist", "build", "coverage", ".mypy_cache", ".ruff_cache"}
+_KEY_FILE_ORDER = ("readme", "package.json", "requirements.txt", "pyproject.toml",
+                   "dockerfile", "app.py", "main.py", "server.js", "index.js")
+
+
+def write_last_workspace(root_path: str, project_id: str = "", brief: str = "") -> None:
+    """任务完成时记录其工作区指针，供下一任务读取（落盘以跨 WS 连接）"""
+    try:
+        payload = {
+            "path": os.path.abspath(root_path),
+            "project_id": project_id,
+            "brief": brief[:200],
+            "recorded_at": __import__("datetime").datetime.now(
+                __import__("datetime").timezone.utc).isoformat(),
+        }
+        os.makedirs(os.path.dirname(_LAST_WS_PATH), exist_ok=True)
+        with open(_LAST_WS_PATH, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.debug("记录上一任务工作区失败: %s", e)
+
+
+def _collect_workspace_tree(root: str, max_files: int = 60) -> list[str]:
+    entries: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS)
+        rel_dir = os.path.relpath(dirpath, root)
+        for name in sorted(filenames):
+            rel = name if rel_dir == "." else f"{rel_dir}/{name}"
+            entries.append(rel)
+            if len(entries) >= max_files:
+                return entries
+    return entries
+
+
+def build_previous_workspace_context(current_root: str = "", max_tree: int = 60,
+                                     max_total_chars: int = 5000) -> str:
+    """构造「上一任务产物」提示上下文：文件清单 + 关键文件内容
+
+    指针缺失 / 路径失效 / 指向当前工作区时返回空串（只读注入，不破坏隔离）。
+    """
+    try:
+        if not os.path.isfile(_LAST_WS_PATH):
+            return ""
+        with open(_LAST_WS_PATH, encoding="utf-8") as fh:
+            meta = json.load(fh)
+        prev_root = meta.get("path") or ""
+        if not prev_root or not os.path.isdir(prev_root):
+            return ""
+        if current_root and os.path.abspath(prev_root) == os.path.abspath(current_root):
+            return ""
+
+        tree = _collect_workspace_tree(prev_root, max_files=max_tree)
+        if not tree:
+            return ""
+
+        parts = [f"[上一任务产物]（工作区: {prev_root}"]
+        if meta.get("brief"):
+            parts[0] += f"，任务: {meta['brief']}"
+        parts[0] += "）"
+        parts.append("文件清单：\n" + "\n".join(f"- {rel}" for rel in tree))
+
+        budget = max_total_chars
+        # 关键文件内容：README 优先，其次清单/入口文件
+        lower_map = {rel.lower(): rel for rel in tree}
+        picked: list[str] = []
+        for key in _KEY_FILE_ORDER:
+            for low, rel in lower_map.items():
+                base = os.path.basename(low)
+                if (key == "readme" and base.startswith("readme")) or base == key:
+                    if rel not in picked:
+                        picked.append(rel)
+                    break
+            if len(picked) >= 4:
+                break
+
+        for rel in picked:
+            if budget <= 0:
+                break
+            full = os.path.join(prev_root, rel)
+            try:
+                if os.path.getsize(full) > 64 * 1024:
+                    continue
+                with open(full, encoding="utf-8", errors="replace") as fh:
+                    text = fh.read(budget)
+            except OSError:
+                continue
+            parts.append(f"--- {rel} ---\n{text}")
+            budget -= len(text)
+
+        return "\n\n".join(parts)
+    except Exception as e:
+        logger.debug("上一任务产物上下文跳过: %s", e)
+        return ""
