@@ -14,11 +14,20 @@ logger = logging.getLogger("auto_optimizer")
 
 
 class AutoOptimizer:
-    """自动优化编排器
+    """自动优化循环编排器
 
     将 optimizer → shadow → promote → rollback 串联为一个周期性任务。
     每轮只处理有限数量的变更，避免同时改太多参数。
     """
+
+    # 有生产决策点（可诚实对比 old vs new）的参数才允许自动影子；
+    # federation 等连续量参数无离散决策，起影子会永久卡在 shadow
+    SHADOWABLE_PARAMS = frozenset({
+        "router.keyword_weight", "router.semantic_weight", "router.success_rate_weight",
+        "router.priority_weight", "router.skill_level_weight", "router.skill_level_boost_max",
+        "experience.explore_ratio", "experience.demotion_threshold",
+        "boundary.confidence_high", "boundary.confidence_medium",
+    })
 
     # 每轮最多自动启动的影子验证数
     MAX_SHADOWS_PER_CYCLE = 2
@@ -101,6 +110,10 @@ class AutoOptimizer:
                 # 跳过需要审批的参数
                 param = self._registry.get_param(proposal.param_name)
                 if param and param.requires_approval:
+                    continue
+                # 无生产决策点的参数不允许自动影子（否则永远凑不满样本、卡死占位）
+                if proposal.param_name not in self.SHADOWABLE_PARAMS:
+                    logger.info("跳过无决策源参数的影子: %s", proposal.param_name)
                     continue
                 # 跳过已有活跃部署的参数
                 existing = [

@@ -154,6 +154,36 @@ class DeploymentManager:
             self._save()
             return True
 
+    def shadow_new_values(self, param_name: str) -> list[float]:
+        """返回该参数当前处于 shadow 状态的候选新值（生产决策钩子用）"""
+        with self._lock:
+            return [
+                d.new_value for d in self._deployments.values()
+                if d.param_name == param_name and d.status == "shadow"
+            ]
+
+    def record_shadows_for_param(self, param_name: str, old_decision: str,
+                                 new_decision: str, task_type: str = "general") -> int:
+        """向该参数的所有影子部署记录一次决策对比（生产钩子主入口）
+
+        空对空直接拒绝（空==空会被算作 match，20 次假 POST 即可假晋升）。
+        """
+        if not old_decision and not new_decision:
+            return 0
+        with self._lock:
+            ids = [
+                d.deployment_id for d in self._deployments.values()
+                if d.param_name == param_name and d.status == "shadow"
+            ]
+        recorded = 0
+        for dep_id in ids:
+            try:
+                if self.record_shadow_decision(dep_id, task_type, old_decision, new_decision):
+                    recorded += 1
+            except Exception as e:
+                logger.debug("影子决策记录失败 %s: %s", dep_id, e)
+        return recorded
+
     def evaluate_shadow(self, deployment_id: str) -> dict:
         """评估影子验证结果，决定是否可以晋升为活跃部署
 

@@ -159,6 +159,9 @@ async def record_shadow_decision(deployment_id: str, body: dict = Body(...)):
         task_type = body.get("task_type", "general")
         old_decision = body.get("old_decision", "")
         new_decision = body.get("new_decision", "")
+        if not old_decision and not new_decision:
+            # 空==空 会被算作 match：20 次空 POST 即可假晋升
+            return fail("old_decision/new_decision 不能同时为空")
         success = _deployment.record_shadow_decision(deployment_id, task_type, old_decision, new_decision)
         if not success:
             return fail("记录失败（部署不存在或非影子阶段）")
