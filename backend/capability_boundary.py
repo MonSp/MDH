@@ -31,11 +31,13 @@ def _rule_to_dict(rule) -> dict:
 class CapabilityBoundary:
     """能力边界感知器"""
 
-    def __init__(self, data_dir: str, experience_extractor=None, tuning_registry=None):
+    def __init__(self, data_dir: str, experience_extractor=None, tuning_registry=None,
+                 deployment_manager=None):
         self._data_dir = data_dir
         self._experience_dir = os.path.join(data_dir, "experience")
         self._extractor = experience_extractor
         self._tuning = tuning_registry
+        self._deployment = deployment_manager  # 影子决策对比（confidence 阈值）
 
     def _tp(self, name: str, default: float) -> float:
         if self._tuning is not None:
@@ -141,6 +143,30 @@ class CapabilityBoundary:
                 level = "low"
             else:
                 level = "unknown"
+
+            # confidence 阈值影子：按候选阈值各判一次 level（离散决策）
+            if self._deployment is not None:
+                try:
+                    for pname, is_high in (
+                        ("boundary.confidence_high", True),
+                        ("boundary.confidence_medium", False),
+                    ):
+                        for new_val in self._deployment.shadow_new_values(pname):
+                            ch = float(new_val) if is_high else self.confidence_high
+                            cm = self.confidence_medium if is_high else float(new_val)
+                            if confidence >= ch:
+                                new_level = "high"
+                            elif confidence >= cm:
+                                new_level = "medium"
+                            elif confidence >= CONFIDENCE_LOW:
+                                new_level = "low"
+                            else:
+                                new_level = "unknown"
+                            self._deployment.record_shadows_for_param(
+                                pname, level, new_level, "boundary",
+                            )
+                except Exception as e:
+                    logger.debug("boundary 影子决策记录失败: %s", e)
 
             domains[domain] = {
                 "domain": domain,

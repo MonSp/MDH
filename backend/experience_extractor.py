@@ -153,6 +153,26 @@ class ExperienceExtractor:
         self._knowledge_network = knowledge_network
         self._team_federation = team_federation
         self._tuning = tuning_registry
+        self._deployment = None  # 影子部署管理器（server 晚绑定，extractor 创建更早）
+
+    def attach_deployment(self, deployment_manager) -> None:
+        """晚绑定影子部署管理器（server 中 extractor 创建早于 DeploymentManager）"""
+        self._deployment = deployment_manager
+
+    def _record_demotion_shadow(self, score: float, in_window: bool) -> None:
+        """demotion_threshold 影子：按新旧阈值各判一次降级决策"""
+        dep = self._deployment
+        if dep is None or not in_window:
+            return
+        try:
+            for new_val in dep.shadow_new_values("experience.demotion_threshold"):
+                old_d = "demote" if score < self.demotion_threshold else "keep"
+                new_d = "demote" if score < float(new_val) else "keep"
+                dep.record_shadows_for_param(
+                    "experience.demotion_threshold", old_d, new_d, "rule_demotion",
+                )
+        except Exception as e:
+            logger.debug("demotion 影子决策记录失败: %s", e)
 
     def _tp(self, name: str, default: float) -> float:
         """从 TuningRegistry 获取参数值，无 registry 或未注册时返回默认值"""
@@ -995,10 +1015,24 @@ class ExperienceExtractor:
 
         # 探索/利用平衡
         scored.sort(key=lambda x: x[0], reverse=True)
-        if len(scored) >= 3 and _random.random() < self.explore_ratio:
-            # 探索：从非首位中随机选一条，与首位交换（确保低分规则有机会被注入）
-            explore_idx = _random.randint(1, len(scored) - 1)
-            scored[0], scored[explore_idx] = scored[explore_idx], scored[0]
+        if len(scored) >= 3:
+            u = _random.random()
+            if u < self.explore_ratio:
+                # 探索：从非首位中随机选一条，与首位交换（确保低分规则有机会被注入）
+                explore_idx = _random.randint(1, len(scored) - 1)
+                scored[0], scored[explore_idx] = scored[explore_idx], scored[0]
+            # explore_ratio 影子：同一 u 在新旧阈值下各判一次（确定性对比）
+            dep = self._deployment
+            if dep is not None:
+                try:
+                    for new_val in dep.shadow_new_values("experience.explore_ratio"):
+                        old_d = "explore" if u < self.explore_ratio else "exploit"
+                        new_d = "explore" if u < float(new_val) else "exploit"
+                        dep.record_shadows_for_param(
+                            "experience.explore_ratio", old_d, new_d, "rule_retrieval",
+                        )
+                except Exception as e:
+                    logger.debug("explore_ratio 影子决策记录失败: %s", e)
 
         return [rule for _, rule in scored]
 
@@ -1440,6 +1474,11 @@ class ExperienceExtractor:
             rule.success_count += 1
         rule.effectiveness_score = rule.success_count / rule.usage_count if rule.usage_count else 0.0
         rule.last_used_at = _now_iso()
+        # 影子对比（新旧 demotion_threshold 各判一次）
+        self._record_demotion_shadow(
+            rule.effectiveness_score,
+            rule.status == "approved" and rule.usage_count >= self.DEMOTION_MIN_USAGE,
+        )
         # 自动降级：使用次数足够但有效性过低
         if (rule.status == "approved"
                 and rule.usage_count >= self.DEMOTION_MIN_USAGE
@@ -1480,8 +1519,13 @@ class ExperienceExtractor:
         demoted = []
         for rule_id in self._list_rule_ids():
             rule = self._load_rule(rule_id)
-            if (rule is not None
-                    and rule.status == "approved"
+            if rule is None:
+                continue
+            self._record_demotion_shadow(
+                rule.effectiveness_score,
+                rule.status == "approved" and rule.usage_count >= self.DEMOTION_MIN_USAGE,
+            )
+            if (rule.status == "approved"
                     and rule.usage_count >= self.DEMOTION_MIN_USAGE
                     and rule.effectiveness_score < self.demotion_threshold):
                 rule.status = "pending_review"

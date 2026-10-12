@@ -20,6 +20,16 @@ logger = logging.getLogger("dynamic_router")
 # 数据类定义
 # ---------------------------------------------------------------------------
 
+# 影子重打分：参数名 → 评分分量键（与 _route_score 五维一致）
+_WEIGHT_PARAM_KEYS = {
+    "router.keyword_weight": "keyword",
+    "router.semantic_weight": "semantic",
+    "router.success_rate_weight": "success_rate",
+    "router.priority_weight": "priority",
+    "router.skill_level_weight": "skill_level",
+}
+
+
 @dataclass
 class RouteEntry:
     """路由表条目"""
@@ -109,7 +119,8 @@ class DynamicRouter:
     WEIGHT_PRIORITY = 0.10
     WEIGHT_SKILL_LEVEL = 0.10
 
-    def __init__(self, routing_table_path: str, profile_manager=None, tuning_registry=None):
+    def __init__(self, routing_table_path: str, profile_manager=None, tuning_registry=None,
+                 deployment_manager=None):
         """初始化动态路由器
 
         Args:
@@ -118,6 +129,7 @@ class DynamicRouter:
             tuning_registry: TuningRegistry 实例（可选，提供动态参数覆盖）
         """
         self._path = routing_table_path
+        self._deployment = deployment_manager  # 影子决策对比（router.* 权重）
         self._lock = threading.Lock()
         self._table: dict[str, RouteEntry] = {}
         self._profile_manager = profile_manager
@@ -458,8 +470,9 @@ class DynamicRouter:
         if max_priority == 0:
             max_priority = 1
 
-        # 第三步：综合评分
+        # 第三步：综合评分（同时留存五维分量，供影子重打分对比）
         candidate_scores: list[tuple[RouteEntry, float, list[str]]] = []
+        score_components: list[tuple] = []
         for entry in candidates:
             kw_score = kw_score_map.get(entry.dept_id, 0.0)
             sem_score = semantic_map.get(entry.dept_id, 0.0)
@@ -476,11 +489,15 @@ class DynamicRouter:
                 + entry.skill_level_boost  # 技能升级自适应加成（直接加到总分）
             )
             candidate_scores.append((entry, final_score, matched_kw_map.get(entry.dept_id, [])))
+            score_components.append((entry, kw_score, sem_score, sr, pri, skill_score))
 
         # 按得分降序排序
         candidate_scores.sort(key=lambda x: x[1], reverse=True)
 
         best_entry, best_score, best_kw = candidate_scores[0]
+
+        # 影子验证：对每个 router.* 权重影子按候选值重打分，比较 top-1（诚实决策对比）
+        self._record_weight_shadow_decisions(score_components, best_entry.dept_id)
 
         # 构建候选列表
         candidate_depts = [
@@ -549,6 +566,44 @@ class DynamicRouter:
         # 持久化
         return self.save_routing_table()
 
+    def _record_weight_shadow_decisions(self, components: list, selected_dept: str) -> None:
+        """router.* 权重影子：用候选权重重打分并记录 top-1 决策对比"""
+        if self._deployment is None or not components:
+            return
+        try:
+            live_weights = {
+                "keyword": self.weight_keyword,
+                "semantic": self.weight_semantic,
+                "success_rate": self.weight_success_rate,
+                "priority": self.weight_priority,
+                "skill_level": self.weight_skill_level,
+            }
+            recorded_any = False
+            for pname, ckey in _WEIGHT_PARAM_KEYS.items():
+                for new_val in self._deployment.shadow_new_values(pname):
+                    if not recorded_any:
+                        recorded_any = True
+                    weights = dict(live_weights)
+                    weights[ckey] = float(new_val)
+                    best_new, best_new_score = None, -1.0
+                    for entry, kw_s, sem_s, sr_s, pri_s, skill_s in components:
+                        score = (
+                            kw_s * weights["keyword"]
+                            + sem_s * weights["semantic"]
+                            + sr_s * weights["success_rate"]
+                            + pri_s * weights["priority"]
+                            + skill_s * weights["skill_level"]
+                            + entry.skill_level_boost
+                        )
+                        if score > best_new_score:
+                            best_new_score, best_new = score, entry.dept_id
+                    if best_new is not None:
+                        self._deployment.record_shadows_for_param(
+                            pname, selected_dept, best_new, "routing",
+                        )
+        except Exception as e:
+            logger.debug("路由影子决策记录失败: %s", e)
+
     def update_skill_boost(self, dept_id: str, level_gained: int = 1) -> bool:
         """技能升级自适应：agent 升级时提升部门路由加成
 
@@ -565,8 +620,21 @@ class DynamicRouter:
             entry = self._table.get(dept_id)
             if entry is None:
                 return False
-            entry.skill_level_boost = min(self.skill_level_boost_max, entry.skill_level_boost + 0.05 * level_gained)
+            pre_boost = entry.skill_level_boost
+            old_out = min(self.skill_level_boost_max, pre_boost + 0.05 * level_gained)
+            entry.skill_level_boost = old_out
             entry.last_active = _now_iso()
+        # boost_max 影子：顶帽前后结果值对比（clamp 是该参数唯一的离散决策点）
+        if self._deployment is not None:
+            try:
+                for new_val in self._deployment.shadow_new_values("router.skill_level_boost_max"):
+                    new_out = min(float(new_val), pre_boost + 0.05 * level_gained)
+                    self._deployment.record_shadows_for_param(
+                        "router.skill_level_boost_max",
+                        f"{old_out:.4f}", f"{new_out:.4f}", "skill_boost",
+                    )
+            except Exception as e:
+                logger.debug("boost_max 影子决策记录失败: %s", e)
         logger.info("部门 %s 技能加成提升至 %.2f", dept_id,
                      self._table[dept_id].skill_level_boost)
         return self.save_routing_table()

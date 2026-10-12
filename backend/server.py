@@ -363,6 +363,8 @@ tuning_deployment = DeploymentManager(
     os.path.join(_DATA_DIR, "tuning_deployments.json"),
 )
 tuning_router.init(tuning_registry, tuning_optimizer, tuning_deployment)
+# extractor 创建早于 DeploymentManager → 晚绑定，供 explore/demotion 影子钩子使用
+experience_extractor.attach_deployment(tuning_deployment)
 
 from auto_optimizer import AutoOptimizer
 auto_optimizer = AutoOptimizer(tuning_registry, tuning_optimizer, tuning_deployment)
@@ -370,6 +372,7 @@ tuning_router.set_auto_optimizer(auto_optimizer)
 dynamic_router = DynamicRouter(
     routing_table_path=os.path.join(_DATA_DIR, "routing_table.json"),
     tuning_registry=tuning_registry,
+    deployment_manager=tuning_deployment,
 )
 
 # 自适应协作链路组件
@@ -388,7 +391,7 @@ from capability_boundary import CapabilityBoundary
 from team_synergy import TeamSynergy
 
 a2a_team_synergy = TeamSynergy(_DATA_DIR)
-a2a_capability_boundary = CapabilityBoundary(data_dir=_DATA_DIR, experience_extractor=experience_extractor, tuning_registry=tuning_registry)
+a2a_capability_boundary = CapabilityBoundary(data_dir=_DATA_DIR, experience_extractor=experience_extractor, tuning_registry=tuning_registry, deployment_manager=tuning_deployment)
 onboarding_mgr = OnboardingManager(_DATA_DIR)
 task_template_mgr = TaskTemplateManager(_DATA_DIR)
 state_sync = StateSyncManager(
