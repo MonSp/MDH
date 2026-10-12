@@ -76,7 +76,7 @@
 
 > 评测执行 2026-10-08，两轮：R1 暴露 5 个链路缺陷（详见 §8），修复后 R2 重跑。
 > 以下评分基于 **R2**（修复后状态）。证据：`research/eval-run-2026-09-24/`（R1）、
-> `research/eval-run-r2-2026-09-24/`（R2）、服务日志 `/tmp/mdh_eval_server_r2.log`。
+> `research/eval-run-r2-rerun-2026-10-10/`（⚠️ R2 原始证据已丢失，详见 §13）、服务日志 `/tmp/mdh_eval_server_r2.log`。
 > 评委独立验证：亲自运行全部产出测试、抽查代码/文档质量、直查 rules.db 与检索复现。
 
 ### 7.1 逐任务评分
@@ -302,3 +302,32 @@
 | **合计** | **50** | **全绿** |
 
 注：E3 测试文件、`package.json` 依赖与组件修复均位于评测工作区（`~/.agent-workspaces/6420ed57/`），不改动 MDH 仓库代码。
+
+## 13. 证据覆盖事故与两个新缺陷（2026-10-10）
+
+### 13.1 事故：R2 原始证据被延迟执行的旧代理覆盖
+
+- 早期被取消的 R2 执行代理实际恢复运行，于 2026-10-10 14:16–14:29 完成一整轮重跑，
+  **覆盖了 `eval-run-r2-2026-09-24/` 中 E1–E5 的原始 JSON**（仅 `rules_after_raw.json` 等少数文件幸存）
+- 处置：目录改名归档为 **`eval-run-r2-rerun-2026-10-10/`**（现内容为 10-10 重跑证据）
+- 影响评估：§7 的 R2 评分数据在覆盖前已完整提取进本报告，**评分结论不受影响**；原始逐消息溯源对 R2 不可再得
+- 该重跑顺带复验：5/5 success、signal 0、E4 节点文本修复保持、规则 79→99、AB 3→6 行
+
+### 13.2 缺陷一：notify 双参导致全部状态/产物通知静默失败（已修复）
+
+- **现象**：单轮 15 次 `send() got multiple values for argument 'agent_id'`（`coordinator_effects.notify_agent_status` / `notify_artifact_created`，DEBUG 级静默）
+- **根因**：`send(agent_id, text, delta, **kwargs)` 第一个位置参数即 `agent_id`，notify 又传了 `agent_id=agent_id` 关键字 → TypeError，3D 可视化所需的 agent 状态/产物通知从未送达前端
+- **修复**：删除重复 kwarg（agent_id 已随位置参数进入 payload 的 `agentId` 字段）
+- **回归**：`tests/test_coordinator_effects.py`（3 例，断言 kwarg 中不再出现 agent_id）
+
+### 13.3 缺陷二：`task_result.written_files` 跨轮丢失（已修复）
+
+- **现象**：E2 磁盘 13 个文件、聊天有「第1轮 已写入 11 个文件」，但 `task_result.written_files=[]`
+- **根因**：`run_dev_loop` 每轮 `execution_results = exec_results` 整体覆盖；修复轮常只回聊天说明不重写文件（`written_files=[]`），最后一轮把前几轮产出冲掉
+- **修复**：循环内按 task_id 跨轮累计 written_files，返回前去重合并进最终 `execution_results`
+- **回归**：`tests/test_coordinator_execution.py::test_written_files_cumulative_across_rounds`
+  （第1轮写2文件 → 修复轮空 → 断言最终仍保留2文件，2轮审查闭环）
+
+### 13.4 回归结果
+
+- Python 后端：**2120 passed, 1 skipped**（2116 + 新增4），ruff 全绿
