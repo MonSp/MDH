@@ -1039,9 +1039,21 @@ class MeetingCoordinator:
 
         if self._ab_tracker:
             try:
-                task_type = self._get_experience_extractor()._infer_task_type(task_text)
+                extractor = self._get_experience_extractor()
+                task_type = extractor._infer_task_type(task_text)
                 success = workflow_result.get("status") == "completed"
-                self._ab_tracker.record_task(task_type, success, False, 0, 0.0)
+                # 节点级经验注入的真实回填（此前恒记 False/0）
+                injected_ids: list[str] = []
+                for res in (workflow_result.get("results") or {}).values():
+                    if isinstance(res, dict):
+                        injected_ids.extend(res.get("injected_rule_ids") or [])
+                scores = []
+                for rid in injected_ids:
+                    rule = extractor._load_rule(rid)
+                    if rule is not None:
+                        scores.append(rule.effectiveness_score or 0.0)
+                avg_rule_score = sum(scores) / len(scores) if scores else 0.0
+                self._ab_tracker.record_task(task_type, success, bool(injected_ids), len(injected_ids), avg_rule_score)
             except Exception as e:
                 logger.warning("AB 工作流记录失败: %s", e)
 

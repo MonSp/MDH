@@ -228,6 +228,36 @@ def extract_tool_calls_from_text(text: str) -> list[dict[str, Any]]:
     return calls
 
 
+def build_node_experience_context(coordinator, task_text: str):
+    """工作流节点经验注入：检索相关规则并格式化为提示上下文
+
+    此前工作流路径零注入（E4 0/5）：串行流程的 inject_experience 与
+    task_orchestrator._get_experience_context 都不在节点执行链上，
+    节点 prompt 只有资产注入。这里镜像串行检索逻辑，但使用
+    coordinator 共享的 extractor（含 llm/event 接线）而非新建实例。
+
+    Returns:
+        (context_str, rules): 上下文文本与命中的规则列表
+    """
+    try:
+        if not task_text:
+            return "", []
+        import re as _re
+        extractor = coordinator._get_experience_extractor()
+        words = _re.findall(r'[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}', task_text)
+        keywords = set(w.lower() for w in words)
+        task_type = extractor._infer_task_type(task_text)
+        rules = extractor.retrieve_relevant_rules(task_type, sorted(keywords))
+        if not rules:
+            return "", []
+        context = extractor.build_experience_context(rules)
+        logger.info("工作流节点注入 %d 条经验规则 (task_type=%s)", len(rules), task_type)
+        return (f"\n\n{context}" if context else ""), rules
+    except Exception as e:
+        logger.debug("工作流节点经验注入跳过: %s", e)
+        return "", []
+
+
 async def execute_workflow_node(coordinator, node: WorkflowNode, input_data: dict) -> dict:
     """执行工作流节点：LLM + 工具调用 + 产物写入工作区"""
 
@@ -279,11 +309,15 @@ async def execute_workflow_node(coordinator, node: WorkflowNode, input_data: dic
         except Exception as exc:
             logger.warning("资产参考注入失败: %s", exc)
 
+    experience_context, injected_rules = build_node_experience_context(
+        coordinator, node.task_description or "",
+    )
+
     prompt = (
         f"请执行以下任务：\n"
         f"任务描述：{node.task_description}\n"
         f"输入数据：{json.dumps(input_data, ensure_ascii=False)}\n"
-        f"{tool_prompt}{asset_context}\n\n"
+        f"{tool_prompt}{asset_context}{experience_context}\n\n"
         f"需要产出文件时，用代码块输出：```文件名\n内容\n```；需要调用工具时输出 JSON："
         f'{{"tool": "工具名", "arguments": {{...}}}}。'
     )
@@ -304,6 +338,7 @@ async def execute_workflow_node(coordinator, node: WorkflowNode, input_data: dic
         "result": loop_result["result"], "node_id": node.node_id, "dept_id": node.dept_id,
         "files_written": loop_result["files_written"], "tool_outputs": loop_result["tool_outputs"],
         "verification": loop_result.get("verification", []),
+        "injected_rule_ids": [r.rule_id for r in injected_rules],
     }
 
     gate_result = await run_node_gate(coordinator, node)
