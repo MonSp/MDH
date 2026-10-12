@@ -35,7 +35,10 @@ class WorkflowEngine:
     支持顺序执行、并行执行和条件分支。
     """
 
-    def __init__(self, persistence_dir: str | None = None):
+    def __init__(self, persistence_dir: str | None = None, ab_tracker=None,
+                 experience_extractor=None):
+        self._ab_tracker = ab_tracker  # 终态入表（REST + 会议工作流统一漏斗）
+        self._experience = experience_extractor
         self._definitions: dict[str, WorkflowDefinition] = {}
         self._executions: dict[str, WorkflowExecution] = {}
         self._running_tasks: dict[str, asyncio.Task] = {}
@@ -201,6 +204,33 @@ class WorkflowEngine:
         pattern = _re.compile(r'^[0-9a-fA-F]{8}\.json$')
         return [f[:-5] for f in os.listdir(self._persistence_dir) if pattern.match(f)]
 
+    def _record_ab(self, definition, execution) -> None:
+        """工作流终态统一入表（REST 与会议工作流共享本引擎，此前 REST 路径从未入表）"""
+        if not self._ab_tracker:
+            return
+        if execution.status not in (WorkflowExecutionStatus.COMPLETED, WorkflowExecutionStatus.FAILED):
+            return  # CANCELLED 等非结果态不入表
+        try:
+            from experience_extractor import ExperienceExtractor
+            text = (definition.description or "") or (definition.name or "")
+            task_type = ExperienceExtractor._infer_task_type(text)
+            success = execution.status == WorkflowExecutionStatus.COMPLETED
+            ids: list[str] = []
+            for res in execution.results.values():
+                if isinstance(res, dict):
+                    ids.extend(res.get("injected_rule_ids") or [])
+            avg = 0.0
+            if ids and self._experience is not None:
+                scores = []
+                for rid in ids:
+                    rule = self._experience._load_rule(rid)
+                    if rule is not None:
+                        scores.append(rule.effectiveness_score or 0.0)
+                avg = sum(scores) / len(scores) if scores else 0.0
+            self._ab_tracker.record_task(task_type, success, bool(ids), len(ids), avg)
+        except Exception as e:
+            logger.debug("工作流 AB 记录失败: %s", e)
+
     async def execute_workflow(self, execution_id: str):
         """执行工作流
 
@@ -244,6 +274,7 @@ class WorkflowEngine:
                     execution.status = WorkflowExecutionStatus.FAILED
 
             execution.completed_at = datetime.now(timezone.utc).isoformat()
+            self._record_ab(definition, execution)
             await self._notify_status_change(execution)
             # 最终状态落盘（供重启后按最终状态恢复）
             await self.persist_execution(execution_id)
@@ -261,6 +292,7 @@ class WorkflowEngine:
             if execution.status != WorkflowExecutionStatus.CANCELLED:
                 execution.status = WorkflowExecutionStatus.FAILED
                 execution.completed_at = datetime.now(timezone.utc).isoformat()
+                self._record_ab(definition, execution)
                 await self._notify_status_change(execution)
                 await self.persist_execution(execution_id)
             raise

@@ -141,12 +141,17 @@ class SimpleExecutor:
                     logger.warning("简单路径后处理失败（不阻塞结果）: %s", e)
 
             # 6. A/B 任务类型成功率追踪
-            if self._ab_tracker:
+            # 验收失败必升级 complex（retry_with_complex），最终结果由 complex 路径入表，
+            # 这里只记通过的最终态，避免同一任务双记；简单内部路径不注入经验 → has_rules=False
+            if self._ab_tracker and review.passed:
                 try:
+                    from experience_extractor import ExperienceExtractor
                     self._ab_tracker.record_task(
-                        task_type=self._infer_task_type(content),
-                        success=review.passed,
-                        has_rules=self._post_processor is not None,
+                        task_type=ExperienceExtractor._infer_task_type(content),
+                        success=True,
+                        has_rules=False,
+                        rule_count=0,
+                        avg_rule_score=0.0,
                     )
                 except Exception as e:
                     logger.debug("A/B 任务追踪记录失败: %s", e)
