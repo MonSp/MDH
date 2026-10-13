@@ -55,16 +55,23 @@ def test_write_loop_extraction_runs_off_event_loop(monkeypatch):
 
     async def ticker():
         nonlocal ticks
-        for _ in range(12):
+        for _ in range(40):  # 足够长，保证任务完成时 ticker 仍在跑
             await asyncio.sleep(0.05)
             ticks += 1
 
     async def main():
-        await asyncio.gather(orch._execute_one_task(task, None), ticker())
+        # 关键：任务完成瞬间取样 ticks——若提取同步阻塞 loop，
+        # 此时 ticker 一格未走（评审证实 gather 结束后取样是假路障）
+        exec_task = asyncio.create_task(orch._execute_one_task(task, None))
+        ticker_task = asyncio.create_task(ticker())
+        await exec_task
+        ticks_at_done = ticks
+        ticker_task.cancel()
+        return ticks_at_done
 
-    asyncio.run(main())
-    # 提取 0.4s 若阻塞 loop，ticker 只会走 0 格；offload 后应 ≥4
-    assert ticks >= 4, f"event loop blocked: ticks={ticks}"
+    ticks_at_done = asyncio.run(main())
+    # 慢提取 0.4s：offload 后完成时 ticker ≈ 8 格；同步则 ≈ 0 格
+    assert ticks_at_done >= 4, f"event loop blocked: ticks_at_done={ticks_at_done}"
 
 
 @pytest.mark.asyncio
@@ -85,7 +92,7 @@ async def test_workflow_prev_context_off_event_loop(monkeypatch):
 
     async def ticker():
         nonlocal ticks
-        for _ in range(8):
+        for _ in range(40):
             await asyncio.sleep(0.05)
             ticks += 1
 
@@ -112,7 +119,13 @@ async def test_workflow_prev_context_off_event_loop(monkeypatch):
                         status=WorkflowNodeStatus.PENDING)
 
     async def main():
-        await asyncio.gather(cw.execute_workflow_node(coord, node, {}), ticker())
+        exec_task = asyncio.create_task(cw.execute_workflow_node(coord, node, {}))
+        ticker_task = asyncio.create_task(ticker())
+        await exec_task
+        ticks_at_done = ticks
+        ticker_task.cancel()
+        return ticks_at_done
 
-    await main()
-    assert ticks >= 2, f"event loop blocked in workflow node: ticks={ticks}"
+    ticks_at_done = await main()
+    # 慢构建 0.3s：offload 后完成时 ticker ≈ 5 格；同步则 ≈ 0 格
+    assert ticks_at_done >= 3, f"event loop blocked in workflow node: ticks_at_done={ticks_at_done}"

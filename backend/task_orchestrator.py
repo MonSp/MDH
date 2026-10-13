@@ -251,6 +251,7 @@ class TaskOrchestrator:
 
         try:
             written_files, all_tool_results, last_text = [], [], ""
+            code_blocks: list[dict] = []
             written_sizes: dict[str, int] = {}  # 同一执行轮内：重复文件保留更长内容，防止短稿覆盖完整稿
 
             # 阶段A: 环境检查
@@ -313,7 +314,7 @@ class TaskOrchestrator:
             if self._on_agent_status_change:
                 self._on_agent_status_change(task.agent_id, "done")
             return {"task_id": task.id, "agent_id": task.agent_id, "result": last_text,
-                    "written_files": written_files, "code_blocks_count": len(extract_code_blocks(last_text)),
+                    "written_files": written_files, "code_blocks_count": len(code_blocks),
                     "tool_calls": all_tool_results, "verification": verification, "agent_role": role.value}
         except Exception as e:
             logger.error("任务执行失败: task_id=%s error=%s", task.id, e)

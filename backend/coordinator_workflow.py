@@ -61,7 +61,7 @@ async def run_agent_execution_loop(
     # ── 阶段A: 环境检查 ──
     env_info = ""
     if agent_toolset:
-        ls_result = agent_toolset.list_directory(".")
+        ls_result = await asyncio.to_thread(agent_toolset.list_directory, ".")
         env_info = ls_result.output if ls_result.success else "(空目录)"
         prompt = f"工作区当前内容：\n{env_info}\n\n{prompt}"
 
@@ -77,7 +77,7 @@ async def run_agent_execution_loop(
                 f"请在 details 中返回 JSON 格式的计划：\n"
                 f'{{"files": [{{"name": "文件名", "purpose": "用途"}}], "tools": ["需要的工具"], "strategy": "执行策略"}}'
             )
-            decision = kernel.agent_decide("executor", plan_prompt)
+            decision = await asyncio.to_thread(kernel.agent_decide, "executor", plan_prompt)
             if decision and decision.get("details"):
                 try:
                     kernel_plan = json.loads(decision["details"])
@@ -121,7 +121,7 @@ async def run_agent_execution_loop(
                     logger.warning("工作流节点写文件失败: %s (%s)", block["filename"], wf.error)
 
         if not code_blocks and agent_toolset:
-            tool_calls = extract_tool_calls_from_text(last_text)
+            tool_calls = await asyncio.to_thread(extract_tool_calls_from_text, last_text)
             for call in tool_calls:
                 tc = await asyncio.to_thread(agent_toolset.execute, call["tool"], call.get("arguments", {}))
                 tool_outputs.append({"tool": call["tool"], "success": tc.success, "output": tc.output})
