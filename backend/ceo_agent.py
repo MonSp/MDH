@@ -36,7 +36,10 @@ def _review_gate(review_result: dict | None) -> tuple[bool, str]:
     Returns:
         (是否放行, 审查状态字符串) — 无审查信息时不拦截（status=""）
     """
-    status = str((((review_result or {}).get("structured_feedback")) or {}).get("status", "") or "")
+    if not isinstance(review_result, dict):
+        return True, ""
+    structured = review_result.get("structured_feedback")
+    status = str((structured.get("status", "") if isinstance(structured, dict) else "") or "")
     if status == "revision_required":
         return False, status
     return True, status
@@ -277,6 +280,9 @@ class CeoAgent:
 
         if result.retry_with_complex:
             # 升级到复杂路径
+            # 已知旁路（follow-up）：upgrade_to_complex 的嵌套 coordinator 结果
+            # 不经过 _handle_coordinator_result 门禁，且外层 spread 会冲掉 type；
+            # 今日该包装结果只被日志消费、不发客户端，属 latent——修复时需一并接门禁
             await self._emit(send_message, "CEO：简单路径验收未通过，升级为复杂任务，组建专业团队。")
             await send_message({"type": "path_upgrade", "from": "simple", "to": "complex"})
 
@@ -598,7 +604,8 @@ class CeoAgent:
                 logger.debug("记录工作区指针失败: %s", e)
 
         if not result:
-            task_result = {"type": "task_result", "path_used": "complex", "success": True, "project_id": project.project_id, "meeting_id": meeting_id}
+            # 空结果 = 结局未知，不是"审查放行的成功"（评审 Minor#4）
+            task_result = {"type": "task_result", "path_used": "complex", "success": False, "project_id": project.project_id, "meeting_id": meeting_id}
             logger.info("发送 task_result (result is None)")
             await send_message(task_result)
             return task_result
@@ -766,6 +773,10 @@ class CeoAgent:
             task_result["success"] = bool(task_result.get("success", True)) and fallback_ok
             if fallback_review_status:
                 task_result["review_status"] = fallback_review_status
+        # **result 展开会把 type 冲成 vote_rejected/simple_completed 等，
+        # 前端与评测只认 type=="task_result" —— 强制还原，否则门禁在 wire 上不可见
+        task_result["source_type"] = result_type
+        task_result["type"] = "task_result"
         logger.info("发送 task_result (fallback): keys=%s", list(task_result.keys()))
         await send_message(task_result)
         return task_result
