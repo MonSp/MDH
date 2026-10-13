@@ -216,7 +216,7 @@ class TaskOrchestrator:
                 logger.debug("Kernel tick failed (non-fatal): %s", e)
 
         tool_prompt = f"\n\n{agent_toolset.get_system_prompt()}" if agent_toolset else ""
-        experience_context = self._get_experience_context(task.description)
+        experience_context = await asyncio.to_thread(self._get_experience_context, task.description)
 
         # Kernel decision context
         kernel_context = ""
@@ -232,7 +232,7 @@ class TaskOrchestrator:
 
         try:
             from workspace_manager import build_previous_workspace_context
-            prev_context = build_previous_workspace_context(self._workspace_root or "")
+            prev_context = await asyncio.to_thread(build_previous_workspace_context, self._workspace_root or "")
             if prev_context:
                 logger.info("注入上一任务产物: %d chars", len(prev_context))
         except Exception:
@@ -251,18 +251,19 @@ class TaskOrchestrator:
 
         try:
             written_files, all_tool_results, last_text = [], [], ""
+            code_blocks: list[dict] = []
             written_sizes: dict[str, int] = {}  # 同一执行轮内：重复文件保留更长内容，防止短稿覆盖完整稿
 
             # 阶段A: 环境检查
             if agent_toolset:
-                ls = agent_toolset.list_directory(".")
+                ls = await asyncio.to_thread(agent_toolset.list_directory, ".")
                 conversation.append(Msg(name="user", role="user", content=[{"type": "text", "text": f"工作区当前内容：\n{ls.output if ls.success else '(空目录)'}\n\n请开始创建文件。"}]))
             # 阶段B: 文件创建循环
             for _ in range(6):
                 response = await safe_llm_reply(model, conversation, timeout=120)
                 last_text = _extract_text(response)
                 files_this_round = []
-                code_blocks = extract_code_blocks(last_text)
+                code_blocks = await asyncio.to_thread(extract_code_blocks, last_text)
                 if code_blocks and agent_toolset:
                     for block in code_blocks:
                         fname = block["filename"]
@@ -271,17 +272,19 @@ class TaskOrchestrator:
                             logger.info("跳过重复短写入 %s（%d ≤ 已写 %d 字符）", fname, len(block["content"]), prev_size)
                             files_this_round.append(fname)  # 告知模型已处理，避免死循环
                             continue
-                        r = agent_toolset.write_file(fname, block["content"])
+                        r = await asyncio.to_thread(agent_toolset.write_file, fname, block["content"])
                         if r.success:
                             written_sizes[fname] = len(block["content"])
                             if fname not in written_files:
                                 written_files.append(fname)
                             files_this_round.append(fname)
                 if not files_this_round:
-                    tool_calls = self._extract_tool_calls(last_text)
+                    tool_calls = await asyncio.to_thread(self._extract_tool_calls, last_text)
                     if tool_calls and agent_toolset:
                         for call in tool_calls:
-                            tc = agent_toolset.execute(call["tool"], call.get("arguments", {}))
+                            tc = await asyncio.to_thread(
+                                agent_toolset.execute, call["tool"], call.get("arguments", {}),
+                            )
                             all_tool_results.append({"tool": call["tool"], "success": tc.success, "output": tc.output if tc.success else tc.error})
                             if call["tool"] == "write_file" and tc.success:
                                 p = call.get("arguments", {}).get("path", "")
@@ -295,12 +298,15 @@ class TaskOrchestrator:
             if agent_toolset and written_files:
                 for dep, cmd in {"requirements.txt": "pip install -r requirements.txt", "package.json": "npm install --prefix ."}.items():
                     if dep in written_files:
-                        r = agent_toolset.run_command(cmd)
+                        r = await asyncio.to_thread(agent_toolset.run_command, cmd)
                         verification.append(f"依赖安装 {dep}: {'成功' if r.success else f'失败: {r.error[:200]}'}")
                 for fname in written_files:
                     ext = '.' + fname.rsplit('.', 1)[-1] if '.' in fname else ''
                     if ext == '.py':
-                        r = agent_toolset.run_command(f'python -c "import ast; ast.parse(open(\'{fname}\', encoding=\'utf-8\').read()); print(\'OK\')"')
+                        r = await asyncio.to_thread(
+                            agent_toolset.run_command,
+                            f'python -c "import ast; ast.parse(open(\'{fname}\', encoding=\'utf-8\').read()); print(\'OK\')"',
+                        )
                         verification.append(f"语法检查 {fname}: {'通过' if r.success else f'错误: {r.error[:100]}'}")
 
             self._meeting.update_task_status(task.id, "completed")
@@ -308,7 +314,7 @@ class TaskOrchestrator:
             if self._on_agent_status_change:
                 self._on_agent_status_change(task.agent_id, "done")
             return {"task_id": task.id, "agent_id": task.agent_id, "result": last_text,
-                    "written_files": written_files, "code_blocks_count": len(extract_code_blocks(last_text)),
+                    "written_files": written_files, "code_blocks_count": len(code_blocks),
                     "tool_calls": all_tool_results, "verification": verification, "agent_role": role.value}
         except Exception as e:
             logger.error("任务执行失败: task_id=%s error=%s", task.id, e)

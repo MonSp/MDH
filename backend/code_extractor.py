@@ -22,7 +22,10 @@
 代码类扩展名仍然丢弃（半截代码入库比缺失更糟）。
 """
 
+import logging
 import re
+
+logger = logging.getLogger("code_extractor")
 
 _FENCE_RE = re.compile(r"^```(.*)$")
 # 截断时可保留残卷的文本类扩展名
@@ -47,7 +50,14 @@ def extract_code_blocks(text: str) -> list[dict[str, str]]:
     def _is_filename(tag: str) -> bool:
         return ("." in tag or "/" in tag or "\\" in tag) and tag != "tool_call"
 
+    _outer_guard = 0
+    _outer_limit = 4 * n + 64
     while i < n:
+        _outer_guard += 1
+        if _outer_guard > _outer_limit:
+            # 防御：任何未推进路径在此熔断（死循环会卡死 asyncio 事件循环）
+            logger.warning("extract_code_blocks 外层扫描步数超限，熔断退出")
+            break
         tag = _tag(i)
         if tag is None:
             i += 1
@@ -68,7 +78,13 @@ def extract_code_blocks(text: str) -> list[dict[str, str]]:
             depth = 0
             end = None
             closed = False
+            _scan_guard = 0
+            _scan_limit = 4 * n + 64
             while j < n:
+                _scan_guard += 1
+                if _scan_guard > _scan_limit:
+                    logger.warning("extract_code_blocks 文件块扫描步数超限，熔断")
+                    break
                 t = _tag(j)
                 if t is None:
                     j += 1
@@ -114,7 +130,13 @@ def extract_code_blocks(text: str) -> list[dict[str, str]]:
         filename = _lang_to_filename(language)
         j = i + 1
         depth = 0
+        _lang_guard = 0
+        _lang_limit = 4 * n + 64
         while j < n:
+            _lang_guard += 1
+            if _lang_guard > _lang_limit:
+                logger.warning("extract_code_blocks 语言块扫描步数超限，熔断")
+                break
             t = _tag(j)
             if t is None:
                 j += 1

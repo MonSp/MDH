@@ -223,7 +223,9 @@ async def run_dev_loop(coordinator, coordinator_id, enhanced_description, discus
 
         if coordinator._artifact_store and exec_results:
             task_ids = [r.get("task_id") or r.get("agent_id", "") for r in exec_results if r.get("written_files")]
-            artifact_context = coordinator._artifact_store.build_artifact_context(task_ids, max_chars_per_file=6000)
+            artifact_context = await asyncio.to_thread(
+                coordinator._artifact_store.build_artifact_context, task_ids, max_chars_per_file=6000,
+            )
             if artifact_context:
                 execution_text = f"{execution_text}\n\n[文件内容]\n{artifact_context}"
 
