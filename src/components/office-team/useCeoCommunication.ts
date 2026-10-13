@@ -87,9 +87,13 @@ export function useCeoCommunication(options: CeoCommunicationOptions) {
         if (t === 'task_result') {
           setIsProcessing(false)
           setMeetingPhase('done')
-          if (currentProjectId && currentMeetingId) {
+          const gatePassed = msg.success !== false
+          if (currentProjectId && currentMeetingId && gatePassed) {
             setProjectReady({ projectId: currentProjectId, meetingId: currentMeetingId })
             addMsg('ceo', 'task_done:enter_project')
+          } else if (!gatePassed) {
+            // 交付门禁：执行完成但审查要求修订 —— 不再谎报"已完成"
+            addMsg('ceo', '任务执行完成，但审查要求修订，暂不视为交付通过。')
           } else {
             addMsg('ceo', '任务已完成。')
           }

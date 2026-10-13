@@ -30,6 +30,21 @@ from simple_executor import SimpleExecutor
 from team import Team
 
 
+def _review_gate(review_result: dict | None) -> tuple[bool, str]:
+    """审查终态门禁：revision_required 不得放行 task_result.success
+
+    Returns:
+        (是否放行, 审查状态字符串) — 无审查信息时不拦截（status=""）
+    """
+    if not isinstance(review_result, dict):
+        return True, ""
+    structured = review_result.get("structured_feedback")
+    status = str((structured.get("status", "") if isinstance(structured, dict) else "") or "")
+    if status == "revision_required":
+        return False, status
+    return True, status
+
+
 class _VirtualProject:
     """虚拟项目对象，用于会议消息处理"""
     def __init__(self, meeting_id: str = "unknown"):
@@ -265,6 +280,9 @@ class CeoAgent:
 
         if result.retry_with_complex:
             # 升级到复杂路径
+            # 已知旁路（follow-up）：upgrade_to_complex 的嵌套 coordinator 结果
+            # 不经过 _handle_coordinator_result 门禁，且外层 spread 会冲掉 type；
+            # 今日该包装结果只被日志消费、不发客户端，属 latent——修复时需一并接门禁
             await self._emit(send_message, "CEO：简单路径验收未通过，升级为复杂任务，组建专业团队。")
             await send_message({"type": "path_upgrade", "from": "simple", "to": "complex"})
 
@@ -586,7 +604,8 @@ class CeoAgent:
                 logger.debug("记录工作区指针失败: %s", e)
 
         if not result:
-            task_result = {"type": "task_result", "path_used": "complex", "success": True, "project_id": project.project_id, "meeting_id": meeting_id}
+            # 空结果 = 结局未知，不是"审查放行的成功"（评审 Minor#4）
+            task_result = {"type": "task_result", "path_used": "complex", "success": False, "project_id": project.project_id, "meeting_id": meeting_id}
             logger.info("发送 task_result (result is None)")
             await send_message(task_result)
             return task_result
@@ -628,15 +647,21 @@ class CeoAgent:
                 await self._emit(send_message, "CEO：工作流执行完成，但审查仍有未闭环问题，建议人工复核。")
             else:
                 await self._emit(send_message, "CEO：工作流执行完成。")
+            review_ok, review_status = _review_gate(result.get("review_result"))
+            wf_ok = workflow_result.get("status", "") == "completed"
             task_result = {
                 "type": "task_result",
                 "path_used": "complex",
-                "success": True,
+                "success": bool(review_ok and wf_ok),
+                "review_status": review_status,
                 "project_id": project.project_id,
                 "meeting_id": meeting_id,
                 "workflow_id": workflow_result.get("execution_id", ""),
                 "status": workflow_result.get("status", ""),
             }
+            if not task_result["success"]:
+                logger.info("交付门禁: review=%s workflow=%s → success=False",
+                            review_status or "-", workflow_result.get("status", ""))
             logger.info("发送 task_result (workflow_executed)")
             await send_message(task_result)
             return task_result
@@ -711,10 +736,12 @@ class CeoAgent:
             if written_files:
                 await self._emit(send_message, f"CEO：已将 {len(written_files)} 个文件写入工作区：{', '.join(written_files)}")
 
+            review_ok, review_status = _review_gate(result.get("review_result"))
             task_result = {
                 "type": "task_result",
                 "path_used": "complex",
-                "success": True,
+                "success": review_ok,
+                "review_status": review_status,
                 "project_id": project.project_id,
                 "meeting_id": meeting_id,
                 "task_id": assignment.get("task_id", ""),
@@ -722,11 +749,14 @@ class CeoAgent:
                 "discussion_results": result.get("discussion_results", []),
                 "written_files": written_files,
             }
+            if not review_ok:
+                logger.info("交付门禁: 审查 %s，success=False (serial_completed)", review_status)
             logger.info("发送 task_result (serial_completed)")
             await send_message(task_result)
             return task_result
 
-        # 其他结果
+        # 其他结果（含 vote_rejected / simple_completed 等）
+        # 门禁在 **result 展开之后应用，防止 result 内字段覆盖 success
         task_result = {
             "type": "task_result",
             "path_used": "complex",
@@ -735,6 +765,18 @@ class CeoAgent:
             "meeting_id": meeting_id,
             **result,
         }
+        if result_type == "vote_rejected":
+            task_result["success"] = False  # 投票否决 = 未交付
+            task_result["review_status"] = "vote_rejected"
+        elif "review_result" in result:
+            fallback_ok, fallback_review_status = _review_gate(result.get("review_result"))
+            task_result["success"] = bool(task_result.get("success", True)) and fallback_ok
+            if fallback_review_status:
+                task_result["review_status"] = fallback_review_status
+        # **result 展开会把 type 冲成 vote_rejected/simple_completed 等，
+        # 前端与评测只认 type=="task_result" —— 强制还原，否则门禁在 wire 上不可见
+        task_result["source_type"] = result_type
+        task_result["type"] = "task_result"
         logger.info("发送 task_result (fallback): keys=%s", list(task_result.keys()))
         await send_message(task_result)
         return task_result
