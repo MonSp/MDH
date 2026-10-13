@@ -110,10 +110,10 @@ async def run_agent_execution_loop(
         last_text = _extract_text(response)
 
         files_this_round: list[str] = []
-        code_blocks = extract_code_blocks(last_text)
+        code_blocks = await asyncio.to_thread(extract_code_blocks, last_text)
         if code_blocks and agent_toolset:
             for block in code_blocks:
-                wf = agent_toolset.write_file(block["filename"], block["content"])
+                wf = await asyncio.to_thread(agent_toolset.write_file, block["filename"], block["content"])
                 if wf.success:
                     files_written.append(block["filename"])
                     files_this_round.append(block["filename"])
@@ -123,7 +123,7 @@ async def run_agent_execution_loop(
         if not code_blocks and agent_toolset:
             tool_calls = extract_tool_calls_from_text(last_text)
             for call in tool_calls:
-                tc = agent_toolset.execute(call["tool"], call.get("arguments", {}))
+                tc = await asyncio.to_thread(agent_toolset.execute, call["tool"], call.get("arguments", {}))
                 tool_outputs.append({"tool": call["tool"], "success": tc.success, "output": tc.output})
                 if call["tool"] == "write_file" and tc.success:
                     path = call.get("arguments", {}).get("path", "")
@@ -156,18 +156,18 @@ async def run_agent_execution_loop(
         }
         for dep_file, install_cmd in dep_files.items():
             if dep_file in files_written:
-                install_result = agent_toolset.run_command(install_cmd)
+                install_result = await asyncio.to_thread(agent_toolset.run_command, install_cmd)
                 status = "成功" if install_result.success else f"失败: {install_result.error[:200]}"
                 verification_results.append(f"依赖安装 {dep_file}: {status}")
 
         for fname in files_written:
             ext = '.' + fname.rsplit('.', 1)[-1] if '.' in fname else ''
             if ext == '.py':
-                check = agent_toolset.run_command(f'python -c "import ast; ast.parse(open(\'{fname}\', encoding=\'utf-8\').read()); print(\'OK\')"')
+                check = await asyncio.to_thread(agent_toolset.run_command, f'python -c "import ast; ast.parse(open(\'{fname}\', encoding=\'utf-8\').read()); print(\'OK\')"')
                 status = "通过" if check.success else f"语法错误: {check.error[:100]}"
                 verification_results.append(f"语法检查 {fname}: {status}")
             elif ext == '.json':
-                check = agent_toolset.run_command(f'python -c "import json; json.load(open(\'{fname}\', encoding=\'utf-8\')); print(\'OK\')"')
+                check = await asyncio.to_thread(agent_toolset.run_command, f'python -c "import json; json.load(open(\'{fname}\', encoding=\'utf-8\')); print(\'OK\')"')
                 status = "通过" if check.success else f"格式错误: {check.error[:100]}"
                 verification_results.append(f"语法检查 {fname}: {status}")
 
@@ -305,7 +305,9 @@ async def execute_workflow_node(coordinator, node: WorkflowNode, input_data: dic
             if team_id:
                 # 从任务描述提取关键词用于资产检索
                 keywords = node.task_description[:50].split()[:5] if node.task_description else []
-                asset_context = coordinator._asset_context_builder(team_id, "", keywords)
+                asset_context = await asyncio.to_thread(
+                    coordinator._asset_context_builder, team_id, "", keywords,
+                )
         except Exception as exc:
             logger.warning("资产参考注入失败: %s", exc)
 
@@ -314,7 +316,8 @@ async def execute_workflow_node(coordinator, node: WorkflowNode, input_data: dic
     )
     try:
         from workspace_manager import build_previous_workspace_context
-        prev_context = build_previous_workspace_context(
+        prev_context = await asyncio.to_thread(
+            build_previous_workspace_context,
             coordinator._workspace.root_path if coordinator._workspace else "",
         )
         if prev_context:
