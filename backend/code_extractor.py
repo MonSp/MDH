@@ -107,25 +107,33 @@ def extract_code_blocks(text: str) -> list[dict[str, str]]:
             blocks.append(_dedupe(blocks, filename, content, language))
             continue
 
-        # 顶层语言块（无文件名）：闭合于下一个裸围栏
+        # 顶层语言块（无文件名）：闭合于深度 0 的裸围栏。
+        # 嵌套语言围栏（如语言块内的 ```json 示例）必须推进 j——
+        # 否则既不闭合也不前进 → 死循环卡死 asyncio 事件循环（R6 P0）
         language = tag
         filename = _lang_to_filename(language)
         j = i + 1
+        depth = 0
         while j < n:
             t = _tag(j)
             if t is None:
                 j += 1
                 continue
             if t == "":
-                content = "".join(lines[i + 1:j]).strip()
-                if content:
-                    blocks.append(_dedupe(blocks, filename, content, language))
-                i = j + 1
-                break
-            if _is_filename(t):
+                if depth == 0:
+                    content = "".join(lines[i + 1:j]).strip()
+                    if content:
+                        blocks.append(_dedupe(blocks, filename, content, language))
+                    i = j + 1
+                    break
+                depth -= 1  # 内层示例闭合，保留在内容中
+            elif _is_filename(t):
                 # 未闭合即遇到文件块：丢弃半截语言块
                 i = j
                 break
+            else:
+                depth += 1  # 嵌套语言围栏开栏（关键推进点）
+            j += 1
         else:
             # EOF 未闭合的语言块：丢弃（与旧行为一致）
             i = n

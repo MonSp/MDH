@@ -233,6 +233,8 @@ class TaskOrchestrator:
         try:
             from workspace_manager import build_previous_workspace_context
             prev_context = build_previous_workspace_context(self._workspace_root or "")
+            if prev_context:
+                logger.info("注入上一任务产物: %d chars", len(prev_context))
         except Exception:
             prev_context = ""
 
@@ -355,6 +357,8 @@ class TaskOrchestrator:
         try:
             from workspace_manager import build_previous_workspace_context
             prev_context = build_previous_workspace_context(getattr(self, "_workspace_root", "") or "")
+            if prev_context:
+                logger.info("注入上一任务产物: %d chars", len(prev_context))
         except Exception:
             prev_context = ""
 
