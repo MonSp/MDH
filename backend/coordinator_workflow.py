@@ -317,6 +317,8 @@ async def execute_workflow_node(coordinator, node: WorkflowNode, input_data: dic
         prev_context = build_previous_workspace_context(
             coordinator._workspace.root_path if coordinator._workspace else "",
         )
+        if prev_context:
+            logger.info("工作流节点注入上一任务产物: %d chars", len(prev_context))
     except Exception:
         prev_context = ""
 

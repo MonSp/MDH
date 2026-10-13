@@ -159,3 +159,26 @@ def test_unterminated_code_block_dropped():
 import React from 'react';
 import { render } from '@testing-li"""
     assert extract_code_blocks(text) == []
+
+def test_nested_language_fence_terminates():
+    """R6 P0 回归：语言块内嵌语言围栏必须推进，不得死循环"""
+    # 此前该输入让 extract_code_blocks 无限自旋，卡死整个 asyncio 事件循环
+    text = "```foo\ntext\n```json\nbar\n```"
+    blocks = extract_code_blocks(text)  # pytest-timeout 兜底：死循环即失败
+    assert isinstance(blocks, list)
+
+
+def test_nested_language_fence_inside_language_kept_in_content():
+    """语言块内的嵌套示例保留在内容中，外层在深度 0 裸围栏闭合"""
+    text = """```python
+code_line
+```json
+{"k": 1}
+```
+trailing
+```"""
+    blocks = extract_code_blocks(text)
+    assert len(blocks) == 1
+    assert blocks[0]["filename"] == "main.py"
+    assert "```json" in blocks[0]["content"]  # 内层围栏保留
+    assert "trailing" in blocks[0]["content"]
