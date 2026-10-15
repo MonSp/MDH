@@ -109,6 +109,18 @@ def test_list_filter_by_status(tmp_path, monkeypatch):
     assert ids == ["deploy_report"]
 
 
+def test_get_invalid_id_returns_fail_not_500(tmp_path, monkeypatch):
+    _fresh_registry(tmp_path, monkeypatch)
+    resp = client.get("/api/programs/Bad%20Id%21")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["success"] is False
+    assert body["code"] == "INVALID_ID"
+
+    promote = client.post("/api/programs/Bad%20Id%21/promote")
+    assert promote.json()["code"] == "INVALID_ID"
+
+
 def test_legacy_import_endpoint(tmp_path, monkeypatch):
     _fresh_registry(tmp_path, monkeypatch)
     packs = tmp_path / "skill_packs"

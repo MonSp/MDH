@@ -201,6 +201,8 @@ class ProgramRegistry:
             if not os.path.isdir(self._base_dir):
                 return []
             for name in sorted(os.listdir(self._base_dir)):
+                if not PROGRAM_ID_RE.match(name):
+                    continue  # 跳过非规范条目（临时文件等），宁重勿轻
                 m = self._read_manifest(name)
                 if m is None:
                     continue
@@ -265,6 +267,10 @@ class ProgramRegistry:
             manifest = self._read_manifest(program_id)
             if manifest is None:
                 raise FileNotFoundError(f"program not found: {program_id}")
+            if manifest.kind == ProgramKind.LEGACY_SKILL_PACK:
+                raise PermissionError(
+                    f"legacy skill pack is read-only: {program_id}"
+                )
             updated = manifest.model_copy(
                 update={
                     "last_validated_model": model or manifest.last_validated_model,
@@ -302,12 +308,9 @@ class ProgramRegistry:
         age = datetime.now(timezone.utc) - validated
         if age.total_seconds() > self._freshness_ttl_days * 86400:
             return False
-        if (
-            current_model is not None
-            and manifest.last_validated_model is not None
-            and manifest.last_validated_model != current_model
-        ):
-            return False
+        if current_model is not None:
+            # 宁重勿轻：调用方要求模型校验时，从未记录验证模型视为不新鲜
+            return manifest.last_validated_model == current_model
         return True
 
     def match(

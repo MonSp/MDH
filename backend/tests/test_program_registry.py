@@ -153,6 +153,31 @@ def test_stale_on_model_upgrade(tmp_path):
     assert reg.is_fresh(m, current_model="deepseek-chat") is True
 
 
+def test_stale_when_no_validated_model_but_current_required(tmp_path):
+    """宁重勿轻：调用方要求模型校验但从未记录验证模型 → 不新鲜。"""
+    reg = _registry(tmp_path)
+    reg.create(_manifest())
+    reg.promote("demo_prog")
+    reg.record_validation("demo_prog", model=None)  # 只记时间不记模型
+    m = reg.get("demo_prog")
+    assert reg.is_fresh(m, current_model="deepseek-chat") is False
+    assert reg.is_fresh(m, current_model=None) is True  # 不传模型时只看 TTL
+
+
+def test_list_skips_stray_entries(tmp_path):
+    """base_dir 存在非规范文件（如 .tmp）时 list/match 不崩。"""
+    reg = _registry(tmp_path)
+    reg.create(_manifest())
+    reg.promote("demo_prog")
+    _validated(reg, "demo_prog")
+    stray = tmp_path / "program_packs" / "stray-file.tmp"
+    stray.write_text("junk", encoding="utf-8")
+    (tmp_path / "program_packs" / "not a valid id").mkdir(exist_ok=True)
+
+    assert [m.program_id for m in reg.list()] == ["demo_prog"]
+    assert [m.program_id for m in reg.match("帮我部署这个服务")] == ["demo_prog"]
+
+
 # ── 触发匹配 ────────────────────────────────────────
 
 
@@ -223,6 +248,10 @@ def test_legacy_import_readonly_and_not_matched(tmp_path):
     # 不可晋升（read-only）
     with pytest.raises(PermissionError):
         reg.promote("legacy_frontend_dev")
+
+    # 不可记录验证（read-only）
+    with pytest.raises(PermissionError):
+        reg.record_validation("legacy_frontend_dev", model="deepseek-chat")
 
 
 def test_legacy_import_idempotent(tmp_path):

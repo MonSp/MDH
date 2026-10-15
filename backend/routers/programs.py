@@ -17,7 +17,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
-from program_registry import ProgramManifest, ProgramStatus
+from program_registry import PROGRAM_ID_RE, ProgramManifest, ProgramStatus
 from routers.common import fail, ok
 
 router = APIRouter(prefix="/api/programs", tags=["programs"])
@@ -37,6 +37,13 @@ def _get_registry():
     if _registry is None:
         raise RuntimeError("programs router not initialized")
     return _registry
+
+
+def _invalid_id(program_id: str):
+    """非法 program_id（含路径遍历）→ 结构化 fail，避免 500。"""
+    if not PROGRAM_ID_RE.match(program_id):
+        return fail(f"invalid program_id: {program_id!r}", code="INVALID_ID")
+    return None
 
 
 class PromoteRequest(BaseModel):
@@ -87,6 +94,9 @@ async def import_legacy():
 
 @router.get("/{program_id}")
 async def get_program(program_id: str):
+    bad = _invalid_id(program_id)
+    if bad:
+        return bad
     manifest = _get_registry().get(program_id)
     if manifest is None:
         return fail(f"program not found: {program_id}", code="NOT_FOUND")
@@ -97,6 +107,9 @@ async def get_program(program_id: str):
 
 @router.post("/{program_id}/promote")
 async def promote_program(program_id: str, body: PromoteRequest | None = None):
+    bad = _invalid_id(program_id)
+    if bad:
+        return bad
     registry = _get_registry()
     try:
         promoted = registry.promote(program_id)
@@ -113,6 +126,9 @@ async def promote_program(program_id: str, body: PromoteRequest | None = None):
 
 @router.post("/{program_id}/deprecate")
 async def deprecate_program(program_id: str):
+    bad = _invalid_id(program_id)
+    if bad:
+        return bad
     try:
         deprecated = _get_registry().deprecate(program_id)
     except FileNotFoundError as e:
