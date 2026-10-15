@@ -55,6 +55,7 @@ from routers import marketplace as marketplace_router
 from routers import mcp_config as mcp_router
 from routers import memory as memory_router
 from routers import monitoring as monitoring_router
+from routers import programs as programs_router
 from routers import tuning as tuning_router
 from routers import onboarding as onboarding_router
 from routers import ops as ops_router
@@ -189,6 +190,7 @@ app.include_router(team_router.router)
 app.include_router(workspace_router.router)
 app.include_router(monitoring_router.router)
 app.include_router(tuning_router.router)
+app.include_router(programs_router.router)
 
 # M1 演示：把关点引擎（仅演示用；会话内审批接线保持不变）
 _demo_gate_manager = ApprovalManager()
@@ -1157,6 +1159,15 @@ infra_router.init(sys.modules[__name__], _DATA_DIR)
 team_router.init(sys.modules[__name__], _DATA_DIR)
 workspace_router.init(_DATA_DIR)
 monitoring_router.init(sys.modules[__name__], _DATA_DIR)
+
+# ProgramRegistry (program-pivot T1): 程序包注册中心
+from program_registry import ProgramRegistry as _ProgramRegistry  # noqa: E402
+
+_program_registry = _ProgramRegistry(os.path.join(_DATA_DIR, "program_packs"))
+programs_router.init(
+    _program_registry,
+    skill_packs_dir=os.path.join(_BASE_DIR, "..", "skill_packs"),
+)
 
 
 # ── Asset routes extracted to routers/assets.py ──

@@ -1,9 +1,9 @@
 ---
 feature: program-pivot
-status: delivered
+status: in-progress
 updated: 2026-10-15
-branch: feature/program-pivot-spec
-commits: c36e167..028f2b4
+branch: feature/program-registry
+commits: # filled at delivery
 ---
 
 # 产品转型：经验固化为可执行程序（Program Pivot）
