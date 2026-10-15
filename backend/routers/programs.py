@@ -18,6 +18,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from program_registry import PROGRAM_ID_RE, ProgramManifest, ProgramStatus
+from program_executor import ProgramExecutor
 from routers.common import fail, ok
 
 router = APIRouter(prefix="/api/programs", tags=["programs"])
@@ -48,6 +49,13 @@ def _invalid_id(program_id: str):
 
 class PromoteRequest(BaseModel):
     model: str | None = Field(None, description="晋升时所用模型标识（可选）")
+
+
+class ExecuteRequest(BaseModel):
+    input: Any = Field(None, description="传给程序包 run() 的输入（JSON）")
+    timeout_seconds: float | None = Field(
+        None, gt=0, le=300, description="执行超时（秒），默认 15"
+    )
 
 
 @router.get("")
@@ -138,3 +146,29 @@ async def deprecate_program(program_id: str):
     except ValueError as e:
         return fail(str(e), code="INVALID_TRANSITION")
     return ok(deprecated.model_dump(mode="json"))
+
+
+@router.post("/{program_id}/execute")
+async def execute_program(program_id: str, body: ExecuteRequest | None = None):
+    """免 LLM 沙箱执行 promoted 程序包（program-pivot T2）。"""
+    bad = _invalid_id(program_id)
+    if bad:
+        return bad
+    req = body or ExecuteRequest()
+    executor = ProgramExecutor(_get_registry())
+    result = await executor.execute(
+        program_id, req.input, timeout_seconds=req.timeout_seconds
+    )
+    telemetry = {
+        "llm_calls": result.telemetry.llm_calls,
+        "duration_ms": result.telemetry.duration_ms,
+        "timed_out": result.telemetry.timed_out,
+        "program_id": result.telemetry.program_id,
+        "version": result.telemetry.version,
+    }
+    if result.success:
+        return ok({"output": result.output, "telemetry": telemetry})
+    return fail(
+        result.error or "execution failed",
+        code=result.error_code or "ERROR",
+    ) | {"detail": {"telemetry": telemetry}}

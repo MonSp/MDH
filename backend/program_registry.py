@@ -115,6 +115,10 @@ class ProgramRegistry:
     def _lineage_path(self, program_id: str) -> str:
         return os.path.join(self._pack_dir(program_id), "lineage.json")
 
+    def pack_dir(self, program_id: str) -> str:
+        """程序包目录（供执行器等外部组件定位 main.py/tests）。"""
+        return self._pack_dir(program_id)
+
     def _write_manifest(self, manifest: ProgramManifest) -> None:
         pack_dir = self._pack_dir(manifest.program_id)
         os.makedirs(pack_dir, exist_ok=True)
