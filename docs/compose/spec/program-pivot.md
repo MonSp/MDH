@@ -3,7 +3,7 @@ feature: program-pivot
 status: in-progress
 updated: 2026-10-15
 branch: feature/program-registry
-commits: # filled at delivery
+commits: 9c75e7e..34b6c38 # T1 已交付；T2–T10 进行中
 ---
 
 # 产品转型：经验固化为可执行程序（Program Pivot）
@@ -20,6 +20,17 @@ commits: # filled at delivery
 3. WebSearch 插件本环境不可用：全部子代理改走 OpenAlex API / 直取 arXiv / HN Algolia，"speed demons" 经 OpenAlex 题名+全文检索确认无学术出处，报告已弃用该引用。
 4. 用户对 spec 审批题选择 dismiss：按 Never-Ask 规则采用推荐项（批准继续）并记录在案。
 5. Review 指出"审阅 fail 与执行异常的当次任务交付不对称"——设计补语义：审阅 fail 作废程序结果、降级 LLM 重执行，与异常路径统一。
+
+### T1 交付（2026-10-15，9c75e7e..34b6c38）
+
+**What was built** — `backend/program_registry.py`：ProgramPack manifest（Pydantic 校验含 program_id 防路径遍历）、candidate→promoted→deprecated 状态机（非法迁移拒绝 + append-only lineage.json）、新鲜度（TTL 过期 + 模型换代/未记录验证模型 → 不新鲜，宁重勿轻）、触发关键词匹配（仅 promoted 且新鲜，按命中数排序）、skill_packs legacy 只读登记（幂等/不可晋升/不参与匹配/不可记录验证）。`backend/routers/programs.py`：`/api/programs` CRUD + `/match` + `/promote` + `/deprecate` + `/legacy/import`，非法 id 返回 INVALID_ID（非 500），响应遵循仓内 ok/fail 惯例。server.py 接线注册。
+
+**Verification** — T1 套件 29 passed（状态机/TTL/模型换代/匹配/只读/脏目录/非法 id 回归）；全量 `pytest tests/ --ignore=tests/legacy` 2170 passed, 0 failed；ruff（CI 同参数）PASS。独立 review：A1–A7 PASS，2 Major（非法 id 500、脏目录 list/match 崩溃）+ 4 Minor 全部修复；修复后原审阅者逐项复核 5/5 VERIFIED、无新问题。
+
+**Journey log (T1)** —
+1. `match()` 持非重入 Lock 再调 `list()` 会死锁——实现期自查发现，改 RLock；路由/存储双层锁设计需警惕嵌套获取。
+2. CI ruff 参数为 `--select=E,F,W --ignore=...`（ci.yml:41），与本地默认全规则集不同——本地"30 errors"多为 CI 不检的 BLE/I 规则，以 CI 参数为准。
+3. pydantic 请求体非法时 FastAPI 原生 422（先于 handler），与业务 fail 双轨并存，测试需分别覆盖。
 
 ## [S1] Problem
 
@@ -138,7 +149,7 @@ program_packs/<program_id>/
 
 ## Tasks
 
-- [ ] T1: ProgramPack 格式与 ProgramRegistry（CRUD/索引/触发匹配/新鲜度状态机/旧资产只读登记） — acceptance: `POST /api/programs` 创建通过 manifest 校验，查询返回匹配候选与 status；单测覆盖状态机与新鲜度失效（covers: S2 程序包契约、架构总览）
+- [x] T1: ProgramPack 格式与 ProgramRegistry（CRUD/索引/触发匹配/新鲜度状态机/旧资产只读登记） — acceptance: `POST /api/programs` 创建通过 manifest 校验，查询返回匹配候选与 status；单测覆盖状态机与新鲜度失效（covers: S2 程序包契约、架构总览）
 - [ ] T2: ProgramExecutor 免 LLM 沙箱执行 + 遥测 — acceptance: 对 promoted 程序包执行返回结构化结果与 telemetry（llm_calls=0、耗时），超时/异常按契约报错（covers: S2 程序包契约、错误行为； depends: T1）
 - [ ] T3: ProgramCompiler 沉淀管线（任务轨迹→候选程序包含自带测试） — acceptance: 成功任务后触发产生 candidate 程序包草稿，tests/ 非空且 manifest 完整（covers: S2 架构总览； depends: T1）
 - [ ] T4: promotion_gate 测试门禁自动晋升 + lineage — acceptance: 测试通过自动 promoted 并写 lineage.json；失败回滚保留上一版；tests/ 变更被标记（covers: S2 审阅—升级闭环、防作弊； depends: T1）
