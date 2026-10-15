@@ -120,9 +120,10 @@ async def promote_program(program_id: str, body: PromoteRequest | None = None):
         return bad
     registry = _get_registry()
     try:
-        promoted = registry.promote(program_id)
-        if body and body.model:
-            promoted = registry.record_validation(program_id, model=body.model)
+        # promote + 验证记录在同一锁内完成（原子）
+        promoted = registry.promote(
+            program_id, validated_model=body.model if body else None
+        )
     except FileNotFoundError as e:
         return fail(str(e), code="NOT_FOUND")
     except PermissionError as e:

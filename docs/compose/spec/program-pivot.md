@@ -10,7 +10,7 @@ commits: 9c75e7e..34b6c38 # T1 已交付；T2–T10 进行中
 
 ## Report
 
-**What was built** — 本次交付为转型分析 + 全景设计 spec（不含代码实现，按用户决策范围）。先完成 5 角度业界 deep research（research/program-pivot/：brief + 70 条 findings + 41 源 REPORT），论证"经验固化为可执行程序 + LLM 审阅驱动迭代"的经济性（$150→<$0.10/500 迭代）、业界收敛（Anthropic Agent Skills / Devin orchestration-as-code / SkillWeaver）与风险边界（BOTTLED 48/60 低于零样本线、DGM 伪造测试日志）。据此产出 docs/compose/spec/program-pivot.md：5 个新组件（ProgramRegistry/Executor/Compiler/Reviewer/promotion_gate）+ 程序包契约 + 三分法路由 + 测试门禁自动晋升（带 lineage 血缘审计）+ M1–M4 彻底取代文本技能进化的迁移路径 + T1–T10 实施任务拆解。T1–T10 为后续实现 backlog，不在本次交付范围。
+**What was built** — 首期（分析阶段）交付转型分析 + 全景设计 spec（该阶段不含代码实现，按用户决策范围；实现自 T1 起在本分支推进，见下方"T1 交付"与后续追加）。先完成 5 角度业界 deep research（research/program-pivot/：brief + 70 条 findings + 41 源 REPORT），论证"经验固化为可执行程序 + LLM 审阅驱动迭代"的经济性（$150→<$0.10/500 迭代）、业界收敛（Anthropic Agent Skills / Devin orchestration-as-code / SkillWeaver）与风险边界（BOTTLED 48/60 低于零样本线、DGM 伪造测试日志）。据此产出 docs/compose/spec/program-pivot.md：5 个新组件（ProgramRegistry/Executor/Compiler/Reviewer/promotion_gate）+ 程序包契约 + 三分法路由 + 测试门禁自动晋升（带 lineage 血缘审计）+ M1–M4 彻底取代文本技能进化的迁移路径 + T1–T10 实施任务拆解。
 
 **Verification** — 文件存在与 findings 计数（12/12/13/22/11=70）PASS；REPORT.md 引用双向核对（cited∖sourced 与 sourced∖cited 均空、无 [x- 占位）PASS；spec 无 TBD/占位符、10 tasks 均有 covers: PASS；源数统一为 41（spec/REPORT 头/Sources 条目三方一致）PASS。docs-only 变更，pytest/vitest 不适用。独立 review 子代理结论：A1–A7 全 PASS、无 Critical；2 Major（审阅 fail 当次交付语义、源数不一致）+ 3 Minor 已全部修复并复验。
 
@@ -89,7 +89,7 @@ program_packs/<program_id>/
 └── lineage.json       # 版本链：每版的 review 意见、测试结果、晋升/回滚记录
 ```
 
-- **status 状态机**：`candidate → promoted → deprecated`；`promoted` 失败回滚或新鲜度失效自动降为 `deprecated`。
+- **status 状态机**：`candidate → promoted → deprecated`；`promoted` 在升级闭环连续失败时降为 `deprecated`（终态，由新 candidate 重新晋升）。**新鲜度失效不自动改状态**——仅在路由匹配层过滤为不命中（宁重勿轻），由沉淀钩子重验证（record_validation）刷新；避免"匹配时隐式写状态"与 deprecated 终态语义冲突。
 - **新鲜度**：manifest 记录 `last_validated_model` 与 `last_validated_at`；路由命中前校验（模型换代或超过 TTL → 视为不命中，走 LLM 路径；该任务成功后由沉淀钩子产出重验证候选，走 T3→T4 门禁重新晋升）。对应 STALE/新鲜度实证（源 [19][33]）。
 - **旧资产只读兼容**：skill_packs/ 与 experience_rules 停止新增，作为 ProgramCompiler 的沉淀素材与 ProgramReviewer 的审阅上下文只读引用；43 个 skill packs 逐步对齐 agentskills.io 的 SKILL.md + `scripts/` 结构（源 [12]）。
 

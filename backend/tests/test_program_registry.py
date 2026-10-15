@@ -178,6 +178,31 @@ def test_list_skips_stray_entries(tmp_path):
     assert [m.program_id for m in reg.match("帮我部署这个服务")] == ["demo_prog"]
 
 
+def test_list_skips_corrupt_manifest(tmp_path):
+    """损坏的 manifest.yaml → 跳过（宁重勿轻），不抛 ValidationError。"""
+    reg = _registry(tmp_path)
+    reg.create(_manifest("good_prog"))
+    reg.promote("good_prog")
+    _validated(reg, "good_prog")
+    bad_dir = tmp_path / "program_packs" / "bad_prog"
+    bad_dir.mkdir()
+    (bad_dir / "manifest.yaml").write_text(
+        "program_id: [unclosed\n::: not yaml", encoding="utf-8"
+    )
+
+    assert [m.program_id for m in reg.list()] == ["good_prog"]
+    assert [m.program_id for m in reg.match("帮我部署这个服务")] == ["good_prog"]
+    assert reg.get("bad_prog") is None  # 损坏视同不存在
+
+
+def test_path_traversal_id_rejected(tmp_path):
+    reg = _registry(tmp_path)
+    with pytest.raises(ValueError):
+        reg.get("../../etc")
+    with pytest.raises(ValueError):
+        reg.promote("../../etc")
+
+
 # ── 触发匹配 ────────────────────────────────────────
 
 

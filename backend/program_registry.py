@@ -137,9 +137,18 @@ class ProgramRegistry:
         path = self._manifest_path(program_id)
         if not os.path.isfile(path):
             return None
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-        return ProgramManifest.model_validate(data)
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            return ProgramManifest.model_validate(data)
+        except (
+            yaml.YAMLError,
+            OSError,
+            ValueError,  # pydantic ValidationError
+        ) as e:
+            # 损坏 manifest → 视为不存在（宁重勿轻，避免 list/match 500）
+            logger.warning("corrupt manifest for %s: %s", program_id, e)
+            return None
 
     def _append_lineage(self, program_id: str, event: dict[str, Any]) -> None:
         path = self._lineage_path(program_id)
@@ -252,13 +261,58 @@ class ProgramRegistry:
             )
             return updated
 
-    def promote(self, program_id: str) -> ProgramManifest:
-        """candidate -> promoted（由 T4 promotion_gate 调用）。"""
-        return self._transition(program_id, ProgramStatus.PROMOTED, "promote")
+    def promote(
+        self, program_id: str, validated_model: str | None = None
+    ) -> ProgramManifest:
+        """candidate -> promoted（由 T4 promotion_gate 调用）。
+
+        validated_model 非空时在同一锁内完成验证记录（promote+validate
+        原子，避免中途 deprecate 造成事件错挂）。
+        """
+        with self._lock:
+            updated = self._transition(
+                program_id, ProgramStatus.PROMOTED, "promote"
+            )
+            if validated_model:
+                updated = self._record_validation_locked(
+                    program_id, model=validated_model
+                )
+            return updated
 
     def deprecate(self, program_id: str) -> ProgramManifest:
         """candidate|promoted -> deprecated。"""
         return self._transition(program_id, ProgramStatus.DEPRECATED, "deprecate")
+
+    def _record_validation_locked(
+        self,
+        program_id: str,
+        model: str | None = None,
+        validated_at: str | None = None,
+    ) -> ProgramManifest:
+        manifest = self._read_manifest(program_id)
+        if manifest is None:
+            raise FileNotFoundError(f"program not found: {program_id}")
+        if manifest.kind == ProgramKind.LEGACY_SKILL_PACK:
+            raise PermissionError(f"legacy skill pack is read-only: {program_id}")
+        updated = manifest.model_copy(
+            update={
+                "last_validated_model": model or manifest.last_validated_model,
+                "last_validated_at": validated_at or _utc_now(),
+            }
+        )
+        self._write_manifest(updated)
+        self._append_lineage(
+            program_id,
+            {
+                "event": "validated",
+                "version": updated.version,
+                "from": manifest.status.value,
+                "to": updated.status.value,
+                "at": _utc_now(),
+                "model": updated.last_validated_model,
+            },
+        )
+        return updated
 
     def record_validation(
         self,
@@ -268,32 +322,9 @@ class ProgramRegistry:
     ) -> ProgramManifest:
         """记录一次评测通过：刷新 last_validated_model / last_validated_at。"""
         with self._lock:
-            manifest = self._read_manifest(program_id)
-            if manifest is None:
-                raise FileNotFoundError(f"program not found: {program_id}")
-            if manifest.kind == ProgramKind.LEGACY_SKILL_PACK:
-                raise PermissionError(
-                    f"legacy skill pack is read-only: {program_id}"
-                )
-            updated = manifest.model_copy(
-                update={
-                    "last_validated_model": model or manifest.last_validated_model,
-                    "last_validated_at": validated_at or _utc_now(),
-                }
+            return self._record_validation_locked(
+                program_id, model=model, validated_at=validated_at
             )
-            self._write_manifest(updated)
-            self._append_lineage(
-                program_id,
-                {
-                    "event": "validated",
-                    "version": updated.version,
-                    "from": manifest.status.value,
-                    "to": updated.status.value,
-                    "at": _utc_now(),
-                    "model": updated.last_validated_model,
-                },
-            )
-            return updated
 
     # ── 新鲜度与触发匹配 ──────────────────────────────
 
