@@ -1,14 +1,25 @@
 ---
 feature: program-pivot
-status: designed
+status: delivered
 updated: 2026-10-15
 branch: feature/program-pivot-spec
-commits: # filled at delivery
+commits: c36e167..028f2b4
 ---
 
 # 产品转型：经验固化为可执行程序（Program Pivot）
 
 ## Report
+
+**What was built** — 本次交付为转型分析 + 全景设计 spec（不含代码实现，按用户决策范围）。先完成 5 角度业界 deep research（research/program-pivot/：brief + 70 条 findings + 41 源 REPORT），论证"经验固化为可执行程序 + LLM 审阅驱动迭代"的经济性（$150→<$0.10/500 迭代）、业界收敛（Anthropic Agent Skills / Devin orchestration-as-code / SkillWeaver）与风险边界（BOTTLED 48/60 低于零样本线、DGM 伪造测试日志）。据此产出 docs/compose/spec/program-pivot.md：5 个新组件（ProgramRegistry/Executor/Compiler/Reviewer/promotion_gate）+ 程序包契约 + 三分法路由 + 测试门禁自动晋升（带 lineage 血缘审计）+ M1–M4 彻底取代文本技能进化的迁移路径 + T1–T10 实施任务拆解。T1–T10 为后续实现 backlog，不在本次交付范围。
+
+**Verification** — 文件存在与 findings 计数（12/12/13/22/11=70）PASS；REPORT.md 引用双向核对（cited∖sourced 与 sourced∖cited 均空、无 [x- 占位）PASS；spec 无 TBD/占位符、10 tasks 均有 covers: PASS；源数统一为 41（spec/REPORT 头/Sources 条目三方一致）PASS。docs-only 变更，pytest/vitest 不适用。独立 review 子代理结论：A1–A7 全 PASS、无 Critical；2 Major（审阅 fail 当次交付语义、源数不一致）+ 3 Minor 已全部修复并复验。
+
+**Journey log** —
+1. F1/F4 两轮子代理曾被系统取消/挂起，实际稍后完成并覆盖了已读 findings：靠上下文留存恢复旧 F4 全文并与新产出合并（F4.md 头部注明两段来源），教训——并行调研子代理的状态不可尽信，落盘文件以 diff 复核为准。
+2. `docs/compose/` 在 .gitignore 中但历史 spec 均为 tracked：新 spec 需 `git add -f`，与仓库惯例一致。
+3. WebSearch 插件本环境不可用：全部子代理改走 OpenAlex API / 直取 arXiv / HN Algolia，"speed demons" 经 OpenAlex 题名+全文检索确认无学术出处，报告已弃用该引用。
+4. 用户对 spec 审批题选择 dismiss：按 Never-Ask 规则采用推荐项（批准继续）并记录在案。
+5. Review 指出"审阅 fail 与执行异常的当次任务交付不对称"——设计补语义：审阅 fail 作废程序结果、降级 LLM 重执行，与异常路径统一。
 
 ## [S1] Problem
 
