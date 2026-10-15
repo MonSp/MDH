@@ -168,7 +168,10 @@ async def execute_program(program_id: str, body: ExecuteRequest | None = None):
     }
     if result.success:
         return ok({"output": result.output, "telemetry": telemetry})
-    return fail(
-        result.error or "execution failed",
-        code=result.error_code or "ERROR",
-    ) | {"detail": {"telemetry": telemetry}}
+    # 失败也把 telemetry 放在 data（与成功同一取值路径，符合 ok/fail 键结构）
+    return {
+        "success": False,
+        "data": {"telemetry": telemetry, "error_code": result.error_code},
+        "error": result.error,
+        "code": result.error_code or "ERROR",
+    }

@@ -4,6 +4,9 @@ ProgramExecutor — 程序包免 LLM 沙箱执行器 (program-pivot T2)
 契约（spec [S2] 程序包契约 + 错误行为）：
 - ProgramPack `main.py` 从 stdin 读 JSON 输入，向 stdout 写 JSON 输出
   （`if __name__ == "__main__"` 块读 stdin → 调 run() → 写 stdout）。
+  **仅依赖 Python 标准库**：执行环境为 `python -I`（isolated mode，
+  不加载用户 site-packages）+ 最小 env（仅 PATH），不提供环境变量/网络
+  语境；依赖三方库的程序无法在该环境运行，编译期（T3）应予保证。
 - 仅允许执行 status=promoted 且 kind=program 的程序包；其余拒绝。
 - 子进程隔离 + 超时强杀（沿用 executor_server 的 create_subprocess_exec
   + wait_for timeout 约定）；超时/异常返回结构化错误并附遥测。
@@ -26,7 +29,8 @@ from program_registry import ProgramKind, ProgramRegistry, ProgramStatus
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT_SECONDS = 15.0
-MAX_STDOUT_BYTES = 1_000_000  # 防御异常程序刷爆内存
+# 输出硬上限：超限在 decode/JSON 解析前拒绝（OUTPUT_TOO_LARGE）
+MAX_STDOUT_BYTES = 1_000_000
 
 
 @dataclass
@@ -140,6 +144,7 @@ class ProgramExecutor:
             telemetry.timed_out = True
             telemetry.duration_ms = int((time.monotonic() - start) * 1000)
             _kill(proc)
+            await _reap(proc)
             logger.warning("program %s timed out after %ss", program_id, timeout)
             return ExecutionResult(
                 success=False,
@@ -149,7 +154,7 @@ class ProgramExecutor:
             )
 
         telemetry.duration_ms = int((time.monotonic() - start) * 1000)
-        stderr_text = _decode_truncated(stderr)
+        stderr_text = stderr[:MAX_STDOUT_BYTES].decode("utf-8", errors="replace") if stderr else ""
 
         if proc.returncode != 0:
             return ExecutionResult(
@@ -159,7 +164,15 @@ class ProgramExecutor:
                 telemetry=telemetry,
             )
 
-        stdout_text = _decode_truncated(stdout)
+        # 输出上限：超限直接报错，避免对超大缓冲做 decode/JSON 解析
+        if stdout is not None and len(stdout) > MAX_STDOUT_BYTES:
+            return ExecutionResult(
+                success=False,
+                error=f"stdout exceeds {MAX_STDOUT_BYTES} bytes",
+                error_code="OUTPUT_TOO_LARGE",
+                telemetry=telemetry,
+            )
+        stdout_text = stdout[:MAX_STDOUT_BYTES].decode("utf-8", errors="replace") if stdout else ""
         try:
             output = json.loads(stdout_text) if stdout_text.strip() else None
         except json.JSONDecodeError:
@@ -181,7 +194,9 @@ def _kill(proc: asyncio.subprocess.Process) -> None:
             pass
 
 
-def _decode_truncated(data: bytes | None) -> str:
-    if not data:
-        return ""
-    return data[:MAX_STDOUT_BYTES].decode("utf-8", errors="replace")
+async def _reap(proc: asyncio.subprocess.Process) -> None:
+    """强杀后显式 wait，避免依赖事件循环延迟回收。"""
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=5)
+    except (asyncio.TimeoutError, TimeoutError):
+        logger.warning("failed to reap killed process pid=%s", proc.pid)

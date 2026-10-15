@@ -83,7 +83,8 @@ program_packs/<program_id>/
 │                      # trigger(适用条件), io_schema(Pydantic 输入输出),
 │                      # model_dependency(编译时模型), tests_path, status
 ├── main.py            # 确定性入口：def run(input: IO) -> IO，禁止依赖
-│                      # 时间/随机数/环境变量/网络（对齐 Devin 确定性约束）
+│                      # 时间/随机数/环境变量/网络（对齐 Devin 确定性约束）；
+│                      # 仅依赖 Python 标准库（执行环境为 python -I + 最小 env）
 ├── tests/             # 必备：验收测试（晋升唯一门禁）
 └── lineage.json       # 版本链：每版的 review 意见、测试结果、晋升/回滚记录
 ```

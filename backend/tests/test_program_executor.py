@@ -143,6 +143,18 @@ def test_invalid_stdout_json(tmp_path):
     assert result.error_code == "INVALID_OUTPUT"
 
 
+def test_oversized_stdout_rejected(tmp_path):
+    reg = _make_pack(
+        tmp_path,
+        "bigout_prog",
+        "import sys\nsys.stdout.write('x' * 2_000_000)\n",
+    )
+    reg.promote("bigout_prog")
+    result = _exec(reg, "bigout_prog", {})
+    assert result.success is False
+    assert result.error_code == "OUTPUT_TOO_LARGE"
+
+
 def test_legacy_not_executable(tmp_path):
     reg = ProgramRegistry(str(tmp_path / "program_packs"))
     from program_registry import ProgramKind, ProgramManifest
@@ -187,5 +199,6 @@ def test_execute_endpoint_timeout_has_telemetry(tmp_path, monkeypatch):
     body = resp.json()
     assert body["success"] is False
     assert body["code"] == "TIMEOUT"
-    assert body["detail"]["telemetry"]["llm_calls"] == 0
-    assert body["detail"]["telemetry"]["timed_out"] is True
+    assert body["data"]["telemetry"]["llm_calls"] == 0
+    assert body["data"]["telemetry"]["timed_out"] is True
+    assert body["data"]["error_code"] == "TIMEOUT"
