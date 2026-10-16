@@ -167,13 +167,24 @@ def test_tests_modified_flagged(tmp_path):
 
 def test_gate_timeout(tmp_path):
     reg = _make_pack(tmp_path, "slow_prog")
-    # 塞一个 sleep 测试
+    # 先记一次基线（失败门禁）
     test_path = os.path.join(reg.pack_dir("slow_prog"), "tests", "test_main.py")
+    with open(test_path, "w", encoding="utf-8") as f:
+        f.write("def test_fail():\n    assert False\n")
+    assert _gate(reg, "slow_prog").error_code == "GATE_FAILED"
+    # 改成 sleep 测试 → 超时，且应标记 tests_modified
     with open(test_path, "w", encoding="utf-8") as f:
         f.write("import time\ndef test_slow():\n    time.sleep(30)\n")
     result = asyncio.run(PromotionGate(reg, timeout=2).evaluate("slow_prog"))
     assert result.error_code == "GATE_TIMEOUT"
     assert result.promoted is False
+    assert result.tests_modified is True
+    timeout_ev = next(
+        e
+        for e in reg.read_lineage("slow_prog")
+        if e["event"] == "gate_timeout"
+    )
+    assert timeout_ev["tests_modified"] is True
     assert reg.get("slow_prog").status == ProgramStatus.CANDIDATE
 
 
@@ -232,3 +243,19 @@ def test_gate_endpoint_failure(tmp_path, monkeypatch):
     assert body["code"] == "GATE_FAILED"
     assert body["data"]["passed"] is False
     assert body["data"]["promoted"] is False
+
+
+def test_gate_endpoint_race_top_code(tmp_path, monkeypatch):
+    """竞态时顶层 code 为 GATE_RACE（非 GATE_PASSED）。"""
+    reg = _make_pack(tmp_path, "ep_race")
+
+    def racing_promote(program_id, validated_model=None):
+        raise ValueError("invalid transition")
+
+    monkeypatch.setattr(programs_router, "_registry", reg)
+    monkeypatch.setattr(reg, "promote", racing_promote)
+    resp = client.post("/api/programs/ep_race/gate")
+    body = resp.json()
+    assert body["success"] is False
+    assert body["code"] == "GATE_RACE"
+    assert body["data"]["passed"] is True

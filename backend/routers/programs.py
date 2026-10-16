@@ -205,6 +205,14 @@ async def gate_program(program_id: str, body: GateRequest | None = None):
         "duration_ms": result.duration_ms,
         "llm_calls": result.llm_calls,
     }
+    # 顶层 code 以 error_code 优先（如 GATE_RACE：测试过但晋升被竞态中止）
+    if result.error_code:
+        return {
+            "success": False,
+            "data": data,
+            "error": result.error,
+            "code": result.error_code,
+        }
     if result.passed:
         return ok(data, code="GATE_PASSED")
     return {

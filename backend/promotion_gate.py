@@ -164,13 +164,17 @@ class PromotionGate:
         except (asyncio.TimeoutError, TimeoutError):
             _kill_group(proc)
             await _reap(proc)
+            timeout_hashes = self.collect_test_hashes(program_id)
+            timeout_modified = (
+                baseline is not None and baseline != timeout_hashes
+            )
             self._registry.append_lineage(
                 program_id,
                 _gate_event(
                     "gate_timeout",
                     False,
-                    self.collect_test_hashes(program_id),
-                    False,
+                    timeout_hashes,
+                    timeout_modified,
                     model,
                     main_sha,
                     output="",
@@ -181,6 +185,8 @@ class PromotionGate:
                 passed=False,
                 error=f"gate timed out after {self._timeout}s",
                 error_code="GATE_TIMEOUT",
+                tests_modified=timeout_modified,
+                test_hashes=timeout_hashes,
                 duration_ms=int((time.monotonic() - start) * 1000),
             )
 
