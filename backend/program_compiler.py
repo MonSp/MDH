@@ -82,6 +82,8 @@ class GeneratedProgram(BaseModel):
     def _check_main(cls, v: str) -> str:
         if "def run(" not in v:
             raise ValueError("main_py must define def run(")
+        if len(v) > 50_000:
+            raise ValueError("main_py exceeds 50KB limit")
         return v
 
     @field_validator("test_py")
@@ -89,6 +91,8 @@ class GeneratedProgram(BaseModel):
     def _check_test(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("test_py must be non-empty")
+        if len(v) > 50_000:
+            raise ValueError("test_py exceeds 50KB limit")
         return v
 
 
@@ -189,7 +193,7 @@ class ProgramCompiler:
             _write_atomic(
                 os.path.join(tests_dir, "test_generated.py"), draft.test_py
             )
-        except OSError:
+        except Exception:
             logger.exception(
                 "compile write failed, rolling back %s", created.program_id
             )

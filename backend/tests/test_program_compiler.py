@@ -144,6 +144,23 @@ def test_draft_missing_run_rejected(tmp_path):
         pass
 
 
+def test_oversized_draft_rejected(tmp_path):
+    """main_py 超 50KB → GenerationError（parse 层强校验，不靠 prompt 自觉）。"""
+    reg = ProgramRegistry(str(tmp_path / "program_packs"))
+    compiler = ProgramCompiler(reg)
+    huge = dict(_DRAFT, main_py="def run(data):\n    pass\n" + "# x" * 20000)
+
+    async def gen(prompt: str) -> str:
+        return json.dumps(huge)
+
+    try:
+        asyncio.run(compiler.compile(_trajectory(), gen))
+        raise AssertionError("expected GenerationError")
+    except GenerationError:
+        pass
+    assert reg.list() == []
+
+
 def test_duplicate_program_id(tmp_path):
     reg = ProgramRegistry(str(tmp_path / "program_packs"))
     compiler = ProgramCompiler(reg)
