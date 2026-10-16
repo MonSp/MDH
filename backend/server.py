@@ -1170,6 +1170,42 @@ programs_router.init(
 )
 
 
+async def _program_route_fn(content: str, context: dict):
+    """三分法路由 program 路径（T6）：registry 命中 → 免 LLM 执行 → LLM 审阅。
+
+    审阅生成器按会话 api_key 构建；无 key 时 try_program_path 会以
+    REVIEW_UNAVAILABLE 回退 LLM 路径（宁重勿轻）。
+    """
+    from program_reviewer import llm_review_fn as _llm_review
+    from program_router import try_program_path
+
+    review_generate = None
+    api_key = (context or {}).get("api_key") or ""
+    if api_key:
+        provider = (context or {}).get("provider") or "deepseek"
+        base_url = (context or {}).get("base_url") or ""
+        model_name = (context or {}).get("model_name") or ""
+
+        async def review_generate(prompt: str) -> str:
+            return await _llm_review(
+                prompt,
+                provider=provider,
+                api_key=api_key,
+                base_url=base_url,
+                model_name=model_name,
+            )
+
+    return await try_program_path(
+        content,
+        _program_registry,
+        review_generate=review_generate,
+    )
+
+
+# WSContext 先于 registry 初始化构建，此处补接三分法路由（T6）
+_ws_ctx.program_route_fn = _program_route_fn
+
+
 # ── Asset routes extracted to routers/assets.py ──
 
 
