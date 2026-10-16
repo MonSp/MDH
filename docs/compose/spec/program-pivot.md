@@ -2,8 +2,8 @@
 feature: program-pivot
 status: in-progress
 updated: 2026-10-15
-branch: feature/program-promotion-gate
-commits: b4a1ffe..fd736c6 # T4 已交付；T3 在 PR #21；T5–T10 进行中
+branch: feature/program-review-loop
+commits: 9afe4c7..ed482bb # T5 已交付（叠在 T4 分支上）；T6–T10 进行中
 ---
 
 # 产品转型：经验固化为可执行程序（Program Pivot）
@@ -42,6 +42,17 @@ commits: b4a1ffe..fd736c6 # T4 已交付；T3 在 PR #21；T5–T10 进行中
 1. 门禁子进程不能用 `python -I`（需要 pytest/站点包），与 T2 执行器 `-I` 约定相反——隔离边界按场景取舍，需在代码注释写明。
 2. "读状态→await→写状态"的长窗口 TOCTOU 必须把竞态异常转为结构化错误，否则违反仓内 fail 惯例（reviewer 实测复现 500）。
 3. 生产镜像（Dockerfile）缺测试依赖会让"依赖 pytest 的运行时功能"静默全挂——此类门禁功能必须同步改镜像。
+
+### T5 交付（2026-10-16，9afe4c7..ed482bb，叠在 T4 分支）
+
+**What was built** — `program_reviewer.py`：LLM 只审阅执行结果（`llm_calls=1`、不执行任务）→ `verdict/issue` 结构化 JSON，fail 必带可执行意见；生成器可注入。`program_evolver.py`：审阅 fail 意见 → 快照（`.revisions/` 原子占位防撞号）→ `registry.revise`（promoted→candidate，match 不命中、任务回退 LLM 路径）→ 修订落盘（版本**强制**严格递增，不信任 LLM；tests 整目录重建）→ T4 门禁 → **通过=升级+清零计数+刷新新鲜度 / 失败=回滚保留上一版（文件+version+status 一致还原，`tests_restored` 基线防误报）/ 连续 3 败=恢复快照后 deprecate（终态）**。防作弊血缘：`upgrade_requested`（issues+快照路径+前后版本）、`gate_*`（test_hashes/output_tail）、`rollback/version_restored`。竞态全结构化：revise/rollback/deprecate/gate/记账 → `UPGRADE_RACE`（非 500）。registry 扩展：`promoted→candidate` 转换、`consecutive_gate_failures` 字段、`revise/record_gate_failure/reset_gate_failures/restore_version`、`promote(event=)`。`POST /{id}/review`、`POST /{id}/upgrade`。
+
+**Verification** — T5 套件 19 passed（三连败降级、快照/版本回滚一致、路由停用、版本强制、竞态、基线防误报、端点级 NO_ISSUES/REVIEW_INVALID）；全量 2213 passed；ruff PASS。独立 review A2/A3/A4/A7 PASS、A1/A6 部分不合规——4 Major + 5 Minor 全修复，复核 **5/5 VERIFIED**；复核尾项 1 Minor（并发删除包记账）亦已修复。
+
+**Journey log (T5)** —
+1. 状态机扩展（promoted→candidate）让"修订期间路由停用"免费获得宁重勿轻的 LLM 回退——比显式维护"修订中"状态更简单。
+2. 快照回滚会污染门禁的 tests_modified 基线（比较对象是被换掉的新测试）——回滚后必须把恢复出的旧哈希重新写为基线，否则防作弊信号系统性误报。
+3. 版本递增这类"LLM 应当遵守"的约束必须在代码层强制校验+自动纠正，prompt 要求不可信（reviewer probe 实证）。
 
 ## [S1] Problem
 
@@ -165,7 +176,7 @@ program_packs/<program_id>/
 - [ ] T2: ProgramExecutor 免 LLM 沙箱执行 + 遥测 — acceptance: 对 promoted 程序包执行返回结构化结果与 telemetry（llm_calls=0、耗时），超时/异常按契约报错（covers: S2 程序包契约、错误行为； depends: T1）
 - [ ] T3: ProgramCompiler 沉淀管线（任务轨迹→候选程序包含自带测试） — acceptance: 成功任务后触发产生 candidate 程序包草稿，tests/ 非空且 manifest 完整（covers: S2 架构总览； depends: T1）
 - [x] T4: promotion_gate 测试门禁自动晋升 + lineage — acceptance: 测试通过自动 promoted 并写 lineage.json；失败回滚保留上一版；tests/ 变更被标记（covers: S2 审阅—升级闭环、防作弊； depends: T1）
-- [ ] T5: ProgramReviewer + program_evolver 审阅升级闭环 — acceptance: fail 审阅意见触发修订候选并经 T4 门禁晋升；连续 3 次失败自动降级 deprecated（covers: S2 审阅—升级闭环、错误行为； depends: T2, T4）
+- [x] T5: ProgramReviewer + program_evolver 审阅升级闭环 — acceptance: fail 审阅意见触发修订候选并经 T4 门禁晋升；连续 3 次失败自动降级 deprecated（covers: S2 审阅—升级闭环、错误行为； depends: T2, T4）
 - [ ] T6: 三分法路由接线（program/simple/complex + 失败降级） — acceptance: 评测任务命中 promoted 新鲜程序走免 LLM 路径且 task_result 标注 path_used="program"；未命中/失效回退 LLM 路径（covers: S2 三分法路由； depends: T2）
 - [ ] T7: 沉淀与注入切换（写侧关规则、读侧切 registry）+ 任务前注入改造 — acceptance: 新任务 0 条新经验规则写入；注入请求走 registry；旧读路径保留（covers: S2 迁移路径 M1–M2； depends: T3, T6）
 - [ ] T8: 程序路径 vs LLM 直调 A/B 评测基线（成本/延迟/质量） — acceptance: 五任务评测产出对照 JSON（p50/p95、token 账单、得分）并写入 research/（covers: S2 迁移路径替换对照； depends: T6）
