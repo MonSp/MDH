@@ -177,6 +177,38 @@ def test_gate_timeout(tmp_path):
     assert reg.get("slow_prog").status == ProgramStatus.CANDIDATE
 
 
+def test_promote_race_returns_structured_error(tmp_path, monkeypatch):
+    """TOCTOU：pytest 通过后 promote 被并发 deprecate → GATE_RACE（非 500）。"""
+    reg = _make_pack(tmp_path, "race_prog")
+
+    def racing_promote(program_id, validated_model=None):
+        raise ValueError("invalid transition deprecated -> promoted")
+
+    monkeypatch.setattr(reg, "promote", racing_promote)
+    result = _gate(reg, "race_prog")
+    assert result.passed is True  # 测试确实过了
+    assert result.promoted is False
+    assert result.error_code == "GATE_RACE"
+    events = [e["event"] for e in reg.read_lineage("race_prog")]
+    assert "gate_passed" in events
+    assert "gate_aborted" in events
+
+
+def test_lineage_order_and_audit_fields(tmp_path):
+    """审计时序：gate_passed 在 promote 之前；事件含 at/output_tail/main_sha256。"""
+    reg = _make_pack(tmp_path, "order_prog")
+    _gate(reg, "order_prog")
+    events = [e["event"] for e in reg.read_lineage("order_prog")]
+    assert events.index("gate_passed") < events.index("promote")
+
+    gate_ev = next(
+        e for e in reg.read_lineage("order_prog") if e["event"] == "gate_passed"
+    )
+    assert gate_ev["at"]
+    assert gate_ev["output_tail"]
+    assert gate_ev["main_sha256"]
+
+
 # ── 端点 ────────────────────────────────────────────
 
 
