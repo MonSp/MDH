@@ -99,14 +99,16 @@ class ProgramCompiler:
         self._registry = registry
 
     def build_prompt(self, trajectory: TaskTrajectory) -> str:
+        # 定界防护：轨迹内容截断，降低 prompt injection/超长输入影响
+        desc = trajectory.task_description[:2000]
         steps_text = "\n".join(
-            f"{i + 1}. {s}" for i, s in enumerate(trajectory.steps[:30])
+            f"{i + 1}. {s[:500]}" for i, s in enumerate(trajectory.steps[:30])
         ) or "（无分步记录）"
         return f"""你是一位程序合成专家。请把下面一次**成功**的任务执行轨迹，
 固化为一个可复用的确定性 Python 程序包（candidate 草稿）。
 
 ## 任务描述
-{trajectory.task_description}
+{desc}
 
 ## 执行步骤
 {steps_text}
@@ -124,6 +126,7 @@ class ProgramCompiler:
 2. test_py：pytest 测试，导入 main 中的 run，用输出样例做断言；必须非空可运行。
 3. program_id：英文 snake_case（^[a-z0-9_][a-z0-9_-]{{0,63}}$），勿与已有重复。
 4. trigger_keywords：2-6 个用于路由匹配的中文/英文关键词。
+5. 输出的 main_py/test_py 各不超过 50KB；总体只返回一个 JSON 对象。
 
 严格按以下 JSON 返回，不要包含其他内容：
 {{
@@ -136,13 +139,23 @@ class ProgramCompiler:
 }}"""
 
     def parse_response(self, text: str) -> GeneratedProgram:
-        match = re.search(r"\{[\s\S]*\}", text or "")
-        if not match:
-            raise GenerationError(f"no JSON object in response: {text[:200]!r}")
-        try:
-            data = json.loads(match.group())
-        except json.JSONDecodeError as e:
-            raise GenerationError(f"invalid JSON: {e}") from e
+        # 优先从第一个 '{' 起 raw_decode（避免贪婪匹配误吞尾部内容）；
+        # 失败时回退贪婪正则（容忍前缀说明文字）
+        data: Any = None
+        start = (text or "").find("{")
+        if start >= 0:
+            try:
+                data, _ = json.JSONDecoder().raw_decode(text[start:])
+            except json.JSONDecodeError:
+                data = None
+        if data is None:
+            match = re.search(r"\{[\s\S]*\}", text or "")
+            if not match:
+                raise GenerationError(f"no JSON object in response: {text[:200]!r}")
+            try:
+                data = json.loads(match.group())
+            except json.JSONDecodeError as e:
+                raise GenerationError(f"invalid JSON: {e}") from e
         try:
             return GeneratedProgram.model_validate(data)
         except ValueError as e:
@@ -167,11 +180,21 @@ class ProgramCompiler:
         # registry.create 内部校验重复/状态机，重复 id 抛 FileExistsError
         created = self._registry.create(manifest)
 
-        pack_dir = self._registry.pack_dir(created.program_id)
-        _write_atomic(os.path.join(pack_dir, "main.py"), draft.main_py)
-        tests_dir = os.path.join(pack_dir, "tests")
-        os.makedirs(tests_dir, exist_ok=True)
-        _write_atomic(os.path.join(tests_dir, "test_generated.py"), draft.test_py)
+        # 写盘失败必须回滚 registry 登记，否则留下无 main.py 的半成品 candidate
+        try:
+            pack_dir = self._registry.pack_dir(created.program_id)
+            _write_atomic(os.path.join(pack_dir, "main.py"), draft.main_py)
+            tests_dir = os.path.join(pack_dir, "tests")
+            os.makedirs(tests_dir, exist_ok=True)
+            _write_atomic(
+                os.path.join(tests_dir, "test_generated.py"), draft.test_py
+            )
+        except OSError:
+            logger.exception(
+                "compile write failed, rolling back %s", created.program_id
+            )
+            self._registry.delete(created.program_id)
+            raise
 
         logger.info(
             "compiled candidate program %s v%s (tests non-empty=%s)",

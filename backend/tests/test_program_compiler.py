@@ -155,6 +155,56 @@ def test_duplicate_program_id(tmp_path):
         pass
 
 
+def test_write_failure_rolls_back_registry(tmp_path, monkeypatch):
+    """写盘失败 → 回滚 candidate 登记，不留无 main.py 的半成品。"""
+    import program_compiler as pc
+
+    reg = ProgramRegistry(str(tmp_path / "program_packs"))
+
+    def boom(path, content):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(pc, "_write_atomic", boom)
+    try:
+        asyncio.run(ProgramCompiler(reg).compile(_trajectory(), _fake_generate))
+        raise AssertionError("expected OSError")
+    except OSError:
+        pass
+    assert reg.list() == []  # 无残留
+    assert not os.path.exists(reg.pack_dir("deploy_summary"))
+
+
+def test_delete_candidate_and_reject_promoted(tmp_path):
+    reg = ProgramRegistry(str(tmp_path / "program_packs"))
+    asyncio.run(ProgramCompiler(reg).compile(_trajectory(), _fake_generate))
+    reg.delete("deploy_summary")
+    assert reg.get("deploy_summary") is None
+
+    asyncio.run(ProgramCompiler(reg).compile(_trajectory(), _fake_generate))
+    reg.promote("deploy_summary")
+    try:
+        reg.delete("deploy_summary")
+        raise AssertionError("expected ValueError")
+    except ValueError:
+        pass
+    assert reg.get("deploy_summary") is not None
+
+
+def test_parse_response_with_prefix_and_suffix(tmp_path):
+    reg = ProgramRegistry(str(tmp_path / "program_packs"))
+    compiler = ProgramCompiler(reg)
+
+    async def noisy_gen(prompt: str) -> str:
+        return (
+            "这是生成结果：\n"
+            + json.dumps(_DRAFT, ensure_ascii=False)
+            + "\n（以上为 JSON）"
+        )
+
+    manifest = asyncio.run(compiler.compile(_trajectory(), noisy_gen))
+    assert manifest.program_id == "deploy_summary"
+
+
 # ── 端点 ────────────────────────────────────────────
 
 

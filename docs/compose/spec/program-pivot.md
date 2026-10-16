@@ -132,6 +132,7 @@ program_packs/<program_id>/
 - 程序执行超时/异常 → 记录 telemetry → 本次降级 LLM 路径 → 失败进入升级闭环（不阻塞用户任务）。
 - 晋升门禁异常（测试框架崩溃）→ fail-closed：不晋升，留 candidate（复用 gate_engine "工具缺失 fail-open / 真实失败 fail-closed" 的区分）。
 - registry 匹配异常 → 按未命中处理（宁重勿轻，走 LLM 路径）。
+- 沉淀（compile）错误码：`INVALID_TRAJECTORY`（非成功轨迹/空描述）、`NO_GENERATOR`（无注入生成器且无 api_key）、`GENERATION_FAILED`（LLM 输出非合法程序草稿）、`ALREADY_EXISTS`（program_id 撞名）、`COMPILE_FAILED`（兜底，含写盘失败——已回滚 registry 登记不留半成品）。
 
 ### 测试边界
 
