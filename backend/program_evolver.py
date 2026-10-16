@@ -299,16 +299,26 @@ class ProgramEvolver:
                 error_code="REVISION_WRITE_FAILED",
             )
 
-        # T4 门禁
-        gate_result = await self._gate.evaluate(program_id, model=model)
+        # T4 门禁（并发删包等极端竞态 → 结构化，不 500）
+        try:
+            gate_result = await self._gate.evaluate(program_id, model=model)
+        except Exception as e:
+            logger.warning("gate crashed for %s: %s", program_id, e)
+            self._restore(program_id, snap)
+            self._registry.restore_version(program_id, manifest.version)
+            if not self._safe_rollback(program_id):
+                pass  # 包可能已被并发删除，下面统一走错误返回
+            return UpgradeResult(
+                error=f"gate aborted: {e}", error_code="UPGRADE_RACE"
+            )
 
         if gate_result.passed and gate_result.promoted:
-            self._registry.reset_gate_failures(program_id)
-            # 升级成功刷新新鲜度时间戳（未传 model 时保留原 last_validated_model）
             try:
+                self._registry.reset_gate_failures(program_id)
+                # 升级成功刷新新鲜度时间戳（未传 model 时保留原 last_validated_model）
                 self._registry.record_validation(program_id, model=model)
-            except (FileNotFoundError, PermissionError):
-                logger.warning("failed to refresh validation for %s", program_id)
+            except (FileNotFoundError, PermissionError) as e:
+                logger.warning("post-promote bookkeeping failed for %s: %s", program_id, e)
             m = self._registry.get(program_id)
             return UpgradeResult(
                 upgraded=True,
@@ -319,10 +329,19 @@ class ProgramEvolver:
             )
 
         # 门禁失败（含 timeout/race 等非晋升情形）
-        count = self._registry.record_gate_failure(program_id)
-        self._restore(program_id, snap)
-        self._registry.restore_version(program_id, manifest.version)
-        self._mark_restored_baseline(program_id)
+        try:
+            count = self._registry.record_gate_failure(program_id)
+            self._restore(program_id, snap)
+            self._registry.restore_version(program_id, manifest.version)
+            self._mark_restored_baseline(program_id)
+        except (FileNotFoundError, OSError, ValueError) as e:
+            logger.warning("failure bookkeeping aborted for %s: %s", program_id, e)
+            return UpgradeResult(
+                error=f"upgrade bookkeeping aborted: {e}",
+                error_code="UPGRADE_RACE",
+                gate=gate_result,
+                duration_ms=int((time.monotonic() - start) * 1000),
+            )
 
         if count >= MAX_FAILURES_BEFORE_DEPRECATE:
             # 连续 3 次失败：恢复上一版代码后整体降级（终态），回退 LLM 路径
