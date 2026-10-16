@@ -14,27 +14,41 @@ POST   /api/programs/{program_id}/gate       测试门禁自动晋升 (T4)
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
+from program_evolver import ProgramEvolver
 from program_executor import ProgramExecutor
 from program_registry import PROGRAM_ID_RE, ProgramManifest, ProgramStatus
+from program_reviewer import ProgramReviewer, llm_review_fn
 from promotion_gate import PromotionGate
 from routers.common import fail, ok
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/programs", tags=["programs"])
 
-# 注入点 — 测试可通过 init 替换 registry / skill_packs 目录
+# 注入点 — 测试可通过 init 替换 registry / skill_packs 目录 / 审阅与修订生成器
 _registry = None
 _skill_packs_dir = "skill_packs"
+_review_override = None  # Callable[[str], Awaitable[str]]
+_revision_override = None  # Callable[[str], Awaitable[str]]
 
 
-def init(registry, skill_packs_dir: str = "skill_packs") -> None:
-    global _registry, _skill_packs_dir
+def init(
+    registry,
+    skill_packs_dir: str = "skill_packs",
+    review_override=None,
+    revision_override=None,
+) -> None:
+    global _registry, _skill_packs_dir, _review_override, _revision_override
     _registry = registry
     _skill_packs_dir = skill_packs_dir
+    _review_override = review_override
+    _revision_override = revision_override
 
 
 def _get_registry():
@@ -220,4 +234,127 @@ async def gate_program(program_id: str, body: GateRequest | None = None):
         "data": data,
         "error": result.error,
         "code": result.error_code or "GATE_FAILED",
+    }
+
+
+class ReviewRequest(BaseModel):
+    task_description: str = ""
+    output: Any = None
+    error: str | None = None
+    expectation: str | None = None
+    provider: str = "deepseek"
+    api_key: str = ""
+    base_url: str = ""
+    model_name: str = ""
+
+
+class UpgradeRequest(BaseModel):
+    issues: list[str] = Field(..., min_length=1, description="审阅 fail 意见")
+    model: str | None = Field(None, description="门禁晋升记录的模型标识")
+    provider: str = "deepseek"
+    api_key: str = ""
+    base_url: str = ""
+    model_name: str = ""
+
+
+@router.post("/{program_id}/review")
+async def review_program(program_id: str, body: ReviewRequest):
+    """LLM 只审阅执行结果（program-pivot T5）。"""
+    bad = _invalid_id(program_id)
+    if bad:
+        return bad
+    if _review_override is not None:
+        async def generate(prompt: str) -> str:
+            return await _review_override(prompt)
+    elif body.api_key:
+        async def generate(prompt: str) -> str:
+            return await llm_review_fn(
+                prompt,
+                provider=body.provider,
+                api_key=body.api_key,
+                base_url=body.base_url,
+                model_name=body.model_name,
+            )
+    else:
+        return fail("未配置审阅生成器（无 api_key 且无注入）", code="NO_GENERATOR")
+
+    reviewer = ProgramReviewer()
+    result = await reviewer.review(
+        program_id,
+        body.task_description,
+        body.output,
+        body.error,
+        body.expectation,
+        generate,
+    )
+    data = {
+        "verdict": result.verdict,
+        "issues": result.issues,
+        "summary": result.summary,
+        "duration_ms": result.duration_ms,
+        "llm_calls": result.llm_calls,
+    }
+    if result.error_code:
+        return {
+            "success": False,
+            "data": data,
+            "error": result.error,
+            "code": result.error_code,
+        }
+    code = "REVIEW_PASS" if result.verdict == "pass" else "REVIEW_FAIL"
+    if result.verdict == "pass":
+        return ok(data, code=code)
+    return {"success": False, "data": data, "error": result.summary, "code": code}
+
+
+@router.post("/{program_id}/upgrade")
+async def upgrade_program(program_id: str, body: UpgradeRequest):
+    """审阅 fail 意见 → 修订候选 → T4 门禁晋升/回滚/降级（T5）。"""
+    bad = _invalid_id(program_id)
+    if bad:
+        return bad
+    if _revision_override is not None:
+        async def generate(prompt: str) -> str:
+            return await _revision_override(prompt)
+    elif body.api_key:
+        async def generate(prompt: str) -> str:
+            from program_reviewer import llm_review_fn as _llm
+
+            return await _llm(
+                prompt,
+                provider=body.provider,
+                api_key=body.api_key,
+                base_url=body.base_url,
+                model_name=body.model_name,
+            )
+    else:
+        return fail("未配置修订生成器（无 api_key 且无注入）", code="NO_GENERATOR")
+
+    evolver = ProgramEvolver(_get_registry())
+    result = await evolver.upgrade(
+        program_id, body.issues, generate, model=body.model
+    )
+    data = {
+        "upgraded": result.upgraded,
+        "rolled_back": result.rolled_back,
+        "deprecated": result.deprecated,
+        "failure_count": result.failure_count,
+        "duration_ms": result.duration_ms,
+        "gate": {
+            "passed": result.gate.passed if result.gate else False,
+            "promoted": result.gate.promoted if result.gate else False,
+            "error_code": result.gate.error_code if result.gate else None,
+            "tests_modified": (
+                result.gate.tests_modified if result.gate else False
+            ),
+            "llm_calls": result.gate.llm_calls if result.gate else 0,
+        },
+    }
+    if result.upgraded:
+        return ok(data, code="UPGRADED")
+    return {
+        "success": False,
+        "data": data,
+        "error": result.error,
+        "code": result.error_code or "UPGRADE_FAILED",
     }
