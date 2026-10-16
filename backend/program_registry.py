@@ -177,6 +177,13 @@ class ProgramRegistry:
             except (json.JSONDecodeError, OSError):
                 return []
 
+    def append_lineage(self, program_id: str, event: dict[str, Any]) -> None:
+        """追加 lineage 事件（供 promotion_gate 等记录门禁审计轨迹）。"""
+        with self._lock:
+            if self._read_manifest(program_id) is None:
+                raise FileNotFoundError(f"program not found: {program_id}")
+            self._append_lineage(program_id, event)
+
     # ── CRUD ──────────────────────────────────────────
 
     def create(self, manifest: ProgramManifest) -> ProgramManifest:
