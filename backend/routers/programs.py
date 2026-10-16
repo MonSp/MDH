@@ -249,7 +249,8 @@ class ReviewRequest(BaseModel):
 
 
 class UpgradeRequest(BaseModel):
-    issues: list[str] = Field(..., min_length=1, description="审阅 fail 意见")
+    # 不设 min_length：空列表应走结构化 NO_ISSUES（而非 422），保持错误码契约
+    issues: list[str] = Field(default_factory=list, description="审阅 fail 意见")
     model: str | None = Field(None, description="门禁晋升记录的模型标识")
     provider: str = "deepseek"
     api_key: str = ""

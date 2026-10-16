@@ -267,6 +267,111 @@ def test_failure_count_reset_after_success(tmp_path):
     assert reg.get("loop_prog").consecutive_gate_failures == 0
 
 
+# ── review 修复补充回归 ──────────────────────────────
+
+
+def test_version_enforced_when_llm_does_not_bump(tmp_path):
+    """Major①：LLM 返回同版本 → 强制次版本递增。"""
+    reg = _promoted_registry(tmp_path)
+
+    async def same_version(prompt: str) -> str:
+        return json.dumps(
+            {"version": "1.0.0", "main_py": _MAIN_REVISED, "test_py": _PASS_TEST_REVISED}
+        )
+
+    r = asyncio.run(ProgramEvolver(reg).upgrade("loop_prog", ["x"], same_version))
+    assert r.upgraded is True
+    assert reg.get("loop_prog").version == "1.1.0"  # 1.0.0 → 强制 1.1.0
+
+
+def test_revise_stops_routing(tmp_path):
+    """Major⑤（A5）：revise 期间 match 不命中（任务回退 LLM 路径）。"""
+    reg = ProgramRegistry(str(tmp_path / "program_packs"))
+    from program_registry import ProgramTrigger
+
+    reg.create(
+        ProgramManifest(
+            program_id="routed_prog",
+            version="1.0.0",
+            trigger=ProgramTrigger(keywords=["路由测试"]),
+        )
+    )
+    pack = reg.pack_dir("routed_prog")
+    with open(os.path.join(pack, "main.py"), "w", encoding="utf-8") as f:
+        f.write(_MAIN)
+    tests = os.path.join(pack, "tests")
+    os.makedirs(tests, exist_ok=True)
+    with open(os.path.join(tests, "test_main.py"), "w", encoding="utf-8") as f:
+        f.write(_PASS_TEST)
+    reg.promote("routed_prog")
+    reg.record_validation("routed_prog", model="deepseek-chat")
+    assert [m.program_id for m in reg.match("路由测试")] == ["routed_prog"]
+
+    reg.revise("routed_prog", new_version="1.1.0")
+    assert reg.match("路由测试") == []  # 候选不命中
+
+    reg.promote("routed_prog", event="rollback")
+    assert [m.program_id for m in reg.match("路由测试")] == ["routed_prog"]
+
+
+def test_upgrade_race_on_revise_structured(tmp_path, monkeypatch):
+    """Major④：revise 竞态 → UPGRADE_RACE（非 500）。"""
+    reg = _promoted_registry(tmp_path)
+
+    def racing_revise(program_id, new_version=None):
+        raise ValueError("invalid revise promoted -> candidate")
+
+    monkeypatch.setattr(reg, "revise", racing_revise)
+    r = asyncio.run(ProgramEvolver(reg).upgrade("loop_prog", ["x"], _revision_good))
+    assert r.error_code == "UPGRADE_RACE"
+    assert reg.get("loop_prog").status == ProgramStatus.PROMOTED  # 未动状态
+
+
+def test_rollback_marks_restored_baseline(tmp_path):
+    """Minor：回滚后 tests_restored 基线 = 恢复出的旧测试哈希（防误报）。"""
+    from promotion_gate import PromotionGate
+
+    reg = _promoted_registry(tmp_path)
+    old_hashes = PromotionGate(reg).collect_test_hashes("loop_prog")
+    asyncio.run(ProgramEvolver(reg).upgrade("loop_prog", ["x"], _revision_bad))
+    restored_events = [
+        e for e in reg.read_lineage("loop_prog") if e["event"] == "tests_restored"
+    ]
+    assert restored_events
+    assert restored_events[-1]["test_hashes"] == old_hashes
+    # 文件确实还原 → 下次门禁起始基线一致（无噪声）
+    assert PromotionGate(reg).collect_test_hashes("loop_prog") == old_hashes
+
+
+def test_upgrade_endpoint_no_issues(tmp_path, monkeypatch):
+    """Major②：空 issues 走结构化 NO_ISSUES（非 422）。"""
+    reg = _promoted_registry(tmp_path, "ni_ep")
+    monkeypatch.setattr(programs_router, "_registry", reg)
+    monkeypatch.setattr(programs_router, "_revision_override", _revision_good)
+    resp = client.post("/api/programs/ni_ep/upgrade", json={"issues": []})
+    body = resp.json()
+    assert body["success"] is False
+    assert body["code"] == "NO_ISSUES"
+
+
+def test_review_endpoint_invalid_output(tmp_path, monkeypatch):
+    """Minor：审阅输出非 JSON → 端点级 REVIEW_INVALID。"""
+    reg = _promoted_registry(tmp_path, "ri_ep")
+    monkeypatch.setattr(programs_router, "_registry", reg)
+
+    async def garbage(prompt: str) -> str:
+        return "不是 JSON"
+
+    monkeypatch.setattr(programs_router, "_review_override", garbage)
+    resp = client.post(
+        "/api/programs/ri_ep/review",
+        json={"task_description": "t", "output": {"a": 1}},
+    )
+    body = resp.json()
+    assert body["success"] is False
+    assert body["code"] == "REVIEW_INVALID"
+
+
 # ── 端点 ────────────────────────────────────────────
 
 

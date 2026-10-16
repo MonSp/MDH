@@ -89,14 +89,23 @@ class ProgramEvolver:
     # ── 快照 ──────────────────────────────────────────
 
     def _snapshot(self, program_id: str) -> str:
-        """备份 main.py + tests/ 到 .revisions/<seq>/，返回快照目录。"""
+        """备份 main.py + tests/ 到 .revisions/<seq>/，返回快照目录。
+
+        seq 以 makedirs(exist_ok=False) 原子占位，并发不撞号。
+        """
         pack = self._registry.pack_dir(program_id)
         rev_root = os.path.join(pack, ".revisions")
         os.makedirs(rev_root, exist_ok=True)
-        existing = [d for d in os.listdir(rev_root) if d.startswith("rev_")]
-        seq = len(existing) + 1
-        snap = os.path.join(rev_root, f"rev_{seq:04d}")
-        os.makedirs(snap, exist_ok=True)
+        seq = 1
+        while True:
+            snap = os.path.join(rev_root, f"rev_{seq:04d}")
+            try:
+                os.makedirs(snap)  # exist_ok=False：占位即持有
+                break
+            except FileExistsError:
+                seq += 1
+                if seq > 10_000:
+                    raise OSError("too many revision snapshots") from None
         main_path = os.path.join(pack, "main.py")
         if os.path.isfile(main_path):
             shutil.copy2(main_path, os.path.join(snap, "main.py"))
@@ -241,21 +250,50 @@ class ProgramEvolver:
                 error=str(e), error_code="REVISION_FAILED"
             )
 
+        # 版本必须严格递增（不信任 LLM 自觉，未递增则强制抬次版本）
+        if not _version_greater(draft.version, manifest.version):
+            enforced = _bump_version(manifest.version)
+            logger.warning(
+                "revision version %r not > %r, enforcing %r",
+                draft.version,
+                manifest.version,
+                enforced,
+            )
+            draft = draft.model_copy(update={"version": enforced})
+
         # 快照旧版 → revise（翻回 candidate，路由停用）→ 写入新代码
         snap = self._snapshot(program_id)
-        self._registry.revise(program_id, new_version=draft.version)
+        try:
+            self._registry.revise(program_id, new_version=draft.version)
+        except (ValueError, FileNotFoundError) as e:
+            # 并发：状态在生成期间被修改（如另一轮升级/降级）
+            return UpgradeResult(
+                error=f"upgrade aborted: {e}", error_code="UPGRADE_RACE"
+            )
+        # 防作弊审计：记录审阅意见 + 快照路径 + 修订前版本（spec S2 血缘要求）
+        self._registry.append_lineage(
+            program_id,
+            {
+                "event": "upgrade_requested",
+                "issues": issues[:20],
+                "snapshot": os.path.relpath(snap, self._registry.pack_dir(program_id)),
+                "previous_version": manifest.version,
+                "new_version": draft.version,
+                "at": _utc_now_iso(),
+            },
+        )
         try:
             _write_atomic(main_path, draft.main_py)
+            # 整目录重建（含子目录），避免旧测试残留
+            if os.path.isdir(tests_dir):
+                shutil.rmtree(tests_dir)
             os.makedirs(tests_dir, exist_ok=True)
-            for name in os.listdir(tests_dir):
-                if name.endswith(".py"):
-                    os.remove(os.path.join(tests_dir, name))
             _write_atomic(os.path.join(tests_dir, "test_upgraded.py"), draft.test_py)
         except OSError as e:
             logger.exception("revision write failed, restoring %s", program_id)
             self._restore(program_id, snap)
             self._registry.restore_version(program_id, manifest.version)
-            self._registry.promote(program_id, event="rollback")
+            self._safe_rollback(program_id)
             return UpgradeResult(
                 error=f"revision write failed: {e}",
                 error_code="REVISION_WRITE_FAILED",
@@ -266,6 +304,11 @@ class ProgramEvolver:
 
         if gate_result.passed and gate_result.promoted:
             self._registry.reset_gate_failures(program_id)
+            # 升级成功刷新新鲜度时间戳（未传 model 时保留原 last_validated_model）
+            try:
+                self._registry.record_validation(program_id, model=model)
+            except (FileNotFoundError, PermissionError):
+                logger.warning("failed to refresh validation for %s", program_id)
             m = self._registry.get(program_id)
             return UpgradeResult(
                 upgraded=True,
@@ -279,13 +322,26 @@ class ProgramEvolver:
         count = self._registry.record_gate_failure(program_id)
         self._restore(program_id, snap)
         self._registry.restore_version(program_id, manifest.version)
+        self._mark_restored_baseline(program_id)
 
         if count >= MAX_FAILURES_BEFORE_DEPRECATE:
             # 连续 3 次失败：恢复上一版代码后整体降级（终态），回退 LLM 路径
             m = self._registry.get(program_id)
             if m is not None and m.status == ProgramStatus.CANDIDATE:
-                self._registry.promote(program_id, event="rollback")
-            self._registry.deprecate(program_id)
+                if not self._safe_rollback(program_id):
+                    return UpgradeResult(
+                        error="rollback race during deprecate path",
+                        error_code="UPGRADE_RACE",
+                        failure_count=count,
+                    )
+            try:
+                self._registry.deprecate(program_id)
+            except (ValueError, FileNotFoundError) as e:
+                return UpgradeResult(
+                    error=f"deprecate aborted: {e}",
+                    error_code="UPGRADE_RACE",
+                    failure_count=count,
+                )
             logger.warning(
                 "program %s deprecated after %s consecutive gate failures",
                 program_id,
@@ -304,7 +360,14 @@ class ProgramEvolver:
             )
 
         # 回滚保留上一版：恢复 promoted 状态（此刻是 candidate）
-        self._registry.promote(program_id, event="rollback")
+        if not self._safe_rollback(program_id):
+            return UpgradeResult(
+                error="rollback race after gate failure",
+                error_code="UPGRADE_RACE",
+                failure_count=count,
+                gate=gate_result,
+                duration_ms=int((time.monotonic() - start) * 1000),
+            )
         return UpgradeResult(
             rolled_back=True,
             gate=gate_result,
@@ -314,6 +377,51 @@ class ProgramEvolver:
             duration_ms=int((time.monotonic() - start) * 1000),
             lineage=self._registry.read_lineage(program_id),
         )
+
+
+    # ── 安全回滚 / 基线标记 ──────────────────────────
+
+    def _safe_rollback(self, program_id: str) -> bool:
+        """candidate → promoted（rollback 事件）。竞态时返回 False 不抛。"""
+        try:
+            self._registry.promote(program_id, event="rollback")
+            return True
+        except (ValueError, FileNotFoundError) as e:
+            logger.warning("rollback race for %s: %s", program_id, e)
+            return False
+
+    def _mark_restored_baseline(self, program_id: str) -> None:
+        """回滚后把恢复出的旧测试哈希写为新基线，避免下次门禁 tests_modified 误报。"""
+        try:
+            restored = self.collect_baseline_hashes(program_id)
+            self._registry.append_lineage(
+                program_id,
+                {
+                    "event": "tests_restored",
+                    "test_hashes": restored,
+                    "at": _utc_now_iso(),
+                },
+            )
+        except Exception:
+            logger.warning("failed to mark restored baseline for %s", program_id)
+
+    def collect_baseline_hashes(self, program_id: str) -> dict[str, str]:
+        """与 PromotionGate 同口径：tests/ 下 *.py 的 sha256。"""
+        tests_dir = os.path.join(self._registry.pack_dir(program_id), "tests")
+        hashes: dict[str, str] = {}
+        if not os.path.isdir(tests_dir):
+            return hashes
+        import hashlib
+
+        for root, _dirs, files in os.walk(tests_dir):
+            for name in sorted(files):
+                if not name.endswith(".py"):
+                    continue
+                path = os.path.join(root, name)
+                rel = os.path.relpath(path, tests_dir)
+                with open(path, "rb") as f:
+                    hashes[rel] = hashlib.sha256(f.read()).hexdigest()
+        return hashes
 
 
 def _read(path: str) -> str:
@@ -334,3 +442,34 @@ def _write_atomic(path: str, content: str) -> None:
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(content)
     os.replace(tmp, path)
+
+
+def _utc_now_iso() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_version(v: str) -> tuple[int, int, int] | None:
+    m = re.match(r"^(\d+)\.(\d+)\.(\d+)$", v.strip())
+    if not m:
+        return None
+    return int(m.group(1)), int(m.group(2)), int(m.group(3))
+
+
+def _version_greater(candidate: str, current: str) -> bool:
+    """语义化三段版本：candidate > current 才算递增（非三段格式不信任）。"""
+    c = _parse_version(candidate)
+    n = _parse_version(current)
+    if c is None or n is None:
+        return False
+    return c > n
+
+
+def _bump_version(current: str) -> str:
+    """强制递增：次版本 +1；非三段格式退化为 <current>-r<n>。"""
+    parsed = _parse_version(current)
+    if parsed is None:
+        return f"{current}-r1"
+    major, minor, _patch = parsed
+    return f"{major}.{minor + 1}.0"
