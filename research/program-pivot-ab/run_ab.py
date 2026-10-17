@@ -121,7 +121,12 @@ def arm_metrics(summaries: list[dict]) -> dict:
     elapsed = [s.get("elapsed_sec") or 0 for s in summaries]
     successes = sum(1 for s in summaries if s.get("success"))
     paths: dict[str, int] = {}
-    program_events = {"path_program": 0, "review_failed": 0, "fallback_notes": 0}
+    program_events = {
+        "path_program": 0,
+        "review_failed": 0,
+        "fallback_notes": 0,
+        "hit_injection": 0,
+    }
     for s in summaries:
         p = s.get("path_used") or "unknown"
         paths[p] = paths.get(p, 0) + 1
@@ -132,16 +137,27 @@ def arm_metrics(summaries: list[dict]) -> dict:
                 continue
             if m.get("type") == "program_review_failed":
                 program_events["review_failed"] += 1
-            if m.get("type") == "agent_message" and "回退 LLM" in str(
-                m.get("content", "")
-            ):
-                program_events["fallback_notes"] += 1
+            if m.get("type") == "agent_message":
+                content = str(m.get("content", ""))
+                if "回退 LLM" in content:
+                    program_events["fallback_notes"] += 1
+                if "已命中成熟程序" in content:
+                    program_events["hit_injection"] += 1
     return {
         "n": len(summaries),
         "success_score": f"{successes}/{len(summaries)}",
         "elapsed_p50_sec": _pctl(elapsed, 50),
         "elapsed_p95_sec": _pctl(elapsed, 95),
         "elapsed_mean_sec": round(statistics.mean(elapsed), 1) if elapsed else None,
+        "per_task_elapsed_sec": {
+            f"E{i + 1}": s.get("elapsed_sec") for i, s in enumerate(summaries)
+        },
+        "per_task_path": {
+            f"E{i + 1}": s.get("path_used") for i, s in enumerate(summaries)
+        },
+        "per_task_success": {
+            f"E{i + 1}": s.get("success") for i, s in enumerate(summaries)
+        },
         "paths": paths,
         "program_events": program_events,
         # token 代理：无 token 计量时以消息量近似（对照同口径）
@@ -150,6 +166,56 @@ def arm_metrics(summaries: list[dict]) -> dict:
             s.get("counts_by_type", {}).get("agent_message", 0) for s in summaries
         ),
     }
+
+
+def _load_arm(name: str) -> list[dict]:
+    """从落盘的逐任务产物重建 arm summaries（含 _raw_messages，供指标聚合）。"""
+    summaries = []
+    for i, _ in enumerate(TASKS, start=1):
+        prefix = os.path.join(EVD, f"{name}_E{i}")
+        with open(prefix + "_summary.json", encoding="utf-8") as f:
+            summary = json.load(f)
+        try:
+            with open(prefix + "_messages.json", encoding="utf-8") as f:
+                summary["_raw_messages"] = json.load(f).get("messages") or []
+        except OSError:
+            summary["_raw_messages"] = []
+        summaries.append(summary)
+    return summaries
+
+
+def _write_report(llm_summaries, prog_summaries, extra_note: str = "") -> dict:
+    report: dict = {
+        "date": time.strftime("%Y-%m-%d"),
+        "ws_url": ws_driver.WS_URL,
+        "note": (
+            "token 代理=消息数（无 token 计量）；得分=success 计数。"
+            "arm_program 预置 flatten_strategy（E1/E5 关键词命中）；"
+            "五任务均需落盘文件——策略型程序输出经 LLM 审阅如实 fail 后回退（符合契约）"
+            + ("；" + extra_note if extra_note else "")
+        ),
+    }
+    if llm_summaries is not None:
+        report["arm_llm"] = arm_metrics(llm_summaries)
+    if prog_summaries is not None:
+        report["arm_program"] = arm_metrics(prog_summaries)
+        report["seeded_program"] = "flatten_strategy"
+    if "arm_llm" in report and "arm_program" in report:
+        a, b = report["arm_llm"], report["arm_program"]
+        report["delta"] = {
+            "p50_sec": round(
+                (b["elapsed_p50_sec"] or 0) - (a["elapsed_p50_sec"] or 0), 1
+            ),
+            "p95_sec": round(
+                (b["elapsed_p95_sec"] or 0) - (a["elapsed_p95_sec"] or 0), 1
+            ),
+            "success": b["success_score"] + " vs " + a["success_score"],
+            "token_proxy_msgs": b["token_proxy_messages"]
+            - a["token_proxy_messages"],
+        }
+    with open(os.path.join(EVD, "compare.json"), "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+    return report
 
 
 async def run_arm(name: str) -> list[dict]:
@@ -183,44 +249,41 @@ async def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--skip-llm", action="store_true")
     ap.add_argument("--skip-program", action="store_true")
+    ap.add_argument(
+        "--rebuild-compare",
+        action="store_true",
+        help="不跑实网：从已落盘的逐任务产物重建 arm/compare（可复现聚合）",
+    )
     args = ap.parse_args()
 
-    report: dict = {
-        "date": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "ws_url": ws_driver.WS_URL,
-        "note": "token 代理=消息数（无 token 计量）；得分=success 计数",
-    }
+    if args.rebuild_compare:
+        llm_summaries = _load_arm("llm") if not args.skip_llm else None
+        prog_summaries = _load_arm("program") if not args.skip_program else None
+        report = _write_report(llm_summaries, prog_summaries)
+        print(json.dumps(report, ensure_ascii=False, indent=2), flush=True)
+        return
 
+    llm_summaries = None
+    prog_summaries = None
     if not args.skip_llm:
         llm_summaries = await run_arm("llm")
+        for s in llm_summaries:
+            s.pop("_raw_messages", None)
         with open(os.path.join(EVD, "arm_llm.json"), "w", encoding="utf-8") as f:
             json.dump(llm_summaries, f, ensure_ascii=False, indent=2)
-        report["arm_llm"] = arm_metrics(llm_summaries)
 
     if not args.skip_program:
         pid = seed_program_pack()
-        report["seeded_program"] = pid
         print(f"seeded promoted pack: {pid}", flush=True)
         prog_summaries = await run_arm("program")
+        for s in prog_summaries:
+            s.pop("_raw_messages", None)
         with open(
             os.path.join(EVD, "arm_program.json"), "w", encoding="utf-8"
         ) as f:
             json.dump(prog_summaries, f, ensure_ascii=False, indent=2)
-        report["arm_program"] = arm_metrics(prog_summaries)
 
-    # 简明对比表
-    if "arm_llm" in report and "arm_program" in report:
-        a, b = report["arm_llm"], report["arm_program"]
-        report["delta"] = {
-            "p50_sec": (b["elapsed_p50_sec"] or 0) - (a["elapsed_p50_sec"] or 0),
-            "p95_sec": (b["elapsed_p95_sec"] or 0) - (a["elapsed_p95_sec"] or 0),
-            "success": b["success_score"] + " vs " + a["success_score"],
-            "token_proxy_msgs": b["token_proxy_messages"]
-            - a["token_proxy_messages"],
-        }
-
-    with open(os.path.join(EVD, "compare.json"), "w", encoding="utf-8") as f:
-        json.dump(report, f, ensure_ascii=False, indent=2)
+    report = _write_report(llm_summaries, prog_summaries)
     print(json.dumps(report, ensure_ascii=False, indent=2), flush=True)
 
 

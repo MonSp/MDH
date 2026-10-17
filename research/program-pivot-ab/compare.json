@@ -1,6 +1,6 @@
 {
   "date": "2026-10-17",
-  "ws_url": "ws://localhost:8766/ws",
+  "ws_url": "ws://localhost:8765/ws",
   "note": "token 代理=消息数（无 token 计量）；得分=success 计数。arm_program 预置 flatten_strategy（E1/E5 关键词命中）；五任务均需落盘文件——策略型程序输出经 LLM 审阅如实 fail 后回退（符合契约）",
   "arm_llm": {
     "n": 5,
@@ -82,8 +82,8 @@
   },
   "seeded_program": "flatten_strategy",
   "delta": {
-    "p50_sec": -13.400000000000002,
-    "p95_sec": 5.399999999999999,
+    "p50_sec": -13.4,
+    "p95_sec": 5.4,
     "success": "3/5 vs 2/5",
     "token_proxy_msgs": -3
   }
