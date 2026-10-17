@@ -3,7 +3,7 @@ feature: program-pivot
 status: in-progress
 updated: 2026-10-15
 branch: feature/program-migrate
-commits: 29e0322..7362c25 # T7 已交付（合并 T3+T6 栈后）；T8–T10 进行中
+commits: 8aa1e91..2481105 # T8 已交付（叠 T7/合并栈）；T9–T10 进行中
 ---
 
 # 产品转型：经验固化为可执行程序（Program Pivot）
@@ -93,6 +93,17 @@ commits: 29e0322..7362c25 # T7 已交付（合并 T3+T6 栈后）；T8–T10 进
 1. 注入点位于 LLM 路径（T6 未采用时才走到）——注入文案必须是"参考"而非"复用指令"，否则对回退任务是误导；"命中"≠"将走程序路径"。
 2. 关停类开关默认 False（测试直连）+ server 启动翻 True（生产）——比默认 True 破2000+ 存量测试更稳；env=0 回退保命。
 3. 组件默认相对路径（`data_dir="data"`）在被注入新依赖时风险放大——归一化应放在使用方而非各调用点。
+
+### T8 交付（2026-10-17，8aa1e91..2481105）
+
+**What was built** — `research/program-pivot-ab/`：五任务双臂 A/B harness（`ws_driver.py` 参数化 `EVAL_WS_URL` + `run_ab.py` 自动 seed/双臂运行/对比聚合）+ 产物 `arm_llm.json`/`arm_program.json`/`compare.json` + 逐任务 summary/messages 证据 + README 结论。**实测**：LLM 臂 2/5、p50 37.7s/p95 45.5s、token 代理 266；程序臂 3/5、p50 24.3s/p95 50.9s、token 代理 263，E1/E5 程序命中 2 次——策略型程序输出未落盘，**LLM 审阅如实 fail→回退**（`path_used=program`=0，契约正确），印证 io_schema/workspace payload 缺口（产出文件的程序暂无法闭环）。**评测挖出并修复生产级 bug**：`llm_review_fn`/`llm_generate_fn` 误用旧 agentscope `agent.model`（自建 ChatAgent 无此属性）→ 实网审阅/编译必炸；改为直接 `create_agent().reply()`。server 端口 `MDH_PORT` 可配置（并行评测实例）。
+
+**Verification** — program 全套 109 passed；ruff PASS；实网双臂 10 任务全部完成（无 timeout/connection_error）；compare.json 双臂字段齐全（p50/p95/得分/路径/程序事件/token 代理）。
+
+**Journey log (T8)** —
+1. 单轮五任务方差大（E3 两臂成功翻转）——A/B 量化收益需多轮重复，单轮只做机制验证；README 已注明。
+2. 实网评测比单测更能挖出真 bug：生成器注入式单测全绿但实网必炸（`agent.model` 属性不存在）——LLM 组件需要至少一条实网冒烟。
+3. 评测驱动无返回值（只落盘）是既有约定——harness 回读 summary 文件而非依赖返回值。
 
 ## [S1] Problem
 
@@ -220,6 +231,6 @@ program_packs/<program_id>/
 - [x] T5: ProgramReviewer + program_evolver 审阅升级闭环 — acceptance: fail 审阅意见触发修订候选并经 T4 门禁晋升；连续 3 次失败自动降级 deprecated（covers: S2 审阅—升级闭环、错误行为； depends: T2, T4）
 - [x] T6: 三分法路由接线（program/simple/complex + 失败降级） — acceptance: 评测任务命中 promoted 新鲜程序走免 LLM 路径且 task_result 标注 path_used="program"；未命中/失效回退 LLM 路径（covers: S2 三分法路由； depends: T2）
 - [x] T7: 沉淀与注入切换（写侧关规则、读侧切 registry）+ 任务前注入改造 — acceptance: 新任务 0 条新经验规则写入；注入请求走 registry；旧读路径保留（covers: S2 迁移路径 M1–M2； depends: T3, T6）
-- [ ] T8: 程序路径 vs LLM 直调 A/B 评测基线（成本/延迟/质量） — acceptance: 五任务评测产出对照 JSON（p50/p95、token 账单、得分）并写入 research/（covers: S2 迁移路径替换对照； depends: T6）
+- [x] T8: 程序路径 vs LLM 直调 A/B 评测基线（成本/延迟/质量） — acceptance: 五任务评测产出对照 JSON（p50/p95、token 账单、得分）并写入 research/（covers: S2 迁移路径替换对照； depends: T6）
 - [ ] T9: 前端 ProgramRegistry 面板（版本/血缘/晋升历史，替换经验规则写入口） — acceptance: 面板展示程序包列表与 lineage；经验规则面板无写操作（covers: S2 迁移路径 M3； depends: T4）
 - [ ] T10: 迁移收尾 M4：删除规则写入/自进化/联动进化/共享池写路径与调度 — acceptance: 相关写路径代码与调度移除，全量 pytest/vitest/ruff/eslint 绿（covers: S2 迁移路径 M4； depends: T5, T7, T9）
