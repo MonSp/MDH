@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { getAllRules, getPendingRules, approveRule, rejectRule } from '../../modules/experienceExtractor'
+import { getAllRules, getPendingRules } from '../../modules/experienceExtractor'
 import type { ExperienceRule } from '../../modules/agentTypes'
-import { apiGet, apiPost, apiDelete } from '../../services/apiFetch'
+import { apiGet } from '../../services/apiFetch'
 
 interface Props {
   mode?: 'all' | 'pending'
@@ -37,7 +37,6 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [actingId, setActingId] = useState<string | null>(null)
   const [demotionAlerts, setDemotionAlerts] = useState<DemotionEntry[]>([])
   const [alertsDismissed, setAlertsDismissed] = useState(false)
   const [stats, setStats] = useState<DemotionStats | null>(null)
@@ -69,20 +68,6 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
 
   useEffect(() => { loadRules(); loadDemotionAlerts(); loadStats() }, [mode])
 
-  const handleApprove = async (id: string) => {
-    setActingId(id)
-    try { await approveRule(id); setRules(prev => prev.map(r => r.rule_id === id ? { ...r, status: 'approved' } : r)) }
-    catch (e: any) { setError(e.message || '批准失败') }
-    finally { setActingId(null) }
-  }
-
-  const handleReject = async (id: string) => {
-    setActingId(id)
-    try { await rejectRule(id, '不符合标准'); setRules(prev => prev.map(r => r.rule_id === id ? { ...r, status: 'rejected' } : r)) }
-    catch (e: any) { setError(e.message || '拒绝失败') }
-    finally { setActingId(null) }
-  }
-
   const filtered = filter === 'all' ? rules : rules.filter(r => r.status === filter)
   const fmt = (iso: string) => { try { return new Date(iso).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return iso } }
 
@@ -93,7 +78,7 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
           <span style={s.headerIcon}>📋</span>
           <div>
             <div style={s.title}>经验规则管理</div>
-            <div style={s.subtitle}>查看和管理从项目中提取的经验规则</div>
+            <div style={s.subtitle}>只读查看从项目中提取的经验规则（写入已随 program-pivot 迁移关停）</div>
           </div>
         </div>
         <button style={s.refreshBtn} onClick={loadRules} disabled={loading}>{loading ? '加载中...' : '刷新'}</button>
@@ -210,7 +195,6 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
            const tc = typeCfg[rule.rule_type] || { label: rule.rule_type, color: '#6b7280' }
            const sc = statusCfg[rule.status] || { label: rule.status, bg: 'rgba(255,255,255,0.06)', color: '#9ca3af' }
            const isExp = expandedId === rule.rule_id
-           const isAct = actingId === rule.rule_id
            return (
              <div key={rule.rule_id} style={{ ...s.card, borderLeftColor: tc.color }}>
                <div style={s.cardClickable} onClick={() => setExpandedId(isExp ? null : rule.rule_id)}>
@@ -245,12 +229,7 @@ export function ExperienceRulePanel({ mode = 'all' }: Props) {
                        <div style={s.kwList}>{rule.keywords.map(k => <span key={k} style={s.kwTag}>{k}</span>)}</div>
                      </div>
                    )}
-                   {rule.status === 'pending_review' && (
-                     <div style={s.actionRow}>
-                       <button style={{ ...s.actionBtn, ...s.approveBtn }} onClick={e => { e.stopPropagation(); handleApprove(rule.rule_id) }} disabled={isAct}>✓ 批准</button>
-                       <button style={{ ...s.actionBtn, ...s.rejectBtn }} onClick={e => { e.stopPropagation(); handleReject(rule.rule_id) }} disabled={isAct}>✕ 拒绝</button>
-                     </div>
-                   )}
+                   {/* program-pivot M3：经验规则只读——写操作已随迁移关停（沉淀走 ProgramCompiler） */}
                  </div>
                )}
              </div>
