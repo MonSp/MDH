@@ -242,6 +242,18 @@ def build_node_experience_context(coordinator, task_text: str):
     try:
         if not task_text:
             return "", []
+        # program-pivot M2: registry-first injection; fallback to rules (kept)
+        try:
+            from program_injection import build_program_context
+
+            program_ctx = build_program_context(
+                task_text, data_dir=getattr(coordinator, "_data_dir", None)
+            )
+            if program_ctx:
+                logger.info("workflow node: program context injected (rules skipped)")
+                return program_ctx, []
+        except Exception as pe:
+            logger.debug("workflow node program injection skipped: %s", pe)
         import re as _re
         extractor = coordinator._get_experience_extractor()
         words = _re.findall(r'[\u4e00-\u9fff]{2,}|[a-zA-Z]{3,}', task_text)

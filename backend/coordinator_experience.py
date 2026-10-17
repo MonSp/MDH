@@ -158,6 +158,31 @@ async def inject_experience(coordinator, coordinator_id, original_description, e
     injected_rule_ids = []
     mentor_rule_ids = []
     try:
+        # program-pivot M2：任务前注入优先走 ProgramRegistry 命中；
+        # 未命中回退旧规则注入（旧读路径保留）
+        try:
+            from program_injection import build_program_context
+
+            program_ctx = build_program_context(
+                original_description,
+                data_dir=getattr(coordinator, "_data_dir", None),
+            )
+            if program_ctx:
+                enhanced_description = f"{enhanced_description}{program_ctx}"
+                await coordinator._msg(
+                    coordinator_id,
+                    "项目经理：已命中成熟程序，注入程序上下文（免经验规则）。",
+                )
+                coordinator.meeting.append_event(
+                    SessionEventType.EXPERIENCE_INJECTION,
+                    content="program-injection: registry 命中，注入程序上下文",
+                    agent_id=coordinator_id,
+                    phase="pre_execution",
+                )
+                return enhanced_description, injected_rule_ids
+        except Exception as pe:
+            logger.debug("program injection skipped: %s", pe)
+
         from agent_profile_manager import AgentProfileManager
         extractor = coordinator._get_experience_extractor()
         profile_mgr = AgentProfileManager(os.path.join(coordinator._data_dir, "agent_profiles"))

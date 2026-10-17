@@ -136,7 +136,13 @@ class HumanFeedbackManager:
         """将具体建议转化为经验规则
 
         优先写入 SQLite（通过 ExperienceExtractor），回退到 JSON 文件。
+        program-pivot M1：规则新增写入关停时直接返回 0（沉淀改走 ProgramCompiler）。
         """
+        if self._experience is not None and getattr(
+            self._experience, "_rule_writes_disabled", None
+        ) and self._experience._rule_writes_disabled():
+            logger.info("program-pivot: rule writes disabled, skip human-feedback rules")
+            return 0
         created = 0
         for suggestion in feedback.get("specific_suggestions", []):
             if not suggestion.strip():

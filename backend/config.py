@@ -47,3 +47,10 @@ type: {skill_type}
 ## 参数
 {params_section}
 """
+
+
+# ─── program-pivot 迁移开关 (T7, M1–M2) ────────────────────────────
+# True: 关闭经验规则"新增"写入（读/状态更新保留），沉淀改走 ProgramCompiler。
+# 默认 False（测试直连 extractor 不受影响）；server 启动时按环境变量翻 True
+# （生产默认开启，PROGRAM_PIVOT_DISABLE_RULE_WRITES=0 可回退）。
+PROGRAM_PIVOT_DISABLE_RULE_WRITES: bool = False
