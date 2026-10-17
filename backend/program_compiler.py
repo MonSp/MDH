@@ -222,7 +222,6 @@ async def llm_generate_fn(
         raise GenerationError("未配置API密钥")
 
     from agent import _extract_text
-    from chat_agent import ChatAgent as Agent
     from chat_agent import Msg
     from model_factory import create_agent, get_default_base_url
 
@@ -240,13 +239,8 @@ async def llm_generate_fn(
         agent_name="program-compiler",
         stream=False,
     )
-    llm_agent = Agent(
-        name="program_compiler",
-        system_prompt="严格只返回 JSON，不要 Markdown 代码块。",
-        model=agent.model,
-    )
     msg = Msg(name="user", role="user", content=[{"type": "text", "text": prompt}])
-    response = await llm_agent.reply(msg)
+    response = await agent.reply(msg)
     return _extract_text(response)
 
 
