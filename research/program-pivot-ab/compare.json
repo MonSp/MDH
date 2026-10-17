@@ -1,0 +1,90 @@
+{
+  "date": "2026-10-17",
+  "ws_url": "ws://localhost:8765/ws",
+  "note": "token 代理=消息数（无 token 计量）；得分=success 计数。arm_program 预置 flatten_strategy（E1/E5 关键词命中）；五任务均需落盘文件——策略型程序输出经 LLM 审阅如实 fail 后回退（符合契约）",
+  "arm_llm": {
+    "n": 5,
+    "success_score": "2/5",
+    "elapsed_p50_sec": 37.7,
+    "elapsed_p95_sec": 45.5,
+    "elapsed_mean_sec": 32.9,
+    "per_task_elapsed_sec": {
+      "E1": 16.7,
+      "E2": 45.5,
+      "E3": 26.6,
+      "E4": 37.8,
+      "E5": 37.7
+    },
+    "per_task_path": {
+      "E1": "complex",
+      "E2": "complex",
+      "E3": "complex",
+      "E4": "complex",
+      "E5": "complex"
+    },
+    "per_task_success": {
+      "E1": true,
+      "E2": false,
+      "E3": false,
+      "E4": false,
+      "E5": true
+    },
+    "paths": {
+      "complex": 5
+    },
+    "program_events": {
+      "path_program": 0,
+      "review_failed": 0,
+      "fallback_notes": 0,
+      "hit_injection": 0
+    },
+    "token_proxy_messages": 266,
+    "token_proxy_agent_msgs": 209
+  },
+  "arm_program": {
+    "n": 5,
+    "success_score": "3/5",
+    "elapsed_p50_sec": 24.3,
+    "elapsed_p95_sec": 50.9,
+    "elapsed_mean_sec": 28.8,
+    "per_task_elapsed_sec": {
+      "E1": 20.8,
+      "E2": 50.9,
+      "E3": 21.7,
+      "E4": 26.2,
+      "E5": 24.3
+    },
+    "per_task_path": {
+      "E1": "complex",
+      "E2": "complex",
+      "E3": "complex",
+      "E4": "complex",
+      "E5": "complex"
+    },
+    "per_task_success": {
+      "E1": true,
+      "E2": false,
+      "E3": true,
+      "E4": false,
+      "E5": true
+    },
+    "paths": {
+      "complex": 5
+    },
+    "program_events": {
+      "path_program": 0,
+      "review_failed": 2,
+      "fallback_notes": 2,
+      "hit_injection": 2
+    },
+    "token_proxy_messages": 263,
+    "token_proxy_agent_msgs": 205
+  },
+  "seeded_program": "flatten_strategy",
+  "delta": {
+    "p50_sec": -13.4,
+    "p95_sec": 5.4,
+    "success": "3/5 vs 2/5",
+    "token_proxy_msgs": -3
+  }
+}
