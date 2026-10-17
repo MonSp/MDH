@@ -654,6 +654,14 @@ class ExperienceExtractor:
                     return existing
         return None
 
+    def _rule_writes_disabled(self) -> bool:
+        """program-pivot M1：规则新增写入关闭（读与存量状态更新保留）。"""
+        try:
+            import config as app_config
+            return bool(getattr(app_config, "PROGRAM_PIVOT_DISABLE_RULE_WRITES", False))
+        except Exception:
+            return False
+
     def _save_new_rule(self, rule: ExperienceRule, auto_approve: bool = True) -> str:
         """统一的新规则保存入口：去重 → 保存 → 自动审批
 
@@ -664,8 +672,16 @@ class ExperienceExtractor:
             auto_approve: 是否尝试 LLM 自动审批（仅低风险类型）
 
         Returns:
-            规则 ID（去重命中时返回已有规则 ID）
+            规则 ID（去重命中时返回已有规则 ID；写入关闭时返回未持久化的 ID）
         """
+        # program-pivot M1：新规则写入关停，沉淀改走 ProgramCompiler
+        if self._rule_writes_disabled():
+            logger.info(
+                "program-pivot: rule writes disabled, skip new rule %s",
+                rule.rule_id[:8],
+            )
+            return rule.rule_id
+
         # 去重检查
         duplicate = self._find_duplicate_rule(rule)
         if duplicate is not None:
@@ -1114,6 +1130,14 @@ class ExperienceExtractor:
         # 抗过拟合：多样性检查
         if not self._check_evolution_diversity(rule):
             logger.info("Rule %s 多样性检查未通过，跳过进化（该领域近期进化过多）", rule.rule_id)
+            return None
+
+        # program-pivot M1：规则自进化写入关停——在 LLM 生成前拦截，避免浪费调用
+        if self._rule_writes_disabled():
+            logger.info(
+                "program-pivot: rule writes disabled, skip evolve of %s",
+                rule.rule_id[:8],
+            )
             return None
 
         # 生成改进版规则

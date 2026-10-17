@@ -1,15 +1,18 @@
 """
-Program Registry REST API (program-pivot T1/T4)
+Program Registry REST API (program-pivot T1/T2/T3/T4/T5)
 
 GET    /api/programs                     列表（可按 status 过滤）
 POST   /api/programs                     创建程序包（manifest 校验）
 GET    /api/programs/match               触发匹配（promoted + 新鲜）
+POST   /api/programs/compile             成功轨迹沉淀 candidate 草稿 (T3)
 POST   /api/programs/legacy/import       skill_packs 只读登记
 GET    /api/programs/{program_id}        详情（含 lineage）
 POST   /api/programs/{program_id}/promote    candidate -> promoted
 POST   /api/programs/{program_id}/deprecate  -> deprecated
 POST   /api/programs/{program_id}/execute    免 LLM 沙箱执行 (T2)
 POST   /api/programs/{program_id}/gate       测试门禁自动晋升 (T4)
+POST   /api/programs/{program_id}/review     LLM 审阅执行结果 (T5)
+POST   /api/programs/{program_id}/upgrade    审阅驱动修订升级 (T5)
 """
 
 from __future__ import annotations
@@ -20,6 +23,12 @@ from typing import Any
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
+from program_compiler import (
+    GenerationError,
+    ProgramCompiler,
+    TaskTrajectory,
+    llm_generate_fn,
+)
 from program_evolver import ProgramEvolver
 from program_executor import ProgramExecutor
 from program_registry import PROGRAM_ID_RE, ProgramManifest, ProgramStatus
@@ -31,22 +40,26 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/programs", tags=["programs"])
 
-# 注入点 — 测试可通过 init 替换 registry / skill_packs 目录 / 审阅与修订生成器
+# 注入点 — 测试可通过 init 替换 registry / skill_packs 目录 / 各类生成器
 _registry = None
 _skill_packs_dir = "skill_packs"
-_review_override = None  # Callable[[str], Awaitable[str]]
-_revision_override = None  # Callable[[str], Awaitable[str]]
+_generate_override = None    # T3 compile 生成器
+_review_override = None      # T5 审阅生成器
+_revision_override = None    # T5 修订生成器
 
 
 def init(
     registry,
     skill_packs_dir: str = "skill_packs",
+    generate_override=None,
     review_override=None,
     revision_override=None,
 ) -> None:
-    global _registry, _skill_packs_dir, _review_override, _revision_override
+    global _registry, _skill_packs_dir
+    global _generate_override, _review_override, _revision_override
     _registry = registry
     _skill_packs_dir = skill_packs_dir
+    _generate_override = generate_override
     _review_override = review_override
     _revision_override = revision_override
 
@@ -73,6 +86,20 @@ class ExecuteRequest(BaseModel):
     timeout_seconds: float | None = Field(
         None, gt=0, le=300, description="执行超时（秒），默认 15"
     )
+
+
+class CompileRequest(BaseModel):
+    """成功轨迹 + 可选 LLM 凭证（无凭证时走 generate_override/NO_GENERATOR）。"""
+
+    task_description: str
+    steps: list[str] = Field(default_factory=list)
+    input_example: Any = None
+    output_example: Any = None
+    success: bool = True
+    provider: str = "deepseek"
+    api_key: str = ""
+    base_url: str = ""
+    model_name: str = ""
 
 
 @router.get("")
@@ -115,6 +142,49 @@ async def import_legacy():
         },
         code="IMPORTED",
     )
+
+
+@router.post("/compile")
+async def compile_trajectory(body: CompileRequest):
+    """成功任务轨迹 → candidate 程序包草稿（program-pivot T3）。"""
+    try:
+        trajectory = TaskTrajectory(
+            task_description=body.task_description,
+            steps=body.steps,
+            input_example=body.input_example,
+            output_example=body.output_example,
+            success=body.success,
+        )
+    except ValueError as e:
+        return fail(str(e), code="INVALID_TRAJECTORY")
+
+    if _generate_override is not None:
+        generate = _generate_override
+    elif body.api_key:
+        async def generate(prompt: str) -> str:
+            return await llm_generate_fn(
+                prompt,
+                provider=body.provider,
+                api_key=body.api_key,
+                base_url=body.base_url,
+                model_name=body.model_name,
+            )
+    else:
+        return fail("未配置生成器（无 api_key 且无注入生成器）", code="NO_GENERATOR")
+
+    compiler = ProgramCompiler(_get_registry())
+    try:
+        manifest = await compiler.compile(trajectory, generate)
+    except GenerationError as e:
+        return fail(str(e), code="GENERATION_FAILED")
+    except FileExistsError as e:
+        return fail(str(e), code="ALREADY_EXISTS")
+    except ValueError as e:
+        return fail(str(e), code="INVALID_TRAJECTORY")
+    except Exception:
+        logger.exception("compile failed")
+        return fail("compile failed", code="COMPILE_FAILED")
+    return ok(manifest.model_dump(mode="json"), code="COMPILED")
 
 
 @router.get("/{program_id}")
