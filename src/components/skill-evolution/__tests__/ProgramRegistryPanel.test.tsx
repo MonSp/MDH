@@ -58,10 +58,10 @@ describe('ProgramRegistryPanel', () => {
     mockFetch.mockReset()
   })
 
-  it('renders panel title', () => {
+  it('renders panel title', async () => {
     routeFetch([])
     render(<ProgramRegistryPanel />)
-    expect(screen.getByText(/程序库（ProgramRegistry）/)).toBeDefined()
+    expect(await screen.findByText(/程序库（ProgramRegistry）/)).toBeDefined()
   })
 
   it('lists programs with status badges', async () => {

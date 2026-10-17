@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { apiGet } from '../../services/apiFetch'
 
 /** ProgramRegistry 面板（program-pivot T9, M3）：只读展示程序包列表与 lineage。 */
@@ -67,6 +67,7 @@ export function ProgramRegistryPanel() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<ProgramDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const detailReqRef = useRef(0)
 
   const load = async () => {
     setLoading(true); setError(null)
@@ -83,15 +84,20 @@ export function ProgramRegistryPanel() {
 
   const toggleDetail = async (id: string) => {
     if (expandedId === id) {
+      detailReqRef.current += 1
       setExpandedId(null); setDetail(null); return
     }
-    setExpandedId(id); setDetailLoading(true); setDetail(null)
+    const reqId = ++detailReqRef.current
+    setExpandedId(id); setDetailLoading(true); setDetail(null); setError(null)
     try {
-      setDetail(await apiGet<ProgramDetail>(`/api/programs/${id}`))
+      const d = await apiGet<ProgramDetail>(`/api/programs/${id}`)
+      if (reqId !== detailReqRef.current) return // 竞态：忽略过期响应
+      setDetail(d)
     } catch (e: unknown) {
+      if (reqId !== detailReqRef.current) return
       setError(e instanceof Error ? e.message : '详情加载失败')
     } finally {
-      setDetailLoading(false)
+      if (reqId === detailReqRef.current) setDetailLoading(false)
     }
   }
 
@@ -171,7 +177,8 @@ export function ProgramRegistryPanel() {
                     !detail ? <div style={s.empty}>无详情</div> : (
                      <>
                        <div style={s.detailTitle}>血缘（lineage）· 共 {detail.lineage?.length ?? 0} 条</div>
-                       {(detail.lineage || []).slice().reverse().map((ev, i) => (
+                       {(Array.isArray(detail.lineage) ? detail.lineage : [])
+                         .slice().reverse().map((ev, i) => (
                          <div key={i} style={s.evRow}>
                            <span style={s.evName}>{eventLabel[ev.event] || ev.event}</span>
                            <span style={s.evMeta}>
