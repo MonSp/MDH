@@ -1132,17 +1132,17 @@ class ExperienceExtractor:
             logger.info("Rule %s 多样性检查未通过，跳过进化（该领域近期进化过多）", rule.rule_id)
             return None
 
+        # program-pivot M1：规则自进化写入关停——在 LLM 生成前拦截，避免浪费调用
+        if self._rule_writes_disabled():
+            logger.info(
+                "program-pivot: rule writes disabled, skip evolve of %s",
+                rule.rule_id[:8],
+            )
+            return None
+
         # 生成改进版规则
         evolved = self._generate_evolved_rule(rule, failure_reason)
         if not evolved:
-            return None
-
-        # program-pivot M1：规则自进化写入关停（存量只读）
-        if self._rule_writes_disabled():
-            logger.info(
-                "program-pivot: rule writes disabled, skip evolved rule %s",
-                evolved.rule_id[:8],
-            )
             return None
 
         # 保存进化后的规则

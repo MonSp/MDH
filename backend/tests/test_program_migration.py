@@ -207,3 +207,41 @@ def test_orchestrator_injection_registry_first(tmp_path, monkeypatch):
     out2 = TaskOrchestrator._get_experience_context(orch, "完全无关的内容")
     # 未命中回退：会构造 extractor 读 backend/data——不应抛异常
     assert isinstance(out2, str)
+
+
+def test_program_context_wording_is_advisory(tmp_path):
+    """Major①：注入文案是参考语义，不与 T6 回退冲突（不写“勿重复发明”）。"""
+    reg = _program_pack(tmp_path)
+    ctx = build_program_context("请生成摘要", registry=reg)
+    assert "[program-context]" in ctx
+    assert "参考" in ctx
+    assert "勿重复发明" not in ctx
+    assert "LLM 路径" in ctx  # 明示本次走 LLM
+
+
+def test_relative_data_dir_normalized_to_backend(tmp_path):
+    """Major②：相对 data_dir（如 "data"）按 backend/ 归一，不随 CWD 分叉。"""
+    import program_injection as pi
+
+    # 模拟 coordinator 默认 "data"：归一后应指向 backend/data（不存在 pack → miss）
+    ctx = pi.build_program_context("任何任务", data_dir="data")
+    assert ctx == ""  # backend/data/program_packs 为空 → miss，不崩
+
+
+def test_human_feedback_json_fallback_gated(tmp_path, monkeypatch):
+    """Minor②：_experience is None 的纯 JSON 回退路径同样关停。"""
+    from human_feedback import HumanFeedbackManager
+
+    monkeypatch.setattr(app_config, "PROGRAM_PIVOT_DISABLE_RULE_WRITES", True)
+    hf = HumanFeedbackManager(str(tmp_path), experience_extractor=None)
+    created = hf._convert_suggestions_to_rules(
+        {
+            "specific_suggestions": ["建议A"],
+            "rating": "good",
+            "task_description": "t",
+            "reviewer": "r",
+            "task_id": "t1",
+        }
+    )
+    assert created == 0
+    assert not (tmp_path / "experience" / "rules").exists()

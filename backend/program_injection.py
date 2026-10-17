@@ -21,9 +21,15 @@ _DEFAULT_BASE_DIR: str | None = None
 
 
 def get_default_registry(data_dir: str | None = None) -> ProgramRegistry | None:
-    """按 data_dir 取（缓存）默认 ProgramRegistry；data_dir 缺失返回 None。"""
+    """按 data_dir 取（缓存）默认 ProgramRegistry；data_dir 缺失返回 None。
+
+    相对路径（如 MeetingCoordinator 默认 "data"）按 backend/ 目录归一，
+    避免非 `cd backend` 启动时分叉到错误目录。
+    """
     global _DEFAULT_REGISTRY, _DEFAULT_BASE_DIR
     try:
+        if data_dir and not os.path.isabs(data_dir):
+            data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), data_dir)
         if data_dir and data_dir != _DEFAULT_BASE_DIR:
             _DEFAULT_REGISTRY = ProgramRegistry(os.path.join(data_dir, "program_packs"))
             _DEFAULT_BASE_DIR = data_dir
@@ -39,7 +45,12 @@ def build_program_context(
     model: str | None = None,
     data_dir: str | None = None,
 ) -> str:
-    """registry 命中 → 程序上下文片段；未命中/异常 → ""（绝不抛）。"""
+    """registry 命中 → 程序上下文片段；未命中/异常 → ""（绝不抛）。
+
+    注意语义：调用方（会议/工作流/orchestrator 注入点）处于 LLM 路径——
+    即 T6 的 program 路径未采用（命中但回退，或未接线）。因此注入文案必须
+    是"参考"而非"强制复用"，避免与 T6 回退语义冲突（误导 LLM）。
+    """
     try:
         reg = registry or get_default_registry(data_dir)
         if reg is None or not task_text:
@@ -49,9 +60,10 @@ def build_program_context(
             return ""
         best = matches[0]
         return (
-            "\n\n[program-context] 已命中成熟程序 "
-            f"{best.program_id} v{best.version}：{best.description}。"
-            "该任务可优先复用此程序的确定性行为；勿重复发明流程。"
+            "\n\n[program-context] 曾有成熟程序 "
+            f"{best.program_id} v{best.version} 处理过类似任务：{best.description}。"
+            "注意：本次任务已进入 LLM 路径执行——请将其历史行为要点作为参考，"
+            "按本任务实际情况完成，无需强制复用该程序。"
         )
     except Exception as e:
         logger.debug("program injection skipped: %s", e)
