@@ -3,7 +3,7 @@ feature: program-pivot
 status: in-progress
 updated: 2026-10-15
 branch: feature/program-migrate
-commits: 8aa1e91..2481105 # T8 已交付（叠 T7/合并栈）；T9–T10 进行中
+commits: bdb965b..dd60ade # T9 已交付（叠 T8 分支）；T10 进行中
 ---
 
 # 产品转型：经验固化为可执行程序（Program Pivot）
@@ -104,6 +104,17 @@ commits: 8aa1e91..2481105 # T8 已交付（叠 T7/合并栈）；T9–T10 进行
 1. 单轮五任务方差大（E3 两臂成功翻转）——A/B 量化收益需多轮重复，单轮只做机制验证；README 已注明。
 2. 实网评测比单测更能挖出真 bug：生成器注入式单测全绿但实网必炸（`agent.model` 属性不存在）——LLM 组件需要至少一条实网冒烟。
 3. 评测驱动无返回值（只落盘）是既有约定——harness 回读 summary 文件而非依赖返回值。
+
+### T9 交付（2026-10-17，bdb965b..12c871d+fix）
+
+**What was built** — `ProgramRegistryPanel.tsx`：程序包只读面板——列表（状态筛选、验证时间、连续失败角标）+ 行展开 **lineage 时间线**（16 类事件中文标签、版本迁移、快照路径、审阅意见）；`SkillEvolutionDashboard` 新增「程序库 🧩」tab；`ExperienceRulePanel` **只读化**（移除批准/拒绝写操作与导入，副标题标注 M1 关停）。健壮性：详情竞态守卫（请求序号）、非数组 lineage 防护、fail envelope 错误态。vitest 6 passed（列表/筛选/lineage/错误/无写按钮，StrictMode URL 路由 mock）。
+
+**Verification** — vitest 2 文件 6 passed；独立 review A1–A5 全 PASS、无 Critical/Major；3 Minor（死样式、竞态/非数组、act 警告）已修复。
+
+**Journey log (T9)** —
+1. 经验规则"管理"面板的写按钮是 M1 关停后的 UI 残留——只读化必须连 handler/导入/死样式一起清，否则 eslint/审计还会看见"写路径"。
+2. 测试里 `getByText(/批准/)` 会误伤过滤按钮"已批准"——断言写操作消失要精确到按钮角色+完整文案。
+3. React18 StrictMode 双跑 effect：fetch mock 必须按 URL 路由而非调用次序（Once 链）。
 
 ## [S1] Problem
 
@@ -232,5 +243,5 @@ program_packs/<program_id>/
 - [x] T6: 三分法路由接线（program/simple/complex + 失败降级） — acceptance: 评测任务命中 promoted 新鲜程序走免 LLM 路径且 task_result 标注 path_used="program"；未命中/失效回退 LLM 路径（covers: S2 三分法路由； depends: T2）
 - [x] T7: 沉淀与注入切换（写侧关规则、读侧切 registry）+ 任务前注入改造 — acceptance: 新任务 0 条新经验规则写入；注入请求走 registry；旧读路径保留（covers: S2 迁移路径 M1–M2； depends: T3, T6）
 - [x] T8: 程序路径 vs LLM 直调 A/B 评测基线（成本/延迟/质量） — acceptance: 五任务评测产出对照 JSON（p50/p95、token 账单、得分）并写入 research/（covers: S2 迁移路径替换对照； depends: T6）
-- [ ] T9: 前端 ProgramRegistry 面板（版本/血缘/晋升历史，替换经验规则写入口） — acceptance: 面板展示程序包列表与 lineage；经验规则面板无写操作（covers: S2 迁移路径 M3； depends: T4）
+- [x] T9: 前端 ProgramRegistry 面板（版本/血缘/晋升历史，替换经验规则写入口） — acceptance: 面板展示程序包列表与 lineage；经验规则面板无写操作（covers: S2 迁移路径 M3； depends: T4）
 - [ ] T10: 迁移收尾 M4：删除规则写入/自进化/联动进化/共享池写路径与调度 — acceptance: 相关写路径代码与调度移除，全量 pytest/vitest/ruff/eslint 绿（covers: S2 迁移路径 M4； depends: T5, T7, T9）
