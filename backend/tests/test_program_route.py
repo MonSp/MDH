@@ -210,6 +210,12 @@ def test_ceo_program_hit_returns_task_result(tmp_path):
     assert result["path_used"] == "program"
     paths = [m for m in sent if m.get("type") == "path_selected"]
     assert paths and paths[0]["path"] == "program"
+    # Major 修复：命中结果必须上线发送（前端靠 wire task_result 复位）
+    wire_results = [
+        m for m in sent if m.get("type") == "task_result" and m.get("path_used") == "program"
+    ]
+    assert wire_results
+    assert wire_results[0]["program_id"] == "summary_prog"
 
 
 def test_ceo_review_fail_emits_and_continues(tmp_path):
@@ -265,3 +271,85 @@ def test_ceo_review_fail_emits_and_continues(tmp_path):
     assert result["path_used"] == "simple"
     review_msgs = [m for m in sent if m.get("type") == "program_review_failed"]
     assert review_msgs and review_msgs[0]["issues"] == ["摘要缺少来源字段"]
+
+
+def test_server_route_fn_wiring_no_key_falls_back(tmp_path, monkeypatch):
+    """Minor：server._program_route_fn 接线——registry 命中但无会话 key
+    → REVIEW_UNAVAILABLE（审阅生成器不可用回退）。"""
+    import server
+
+    reg = _registry(tmp_path)
+    monkeypatch.setattr(server, "_program_registry", reg)
+    outcome = asyncio.run(server._program_route_fn("请生成摘要：x", {}))
+    assert outcome.handled is False
+    assert outcome.fallback_reason == "REVIEW_UNAVAILABLE"
+    assert outcome.program_id == "summary_prog"  # 确实命中并执行过了
+
+
+def test_ceo_generic_fallback_emits_notice(tmp_path):
+    """Minor：非 NO_MATCH 的回退（如 INTERNAL/NOT_PROMOTED）给出降级提示。"""
+    from ceo_agent import CeoAgent
+    from types import SimpleNamespace
+
+    reg = _registry(tmp_path, promote=False)  # candidate → match 不命中=NO_MATCH
+    # 用 REVIEW_UNAVAILABLE 路径（无生成器）验证提示存在
+    sent = []
+
+    class _Session:
+        api_key = ""
+        provider = "deepseek"
+        base_url = ""
+        model_name = ""
+        _ceo_agent = None
+
+        def next_sequence(self):
+            return 1
+
+    async def route_fn(content, context):
+        return await try_program_path(content, reg, review_generate=None)
+
+    class _Classifier:
+        _get_model = None
+        _kernel = None
+
+        async def classify(self, content):
+            return SimpleNamespace(level="simple", confidence=0.9, reason="", method="rule")
+
+    class _SimpleExec:
+        async def execute(self, *a, **k):
+            return SimpleNamespace(
+                retry_with_complex=False,
+                success=True,
+                result="llm-done",
+                project_id="p1",
+                review_passed=True,
+            )
+
+    agent = CeoAgent(
+        session=_Session(),
+        project_manager=None,
+        complexity_classifier=_Classifier(),
+        simple_executor=_SimpleExec(),
+        program_route_fn=route_fn,
+    )
+
+    async def send_message(msg):
+        sent.append(msg)
+
+    # candidate 不命中 → NO_MATCH 静默（不产生回退提示）
+    asyncio.run(agent.process_message("请生成摘要", send_message))
+    assert not [
+        m for m in sent if m.get("type") == "agent_message" and "回退 LLM" in m.get("content", "")
+    ]
+
+    # 升级为 promoted → 命中但无审阅器 → REVIEW_UNAVAILABLE → 有提示
+    reg.promote("summary_prog")
+    reg.record_validation("summary_prog", model="deepseek-chat")
+    sent.clear()
+    asyncio.run(agent.process_message("请生成摘要", send_message))
+    notices = [
+        m
+        for m in sent
+        if m.get("type") == "agent_message" and "回退 LLM" in m.get("content", "")
+    ]
+    assert notices and "REVIEW_UNAVAILABLE" in notices[0]["content"]

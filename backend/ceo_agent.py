@@ -264,6 +264,9 @@ class CeoAgent:
                     f"CEO：命中成熟程序 {outcome.program_id}，本地执行并经审阅通过，免 LLM 交付。",
                 )
                 await send_message({"type": "path_selected", "path": "program"})
+                # 前端仅在收到 wire task_result 时复位完成态——必须上线发送
+                if outcome.task_result:
+                    await send_message(outcome.task_result)
                 return outcome.task_result
             if outcome.fallback_reason == "REVIEW_FAIL":
                 # 意见并入升级闭环（T5）：结构化推送供后续自动/人工升级消费
@@ -276,16 +279,11 @@ class CeoAgent:
                     send_message,
                     "CEO：程序结果未过审阅，回退 LLM 路径重新执行。",
                 )
-            elif outcome.fallback_reason in (
-                "EXECUTION_ERROR",
-                "TIMEOUT",
-                "PROGRAM_MISSING",
-                "OUTPUT_TOO_LARGE",
-                "INVALID_OUTPUT",
-            ):
+            elif outcome.fallback_reason and outcome.fallback_reason != "NO_MATCH":
+                # 执行类/审阅类失败统一提示降级（NO_MATCH 静默走正常判定）
                 await self._emit(
                     send_message,
-                    f"CEO：程序执行失败（{outcome.fallback_reason}），回退 LLM 路径。",
+                    f"CEO：程序路径未采用（{outcome.fallback_reason}），回退 LLM 路径。",
                 )
 
         # 1. 复杂度判定（kernel-first, LLM fallback）

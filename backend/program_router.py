@@ -61,11 +61,18 @@ async def try_program_path(
     chosen = matches[0]
     outcome = ProgramPathOutcome(program_id=chosen.program_id)
 
-    exe = executor or ProgramExecutor(registry)
-    payload = {"task": content} if input_data is None else input_data
-    exec_result = await exe.execute(
-        chosen.program_id, payload, timeout_seconds=timeout_seconds
-    )
+    try:
+        exe = executor or ProgramExecutor(registry)
+        payload = {"task": content} if input_data is None else input_data
+        exec_result = await exe.execute(
+            chosen.program_id, payload, timeout_seconds=timeout_seconds
+        )
+    except Exception as e:
+        # 组件级兜底之外的意外异常 → fail-open 到 LLM（宁重勿轻，不 500）
+        logger.warning("program execute crashed: %s", e)
+        outcome.fallback_reason = "INTERNAL_ERROR"
+        outcome.review_issues = [str(e)]
+        return outcome
     outcome.telemetry = {
         "llm_calls": exec_result.telemetry.llm_calls,
         "duration_ms": exec_result.telemetry.duration_ms,
@@ -85,14 +92,20 @@ async def try_program_path(
         return outcome
 
     rev = reviewer or ProgramReviewer()
-    review = await rev.review(
-        chosen.program_id,
-        content,
-        exec_result.output,
-        exec_result.error,
-        expectation=None,
-        generate=review_generate,
-    )
+    try:
+        review = await rev.review(
+            chosen.program_id,
+            content,
+            exec_result.output,
+            exec_result.error,
+            expectation=None,
+            generate=review_generate,
+        )
+    except Exception as e:
+        logger.warning("program review crashed: %s", e)
+        outcome.fallback_reason = "INTERNAL_ERROR"
+        outcome.review_issues = [str(e)]
+        return outcome
     outcome.review_verdict = review.verdict
     outcome.review_issues = review.issues
     if review.error_code:
