@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import threading
 from datetime import datetime, timezone
 from enum import Enum
@@ -216,6 +217,22 @@ class ProgramRegistry:
     def get(self, program_id: str) -> ProgramManifest | None:
         with self._lock:
             return self._read_manifest(program_id)
+
+    def delete(self, program_id: str) -> None:
+        """删除 candidate 程序包（编译写盘失败时回滚用）。
+
+        仅 candidate 可删——promoted/deprecated 为受审计状态，禁止删除。
+        """
+        with self._lock:
+            manifest = self._read_manifest(program_id)
+            if manifest is None:
+                raise FileNotFoundError(f"program not found: {program_id}")
+            if manifest.status != ProgramStatus.CANDIDATE:
+                raise ValueError(
+                    f"only candidate can be deleted, got {manifest.status.value}"
+                )
+            pack_dir = self._pack_dir(program_id)
+            shutil.rmtree(pack_dir, ignore_errors=True)
 
     def list(
         self, status: ProgramStatus | None = None
