@@ -1,7 +1,6 @@
 from asset_injection import build_asset_context
 from asset_store import AssetStore
 from experience_extractor import ExperienceExtractor
-from skill_evolution import SkillEvolution
 
 
 def test_build_asset_context_merges_three_types(tmp_path, monkeypatch):
@@ -11,11 +10,7 @@ def test_build_asset_context_merges_three_types(tmp_path, monkeypatch):
     store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料，研发部负责版本冻结")
     store.propose_template("team-x", "发布计划模板", "标题\n要点\n待办\n决定\n行动项\n责任人与日期安排")
     extractor = ExperienceExtractor(str(tmp_path))
-    result = SkillEvolution(extractor).evolve_from_feedback(
-        "p1", "minutes", "会议讨论发布计划。",
-        "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", ["责任人", "行动项"],
-        team_id="team-x",
-    )
+    result = _seed_rule(extractor, keywords=["责任人", "行动项"], team_id="team-x")
     # v1.3.4: 手动批准规则（不再自动审批）
     if result["rule_id"]:
         extractor.approve_rule(result["rule_id"], reviewer_comment="test-approve")
@@ -62,8 +57,7 @@ def test_reuse_stats_updated_on_nonempty_context(tmp_path, monkeypatch):
     store = AssetStore(str(tmp_path))
     store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
     extractor = ExperienceExtractor(str(tmp_path))
-    SkillEvolution(extractor).evolve_from_feedback(
-        "p1", "minutes", "会议讨论发布计划。", "审核修改：遗漏行动项责任人。", ["责任人", "行动项"], team_id="team-x")
+    _seed_rule(extractor, keywords=["责任人", "行动项"], team_id="team-x")
     _REUSE_STATS.clear()
     ctx = build_asset_context(store, extractor, "team-x", task_type="minutes", keywords=["纪要", "待办"])
     assert ctx != ""  # 有资产才计数
@@ -97,8 +91,7 @@ def test_reuse_stats_persists_to_disk(tmp_path, monkeypatch):
     store = AssetStore(str(tmp_path))
     store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
     extractor = ExperienceExtractor(str(tmp_path))
-    SkillEvolution(extractor).evolve_from_feedback(
-        "p1", "minutes", "会议讨论发布计划。", "审核修改：遗漏行动项责任人。", ["责任人", "行动项"], team_id="team-x")
+    _seed_rule(extractor, keywords=["责任人", "行动项"], team_id="team-x")
     stats_path = tmp_path / "reuse_stats.json"
     monkeypatch.setattr("asset_injection._REUSE_STATS_PATH", str(stats_path))  # 落盘路径重定向 tmp
     with _REUSE_LOCK:
@@ -119,6 +112,31 @@ def test_reuse_stats_persists_to_disk(tmp_path, monkeypatch):
 import pytest
 
 
+def _seed_rule(extractor, action="补充行动项责任人与截止日期。", keywords=None, team_id=""):
+    """测试夹具：直接写入一条已批准规则（M4 后不再经旧进化链）。"""
+    import uuid
+    from datetime import datetime, timezone
+    from experience_extractor import ExperienceRule
+
+    rule = ExperienceRule(
+        rule_id=str(uuid.uuid4())[:8],
+        trigger_condition="task_type is minutes",
+        action=action,
+        note="seed",
+        source_task_id="t-seed",
+        source_task_type="minutes",
+        rule_type="correction_tip",
+        status="pending_review",
+        keywords=keywords or ["责任人", "行动项"],
+        created_at=datetime.now(timezone.utc).isoformat(),
+        team_id=team_id,
+    )
+    extractor._save_rule(rule)
+    extractor.approve_rule(rule.rule_id, reviewer_comment="seed-approve")
+    return {"rule_id": rule.rule_id, "count": 1}
+
+
+
 @pytest.mark.flaky(reruns=2)
 def test_reuse_stats_thread_safety(tmp_path, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
@@ -132,8 +150,7 @@ def test_reuse_stats_thread_safety(tmp_path, monkeypatch):
     store = AssetStore(str(tmp_path))
     store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
     extractor = ExperienceExtractor(str(tmp_path))
-    SkillEvolution(extractor).evolve_from_feedback(
-        "p1", "minutes", "会议讨论发布计划。", "审核修改：遗漏行动项责任人。", ["责任人", "行动项"], team_id="team-x")
+    _seed_rule(extractor, keywords=["责任人", "行动项"], team_id="team-x")
     monkeypatch.setattr("asset_injection._REUSE_STATS_PATH", str(tmp_path / "reuse_stats.json"))  # 落盘重定向 tmp
     with _REUSE_LOCK:
         _REUSE_STATS.clear()
@@ -167,8 +184,7 @@ def test_reuse_stats_loads_before_first_build(tmp_path, monkeypatch):
     store = AssetStore(str(tmp_path))
     store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线\n市场部负责宣传物料")
     extractor = ExperienceExtractor(str(tmp_path))
-    SkillEvolution(extractor).evolve_from_feedback(
-        "p1", "minutes", "会议讨论发布计划。", "审核修改：遗漏行动项责任人。", ["责任人", "行动项"], team_id="team-x")
+    _seed_rule(extractor, keywords=["责任人", "行动项"], team_id="team-x")
     # ① 直接 seed 落盘 total==5（模拟上次进程已累计 5 次复用）
     stats_path.write_text(_json.dumps({
         "total": 5,

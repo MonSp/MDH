@@ -196,7 +196,8 @@ class SkillExporter:
                 rules_imported = 0
                 warnings = []
                 if manifest_data.get("includes_experience"):
-                    rules_imported, warnings = self._import_experience_rules(zf, skill_name, manifest_data)
+                    # program-pivot M4: 导入不再写共享池（规则共享池写路径已删除）
+                    rules_imported, warnings = 0, ["经验规则导入已随 program-pivot M4 关停"]
 
                 return ImportResult(
                     success=True,
@@ -249,32 +250,6 @@ class SkillExporter:
                 continue
 
         return rules
-
-    def _import_experience_rules(self, zf: zipfile.ZipFile, skill_name: str, manifest: dict) -> tuple:
-        """导入经验规则到共享池"""
-        from shared_experience_pool import SharedExperiencePool
-        pool = SharedExperiencePool(str(self._experience_dir))
-
-        imported = 0
-        warnings = []
-
-        for info in zf.infolist():
-            if info.filename.startswith("experience/rules/") and info.filename.endswith(".yaml"):
-                try:
-                    with zf.open(info) as f:
-                        rule_data = yaml.safe_load(f.read())
-                    if rule_data:
-                        rule_data["keywords"] = rule_data.get("keywords", []) + [skill_name]
-                        result = pool.publish_rule(
-                            rule_data,
-                            source_project=f"import:{manifest.get('source_instance', 'unknown')}",
-                        )
-                        if result:
-                            imported += 1
-                except Exception as e:
-                    warnings.append(f"规则 {info.filename} 导入失败: {e}")
-
-        return imported, warnings
 
     @staticmethod
     def _desensitize_rule(rule_data: dict) -> dict:

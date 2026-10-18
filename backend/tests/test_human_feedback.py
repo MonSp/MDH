@@ -25,7 +25,7 @@ class TestHumanFeedback:
         assert "feedback_id" in result
 
     def test_suggestions_converted_to_rules(self, manager):
-        """具体建议转化为经验规则"""
+        """program-pivot M4：反馈不再转规则（沉淀走 ProgramCompiler）"""
         result = manager.submit_feedback({
             "agent_id": "agent-1",
             "task_id": "task-1",
@@ -34,7 +34,7 @@ class TestHumanFeedback:
             "specific_suggestions": ["所有API必须有输入验证", "错误响应要统一格式"],
             "reviewer": "张三",
         })
-        assert result["rules_created"] == 2
+        assert result["rules_created"] == 0
 
     def test_skill_guidance_updated(self, manager):
         """技能方向指导更新"""

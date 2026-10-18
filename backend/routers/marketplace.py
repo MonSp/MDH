@@ -23,16 +23,6 @@ def init(shared_pool, skill_forks, skill_exporter):
 
 # ── 经验共享 ──
 
-@router.post("/experience/publish")
-async def publish_experience(request: Request):
-    body = await request.json()
-    rule_data = body.get("rule", {})
-    source_project = body.get("source_project", "")
-    source_team = body.get("source_team", "")
-    result = _shared_pool.publish_rule(rule_data, source_project, source_team)
-    if result:
-        return {"success": True, "rule_id": result.rule_id}
-    return {"success": False, "error": "发布失败：缺少必要字段"}
 
 
 @router.get("/experience/search")
@@ -42,15 +32,6 @@ async def search_experience(task_type: str = "", keywords: str = "", rule_type: 
     return {"success": True, "rules": [r.to_dict() for r in results], "total": len(results)}
 
 
-@router.post("/experience/fork")
-async def fork_experience(request: Request):
-    body = await request.json()
-    rule_id = body.get("rule_id", "")
-    target_project = body.get("target_project", "")
-    result = _shared_pool.fork_rule(rule_id, target_project)
-    if result:
-        return {"success": True, "rule": result}
-    return {"success": False, "error": "Fork 失败：规则不存在"}
 
 
 @router.get("/stats")
@@ -64,26 +45,8 @@ async def list_pending_experience():
     return {"success": True, "rules": [r.to_dict() for r in rules], "total": len(rules)}
 
 
-@router.post("/experience/approve")
-async def approve_experience(request: Request):
-    body = await request.json()
-    rule_id = body.get("rule_id", "")
-    approved_by = body.get("approved_by", "admin")
-    success = _shared_pool.approve_rule(rule_id, approved_by)
-    if success:
-        return {"success": True, "rule_id": rule_id, "status": "approved"}
-    return {"success": False, "error": "批准失败：规则不存在或非待审核状态"}
 
 
-@router.post("/experience/reject")
-async def reject_experience(request: Request):
-    body = await request.json()
-    rule_id = body.get("rule_id", "")
-    reason = body.get("reason", "")
-    success = _shared_pool.reject_rule(rule_id, reason)
-    if success:
-        return {"success": True, "rule_id": rule_id, "status": "rejected"}
-    return {"success": False, "error": "拒绝失败：规则不存在或非待审核状态"}
 
 
 @router.get("/experience/recommendations")
@@ -108,16 +71,6 @@ async def get_leaderboard(limit: int = 20):
     return {"success": True, "leaderboard": board, "total": len(board)}
 
 
-@router.post("/experience/update-fork-effectiveness")
-async def update_fork_effectiveness(request: Request):
-    """更新 fork 规则的实际效果（任务完成后调用）"""
-    body = await request.json()
-    rule_id = body.get("rule_id", "")
-    task_success = body.get("task_success", False)
-    success = _shared_pool.update_fork_effectiveness(rule_id, task_success)
-    if success:
-        return {"success": True, "rule_id": rule_id}
-    return {"success": False, "error": "规则不存在"}
 
 
 # ── 技能 Fork ──

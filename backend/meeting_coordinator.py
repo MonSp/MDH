@@ -42,16 +42,10 @@ from coordinator_execution import (
     save_execution_artifacts as _save_execution_artifacts_impl,
 )
 from coordinator_experience import (
-    finalize_skill_evolution as _finalize_skill_evolution_impl,
-)
-from coordinator_experience import (
     inject_experience as _inject_experience_impl,
 )
 from coordinator_experience import (
     log_knowledge_flow as _log_knowledge_flow_impl,
-)
-from coordinator_experience import (
-    log_skill_evolution as _log_skill_evolution_impl,
 )
 from coordinator_experience import (
     recall_agent_memory as _recall_agent_memory_impl,
@@ -672,12 +666,6 @@ class MeetingCoordinator:
     def _write_task_memory(self, agent_id: str, task_description: str, task_success: bool, review_score: float, execution_summary: str = ""):
         _write_task_memory_impl(self, agent_id, task_description, task_success, review_score, execution_summary)
 
-    def _finalize_skill_evolution(self, extractor, packager, project_id: str) -> dict[str, Any]:
-        return _finalize_skill_evolution_impl(self, extractor, packager, project_id)
-
-    def _log_skill_evolution(self, project_id: str, rule) -> None:
-        _log_skill_evolution_impl(project_id, rule)
-
     @staticmethod
     def _build_execution_artifact_text(exec_results: list[dict[str, Any]], max_summary_len: int = 400) -> str:
         return _build_execution_artifact_text_impl(exec_results, max_summary_len)
@@ -967,7 +955,7 @@ class MeetingCoordinator:
         )
         await self._msg(coordinator_id, "项目经理：已生成项目总结报告。")
         await self._msg(coordinator_id, project_summary)
-        await self._run_skill_evolution(coordinator_id, user_message, discussion_results, review_result, execution_results)
+        # program-pivot M4: 会议结束不再提取规则（沉淀走 ProgramCompiler）
 
         # 更新已注入规则的有效性评分（降级时发出告警）
         if injected_rule_ids:
@@ -1141,27 +1129,6 @@ class MeetingCoordinator:
 
     async def _run_dev_loop(self, coordinator_id, enhanced_description, discussion_context, on_message):
         return await _run_dev_loop_impl(self, coordinator_id, enhanced_description, discussion_context, on_message)
-
-    async def _run_skill_evolution(self, coordinator_id, user_message, discussion_results, review_result, execution_results):
-        try:
-            extractor = self._get_experience_extractor()
-            evolution_rules = extractor.extract_from_meeting(
-                project_id=self.meeting.meeting_id, task_description=user_message,
-                discussion_results=discussion_results, review_result=review_result, execution_results=execution_results,
-            )
-            if evolution_rules:
-                await self._msg(coordinator_id, f"项目经理：已从本次项目中提取 {len(evolution_rules)} 条经验规则，将在「技能进化」面板中沉淀。")
-                self.meeting.add_message("agent", f"项目经理：已从本次项目中提取 {len(evolution_rules)} 条经验规则。", coordinator_id)
-
-            from skill_packager import SkillPackager
-            skill_packager = SkillPackager(output_dir=os.path.join(self._data_dir, "packages"))
-            finalize = self._finalize_skill_evolution(extractor, skill_packager, project_id=self.meeting.meeting_id)
-            if finalize["written"]:
-                packaged = f"，打包技能包: {', '.join(finalize['packaged'])}" if finalize["packaged"] else ""
-                await self._msg(coordinator_id, f"项目经理：已自动审核并沉淀 {finalize['written']} 条经验规则{packaged}。")
-                self.meeting.add_message("agent", f"项目经理：已自动审核并沉淀 {finalize['written']} 条经验规则{packaged}。", coordinator_id)
-        except Exception as e:
-            self.logger.warning("技能进化提取失败: %s", e)
 
     def _enhance_task_description(self, original_description: str, discussion_results: list) -> str:
         """整合讨论结果到任务描述

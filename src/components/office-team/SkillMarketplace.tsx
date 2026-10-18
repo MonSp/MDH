@@ -107,26 +107,7 @@ export default function SkillMarketplace() {
     } catch (e: any) { setMessage(`Fork 失败: ${e.message}`) }
   }
 
-  const forkRule = async (ruleId: string) => {
-    try {
-      await apiPost('/api/marketplace/experience/fork', { rule_id: ruleId, target_project: 'current' })
-      setMessage('已 Fork 经验规则')
-    } catch (e: any) { setMessage(`Fork 失败: ${e.message}`) }
-  }
-
-  const publishRule = async () => {
-    const trigger = prompt('触发条件:')
-    const action = prompt('建议动作:')
-    if (!trigger || !action) return
-    try {
-      await apiPost('/api/marketplace/experience/publish', {
-        rule: { trigger_condition: trigger, action, keywords: trigger.split(/\s+/).slice(0, 5) },
-        source_project: 'current',
-      })
-      setMessage('已发布到共享池')
-      fetchSharedRules()
-    } catch { setMessage('发布失败') }
-  }
+  // program-pivot M4: 共享池经验写路径（publish/fork）已删除，按钮移除
 
   const pullUpdate = async (skillName: string) => {
     try {
@@ -229,9 +210,6 @@ export default function SkillMarketplace() {
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           )}
-          {tab === 'experience' && (
-            <button style={s.btn} onClick={publishRule}>发布经验</button>
-          )}
         </div>
       )}
 
@@ -310,7 +288,6 @@ export default function SkillMarketplace() {
                     来源: {r.source_project || '未知'} · 复用: {r.usage_count}
                     {(r.effectiveness_score ?? 0) > 0 && <span style={{ marginLeft: 6, color: (r.effectiveness_score ?? 0) >= 0.7 ? '#10b981' : '#f59e0b' }}>★{((r.effectiveness_score ?? 0) * 100).toFixed(0)}%</span>}
                   </span>
-                  <button style={s.btn} onClick={() => forkRule(r.rule_id)}>Fork</button>
                 </div>
               </div>
             )

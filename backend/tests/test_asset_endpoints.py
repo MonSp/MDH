@@ -6,7 +6,7 @@
 模式沿用 M2/M3 既有演示端点测试：
 - TestClient + server.BACKEND_TOKEN = ""（关闭 REST 认证中间件）
 - monkeypatch 替换惰性单例 helper（_get_asset_store/_get_template_confirmation/
-  _get_skill_evolution/_get_asset_search 全局），各用例以临时目录隔离数据。
+  _get_asset_search 全局），各用例以临时目录隔离数据。
 """
 from fastapi.testclient import TestClient
 
@@ -69,20 +69,23 @@ def test_templates_endpoint_evaluation_failure(tmp_path, monkeypatch):
 
 
 def test_search_endpoint_merges(tmp_path, monkeypatch):
+    import uuid
+    from datetime import datetime, timezone
     from asset_search import AssetSearch
     from asset_store import AssetStore
-    from experience_extractor import ExperienceExtractor
-    from skill_evolution import SkillEvolution
+    from experience_extractor import ExperienceExtractor, ExperienceRule
     store = AssetStore(str(tmp_path))
     store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线 市场部负责宣传物料")
     extractor = ExperienceExtractor(str(tmp_path))
-    result = SkillEvolution(extractor).evolve_from_feedback(
-        "p1", "minutes", "会议讨论发布计划。", "审核修改：遗漏行动项责任人。", ["纪要", "待办"],
+    rule = ExperienceRule(
+        rule_id=str(uuid.uuid4())[:8], trigger_condition="task_type is minutes",
+        action="补充行动项责任人。", note="seed", source_task_id="t1",
+        source_task_type="minutes", rule_type="correction_tip", status="pending_review",
+        keywords=["纪要", "待办"], created_at=datetime.now(timezone.utc).isoformat(),
         team_id="team-x",
     )
-    # v1.3.4: 规则保持 pending_review，需要手动批准才能被检索
-    if result["rule_id"]:
-        extractor.approve_rule(result["rule_id"], reviewer_comment="test-approve")
+    extractor._save_rule(rule)
+    extractor.approve_rule(rule.rule_id, reviewer_comment="test-approve")
     monkeypatch.setattr(server, "_get_asset_search", lambda: AssetSearch(store, extractor))
     resp = client.get("/api/assets/search", params={
         "team_id": "team-x", "q": "发布计划", "task_type": "minutes", "keywords": "纪要,待办",
@@ -90,44 +93,6 @@ def test_search_endpoint_merges(tmp_path, monkeypatch):
     assert resp.status_code == 200
     data = resp.json()["data"]
     assert data["artifacts"] and data["rules"]
-
-
-def test_experience_endpoint_writes_rule(tmp_path, monkeypatch):
-    from experience_extractor import ExperienceExtractor
-    from skill_evolution import SkillEvolution
-    extractor = ExperienceExtractor(str(tmp_path))
-    monkeypatch.setattr(server, "_get_skill_evolution", lambda: SkillEvolution(extractor))
-    resp = client.post("/api/assets/experience", json={
-        "team_id": "team-x", "task_type": "minutes", "transcript": "会议讨论发布计划。",
-        "feedback": "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", "keywords": ["纪要", "待办"],
-    })
-    assert resp.status_code == 200
-    assert resp.json()["data"]["count"] >= 1
-
-
-def test_experience_endpoint_threads_team_id(tmp_path, monkeypatch):
-    """T7 评审 Important：/api/assets/experience 的 body.team_id 必须经
-    evolve_from_feedback 透传到规则——否则经端点提炼的规则 team_id=""，
-    对团队检索永久不可见，演示闭环 evolve→search→注入 行为回归。"""
-    from experience_extractor import ExperienceExtractor
-    from skill_evolution import SkillEvolution
-    extractor = ExperienceExtractor(str(tmp_path))
-    monkeypatch.setattr(server, "_get_skill_evolution", lambda: SkillEvolution(extractor))
-    resp = client.post("/api/assets/experience", json={
-        "team_id": "team-x", "task_type": "minutes", "transcript": "会议讨论发布计划。",
-        "feedback": "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", "keywords": ["纪要", "待办"],
-    })
-    assert resp.status_code == 200 and resp.json()["data"]["count"] >= 1
-    # v1.3.4: 手动批准规则（不再自动审批）
-    rule_id = resp.json()["data"]["rule_id"]
-    if rule_id:
-        extractor.approve_rule(rule_id, reviewer_comment="test-approve")
-    # 端点提炼的规则须带 team_id=team-x → 团队检索命中
-    team_hits = extractor.retrieve_relevant_rules("minutes", ["纪要"], team_id="team-x")
-    assert any(r.team_id == "team-x" for r in team_hits), "team_id 未透传到规则"
-    # 其他团队检索不得命中该规则（严格过滤）
-    other_hits = extractor.retrieve_relevant_rules("minutes", ["纪要"], team_id="team-other")
-    assert not any(r.team_id == "team-x" for r in other_hits)
 
 
 def test_list_endpoint_filters_by_team(tmp_path, monkeypatch):
@@ -168,7 +133,6 @@ def test_malicious_team_id_returns_fail_not_500(tmp_path, monkeypatch):
     from asset_search import AssetSearch
     from asset_store import AssetStore
     from experience_extractor import ExperienceExtractor
-    from skill_evolution import SkillEvolution
     from template_confirmation import TemplateConfirmation
 
     store = AssetStore(str(tmp_path))
@@ -176,14 +140,12 @@ def test_malicious_team_id_returns_fail_not_500(tmp_path, monkeypatch):
     # 本地隔离实例，避免把桥接装到共享 _demo_gate_manager 上（T6 评审 Minor）
     tc = TemplateConfirmation(store, AssetEvaluator(store), ApprovalManager())
     monkeypatch.setattr(server, "_get_template_confirmation", lambda: tc)
-    monkeypatch.setattr(server, "_get_skill_evolution", lambda: SkillEvolution(ExperienceExtractor(str(tmp_path))))
     monkeypatch.setattr(server, "_get_asset_search", lambda: AssetSearch(store, ExperienceExtractor(str(tmp_path))))
 
     # POST 写路径：../ 路径遍历 → ValueError
     for url, payload in [
         ("/api/assets/artifacts", {"team_id": "../evil", "title": "t", "content": "c"}),
         ("/api/assets/templates", {"team_id": "../evil", "title": "t", "content": _GOOD_CONTENT}),
-        ("/api/assets/experience", {"team_id": "../evil", "task_type": "minutes"}),
     ]:
         resp = client.post(url, json=payload)
         assert resp.status_code == 200, f"{url} -> HTTP {resp.status_code}"

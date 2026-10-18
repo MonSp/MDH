@@ -1,7 +1,31 @@
 from asset_search import AssetSearch
 from asset_store import AssetStore
 from experience_extractor import ExperienceExtractor
-from skill_evolution import SkillEvolution
+
+
+def _seed_rule(extractor, action="补充行动项责任人与截止日期。", keywords=None, team_id=""):
+    """测试夹具：直接写入一条已批准规则（M4 后不再经旧进化链）。"""
+    import uuid
+    from datetime import datetime, timezone
+    from experience_extractor import ExperienceRule
+
+    rule = ExperienceRule(
+        rule_id=str(uuid.uuid4())[:8],
+        trigger_condition="task_type is minutes",
+        action=action,
+        note="seed",
+        source_task_id="t-seed",
+        source_task_type="minutes",
+        rule_type="correction_tip",
+        status="pending_review",
+        keywords=keywords or ["责任人", "行动项"],
+        created_at=datetime.now(timezone.utc).isoformat(),
+        team_id=team_id,
+    )
+    extractor._save_rule(rule)
+    extractor.approve_rule(rule.rule_id, reviewer_comment="seed-approve")
+    return {"rule_id": rule.rule_id, "count": 1}
+
 
 
 def test_search_merges_three_asset_types(tmp_path):
@@ -9,10 +33,7 @@ def test_search_merges_three_asset_types(tmp_path):
     store.store_artifact("team-x", "纪要-0815", "发布计划 确定 8 月 15 日上线 市场部负责宣传物料")
     store.propose_template("team-x", "发布计划模板", "标题\n要点\n待办\n决定\n行动项\n责任人与日期安排")
     extractor = ExperienceExtractor(str(tmp_path))
-    evo_result = SkillEvolution(extractor).evolve_from_feedback(
-        "p1", "minutes", "会议讨论发布计划。", "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", ["责任人", "行动项"],
-        team_id="team-x",
-    )
+    evo_result = _seed_rule(extractor, keywords=["责任人", "行动项"], team_id="team-x")
     # v1.3.4: 手动批准规则
     if evo_result["rule_id"]:
         extractor.approve_rule(evo_result["rule_id"], reviewer_comment="test-approve")
@@ -43,17 +64,8 @@ def test_search_rules_respects_team_isolation(tmp_path):
     # （构建同 test_search_merges_three_asset_types 模式——两团队 evolve 后 search 过滤）
     store = AssetStore(str(tmp_path))
     extractor = ExperienceExtractor(str(tmp_path))
-    evo = SkillEvolution(extractor)
-    result_a = evo.evolve_from_feedback(
-        "p1", "minutes", "会议讨论发布计划。",
-        "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", ["责任人", "行动项"],
-        team_id="team-a",
-    )
-    result_b = evo.evolve_from_feedback(
-        "p2", "minutes", "会议讨论发布计划。",
-        "审核修改：遗漏行动项责任人，需要补充负责人与截止日期。", ["责任人", "行动项"],
-        team_id="team-b",
-    )
+    result_a = _seed_rule(extractor, keywords=["责任人", "行动项"], team_id="team-a")
+    result_b = _seed_rule(extractor, keywords=["责任人", "行动项"], team_id="team-b")
     # v1.3.4: 手动批准规则
     if result_a["rule_id"]:
         extractor.approve_rule(result_a["rule_id"], reviewer_comment="test-approve")

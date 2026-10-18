@@ -1,6 +1,5 @@
 """
 Program Registry REST API (program-pivot T1/T2/T3/T4/T5)
-Program Registry REST API (program-pivot T1–T6)
 
 GET    /api/programs                     列表（可按 status 过滤）
 POST   /api/programs                     创建程序包（manifest 校验）

@@ -57,33 +57,6 @@ def test_save_new_rule_enabled_writes(extractor, monkeypatch):
     assert extractor._load_rule(rule.rule_id) is not None
 
 
-def test_evolve_blocked_when_disabled(extractor, monkeypatch):
-    monkeypatch.setattr(app_config, "PROGRAM_PIVOT_DISABLE_RULE_WRITES", True)
-    rule = _rule()
-    extractor._save_rule(rule)  # 存量写入（测试夹具）
-    result = extractor.evolve_rule(rule.rule_id, "测试失败原因")
-    # 关停时不允许产生新进化规则
-    assert result is None
-
-
-def test_human_feedback_rules_zero_when_disabled(tmp_path, monkeypatch):
-    from human_feedback import HumanFeedbackManager
-
-    monkeypatch.setattr(app_config, "PROGRAM_PIVOT_DISABLE_RULE_WRITES", True)
-    extractor = ExperienceExtractor(incremental_dir=str(tmp_path / "exp"))
-    hf = HumanFeedbackManager(str(tmp_path), experience_extractor=extractor)
-    created = hf._convert_suggestions_to_rules(
-        {
-            "specific_suggestions": ["应该先跑测试再提交"],
-            "rating": "good",
-            "task_description": "任务",
-            "reviewer": "张三",
-            "task_id": "t1",
-        }
-    )
-    assert created == 0
-
-
 # ── M2 读侧注入 ──────────────────────────────────────
 
 
@@ -226,22 +199,3 @@ def test_relative_data_dir_normalized_to_backend(tmp_path):
     # 模拟 coordinator 默认 "data"：归一后应指向 backend/data（不存在 pack → miss）
     ctx = pi.build_program_context("任何任务", data_dir="data")
     assert ctx == ""  # backend/data/program_packs 为空 → miss，不崩
-
-
-def test_human_feedback_json_fallback_gated(tmp_path, monkeypatch):
-    """Minor②：_experience is None 的纯 JSON 回退路径同样关停。"""
-    from human_feedback import HumanFeedbackManager
-
-    monkeypatch.setattr(app_config, "PROGRAM_PIVOT_DISABLE_RULE_WRITES", True)
-    hf = HumanFeedbackManager(str(tmp_path), experience_extractor=None)
-    created = hf._convert_suggestions_to_rules(
-        {
-            "specific_suggestions": ["建议A"],
-            "rating": "good",
-            "task_description": "t",
-            "reviewer": "r",
-            "task_id": "t1",
-        }
-    )
-    assert created == 0
-    assert not (tmp_path / "experience" / "rules").exists()

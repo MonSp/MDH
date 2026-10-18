@@ -106,37 +106,6 @@ class TestMeetingFlowPath:
 class TestEvolutionPath:
     """规则创建→有效性追踪→自进化→联动更新"""
 
-    def test_rule_lifecycle_create_to_evolution(self, data_dir):
-        """规则从创建到自进化的完整生命周期"""
-        from experience_extractor import ExperienceExtractor, ExperienceRule
-
-        ext = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
-
-        # 创建规则
-        rule = ExperienceRule(
-            rule_id="evo-e2e-1", trigger_condition="task is frontend",
-            action="use React hooks", note="", source_task_id="t1",
-            source_task_type="frontend", rule_type="success_pattern",
-            status="approved", keywords=["react", "frontend"],
-            created_at="2026-08-22", effectiveness_score=0.8, usage_count=5, success_count=4,
-        )
-        ext._save_rule(rule)
-
-        # 检索
-        retrieved = ext.retrieve_relevant_rules("frontend", ["react"])
-        assert any(r.rule_id == "evo-e2e-1" for r in retrieved)
-
-        # 多次失败触发降级+进化
-        for _ in range(15):
-            ext.update_rule_effectiveness("evo-e2e-1", False)
-
-        loaded = ext._load_rule("evo-e2e-1")
-        assert loaded.status in ("evolved", "pending_review")
-
-        # 进化链追踪
-        chain = ext.get_evolution_chain("evo-e2e-1")
-        assert len(chain) >= 2
-
     def test_demotion_log_recorded(self, data_dir):
         """降级事件记录到日志"""
         from experience_extractor import ExperienceExtractor, ExperienceRule
@@ -157,24 +126,6 @@ class TestEvolutionPath:
         log = ext.get_demotion_log()
         assert len(log) >= 1
         assert log[0]["rule_id"] == "dem-e2e-1"
-
-    def test_evolution_log_recorded(self, data_dir):
-        """进化事件记录到日志"""
-        from experience_extractor import ExperienceExtractor, ExperienceRule
-
-        ext = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
-        rule = ExperienceRule(
-            rule_id="evo-log-1", trigger_condition="x", action="y", note="",
-            source_task_id="t1", source_task_type="t", rule_type="success_pattern",
-            status="approved", keywords=["a"], created_at="now",
-            effectiveness_score=0.2, usage_count=10, success_count=2,
-        )
-        ext._save_rule(rule)
-
-        ext.evolve_rule("evo-log-1")
-        log = ext.get_evolution_log()
-        assert len(log) >= 1
-        assert log[0]["original_rule_id"] == "evo-log-1"
 
 
 # ── 路径 3: 记忆路径 ──

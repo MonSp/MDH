@@ -321,63 +321,10 @@ def test_06_workflow_engine_create(tmp_path):
 # 7. ExperienceExtractor — extract rules from a mock meeting result
 # ══════════════════════════════════════════════════════════════════════
 
-def test_07_experience_extractor(tmp_path):
-    from experience_extractor import ExperienceExtractor
-
-    incremental_dir = str(tmp_path / "incremental")
-    extractor = ExperienceExtractor(incremental_dir=incremental_dir)
-
-    rules = extractor.extract_from_meeting(
-        project_id="proj-1",
-        task_description="实现登录页面",
-        discussion_results=[
-            {
-                "parsed_stance": "support",
-                "role": "assistant",
-                "content": "我建议采用JWT认证方案，结合Redis缓存session，"
-                           "这样既能保证安全性又能提升性能。使用bcrypt哈希密码存储。",
-            }
-        ],
-        review_result={
-            "reviewer_feedback": "建议增加rate limiting防止暴力破解",
-        },
-        execution_results=[],
-    )
-
-    # Should extract at least one rule
-    assert isinstance(rules, list)
-    if rules:
-        rule = rules[0]
-        assert hasattr(rule, 'rule_id')
-        assert hasattr(rule, 'trigger_condition')
-        assert hasattr(rule, 'action')
-        assert rule.status == 'pending_review'
-
 
 # ══════════════════════════════════════════════════════════════════════
 # 8. SkillEvolution — evolve from feedback
 # ══════════════════════════════════════════════════════════════════════
-
-def test_08_skill_evolution(tmp_path):
-    from experience_extractor import ExperienceExtractor
-    from skill_evolution import SkillEvolution
-
-    incremental_dir = str(tmp_path / "incremental")
-    extractor = ExperienceExtractor(incremental_dir=incremental_dir)
-    evolution = SkillEvolution(extractor=extractor)
-
-    result = evolution.evolve_from_feedback(
-        project_id="proj-1",
-        task_type="web-dev",
-        transcript="团队讨论了React vs Vue的选择",
-        feedback="应该优先考虑团队熟悉度和技术生态",
-        keywords=["react", "vue", "frontend"],
-        team_id="team-1",
-    )
-
-    assert result is not None
-    assert "ok" in result
-    assert "count" in result
 
 
 # ══════════════════════════════════════════════════════════════════════

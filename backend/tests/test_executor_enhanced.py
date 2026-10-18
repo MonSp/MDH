@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from collaboration.executor_agent import ExecutorAgent
-from experience_extractor import ExecutionLog, ExperienceExtractor, ExperienceRule
+from experience_extractor import ExperienceExtractor, ExperienceRule
 
 # ──────────────────── Fixtures ────────────────────
 
@@ -463,108 +463,6 @@ class TestExecuteWithIteration:
 
 
 # ──────────────────── 5. 经验沉淀 ────────────────────
-
-
-class TestExtractAndSaveExperience:
-    """验证经验沉淀调用"""
-
-    def test_save_success_experience(self, agent_with_experience, extractor):
-        """成功任务提取经验并提交审核"""
-        agent_with_experience._extract_and_save_experience(
-            task_description="构建登录页面",
-            task_type="web-dev",
-            success=True,
-            corrections=[],
-        )
-
-        pending = extractor.get_pending_rules()
-        # 成功日志中没有决策点和步骤，不会产生规则
-        # 但方法本身不会抛异常
-        assert isinstance(pending, list)
-
-    def test_save_failure_experience(self, agent_with_experience, extractor):
-        """失败任务提取经验并提交审核"""
-        corrections = [
-            {
-                "issue_type": "logic_error",
-                "detail": "循环条件错误",
-                "suggestion": "将 < 改为 <=",
-            }
-        ]
-        agent_with_experience._extract_and_save_experience(
-            task_description="计算斐波那契数列",
-            task_type="algorithm",
-            success=False,
-            corrections=corrections,
-        )
-
-        pending = extractor.get_pending_rules()
-        assert isinstance(pending, list)
-
-    def test_save_without_extractor(self, agent_basic):
-        """无 experience_extractor 时安全跳过"""
-        # 不应抛异常
-        agent_basic._extract_and_save_experience(
-            task_description="test",
-            task_type="test",
-            success=True,
-            corrections=[],
-        )
-
-    def test_experience_submitted_for_review(self, tmp_incremental_dir, extractor):
-        """验证经验规则被提交审核（含决策点的场景）"""
-        agent = ExecutorAgent(
-            name="review-test",
-            incremental_path=tmp_incremental_dir,
-            experience_extractor=extractor,
-        )
-
-        # 使用带决策点的成功日志
-        log = ExecutionLog(
-            task_id="task-review",
-            agent_id="review-test",
-            task_description="构建页面",
-            task_type="web-dev",
-            status="success",
-            steps=[
-                {
-                    "command": "select",
-                    "action": "select css approach",
-                    "is_decision": True,
-                    "selected_option": "css selector",
-                    "reason": "更稳定",
-                },
-            ],
-            errors=[],
-            corrections=[],
-            final_output="成功",
-            created_at="2026-01-01T00:00:00",
-        )
-        rules = extractor.extract_from_success(log)
-        assert len(rules) > 0
-
-        for rule in rules:
-            extractor.submit_for_review(rule)
-
-        pending = extractor.get_pending_rules()
-        assert len(pending) >= 1
-
-    def test_extract_and_save_handles_exception(self, tmp_incremental_dir):
-        """经验沉淀过程异常时安全处理"""
-        mock_extractor = MagicMock()
-        mock_extractor.extract_from_success.side_effect = RuntimeError("boom")
-        agent = ExecutorAgent(
-            name="error-agent",
-            incremental_path=tmp_incremental_dir,
-            experience_extractor=mock_extractor,
-        )
-        # 不应抛异常
-        agent._extract_and_save_experience(
-            task_description="test",
-            task_type="test",
-            success=True,
-            corrections=[],
-        )
 
 
 # ──────────────────── 6. 辅助方法 ────────────────────

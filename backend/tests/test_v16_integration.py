@@ -158,34 +158,3 @@ class TestTenantIntegration:
 
 class TestEvolutionChainIntegration:
     """进化链集成：创建→有效性→自进化→联动"""
-
-    def test_rule_evolution_end_to_end(self, data_dir):
-        """规则从创建到进化的端到端流程"""
-        from experience_extractor import ExperienceExtractor, ExperienceRule
-
-        ext = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
-
-        # 创建规则
-        rule = ExperienceRule(
-            rule_id="e2e-1", trigger_condition="frontend task", action="use React hooks",
-            note="", source_task_id="t1", source_task_type="frontend",
-            rule_type="success_pattern", status="approved",
-            keywords=["react", "frontend"], created_at="now",
-            effectiveness_score=0.8, usage_count=5, success_count=4,
-        )
-        ext._save_rule(rule)
-
-        # 检索
-        retrieved = ext.retrieve_relevant_rules("frontend", ["react"])
-        assert any(r.rule_id == "e2e-1" for r in retrieved)
-
-        # 多次失败触发进化
-        for _ in range(15):
-            ext.update_rule_effectiveness("e2e-1", False)
-
-        loaded = ext._load_rule("e2e-1")
-        assert loaded.status in ("evolved", "pending_review")
-
-        # 进化链追踪
-        chain = ext.get_evolution_chain("e2e-1")
-        assert len(chain) >= 2
