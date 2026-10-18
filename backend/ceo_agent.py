@@ -249,7 +249,9 @@ class CeoAgent:
 
         # 0. 三分法路由（program-pivot T6/T11）：program 路径优先于 simple/complex
         if self._program_route_fn is not None:
-            # T11: 已有工作区时把路径带入载荷（无则 None，由 io_schema 决定是否回退）
+            # T11: 仅注入**已有**工作区（复杂路径 HITL 确认后才创建）。
+            # 首任务无 workspace → 产出文件型程序 WORKSPACE_REQUIRED 回退 LLM
+            # （LLM 路径会建工作区；后续相似任务可命中 program 路径）——宁重勿轻。
             _ws = getattr(self._workspace, "root_path", None) or None
             outcome = await self._program_route_fn(
                 content,

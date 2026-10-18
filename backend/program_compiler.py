@@ -84,12 +84,18 @@ class GeneratedProgram(BaseModel):
     @field_validator("io_schema")
     @classmethod
     def _check_io_schema(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """T11: 校验 io_schema 形状；task 必标 required。"""
+        """T11: 校验 io_schema 形状。
+
+        - `inputs` 键存在时必须是 mapping，且**必须**含 `task` 且
+          `required: true`（缺失 task 也拒绝——不能静默放过）。
+        - 每个输入字段必须带 `type`。
+        - 空 io_schema `{}` 或无 `inputs` 键：允许（纯策略型/向后兼容）。
+        """
         if not v:
             return v
+        if "inputs" not in v:
+            return v  # 仅 outputs 描述等，无 inputs 声明
         inputs = v.get("inputs")
-        if inputs is None:
-            return v
         if not isinstance(inputs, dict):
             raise ValueError("io_schema.inputs must be a mapping")
         for name, spec in inputs.items():
@@ -98,7 +104,9 @@ class GeneratedProgram(BaseModel):
                     f"io_schema.inputs.{name} must be a mapping with type"
                 )
         task_spec = inputs.get("task")
-        if isinstance(task_spec, dict) and not task_spec.get("required", False):
+        if not isinstance(task_spec, dict):
+            raise ValueError("io_schema.inputs must declare task field")
+        if not task_spec.get("required", False):
             raise ValueError("io_schema.inputs.task must declare required: true")
         return v
 

@@ -203,7 +203,7 @@ T8 A/B 实测缺口：`run()` 仅收到 `{"task": content}`，产出文件型任
 }
 ```
 
-- `workspace_path` 由宿主（CeoAgent→router）在已有工作区时注入；程序**禁止**自造路径、禁止写 workspace 之外的目录。无工作区时值为 `null`（不得省略键——程序用 `data.get("workspace_path")` 判定）。
+- `workspace_path` 由宿主（CeoAgent→router）在**已有**工作区时注入（复杂路径 HITL 确认后才有）；程序**禁止**自造路径、禁止写 workspace 之外的目录。无工作区时值为 `null`（不得省略键——程序用 `data.get("workspace_path")` 判定）。**首任务无 workspace 是常态**：产出文件型程序走 `WORKSPACE_REQUIRED` 回退 LLM（LLM 路径创建工作区），后续相似任务在会话内可命中 program 路径——宁重勿轻，不在 program 路径上静默自动建工作区（绕过 HITL）。
 - 子进程 `cwd` 仍为程序包目录（隔离不变）；文件写入经绝对路径 `workspace_path` 完成。
 - `input` 覆盖/合并策略：调用方显式 `input_data` 优先作为 `input` 字段；默认路径不覆盖 `task`/`workspace_path` 保留键。
 

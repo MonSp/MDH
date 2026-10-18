@@ -131,19 +131,13 @@ def _run(coro):
 
 
 def test_build_execution_payload_defaults():
-    reg_manifest = ProgramManifest(
-        program_id="p", version="1.0.0", trigger=ProgramTrigger()
-    )
-    p = build_execution_payload("任务A", reg_manifest)
+    p = build_execution_payload("任务A")
     assert p == {"task": "任务A", "workspace_path": None}
 
 
 def test_build_execution_payload_input_and_workspace():
-    m = ProgramManifest(
-        program_id="p", version="1.0.0", trigger=ProgramTrigger()
-    )
     p = build_execution_payload(
-        "任务B", m, workspace_path="/tmp/ws", input_data={"k": 1}
+        "任务B", workspace_path="/tmp/ws", input_data={"k": 1}
     )
     assert p["task"] == "任务B"
     assert p["workspace_path"] == "/tmp/ws"
@@ -151,12 +145,8 @@ def test_build_execution_payload_input_and_workspace():
 
 
 def test_build_payload_input_cannot_override_reserved_keys():
-    m = ProgramManifest(
-        program_id="p", version="1.0.0", trigger=ProgramTrigger()
-    )
     p = build_execution_payload(
         "任务C",
-        m,
         workspace_path="/tmp/ws",
         input_data={"task": "HACK", "workspace_path": "/evil"},
     )
@@ -322,6 +312,35 @@ def test_generated_program_rejects_task_not_required():
         assert "task" in str(e)
 
 
+def test_generated_program_rejects_inputs_without_task():
+    """inputs 键存在但缺 task → 拒绝（CRITICAL 回归）。"""
+    bad = {
+        "program_id": "no_task",
+        "main_py": "def run(data):\n    return data\n",
+        "test_py": "def test_x():\n    assert True\n",
+        "io_schema": {
+            "inputs": {"foo": {"type": "string", "required": True}}
+        },
+    }
+    try:
+        GeneratedProgram.model_validate(bad)
+        raise AssertionError("expected ValidationError")
+    except ValueError as e:
+        assert "task" in str(e)
+
+
+def test_generated_program_allows_empty_or_outputs_only():
+    """空 io_schema / 仅 outputs：允许（纯策略型向后兼容）。"""
+    for schema in ({}, {"outputs": {"description": "x"}}):
+        ok = {
+            "program_id": "legacy_ok",
+            "main_py": "def run(data):\n    return data\n",
+            "test_py": "def test_x():\n    assert True\n",
+            "io_schema": schema,
+        }
+        GeneratedProgram.model_validate(ok)
+
+
 def test_generated_program_rejects_input_without_type():
     bad = {
         "program_id": "bad2",
@@ -399,7 +418,6 @@ def test_compile_rejects_invalid_io_schema(tmp_path):
 def test_server_program_route_passes_workspace(tmp_path, monkeypatch):
     """server._program_route_fn 把 context.workspace_path 透传到 try_program_path。"""
     import server
-    from routers import programs as programs_router
 
     reg = _seed(
         tmp_path,
@@ -409,7 +427,6 @@ def test_server_program_route_passes_workspace(tmp_path, monkeypatch):
         io_schema=_WS_SCHEMA,
         keywords=["写文件"],
     )
-    monkeypatch.setattr(programs_router, "_registry", reg)
     monkeypatch.setattr(server, "_program_registry", reg)
 
     ws = tmp_path / "server_ws"

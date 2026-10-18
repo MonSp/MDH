@@ -42,7 +42,6 @@ class ProgramPathOutcome:
 
 def build_execution_payload(
     content: str,
-    manifest: ProgramManifest,
     *,
     workspace_path: str | None = None,
     input_data: Any = None,
@@ -50,7 +49,8 @@ def build_execution_payload(
     """按 spec 载荷契约组装 stdin JSON（T11）。
 
     保留键 `task`/`workspace_path` 不被 input_data 覆盖；input_data 放入
-    `input` 子字段（None 时省略，保持向后兼容的扁平读取习惯）。
+    `input` 子字段（None 时省略）。载荷形状与 io_schema 解耦——schema
+    只用于 required 判定（workspace_required），不改变键布局。
     """
     payload: dict[str, Any] = {
         "task": content,
@@ -109,7 +109,6 @@ async def try_program_path(
 
     payload = build_execution_payload(
         content,
-        chosen,
         workspace_path=workspace_path,
         input_data=input_data,
     )
