@@ -36,6 +36,23 @@ logger = logging.getLogger(__name__)
 # 异步生成器签名：prompt -> LLM 原始文本
 GenerateFn = Callable[[str], Awaitable[str]]
 
+# T12.2 落盘型启发式：轨迹或 main.py 出现任一特征 → 视为产出文件型
+_FILE_PRODUCING_HINTS = (
+    "写文件",
+    "创建文件",
+    "输出到文件",
+    "保存到",
+    "落盘",
+    "write_file",
+    "workspace_path",
+    "open(",
+    "os.path.join",
+    "files_written",
+    "Dockerfile",
+    "生成组件",
+    "编写测试文件",
+)
+
 
 class GenerationError(Exception):
     """LLM 输出无法解析为合法程序草稿。"""
@@ -129,6 +146,49 @@ class GeneratedProgram(BaseModel):
         return v
 
 
+def is_file_producing(
+    trajectory: TaskTrajectory | None = None, main_py: str = ""
+) -> bool:
+    """T12.2：启发式判断轨迹/程序是否产出文件（需 workspace_path）。"""
+    chunks: list[str] = []
+    if trajectory is not None:
+        chunks.append(trajectory.task_description or "")
+        chunks.extend(trajectory.steps or [])
+        if trajectory.output_example is not None:
+            chunks.append(
+                json.dumps(trajectory.output_example, ensure_ascii=False, default=str)
+            )
+    if main_py:
+        chunks.append(main_py)
+    text = "\n".join(chunks).lower()
+    return any(h.lower() in text for h in _FILE_PRODUCING_HINTS)
+
+
+def ensure_workspace_required(io_schema: dict[str, Any]) -> dict[str, Any]:
+    """落盘型程序强制 io_schema.inputs.workspace_path.required=true（T12.2）。"""
+    schema = dict(io_schema or {})
+    inputs = dict(schema.get("inputs") or {})
+    if not isinstance(inputs.get("task"), dict):
+        inputs["task"] = {"type": "string", "required": True}
+    else:
+        task = dict(inputs["task"])
+        task["required"] = True
+        inputs["task"] = task
+    ws = inputs.get("workspace_path")
+    if isinstance(ws, dict):
+        ws = dict(ws)
+        ws["required"] = True
+        ws.setdefault("type", "string")
+    else:
+        ws = {"type": "string", "required": True}
+    inputs["workspace_path"] = ws
+    schema["inputs"] = inputs
+    outputs = schema.get("outputs")
+    if not isinstance(outputs, dict):
+        schema["outputs"] = {"description": "files written under workspace_path"}
+    return schema
+
+
 class ProgramCompiler:
     """轨迹 → candidate 程序包草稿。"""
 
@@ -141,8 +201,21 @@ class ProgramCompiler:
         steps_text = "\n".join(
             f"{i + 1}. {s[:500]}" for i, s in enumerate(trajectory.steps[:30])
         ) or "（无分步记录）"
+        file_hint = is_file_producing(trajectory)
+        ws_schema_example = (
+            '"workspace_path": {"type": "string", "required": true}'
+            if file_hint
+            else '"workspace_path": {"type": "string", "required": false}'
+        )
+        file_note = (
+            "\n**本轨迹为落盘型**：io_schema.inputs.workspace_path 必须 "
+            "required=true；main_py 必须把文件写到 data[\"workspace_path\"] 下。\n"
+            if file_hint
+            else ""
+        )
         return f"""你是一位程序合成专家。请把下面一次**成功**的任务执行轨迹，
 固化为一个可复用的确定性 Python 程序包（candidate 草稿）。
+{file_note}
 
 ## 任务描述
 {desc}
@@ -183,7 +256,7 @@ class ProgramCompiler:
   "io_schema": {{
     "inputs": {{
       "task": {{"type": "string", "required": true}},
-      "workspace_path": {{"type": "string", "required": false}}
+      {ws_schema_example}
     }},
     "outputs": {{"description": "输出形状"}}
   }},
@@ -224,12 +297,24 @@ class ProgramCompiler:
         raw = await generate(self.build_prompt(trajectory))
         draft = self.parse_response(raw)
 
+        # T12.2: 落盘型自动补写 workspace_path.required（防 LLM 漏声明）
+        io_schema = draft.io_schema or {}
+        if is_file_producing(trajectory, draft.main_py):
+            before = json.dumps(io_schema, sort_keys=True, ensure_ascii=False)
+            io_schema = ensure_workspace_required(io_schema)
+            after = json.dumps(io_schema, sort_keys=True, ensure_ascii=False)
+            if before != after:
+                logger.info(
+                    "T12.2 auto-set workspace_path.required for %s",
+                    draft.program_id,
+                )
+
         manifest = ProgramManifest(
             program_id=draft.program_id,
             version=draft.version,
             description=draft.description,
             trigger=ProgramTrigger(keywords=draft.trigger_keywords),
-            io_schema=draft.io_schema or {},
+            io_schema=io_schema,
         )
         # registry.create 内部校验重复/状态机，重复 id 抛 FileExistsError
         created = self._registry.create(manifest)

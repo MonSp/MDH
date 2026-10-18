@@ -1,9 +1,9 @@
 ---
 feature: program-pivot
-status: delivered
+status: in-progress
 updated: 2026-10-18
-branch: feature/program-io-schema
-commits: aa4e457..cc58fd0 # T1–T11 全部交付
+branch: feature/program-t12-supply
+commits: 8e2a9c7.. # T1–T11 delivered；T12 in-progress
 ---
 
 # 产品转型：经验固化为可执行程序（Program Pivot）
@@ -265,6 +265,21 @@ io_schema:
 - registry 匹配异常 → 按未命中处理（宁重勿轻，走 LLM 路径）。
 - 沉淀（compile）错误码：`INVALID_TRAJECTORY`（非成功轨迹/空描述）、`NO_GENERATOR`（无注入生成器且无 api_key）、`GENERATION_FAILED`（LLM 输出非合法程序草稿）、`ALREADY_EXISTS`（program_id 撞名）、`COMPILE_FAILED`（兜底，含写盘失败——已回滚 registry 登记不留半成品）。
 
+### T12 程序供给 + 同会话二命交付（2026-10-18 增补）
+
+T8/T11 实测：机制通但 `path_used=program` 交付为 0——根因是**程序供给不足**（registry 近空）与**落盘型任务需已有 workspace**。T12 只做硬证据闭环，不做跨会话 workspace / 多轮 R 系列 / auto-create HITL 绕过。
+
+| 子任务 | 设计要点 |
+|---|---|
+| T12.2 io_schema 生成质量 | 落盘型启发式（轨迹/步骤/`main.py` 含写文件特征）→ prompt 强制 `workspace_path.required=true`；compile 后若启发式为落盘型但 schema 未声明 required → **自动补写** `required=true` 再写 manifest（防 LLM 漏声明）；门禁测试仍用 `tmp_path` |
+| T12.1 沉淀接线 | simple/complex **成功**且有成功轨迹时 best-effort 调 `ProgramCompiler.compile`（失败只日志，不阻塞任务）；无 generator/api_key 静默跳过 |
+| T12.3 同会话 workspace | 复用本会话已确认的 `self._workspace.root_path`（T11 已传）；无则仍 `WORKSPACE_REQUIRED` |
+| T12.4 E2E harness | 同会话：任务 A LLM 建 ws → 任务 B 应命中 program；产出 `path_used`/`files_written`/fallback 码证据 JSON |
+| T12.5 可观测 | `WORKSPACE_REQUIRED` 等非 NO_MATCH 回退给可感知提示（对齐 T6） |
+| T12.6 验证收官 | 全量 pytest/ruff + spec 勾选 |
+
+**DoD**：存在可复跑证据——第二次相似任务 `path_used=program` 且 workspace 内有文件；否则如实记录卡点码。
+
 ### 测试边界
 
 - 单测：registry 匹配与新鲜度、executor 结构化输出、promotion_gate 晋升/回滚/血缘、evolver 改测试的标记逻辑。
@@ -293,3 +308,9 @@ io_schema:
 - [x] T9: 前端 ProgramRegistry 面板（版本/血缘/晋升历史，替换经验规则写入口） — acceptance: 面板展示程序包列表与 lineage；经验规则面板无写操作（covers: S2 迁移路径 M3； depends: T4）
 - [x] T10: 迁移收尾 M4：删除规则写入/自进化/联动进化/共享池写路径与调度 — acceptance: 相关写路径代码与调度移除，全量 pytest/vitest/ruff/eslint 绿（covers: S2 迁移路径 M4； depends: T5, T7, T9）
 - [x] T11: io_schema/workspace 载荷契约补齐 — acceptance: 路由命中的程序收到 `{task, workspace_path, input}` 载荷；`io_schema.inputs.workspace_path.required=true` 且无工作区时 `fallback_reason=WORKSPACE_REQUIRED`；编译器生成并校验 io_schema 写入 manifest；审阅期望含 workspace 上下文；单测覆盖映射/回退/编译校验（covers: S2 程序包契约·执行载荷、三分法路由； depends: T2, T3, T6）
+- [ ] T12.2: 编译器 io_schema 落盘型质量门 — acceptance: 落盘启发式触发时 manifest.io_schema.inputs.workspace_path.required=true；漏声明被自动补写或拒绝；prompt 含强制文案；单测覆盖（covers: S2 T12 程序供给； depends: T11）
+- [ ] T12.1: 成功任务沉淀接线（compile 钩子） — acceptance: 成功路径 best-effort 调 compile；失败不阻塞；无 generator 跳过；单测/集成覆盖（covers: S2 架构总览·沉淀钩子、T12； depends: T12.2）
+- [ ] T12.3: 同会话 workspace 复用 — acceptance: 本会话已有 workspace 时 program 载荷带同一路径；文件写入该目录（covers: S2 T12； depends: T11）
+- [ ] T12.4: 同会话二命 E2E harness — acceptance: 证据 JSON 含 path_used=program + files_written 或明确 fallback 码（covers: S2 T12 DoD； depends: T12.1, T12.3）
+- [ ] T12.5: WORKSPACE_REQUIRED 等回退可观测 — acceptance: 非 NO_MATCH 回退有可感知提示/日志（covers: S2 T12； depends: T11）
+- [ ] T12.6: T12 验证与 spec 收官 — acceptance: 相关套件+全量绿；spec 勾选 T12.*（covers: S2 T12； depends: T12.1–T12.5）
