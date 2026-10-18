@@ -1168,6 +1168,48 @@ async def _program_route_fn(content: str, context: dict):
 
 # WSContext 先于 registry 初始化构建，此处补接三分法路由（T6）
 _ws_ctx.program_route_fn = _program_route_fn
+
+
+async def _program_sediment_fn(content: str, context: dict):
+    """T12.1：成功任务 best-effort 沉淀。
+
+    生成器：programs_router 注入的 override 优先（测试）；否则会话 api_key
+    走 llm_generate_fn；无 key → NO_GENERATOR（跳过，不阻塞）。
+    """
+    from program_sediment import sediment_successful_task
+    import routers.programs as _programs_router
+
+    generate = getattr(_programs_router, "_generate_override", None)
+    if generate is None:
+        api_key = (context or {}).get("api_key") or ""
+        if not api_key:
+            return {"compiled": False, "skipped": "NO_GENERATOR"}
+        provider = (context or {}).get("provider") or "deepseek"
+        base_url = (context or {}).get("base_url") or ""
+        model_name = (context or {}).get("model_name") or ""
+
+        async def generate(prompt: str) -> str:
+            from program_compiler import llm_generate_fn as _llm_gen
+
+            return await _llm_gen(
+                prompt,
+                provider=provider,
+                api_key=api_key,
+                base_url=base_url,
+                model_name=model_name,
+            )
+
+    return await sediment_successful_task(
+        content,
+        registry=_program_registry,
+        generate=generate,
+        steps=(context or {}).get("steps"),
+        input_example=(context or {}).get("input_example"),
+        output_example=(context or {}).get("output_example"),
+    )
+
+
+_ws_ctx.program_sediment_fn = _program_sediment_fn
 # program-pivot M2：任务前注入优先 registry 命中
 try:
     state_sync._data_dir = _DATA_DIR
