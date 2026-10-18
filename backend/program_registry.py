@@ -47,7 +47,8 @@ class ProgramKind(str, Enum):
 
 ALLOWED_TRANSITIONS: dict[ProgramStatus, set[ProgramStatus]] = {
     ProgramStatus.CANDIDATE: {ProgramStatus.PROMOTED, ProgramStatus.DEPRECATED},
-    ProgramStatus.PROMOTED: {ProgramStatus.DEPRECATED},
+    # promoted → candidate 为 revise（升级闭环：evolver 修订后重新过门禁）
+    ProgramStatus.PROMOTED: {ProgramStatus.DEPRECATED, ProgramStatus.CANDIDATE},
     ProgramStatus.DEPRECATED: set(),
 }
 
@@ -78,6 +79,9 @@ class ProgramManifest(BaseModel):
         None, description="最近一次通过评测的 ISO-8601 UTC 时间"
     )
     tests_path: str = Field("tests", description="包内验收测试目录相对路径")
+    consecutive_gate_failures: int = Field(
+        0, description="升级闭环连续门禁失败计数（≥3 自动降级 deprecated）"
+    )
 
     @field_validator("program_id")
     @classmethod
@@ -286,22 +290,120 @@ class ProgramRegistry:
             return updated
 
     def promote(
-        self, program_id: str, validated_model: str | None = None
+        self,
+        program_id: str,
+        validated_model: str | None = None,
+        event: str = "promote",
     ) -> ProgramManifest:
         """candidate -> promoted（由 T4 promotion_gate 调用）。
 
         validated_model 非空时在同一锁内完成验证记录（promote+validate
         原子，避免中途 deprecate 造成事件错挂）。
+        event="rollback" 用于升级闭环门禁失败后恢复上一版（审计可区分）。
         """
         with self._lock:
             updated = self._transition(
-                program_id, ProgramStatus.PROMOTED, "promote"
+                program_id, ProgramStatus.PROMOTED, event
             )
             if validated_model:
                 updated = self._record_validation_locked(
                     program_id, model=validated_model
                 )
             return updated
+
+    def revise(
+        self, program_id: str, new_version: str | None = None
+    ) -> ProgramManifest:
+        """promoted -> candidate（升级闭环：evolver 修订前翻回候选）。
+
+        修订期间路由不命中（match 仅 promoted）→ 任务自动回退 LLM 路径。
+        """
+        with self._lock:
+            manifest = self._read_manifest(program_id)
+            if manifest is None:
+                raise FileNotFoundError(f"program not found: {program_id}")
+            updates: dict[str, Any] = {"status": ProgramStatus.CANDIDATE}
+            if new_version:
+                updates["version"] = new_version
+            allowed = ALLOWED_TRANSITIONS[manifest.status]
+            if ProgramStatus.CANDIDATE not in allowed:
+                raise ValueError(
+                    f"invalid revise {manifest.status.value} -> candidate "
+                    f"for {program_id}"
+                )
+            updated = manifest.model_copy(update=updates)
+            self._write_manifest(updated)
+            self._append_lineage(
+                program_id,
+                {
+                    "event": "revised",
+                    "version": updated.version,
+                    "from": manifest.status.value,
+                    "to": ProgramStatus.CANDIDATE.value,
+                    "at": _utc_now(),
+                },
+            )
+            return updated
+
+    def record_gate_failure(self, program_id: str) -> int:
+        """升级闭环门禁失败：consecutive_gate_failures +1，返回新计数。"""
+        with self._lock:
+            manifest = self._read_manifest(program_id)
+            if manifest is None:
+                raise FileNotFoundError(f"program not found: {program_id}")
+            count = manifest.consecutive_gate_failures + 1
+            updated = manifest.model_copy(
+                update={"consecutive_gate_failures": count}
+            )
+            self._write_manifest(updated)
+            self._append_lineage(
+                program_id,
+                {
+                    "event": "gate_failure_counted",
+                    "count": count,
+                    "at": _utc_now(),
+                },
+            )
+            return count
+
+    def reset_gate_failures(self, program_id: str) -> None:
+        """门禁通过后清零连续失败计数。"""
+        with self._lock:
+            manifest = self._read_manifest(program_id)
+            if manifest is None:
+                raise FileNotFoundError(f"program not found: {program_id}")
+            if manifest.consecutive_gate_failures == 0:
+                return
+            updated = manifest.model_copy(
+                update={"consecutive_gate_failures": 0}
+            )
+            self._write_manifest(updated)
+            self._append_lineage(
+                program_id,
+                {
+                    "event": "gate_failure_count_reset",
+                    "at": _utc_now(),
+                },
+            )
+
+    def restore_version(self, program_id: str, version: str) -> None:
+        """升级回滚时把 version 还原到修订前值（与快照文件保持一致）。"""
+        with self._lock:
+            manifest = self._read_manifest(program_id)
+            if manifest is None:
+                raise FileNotFoundError(f"program not found: {program_id}")
+            if manifest.version == version:
+                return
+            updated = manifest.model_copy(update={"version": version})
+            self._write_manifest(updated)
+            self._append_lineage(
+                program_id,
+                {
+                    "event": "version_restored",
+                    "version": version,
+                    "at": _utc_now(),
+                },
+            )
 
     def deprecate(self, program_id: str) -> ProgramManifest:
         """candidate|promoted -> deprecated。"""
