@@ -3,6 +3,7 @@ feature: program-pivot
 status: in-progress
 updated: 2026-10-15
 branch: feature/program-migrate
+commits: 8aa1e91..2481105 # T8 已交付（叠 T7/合并栈）；T9–T10 进行中
 commits: 29e0322..7362c25 # T7 已交付（合并 T3+T6 栈后）；T8–T10 进行中
 branch: feature/program-route
 commits: 3e07bd1..c2f0618 # T6 已交付（叠在 T5 分支上）；T7–T10 进行中
@@ -101,6 +102,17 @@ commits: b4a1ffe..ef2a8f7 # T3 已交付；T1/T2 已随 #20 合入 main；T4–T
 1. 注入点位于 LLM 路径（T6 未采用时才走到）——注入文案必须是"参考"而非"复用指令"，否则对回退任务是误导；"命中"≠"将走程序路径"。
 2. 关停类开关默认 False（测试直连）+ server 启动翻 True（生产）——比默认 True 破2000+ 存量测试更稳；env=0 回退保命。
 3. 组件默认相对路径（`data_dir="data"`）在被注入新依赖时风险放大——归一化应放在使用方而非各调用点。
+
+### T8 交付（2026-10-17，8aa1e91..2481105）
+
+**What was built** — `research/program-pivot-ab/`：五任务双臂 A/B harness（`ws_driver.py` 参数化 `EVAL_WS_URL` + `run_ab.py` 自动 seed/双臂运行/对比聚合）+ 产物 `arm_llm.json`/`arm_program.json`/`compare.json` + 逐任务 summary/messages 证据 + README 结论。**实测**：LLM 臂 2/5、p50 37.7s/p95 45.5s、token 代理 266；程序臂 3/5、p50 24.3s/p95 50.9s、token 代理 263，E1/E5 程序命中 2 次——策略型程序输出未落盘，**LLM 审阅如实 fail→回退**（`path_used=program`=0，契约正确），印证 io_schema/workspace payload 缺口（产出文件的程序暂无法闭环）。**评测挖出并修复生产级 bug**：`llm_review_fn`/`llm_generate_fn` 误用旧 agentscope `agent.model`（自建 ChatAgent 无此属性）→ 实网审阅/编译必炸；改为直接 `create_agent().reply()`。server 端口 `MDH_PORT` 可配置（并行评测实例）。
+
+**Verification** — program 全套 109 passed；ruff PASS；实网双臂 10 任务全部完成（无 timeout/connection_error）；compare.json 双臂字段齐全（p50/p95/得分/路径/程序事件/token 代理）。
+
+**Journey log (T8)** —
+1. 单轮五任务方差大（E3 两臂成功翻转）——A/B 量化收益需多轮重复，单轮只做机制验证；README 已注明。
+2. 实网评测比单测更能挖出真 bug：生成器注入式单测全绿但实网必炸（`agent.model` 属性不存在）——LLM 组件需要至少一条实网冒烟。
+3. 评测驱动无返回值（只落盘）是既有约定——harness 回读 summary 文件而非依赖返回值。
 ### T2 交付（2026-10-15，随 PR #20 合入 main）
 
 **What was built** — `backend/program_executor.py`：asyncio 子进程沙箱（`python -I`、最小 env、cwd=包目录）、stdin/stdout JSON 契约、超时强杀 + 显式 reap、8 类结构化错误码；遥测恒定 `llm_calls=0` + `duration_ms` + `timed_out`；`POST /api/programs/{id}/execute`（成功/失败 telemetry 同在 `data`）。仅标准库依赖边界成文入契约。
@@ -245,6 +257,7 @@ program_packs/<program_id>/
 - [x] T5: ProgramReviewer + program_evolver 审阅升级闭环 — acceptance: fail 审阅意见触发修订候选并经 T4 门禁晋升；连续 3 次失败自动降级 deprecated（covers: S2 审阅—升级闭环、错误行为； depends: T2, T4）
 - [x] T6: 三分法路由接线（program/simple/complex + 失败降级） — acceptance: 评测任务命中 promoted 新鲜程序走免 LLM 路径且 task_result 标注 path_used="program"；未命中/失效回退 LLM 路径（covers: S2 三分法路由； depends: T2）
 - [x] T7: 沉淀与注入切换（写侧关规则、读侧切 registry）+ 任务前注入改造 — acceptance: 新任务 0 条新经验规则写入；注入请求走 registry；旧读路径保留（covers: S2 迁移路径 M1–M2； depends: T3, T6）
+- [x] T8: 程序路径 vs LLM 直调 A/B 评测基线（成本/延迟/质量） — acceptance: 五任务评测产出对照 JSON（p50/p95、token 账单、得分）并写入 research/（covers: S2 迁移路径替换对照； depends: T6）
 - [ ] T2: ProgramExecutor 免 LLM 沙箱执行 + 遥测 — acceptance: 对 promoted 程序包执行返回结构化结果与 telemetry（llm_calls=0、耗时），超时/异常按契约报错（covers: S2 程序包契约、错误行为； depends: T1）
 - [ ] T3: ProgramCompiler 沉淀管线（任务轨迹→候选程序包含自带测试） — acceptance: 成功任务后触发产生 candidate 程序包草稿，tests/ 非空且 manifest 完整（covers: S2 架构总览； depends: T1）
 - [x] T4: promotion_gate 测试门禁自动晋升 + lineage — acceptance: 测试通过自动 promoted 并写 lineage.json；失败回滚保留上一版；tests/ 变更被标记（covers: S2 审阅—升级闭环、防作弊； depends: T1）
