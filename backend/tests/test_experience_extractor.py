@@ -1079,16 +1079,5 @@ def test_retrieve_no_match_still_empty(extractor):
     assert all(r.rule_id != "irrelevant-1" for r in results)
 
 
-def test_llm_distill_rules_store_task_type_not_rule_type(extractor):
-    """llm_distill 规则的 source_task_type 必须是任务类型（可参与类型加分），不是 rule_type"""
-    raw = '[{"trigger_condition": "拍平时遇到嵌套数组", "action": "按索引展开并转字符串", "rule_type": "success_pattern", "keywords": ["数组"]}]'
-    desc = "写一个 Python 函数，把嵌套 JSON 拍平成 key.path=value 的字典"
-    rules = extractor._parse_llm_rules(raw, desc)
-    assert len(rules) == 1
-    expected_task_type = extractor._infer_task_type(desc)
-    assert rules[0].source_task_type == expected_task_type
-    assert rules[0].source_task_type != rules[0].rule_type  # rule_type=success_pattern
-
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

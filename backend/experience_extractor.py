@@ -4,7 +4,6 @@
 支持规则审核流程和基于关键词的检索。
 """
 
-import json as _json_stdlib
 import logging
 import os
 import re
@@ -258,10 +257,6 @@ class ExperienceExtractor:
     def dedup_keyword_threshold(self) -> float:
         return self._tp("experience.dedup_keyword_threshold", self.DEDUP_KEYWORD_THRESHOLD)
 
-    # 自动审批白名单：仅低风险规则类型可自动审批
-    AUTO_APPROVE_RULE_TYPES = frozenset({"success_pattern", "correction_tip"})
-    # 自动审批置信度阈值
-    AUTO_APPROVE_MIN_CONFIDENCE = 0.7
 
     @property
     def auto_approve_min_confidence(self) -> float:
@@ -363,60 +358,6 @@ class ExperienceExtractor:
                 pass
         return rule.rule_id
 
-    def _parse_llm_rules(self, raw: str, task_description: str = "") -> list[ExperienceRule]:
-        """Parse LLM JSON response into ExperienceRule objects.
-
-        Handles markdown code blocks and malformed JSON gracefully.
-        """
-        text = raw.strip()
-        # 剥离 markdown 代码块
-        if text.startswith("```"):
-            text = re.sub(r"^```(?:json)?\s*\n?", "", text)
-            text = re.sub(r"\n?```\s*$", "", text)
-            text = text.strip()
-
-        try:
-            items = _json_stdlib.loads(text)
-        except _json_stdlib.JSONDecodeError:
-            # 尝试提取第一个 JSON 数组
-            m = re.search(r"\[.*\]", text, re.DOTALL)
-            if not m:
-                logger.debug("LLM distillation: no JSON array found in response")
-                return []
-            try:
-                items = _json_stdlib.loads(m.group())
-            except _json_stdlib.JSONDecodeError:
-                logger.debug("LLM distillation: failed to parse JSON from response")
-                return []
-
-        if not isinstance(items, list):
-            return []
-
-        rules: list[ExperienceRule] = []
-        task_type = self._infer_task_type(task_description)
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            trigger = item.get("trigger_condition", "")
-            action = item.get("action", "")
-            if not trigger or not action:
-                continue
-            rules.append(
-                ExperienceRule(
-                    rule_id=_new_rule_id(),
-                    trigger_condition=str(trigger)[:300],
-                    action=str(action)[:300],
-                    note=str(item.get("note", ""))[:200],
-                    source_task_id="llm_distill",
-                    source_task_type=task_type,
-                    rule_type=str(item.get("rule_type", "success_pattern")),
-                    status="pending_review",
-                    keywords=item.get("keywords", []) if isinstance(item.get("keywords"), list) else [],
-                    created_at=_now_iso(),
-                    source_agent_id="llm_distill",
-                )
-            )
-        return rules
     def submit_for_review(self, rule: ExperienceRule) -> str:
         """提交规则审核（委托给 _save_new_rule）
 
