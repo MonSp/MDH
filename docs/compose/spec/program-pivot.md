@@ -2,6 +2,8 @@
 feature: program-pivot
 status: in-progress
 updated: 2026-10-15
+branch: feature/program-route
+commits: 3e07bd1..c2f0618 # T6 已交付（叠在 T5 分支上）；T7–T10 进行中
 branch: feature/program-review-loop
 commits: 9afe4c7..ed482bb # T5 已交付（叠在 T4 分支上）；T6–T10 进行中
 branch: feature/program-promotion-gate
@@ -57,6 +59,17 @@ commits: b4a1ffe..ef2a8f7 # T3 已交付；T1/T2 已随 #20 合入 main；T4–T
 1. 状态机扩展（promoted→candidate）让"修订期间路由停用"免费获得宁重勿轻的 LLM 回退——比显式维护"修订中"状态更简单。
 2. 快照回滚会污染门禁的 tests_modified 基线（比较对象是被换掉的新测试）——回滚后必须把恢复出的旧哈希重新写为基线，否则防作弊信号系统性误报。
 3. 版本递增这类"LLM 应当遵守"的约束必须在代码层强制校验+自动纠正，prompt 要求不可信（reviewer probe 实证）。
+
+### T6 交付（2026-10-16，3e07bd1..c2f0618，叠在 T5 分支）
+
+**What was built** — `program_router.py`：`try_program_path` 三分法的 program 支路——registry 命中（promoted+新鲜含模型校验+关键词）→ `ProgramExecutor` 免 LLM 执行 → `ProgramReviewer` 审阅 pass → `task_result(path_used="program")` **且 wire 上线发送**（前端复位依赖）；任何不确定（NO_MATCH/陈旧/执行异常/审阅 fail/审阅器不可用/match 或段级异常）→ `handled=False` fail-open 回退 LLM 路径（宁重勿轻），fail 意见随 outcome 带出（接 T5 升级闭环），非 NO_MATCH 回退给出降级提示。CeoAgent `process_message` 在复杂度判定**之前**优先尝试 program 路径（命中不触发 LLM 复杂度判定），`REVIEW_FAIL` 推送 `program_review_failed(issues)`。server `_program_route_fn` 按会话 `api_key` 构建审阅生成器、传 `model_name` 做新鲜度模型校验，经 `WSContext.program_route_fn` 注入两处 CeoAgent 构造。
+
+**Verification** — T6 套件 12 passed（命中 wire 断言/回退各码/陈旧/候选/Ceo 集成两路径/server 接线无 key/降级提示语义）；全量 2225 passed；ruff PASS。独立 review A1–A7 全 PASS；1 Major（命中结果未上线发送）+ 4 Minor 已修复，复核 **5/5 VERIFIED**。
+
+**Journey log (T6)** —
+1. 前端完成态只认 wire `task_result`——`process_message` 的返回值只被日志消费；命中路径必须显式 `send_message`，否则 UI 永不复位（reviewer 实测发现）。
+2. `_ws_ctx` 是先构建后补属性的单例：任何后置赋值必须位于 `_init_ws_ctx()` 之后（server 执行顺序敏感）。
+3. "回退"必须给用户可感知的降级提示（非 NO_MATCH 静默会让"为什么没走程序路径"不可观测），但 NO_MATCH 应静默——它是常态。
 ### T2 交付（2026-10-15，随 PR #20 合入 main）
 
 **What was built** — `backend/program_executor.py`：asyncio 子进程沙箱（`python -I`、最小 env、cwd=包目录）、stdin/stdout JSON 契约、超时强杀 + 显式 reap、8 类结构化错误码；遥测恒定 `llm_calls=0` + `duration_ms` + `timed_out`；`POST /api/programs/{id}/execute`（成功/失败 telemetry 同在 `data`）。仅标准库依赖边界成文入契约。
@@ -199,6 +212,7 @@ program_packs/<program_id>/
 - [ ] T3: ProgramCompiler 沉淀管线（任务轨迹→候选程序包含自带测试） — acceptance: 成功任务后触发产生 candidate 程序包草稿，tests/ 非空且 manifest 完整（covers: S2 架构总览； depends: T1）
 - [x] T4: promotion_gate 测试门禁自动晋升 + lineage — acceptance: 测试通过自动 promoted 并写 lineage.json；失败回滚保留上一版；tests/ 变更被标记（covers: S2 审阅—升级闭环、防作弊； depends: T1）
 - [x] T5: ProgramReviewer + program_evolver 审阅升级闭环 — acceptance: fail 审阅意见触发修订候选并经 T4 门禁晋升；连续 3 次失败自动降级 deprecated（covers: S2 审阅—升级闭环、错误行为； depends: T2, T4）
+- [x] T6: 三分法路由接线（program/simple/complex + 失败降级） — acceptance: 评测任务命中 promoted 新鲜程序走免 LLM 路径且 task_result 标注 path_used="program"；未命中/失效回退 LLM 路径（covers: S2 三分法路由； depends: T2）
 - [x] T2: ProgramExecutor 免 LLM 沙箱执行 + 遥测 — acceptance: 对 promoted 程序包执行返回结构化结果与 telemetry（llm_calls=0、耗时），超时/异常按契约报错（covers: S2 程序包契约、错误行为； depends: T1）
 - [x] T3: ProgramCompiler 沉淀管线（任务轨迹→候选程序包含自带测试） — acceptance: 成功任务后触发产生 candidate 程序包草稿，tests/ 非空且 manifest 完整（covers: S2 架构总览； depends: T1）
 - [ ] T4: promotion_gate 测试门禁自动晋升 + lineage — acceptance: 测试通过自动 promoted 并写 lineage.json；失败回滚保留上一版；tests/ 变更被标记（covers: S2 审阅—升级闭环、防作弊； depends: T1）

@@ -40,6 +40,7 @@ class WSContext:
     agent_pool: Any = None
     security_guard: Any = None
     key_manager: Any = None
+    program_route_fn: Callable = None  # 三分法路由 program 路径 (T6)
 
     # 辅助函数
     build_agenda_snapshot: Callable = None
@@ -151,6 +152,7 @@ async def handle_unified_message(msg, session, ctx):
             kernel_integration=ctx.kernel_integration,
             experience_extractor=ctx.experience_extractor,
             ab_tracker=ctx.ab_tracker,
+            program_route_fn=ctx.program_route_fn,
         )
 
     ceo = session._ceo_agent
@@ -317,6 +319,7 @@ async def handle_start_meeting(msg, session, ctx):
             kernel_integration=ctx.kernel_integration,
             experience_extractor=ctx.experience_extractor,
             ab_tracker=ctx.ab_tracker,
+            program_route_fn=ctx.program_route_fn,
         )
     session._ceo_agent._meeting_coordinator = coordinator
     session._ceo_agent._agenda = coordinator.agenda

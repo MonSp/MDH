@@ -144,6 +144,7 @@ class CeoAgent:
         kernel_integration=None,
         experience_extractor=None,
         ab_tracker=None,
+        program_route_fn=None,
     ):
         self._session = session
         self._kernel = kernel_integration
@@ -154,6 +155,9 @@ class CeoAgent:
         self._approval_manager = approval_manager
         self._experience_extractor = experience_extractor
         self._ab_tracker = ab_tracker
+        # 三分法路由（program-pivot T6）：命中 promoted 新鲜程序走免 LLM 路径；
+        # fn(content, context) -> ProgramPathOutcome（server 注入，None 则跳过）
+        self._program_route_fn = program_route_fn
         # 协调器创建回调：server 注入以更新 _active_coordinator，
         # 保证 CEO 对话（unified_message）路径创建的协调器可被共享引擎委托执行。
         self._on_coordinator_created = on_coordinator_created
@@ -242,6 +246,45 @@ class CeoAgent:
         """
         # CEO确认收到任务
         await self._emit(send_message, f"CEO：收到任务「{content[:50]}...」，正在分析意图。")
+
+        # 0. 三分法路由（program-pivot T6）：program 路径优先于 simple/complex
+        if self._program_route_fn is not None:
+            outcome = await self._program_route_fn(
+                content,
+                {
+                    "api_key": getattr(self._session, "api_key", "") or "",
+                    "provider": getattr(self._session, "provider", "") or "deepseek",
+                    "base_url": getattr(self._session, "base_url", "") or "",
+                    "model_name": getattr(self._session, "model_name", "") or "",
+                },
+            )
+            if outcome.handled:
+                await self._emit(
+                    send_message,
+                    f"CEO：命中成熟程序 {outcome.program_id}，本地执行并经审阅通过，免 LLM 交付。",
+                )
+                await send_message({"type": "path_selected", "path": "program"})
+                # 前端仅在收到 wire task_result 时复位完成态——必须上线发送
+                if outcome.task_result:
+                    await send_message(outcome.task_result)
+                return outcome.task_result
+            if outcome.fallback_reason == "REVIEW_FAIL":
+                # 意见并入升级闭环（T5）：结构化推送供后续自动/人工升级消费
+                await send_message({
+                    "type": "program_review_failed",
+                    "program_id": outcome.program_id,
+                    "issues": outcome.review_issues,
+                })
+                await self._emit(
+                    send_message,
+                    "CEO：程序结果未过审阅，回退 LLM 路径重新执行。",
+                )
+            elif outcome.fallback_reason and outcome.fallback_reason != "NO_MATCH":
+                # 执行类/审阅类失败统一提示降级（NO_MATCH 静默走正常判定）
+                await self._emit(
+                    send_message,
+                    f"CEO：程序路径未采用（{outcome.fallback_reason}），回退 LLM 路径。",
+                )
 
         # 1. 复杂度判定（kernel-first, LLM fallback）
         self._complexity_classifier._get_model = self._create_model
