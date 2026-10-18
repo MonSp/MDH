@@ -4,6 +4,8 @@ status: in-progress
 updated: 2026-10-15
 branch: feature/program-promotion-gate
 commits: b4a1ffe..fd736c6 # T4 已交付；T3 在 PR #21；T5–T10 进行中
+branch: feature/program-compiler
+commits: b4a1ffe..ef2a8f7 # T3 已交付；T1/T2 已随 #20 合入 main；T4–T10 进行中
 ---
 
 # 产品转型：经验固化为可执行程序（Program Pivot）
@@ -42,6 +44,23 @@ commits: b4a1ffe..fd736c6 # T4 已交付；T3 在 PR #21；T5–T10 进行中
 1. 门禁子进程不能用 `python -I`（需要 pytest/站点包），与 T2 执行器 `-I` 约定相反——隔离边界按场景取舍，需在代码注释写明。
 2. "读状态→await→写状态"的长窗口 TOCTOU 必须把竞态异常转为结构化错误，否则违反仓内 fail 惯例（reviewer 实测复现 500）。
 3. 生产镜像（Dockerfile）缺测试依赖会让"依赖 pytest 的运行时功能"静默全挂——此类门禁功能必须同步改镜像。
+### T2 交付（2026-10-15，随 PR #20 合入 main）
+
+**What was built** — `backend/program_executor.py`：asyncio 子进程沙箱（`python -I`、最小 env、cwd=包目录）、stdin/stdout JSON 契约、超时强杀 + 显式 reap、8 类结构化错误码；遥测恒定 `llm_calls=0` + `duration_ms` + `timed_out`；`POST /api/programs/{id}/execute`（成功/失败 telemetry 同在 `data`）。仅标准库依赖边界成文入契约。
+
+**Verification** — T2 套件 11 passed（成功/超时/崩溃/非法输出/超限/四守卫）；全量 2183 passed；ruff PASS。独立 review A1–A7 PASS、1 Major（失败响应双轨 telemetry）+ 3 Minor 已修复并复测。
+
+### T3 交付（2026-10-15，b4a1ffe..ef2a8f7）
+
+**What was built** — `backend/program_compiler.py`：`TaskTrajectory`（仅成功轨迹可沉淀）→ `build_prompt`（标准库/确定性/stdin-stdout 硬性要求 + desc/step/样例定界）→ `raw_decode` JSON 解析 + `GeneratedProgram` 强校验（program_id/`def run(`/非空/≤50KB）→ registry 登记 candidate + 原子写 `main.py` + `tests/test_generated.py`；**写盘失败经 `registry.delete()`（仅 candidate 可删）回滚，不留半成品**。`llm_generate_fn` 复用 skill_generator 同款 model_factory 编排（生成器可注入）。`POST /api/programs/compile`，错误码 `INVALID_TRAJECTORY/NO_GENERATOR/GENERATION_FAILED/ALREADY_EXISTS/COMPILE_FAILED`（已入 spec 错误行为枚举）。
+
+**Verification** — T3 套件 13 passed（含草稿被 T2 执行器真跑的自洽性、回滚、删除守卫、噪声 JSON、50KB 强校验）；program 全套 51+；全量 2196 passed；ruff PASS。独立 review A1–A7 全 PASS；1 Major（写盘半成品窗口）+ 3 Minor 已修复，复核 **4/4 VERIFIED**；复核尾项 2 Minor（回滚异常范围、50KB 强校验）亦已修复。
+
+**Journey log (T2–T3)** —
+1. `asyncio.Process.communicate()` 不接受 timeout kwarg——timeout 只能挂 `wait_for` 外层。
+2. 回滚/只读守卫类修复必须配回归测试进套件，复核者两次"实测复现"都指向缺测路径。
+3. 生成器注入（`(prompt) -> str`）让 LLM 组件的单测完全不碰网络，是后续 T5 Reviewer/Evolver 应沿用的模式。
+
 
 ## [S1] Problem
 
@@ -143,6 +162,7 @@ program_packs/<program_id>/
 - 程序执行超时/异常 → 记录 telemetry → 本次降级 LLM 路径 → 失败进入升级闭环（不阻塞用户任务）。
 - 晋升门禁异常（测试框架崩溃）→ fail-closed：不晋升，留 candidate（复用 gate_engine "工具缺失 fail-open / 真实失败 fail-closed" 的区分）。
 - registry 匹配异常 → 按未命中处理（宁重勿轻，走 LLM 路径）。
+- 沉淀（compile）错误码：`INVALID_TRAJECTORY`（非成功轨迹/空描述）、`NO_GENERATOR`（无注入生成器且无 api_key）、`GENERATION_FAILED`（LLM 输出非合法程序草稿）、`ALREADY_EXISTS`（program_id 撞名）、`COMPILE_FAILED`（兜底，含写盘失败——已回滚 registry 登记不留半成品）。
 
 ### 测试边界
 
@@ -165,6 +185,9 @@ program_packs/<program_id>/
 - [ ] T2: ProgramExecutor 免 LLM 沙箱执行 + 遥测 — acceptance: 对 promoted 程序包执行返回结构化结果与 telemetry（llm_calls=0、耗时），超时/异常按契约报错（covers: S2 程序包契约、错误行为； depends: T1）
 - [ ] T3: ProgramCompiler 沉淀管线（任务轨迹→候选程序包含自带测试） — acceptance: 成功任务后触发产生 candidate 程序包草稿，tests/ 非空且 manifest 完整（covers: S2 架构总览； depends: T1）
 - [x] T4: promotion_gate 测试门禁自动晋升 + lineage — acceptance: 测试通过自动 promoted 并写 lineage.json；失败回滚保留上一版；tests/ 变更被标记（covers: S2 审阅—升级闭环、防作弊； depends: T1）
+- [x] T2: ProgramExecutor 免 LLM 沙箱执行 + 遥测 — acceptance: 对 promoted 程序包执行返回结构化结果与 telemetry（llm_calls=0、耗时），超时/异常按契约报错（covers: S2 程序包契约、错误行为； depends: T1）
+- [x] T3: ProgramCompiler 沉淀管线（任务轨迹→候选程序包含自带测试） — acceptance: 成功任务后触发产生 candidate 程序包草稿，tests/ 非空且 manifest 完整（covers: S2 架构总览； depends: T1）
+- [ ] T4: promotion_gate 测试门禁自动晋升 + lineage — acceptance: 测试通过自动 promoted 并写 lineage.json；失败回滚保留上一版；tests/ 变更被标记（covers: S2 审阅—升级闭环、防作弊； depends: T1）
 - [ ] T5: ProgramReviewer + program_evolver 审阅升级闭环 — acceptance: fail 审阅意见触发修订候选并经 T4 门禁晋升；连续 3 次失败自动降级 deprecated（covers: S2 审阅—升级闭环、错误行为； depends: T2, T4）
 - [ ] T6: 三分法路由接线（program/simple/complex + 失败降级） — acceptance: 评测任务命中 promoted 新鲜程序走免 LLM 路径且 task_result 标注 path_used="program"；未命中/失效回退 LLM 路径（covers: S2 三分法路由； depends: T2）
 - [ ] T7: 沉淀与注入切换（写侧关规则、读侧切 registry）+ 任务前注入改造 — acceptance: 新任务 0 条新经验规则写入；注入请求走 registry；旧读路径保留（covers: S2 迁移路径 M1–M2； depends: T3, T6）
