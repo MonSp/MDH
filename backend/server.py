@@ -497,6 +497,19 @@ async def _start_background_tasks():
     """后台定时任务：A2A 健康检查 + 主动式监控 + kernel 连接"""
     import asyncio
 
+    # program-pivot M1：生产默认关闭经验规则新增写入（可 env 回退）
+    try:
+        import config as _app_config
+        _app_config.PROGRAM_PIVOT_DISABLE_RULE_WRITES = (
+            os.environ.get("PROGRAM_PIVOT_DISABLE_RULE_WRITES", "1") == "1"
+        )
+        logger.info(
+            "program-pivot rule writes disabled=%s",
+            _app_config.PROGRAM_PIVOT_DISABLE_RULE_WRITES,
+        )
+    except Exception:
+        logger.debug("program-pivot flag setup skipped", exc_info=True)
+
     # ── Agent-kernel daemon connection (primary state layer) ──
     try:
         import subprocess
@@ -1205,6 +1218,12 @@ async def _program_route_fn(content: str, context: dict):
 
 # WSContext 先于 registry 初始化构建，此处补接三分法路由（T6）
 _ws_ctx.program_route_fn = _program_route_fn
+# program-pivot M2：任务前注入优先 registry 命中
+try:
+    state_sync._data_dir = _DATA_DIR
+    state_sync._program_registry = _program_registry
+except Exception:
+    logger.debug("state_sync program injection wiring skipped", exc_info=True)
 
 
 # ── Asset routes extracted to routers/assets.py ──

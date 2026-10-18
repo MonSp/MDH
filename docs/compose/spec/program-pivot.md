@@ -2,6 +2,8 @@
 feature: program-pivot
 status: in-progress
 updated: 2026-10-15
+branch: feature/program-migrate
+commits: 29e0322..7362c25 # T7 已交付（合并 T3+T6 栈后）；T8–T10 进行中
 branch: feature/program-route
 commits: 3e07bd1..c2f0618 # T6 已交付（叠在 T5 分支上）；T7–T10 进行中
 branch: feature/program-review-loop
@@ -38,6 +40,24 @@ commits: b4a1ffe..ef2a8f7 # T3 已交付；T1/T2 已随 #20 合入 main；T4–T
 2. CI ruff 参数为 `--select=E,F,W --ignore=...`（ci.yml:41），与本地默认全规则集不同——本地"30 errors"多为 CI 不检的 BLE/I 规则，以 CI 参数为准。
 3. pydantic 请求体非法时 FastAPI 原生 422（先于 handler），与业务 fail 双轨并存，测试需分别覆盖。
 
+### T2 交付（2026-10-15，随 PR #20 合入 main）
+
+**What was built** — `backend/program_executor.py`：asyncio 子进程沙箱（`python -I`、最小 env、cwd=包目录）、stdin/stdout JSON 契约、超时强杀 + 显式 reap、8 类结构化错误码；遥测恒定 `llm_calls=0` + `duration_ms` + `timed_out`；`POST /api/programs/{id}/execute`（成功/失败 telemetry 同在 `data`）。仅标准库依赖边界成文入契约。
+
+**Verification** — T2 套件 11 passed（成功/超时/崩溃/非法输出/超限/四守卫）；全量 2183 passed；ruff PASS。独立 review A1–A7 PASS、1 Major（失败响应双轨 telemetry）+ 3 Minor 已修复并复测。
+
+### T3 交付（2026-10-15，b4a1ffe..ef2a8f7）
+
+**What was built** — `backend/program_compiler.py`：`TaskTrajectory`（仅成功轨迹可沉淀）→ `build_prompt`（标准库/确定性/stdin-stdout 硬性要求 + desc/step/样例定界）→ `raw_decode` JSON 解析 + `GeneratedProgram` 强校验（program_id/`def run(`/非空/≤50KB）→ registry 登记 candidate + 原子写 `main.py` + `tests/test_generated.py`；**写盘失败经 `registry.delete()`（仅 candidate 可删）回滚，不留半成品**。`llm_generate_fn` 复用 skill_generator 同款 model_factory 编排（生成器可注入）。`POST /api/programs/compile`，错误码 `INVALID_TRAJECTORY/NO_GENERATOR/GENERATION_FAILED/ALREADY_EXISTS/COMPILE_FAILED`（已入 spec 错误行为枚举）。
+
+**Verification** — T3 套件 13 passed（含草稿被 T2 执行器真跑的自洽性、回滚、删除守卫、噪声 JSON、50KB 强校验）；program 全套 51+；全量 2196 passed；ruff PASS。独立 review A1–A7 全 PASS；1 Major（写盘半成品窗口）+ 3 Minor 已修复，复核 **4/4 VERIFIED**；复核尾项 2 Minor（回滚异常范围、50KB 强校验）亦已修复。
+
+**Journey log (T2–T3)** —
+1. `asyncio.Process.communicate()` 不接受 timeout kwarg——timeout 只能挂 `wait_for` 外层。
+2. 回滚/只读守卫类修复必须配回归测试进套件，复核者两次"实测复现"都指向缺测路径。
+3. 生成器注入（`(prompt) -> str`）让 LLM 组件的单测完全不碰网络，是后续 T5 Reviewer/Evolver 应沿用的模式。
+
+
 ### T4 交付（2026-10-16，b4a1ffe..fd736c6）
 
 **What was built** — `backend/promotion_gate.py`：candidate 测试门禁——pytest 子进程（`start_new_session` + 最小 env + `PYTHONPATH` 注入 pack 根、超时 `killpg` 整组强杀）；通过 → `promote(validated_model)` **自动晋升**（无人工前置）；失败 → 状态不变（candidate 保持 = 保留上一版语义）。lineage 审计：`gate_passed/failed/timeout` 事件含 `test_hashes`/`main_sha256`/`output_tail`(≤2000)/`at`/`tests_modified`；**时序为 gate 事件先于 promote**。防作弊：与上次门禁哈希对比标记 `tests_modified`（DGM 伪造测试实证对策）；TOCTOU 竞态（pytest 运行中状态被改）→ `GATE_RACE` + `gate_aborted`（结构化，非 500）。`llm_calls` 恒 0。`Dockerfile.backend` 补装 pytest/pytest-timeout（生产镜像门禁可用）。`registry.append_lineage()` 公共方法。`POST /api/programs/{id}/gate`。
@@ -70,6 +90,17 @@ commits: b4a1ffe..ef2a8f7 # T3 已交付；T1/T2 已随 #20 合入 main；T4–T
 1. 前端完成态只认 wire `task_result`——`process_message` 的返回值只被日志消费；命中路径必须显式 `send_message`，否则 UI 永不复位（reviewer 实测发现）。
 2. `_ws_ctx` 是先构建后补属性的单例：任何后置赋值必须位于 `_init_ws_ctx()` 之后（server 执行顺序敏感）。
 3. "回退"必须给用户可感知的降级提示（非 NO_MATCH 静默会让"为什么没走程序路径"不可观测），但 NO_MATCH 应静默——它是常态。
+
+### T7 交付（2026-10-16，29e0322..7362c25，合并 T3+T6 栈）
+
+**What was built** — **M1 写侧**：`PROGRAM_PIVOT_DISABLE_RULE_WRITES` 开关（config 默认 False；server 启动按 env 翻 True，生产默认关写、`=0` 可回退）；`_save_new_rule` / 规则自进化（LLM 生成**前**拦截）/ human-feedback 建规则（含纯 JSON 回退）三处关停——新任务 0 条新经验规则写入；存量 approve/demote 状态更新与读保留。**M2 读侧**：`program_injection.build_program_context`（registry 命中→**参考语义**程序上下文，明示本次已进 LLM 路径，不与 T6 回退矛盾；相对 data_dir 按 backend/ 归一；异常→`""` 绝不抛）；四处注入 registry 优先 + 旧规则路径回退：coordinator_experience / coordinator_workflow / task_orchestrator / state_sync（server 接线共享 `_program_registry`）。本分支同时合并 T3 compiler 栈（programs.py 三生成器注入共存）。
+
+**Verification** — T7 套件 12 passed（写关停/启用/进化早拦/反馈双路径/注入 advisory 文案/相对路径归一/workflow/state_sync/orchestrator）；ruff PASS；server import OK。修复前全量 2247 passed（修复后全量交 CI）。独立 review A1–A7 全 PASS；2 Major（注入与 T6 回退语义冲突、coordinator 相对 data_dir 分叉）+ 2 Minor 已修复。
+
+**Journey log (T7)** —
+1. 注入点位于 LLM 路径（T6 未采用时才走到）——注入文案必须是"参考"而非"复用指令"，否则对回退任务是误导；"命中"≠"将走程序路径"。
+2. 关停类开关默认 False（测试直连）+ server 启动翻 True（生产）——比默认 True 破2000+ 存量测试更稳；env=0 回退保命。
+3. 组件默认相对路径（`data_dir="data"`）在被注入新依赖时风险放大——归一化应放在使用方而非各调用点。
 ### T2 交付（2026-10-15，随 PR #20 合入 main）
 
 **What was built** — `backend/program_executor.py`：asyncio 子进程沙箱（`python -I`、最小 env、cwd=包目录）、stdin/stdout JSON 契约、超时强杀 + 显式 reap、8 类结构化错误码；遥测恒定 `llm_calls=0` + `duration_ms` + `timed_out`；`POST /api/programs/{id}/execute`（成功/失败 telemetry 同在 `data`）。仅标准库依赖边界成文入契约。
@@ -208,6 +239,12 @@ program_packs/<program_id>/
 ## Tasks
 
 - [x] T1: ProgramPack 格式与 ProgramRegistry（CRUD/索引/触发匹配/新鲜度状态机/旧资产只读登记） — acceptance: `POST /api/programs` 创建通过 manifest 校验，查询返回匹配候选与 status；单测覆盖状态机与新鲜度失效（covers: S2 程序包契约、架构总览）
+- [x] T2: ProgramExecutor 免 LLM 沙箱执行 + 遥测 — acceptance: 对 promoted 程序包执行返回结构化结果与 telemetry（llm_calls=0、耗时），超时/异常按契约报错（covers: S2 程序包契约、错误行为； depends: T1）
+- [x] T3: ProgramCompiler 沉淀管线（任务轨迹→候选程序包含自带测试） — acceptance: 成功任务后触发产生 candidate 程序包草稿，tests/ 非空且 manifest 完整（covers: S2 架构总览； depends: T1）
+- [x] T4: promotion_gate 测试门禁自动晋升 + lineage — acceptance: 测试通过自动 promoted 并写 lineage.json；失败回滚保留上一版；tests/ 变更被标记（covers: S2 审阅—升级闭环、防作弊； depends: T1）
+- [x] T5: ProgramReviewer + program_evolver 审阅升级闭环 — acceptance: fail 审阅意见触发修订候选并经 T4 门禁晋升；连续 3 次失败自动降级 deprecated（covers: S2 审阅—升级闭环、错误行为； depends: T2, T4）
+- [x] T6: 三分法路由接线（program/simple/complex + 失败降级） — acceptance: 评测任务命中 promoted 新鲜程序走免 LLM 路径且 task_result 标注 path_used="program"；未命中/失效回退 LLM 路径（covers: S2 三分法路由； depends: T2）
+- [x] T7: 沉淀与注入切换（写侧关规则、读侧切 registry）+ 任务前注入改造 — acceptance: 新任务 0 条新经验规则写入；注入请求走 registry；旧读路径保留（covers: S2 迁移路径 M1–M2； depends: T3, T6）
 - [ ] T2: ProgramExecutor 免 LLM 沙箱执行 + 遥测 — acceptance: 对 promoted 程序包执行返回结构化结果与 telemetry（llm_calls=0、耗时），超时/异常按契约报错（covers: S2 程序包契约、错误行为； depends: T1）
 - [ ] T3: ProgramCompiler 沉淀管线（任务轨迹→候选程序包含自带测试） — acceptance: 成功任务后触发产生 candidate 程序包草稿，tests/ 非空且 manifest 完整（covers: S2 架构总览； depends: T1）
 - [x] T4: promotion_gate 测试门禁自动晋升 + lineage — acceptance: 测试通过自动 promoted 并写 lineage.json；失败回滚保留上一版；tests/ 变更被标记（covers: S2 审阅—升级闭环、防作弊； depends: T1）

@@ -1,4 +1,5 @@
 """
+Program Registry REST API (program-pivot T1/T2/T3/T4/T5)
 Program Registry REST API (program-pivot T1–T6)
 
 GET    /api/programs                     列表（可按 status 过滤）
@@ -11,6 +12,8 @@ POST   /api/programs/{program_id}/promote    candidate -> promoted
 POST   /api/programs/{program_id}/deprecate  -> deprecated
 POST   /api/programs/{program_id}/execute    免 LLM 沙箱执行 (T2)
 POST   /api/programs/{program_id}/gate       测试门禁自动晋升 (T4)
+POST   /api/programs/{program_id}/review     LLM 审阅执行结果 (T5)
+POST   /api/programs/{program_id}/upgrade    审阅驱动修订升级 (T5)
 """
 
 from __future__ import annotations

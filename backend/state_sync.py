@@ -99,6 +99,25 @@ class StateSyncManager:
             except Exception as e:
                 logger.debug("能力边界检测跳过: %s", e)
 
+        # program-pivot M2: registry-first injection; miss falls back to rules
+        try:
+            from program_injection import build_program_context, get_default_registry
+
+            _reg = getattr(self, "_program_registry", None) or get_default_registry(
+                getattr(self, "_data_dir", None)
+            )
+            program_ctx = build_program_context(
+                task_description,
+                registry=_reg,
+                model=getattr(self, "_model_name", None),
+            )
+            if program_ctx:
+                metadata["program_context"] = program_ctx.strip()
+                logger.info("state_sync: program context injected (agent=%s)", agent_id)
+                return metadata
+        except Exception as pe:
+            logger.debug("state_sync program injection skipped: %s", pe)
+
         # 检索相关经验规则（带老化降权 + 探索/利用平衡）
         try:
             rules = self._experience.retrieve_with_aging(

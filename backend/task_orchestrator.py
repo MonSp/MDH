@@ -403,6 +403,16 @@ class TaskOrchestrator:
         try:
             import os
             data_dir = os.path.join(os.path.dirname(__file__), "data")
+            # program-pivot M2: registry-first; fallback to legacy rules injection
+            try:
+                from program_injection import build_program_context
+
+                program_ctx = build_program_context(task_description, data_dir=data_dir)
+                if program_ctx:
+                    logger.info("orchestrator: program context injected (rules skipped)")
+                    return program_ctx
+            except Exception as pe:
+                logger.debug("orchestrator program injection skipped: %s", pe)
             extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
 
             # 提取关键词
