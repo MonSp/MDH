@@ -442,9 +442,7 @@ class ExecutorAgent:
             # 3. 提交验收
             if review_callback is None:
                 # 无验收回调，视为直接通过
-                self._extract_and_save_experience(
-                    task_description, task_type, True, all_corrections
-                )
+                # program-pivot M4: 不再从执行链提取规则（沉淀走 ProgramCompiler）
                 return {
                     "status": "approved",
                     "output": task_output,
@@ -463,9 +461,7 @@ class ExecutorAgent:
 
             # 4. 处理验收结果
             if review_result.get("status") == "approved":
-                self._extract_and_save_experience(
-                    task_description, task_type, True, all_corrections
-                )
+                # program-pivot M4: 不再从执行链提取规则（沉淀走 ProgramCompiler）
                 return {
                     "status": "approved",
                     "output": task_output,
@@ -483,9 +479,7 @@ class ExecutorAgent:
                 break
 
         # 达到最大迭代次数
-        self._extract_and_save_experience(
-            task_description, task_type, False, all_corrections
-        )
+        # program-pivot M4: 不再从执行链提取规则（沉淀走 ProgramCompiler）
         return {
             "status": "max_iterations_reached",
             "output": task_output,
@@ -494,68 +488,6 @@ class ExecutorAgent:
         }
 
     # ──────────────────── 经验沉淀 ────────────────────
-
-    def _extract_and_save_experience(
-        self,
-        task_description: str,
-        task_type: str,
-        success: bool,
-        corrections: list,
-    ):
-        """提取并保存经验
-
-        Args:
-            task_description: 任务描述
-            task_type: 任务类型
-            success: 是否成功
-            corrections: 修正记录列表
-        """
-        if not self.experience_extractor or ExecutionLog is None:
-            return
-
-        try:
-            status = "success" if success else "failure"
-            error_list = []
-            correction_list = []
-            for c in corrections:
-                if isinstance(c, dict):
-                    correction_list.append({
-                        "action": c.get("suggestion", ""),
-                        "description": c.get("detail", ""),
-                        "error_index": None,
-                    })
-                    if c.get("issue_type"):
-                        error_list.append({
-                            "type": c.get("issue_type", ""),
-                            "message": c.get("detail", ""),
-                        })
-
-            log = ExecutionLog(
-                task_id=str(uuid.uuid4()),
-                agent_id=self.name,
-                task_description=task_description,
-                task_type=task_type,
-                status=status,
-                steps=[],
-                errors=error_list,
-                corrections=correction_list,
-                final_output=task_description[:200],
-                created_at=datetime.now().isoformat(),
-            )
-
-            if success:
-                rules = self.experience_extractor.extract_from_success(log)
-            else:
-                rules = self.experience_extractor.extract_from_failure_recovery(log)
-
-            for rule in rules:
-                self.experience_extractor.submit_for_review(rule)
-
-            logger.info(
-                "Extracted %d experience rules from task (success=%s)", len(rules), success
-            )
-        except Exception:
-            logger.warning("Failed to extract experience", exc_info=True)
 
     # ──────────────────── 辅助方法 ────────────────────
 

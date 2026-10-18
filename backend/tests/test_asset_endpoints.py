@@ -6,7 +6,7 @@
 模式沿用 M2/M3 既有演示端点测试：
 - TestClient + server.BACKEND_TOKEN = ""（关闭 REST 认证中间件）
 - monkeypatch 替换惰性单例 helper（_get_asset_store/_get_template_confirmation/
-  _get_skill_evolution/_get_asset_search 全局），各用例以临时目录隔离数据。
+  _get_asset_search 全局），各用例以临时目录隔离数据。
 """
 from fastapi.testclient import TestClient
 

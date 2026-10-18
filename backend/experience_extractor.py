@@ -4,7 +4,6 @@
 支持规则审核流程和基于关键词的检索。
 """
 
-import asyncio
 import json as _json_stdlib
 import logging
 import os
@@ -255,141 +254,6 @@ class ExperienceExtractor:
         rows = self._db.execute("SELECT rule_id FROM experience_rules").fetchall()
         return [r["rule_id"] for r in rows]
 
-    # ──────────────────── LLM 蒸馏 ────────────────────
-
-    async def _llm_distill(
-        self, task_description: str, result_text: str, context: str = ""
-    ) -> list[ExperienceRule]:
-        """Use LLM to extract reusable experience rules from task execution.
-
-        Args:
-            task_description: 任务描述
-            result_text: 执行结果文本
-            context: 额外上下文（如讨论、审查反馈等）
-
-        Returns:
-            LLM 蒸馏出的经验规则列表；失败时返回空列表。
-        """
-        if self._llm_caller is None:
-            return []
-
-        prompt = (
-            "你是一位经验提炼专家。请从以下任务执行记录中提炼出可复用的经验规则。\n\n"
-            f"## 任务描述\n{task_description}\n\n"
-            f"## 执行结果\n{result_text[:2000]}\n"
-        )
-        if context:
-            prompt += f"\n## 额外上下文\n{context[:1000]}\n"
-
-        prompt += (
-            "\n请提取 1-5 条经验规则，输出严格的 JSON 数组（不要 markdown 代码块），"
-            "每条规则格式：\n"
-            '{"trigger_condition": "触发条件", "action": "建议动作", '
-            '"note": "补充说明", "rule_type": "success_pattern|failure_avoidance|correction_tip", '
-            '"keywords": ["关键词1", "关键词2"]}\n\n'
-            "规则应尽可能通用、可跨项目复用。只输出 JSON 数组，不要其他内容。"
-        )
-
-        try:
-            if asyncio.iscoroutinefunction(self._llm_caller):
-                raw = await asyncio.wait_for(self._llm_caller(prompt), timeout=30)
-            else:
-                loop = asyncio.get_running_loop()
-                raw = await asyncio.wait_for(
-                    loop.run_in_executor(None, self._llm_caller, prompt), timeout=30
-                )
-        except Exception:
-            logger.debug("LLM distillation call failed", exc_info=True)
-            return []
-
-        # 解析 LLM 响应
-        return self._parse_llm_rules(raw, task_description)
-
-    def _parse_llm_rules(self, raw: str, task_description: str = "") -> list[ExperienceRule]:
-        """Parse LLM JSON response into ExperienceRule objects.
-
-        Handles markdown code blocks and malformed JSON gracefully.
-        """
-        text = raw.strip()
-        # 剥离 markdown 代码块
-        if text.startswith("```"):
-            text = re.sub(r"^```(?:json)?\s*\n?", "", text)
-            text = re.sub(r"\n?```\s*$", "", text)
-            text = text.strip()
-
-        try:
-            items = _json_stdlib.loads(text)
-        except _json_stdlib.JSONDecodeError:
-            # 尝试提取第一个 JSON 数组
-            m = re.search(r"\[.*\]", text, re.DOTALL)
-            if not m:
-                logger.debug("LLM distillation: no JSON array found in response")
-                return []
-            try:
-                items = _json_stdlib.loads(m.group())
-            except _json_stdlib.JSONDecodeError:
-                logger.debug("LLM distillation: failed to parse JSON from response")
-                return []
-
-        if not isinstance(items, list):
-            return []
-
-        rules: list[ExperienceRule] = []
-        task_type = self._infer_task_type(task_description)
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            trigger = item.get("trigger_condition", "")
-            action = item.get("action", "")
-            if not trigger or not action:
-                continue
-            rules.append(
-                ExperienceRule(
-                    rule_id=_new_rule_id(),
-                    trigger_condition=str(trigger)[:300],
-                    action=str(action)[:300],
-                    note=str(item.get("note", ""))[:200],
-                    source_task_id="llm_distill",
-                    source_task_type=task_type,
-                    rule_type=str(item.get("rule_type", "success_pattern")),
-                    status="pending_review",
-                    keywords=item.get("keywords", []) if isinstance(item.get("keywords"), list) else [],
-                    created_at=_now_iso(),
-                    source_agent_id="llm_distill",
-                )
-            )
-        return rules
-
-    def _try_llm_distill_sync(
-        self, task_description: str, result_text: str, context: str = ""
-    ) -> list[ExperienceRule]:
-        """Sync wrapper to try LLM distillation. Returns empty list on any failure."""
-        if self._llm_caller is None:
-            return []
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        try:
-            if loop and loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    future = pool.submit(
-                        asyncio.run,
-                        self._llm_distill(task_description, result_text, context),
-                    )
-                    return future.result(timeout=35)
-            else:
-                return asyncio.run(
-                    self._llm_distill(task_description, result_text, context)
-                )
-        except Exception:
-            logger.debug("LLM distillation sync wrapper failed", exc_info=True)
-            return []
-
-    # ──────────────────── 经验提炼 ────────────────────
-
     @property
     def dedup_keyword_threshold(self) -> float:
         return self._tp("experience.dedup_keyword_threshold", self.DEDUP_KEYWORD_THRESHOLD)
@@ -499,6 +363,60 @@ class ExperienceExtractor:
                 pass
         return rule.rule_id
 
+    def _parse_llm_rules(self, raw: str, task_description: str = "") -> list[ExperienceRule]:
+        """Parse LLM JSON response into ExperienceRule objects.
+
+        Handles markdown code blocks and malformed JSON gracefully.
+        """
+        text = raw.strip()
+        # 剥离 markdown 代码块
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*\n?", "", text)
+            text = re.sub(r"\n?```\s*$", "", text)
+            text = text.strip()
+
+        try:
+            items = _json_stdlib.loads(text)
+        except _json_stdlib.JSONDecodeError:
+            # 尝试提取第一个 JSON 数组
+            m = re.search(r"\[.*\]", text, re.DOTALL)
+            if not m:
+                logger.debug("LLM distillation: no JSON array found in response")
+                return []
+            try:
+                items = _json_stdlib.loads(m.group())
+            except _json_stdlib.JSONDecodeError:
+                logger.debug("LLM distillation: failed to parse JSON from response")
+                return []
+
+        if not isinstance(items, list):
+            return []
+
+        rules: list[ExperienceRule] = []
+        task_type = self._infer_task_type(task_description)
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            trigger = item.get("trigger_condition", "")
+            action = item.get("action", "")
+            if not trigger or not action:
+                continue
+            rules.append(
+                ExperienceRule(
+                    rule_id=_new_rule_id(),
+                    trigger_condition=str(trigger)[:300],
+                    action=str(action)[:300],
+                    note=str(item.get("note", ""))[:200],
+                    source_task_id="llm_distill",
+                    source_task_type=task_type,
+                    rule_type=str(item.get("rule_type", "success_pattern")),
+                    status="pending_review",
+                    keywords=item.get("keywords", []) if isinstance(item.get("keywords"), list) else [],
+                    created_at=_now_iso(),
+                    source_agent_id="llm_distill",
+                )
+            )
+        return rules
     def submit_for_review(self, rule: ExperienceRule) -> str:
         """提交规则审核（委托给 _save_new_rule）
 
@@ -696,8 +614,8 @@ class ExperienceExtractor:
             "rule_type",
             "status",
             "keywords",
-            "source_task_type",  # 规则类型（extract_from_meeting 生成）；skill_evolution 元数据回填用
-            "team_id",  # 归属团队；skill_evolution 团队回填用（规则级团队隔离）
+            "source_task_type",  # 任务类型（注入类型加分用）
+            "team_id",  # 归属团队（规则级团队隔离）
         }
         for key, value in updates.items():
             if key in allowed_fields:
