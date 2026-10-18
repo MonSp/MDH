@@ -1,9 +1,9 @@
 ---
 feature: program-pivot
-status: delivered
-updated: 2026-10-15
-branch: feature/program-migrate
-commits: bdb965b..e8558f2 # T1–T10 全部交付
+status: in-progress
+updated: 2026-10-18
+branch: feature/program-io-schema
+commits: aa4e457.. # T1–T10 已交付；T11 in-progress
 ---
 
 # 产品转型：经验固化为可执行程序（Program Pivot）
@@ -189,6 +189,41 @@ program_packs/<program_id>/
 - **新鲜度**：manifest 记录 `last_validated_model` 与 `last_validated_at`；路由命中前校验（模型换代或超过 TTL → 视为不命中，走 LLM 路径；该任务成功后由沉淀钩子产出重验证候选，走 T3→T4 门禁重新晋升）。对应 STALE/新鲜度实证（源 [19][33]）。
 - **旧资产只读兼容**：skill_packs/ 与 experience_rules 停止新增，作为 ProgramCompiler 的沉淀素材与 ProgramReviewer 的审阅上下文只读引用；43 个 skill packs 逐步对齐 agentskills.io 的 SKILL.md + `scripts/` 结构（源 [12]）。
 
+#### 执行载荷契约（io_schema / workspace_path，T11）
+
+T8 A/B 实测缺口：`run()` 仅收到 `{"task": content}`，产出文件型任务无法在 program 路径闭环（审阅如实 fail→回退）。T11 补齐载荷与 schema 契约：
+
+**stdin/stdout JSON 载荷（宿主注入，程序只读）**：
+
+```
+{
+  "task": "<任务原文，必有>",
+  "workspace_path": "<绝对路径 | null>",
+  "input": <调用方结构化输入，可选；无则省略/None>
+}
+```
+
+- `workspace_path` 由宿主（CeoAgent→router）在已有工作区时注入；程序**禁止**自造路径、禁止写 workspace 之外的目录。无工作区时值为 `null`（不得省略键——程序用 `data.get("workspace_path")` 判定）。
+- 子进程 `cwd` 仍为程序包目录（隔离不变）；文件写入经绝对路径 `workspace_path` 完成。
+- `input` 覆盖/合并策略：调用方显式 `input_data` 优先作为 `input` 字段；默认路径不覆盖 `task`/`workspace_path` 保留键。
+
+**manifest.io_schema（结构化，编译期生成+校验）**：
+
+```yaml
+io_schema:
+  inputs:
+    task: {type: string, required: true}
+    workspace_path: {type: string, required: false}   # 产出文件型: true
+    # ...程序自定义字段（type: string|number|boolean|object|array）
+  outputs:
+    description: "<输出形状的一句话描述>"
+```
+
+- `ProgramCompiler` 从轨迹/LLM 草稿生成 `io_schema` 并写入 manifest；校验：`inputs` 为 dict、每个字段含 `type`、`task` 必标 `required: true`；非法 → `GENERATION_FAILED`。
+- **路由映射**：`try_program_path` 按 `io_schema.inputs` 组装载荷；`workspace_path.required=true` 且宿主无工作区 → `fallback_reason="WORKSPACE_REQUIRED"`（结构化回退，非静默 NO_MATCH——可观测且宁重勿轻）。
+- **审阅一致性**：有 `workspace_path` 时注入审阅期望——若 output 声明写入文件（如 `files_written`），审阅应核对路径位于该 workspace 下；无 workspace 时按纯 JSON 输出审阅。
+- **门禁一致性**：生成的 `tests/` 对文件副作用必须用 pytest `tmp_path`（不依赖真实 workspace）；门禁子进程环境不变。
+
 ### 三分法路由
 
 在现有 `path_selected`（simple/complex）之上增加 `program` 路径：
@@ -257,3 +292,4 @@ program_packs/<program_id>/
 - [x] T8: 程序路径 vs LLM 直调 A/B 评测基线（成本/延迟/质量） — acceptance: 五任务评测产出对照 JSON（p50/p95、token 账单、得分）并写入 research/（covers: S2 迁移路径替换对照； depends: T6）
 - [x] T9: 前端 ProgramRegistry 面板（版本/血缘/晋升历史，替换经验规则写入口） — acceptance: 面板展示程序包列表与 lineage；经验规则面板无写操作（covers: S2 迁移路径 M3； depends: T4）
 - [x] T10: 迁移收尾 M4：删除规则写入/自进化/联动进化/共享池写路径与调度 — acceptance: 相关写路径代码与调度移除，全量 pytest/vitest/ruff/eslint 绿（covers: S2 迁移路径 M4； depends: T5, T7, T9）
+- [ ] T11: io_schema/workspace 载荷契约补齐 — acceptance: 路由命中的程序收到 `{task, workspace_path, input}` 载荷；`io_schema.inputs.workspace_path.required=true` 且无工作区时 `fallback_reason=WORKSPACE_REQUIRED`；编译器生成并校验 io_schema 写入 manifest；审阅期望含 workspace 上下文；单测覆盖映射/回退/编译校验（covers: S2 程序包契约·执行载荷、三分法路由； depends: T2, T3, T6）

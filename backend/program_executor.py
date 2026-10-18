@@ -1,9 +1,11 @@
 """
-ProgramExecutor — 程序包免 LLM 沙箱执行器 (program-pivot T2)
+ProgramExecutor — 程序包免 LLM 沙箱执行器 (program-pivot T2 / T11 载荷)
 
-契约（spec [S2] 程序包契约 + 错误行为）：
+契约（spec [S2] 程序包契约、执行载荷契约 + 错误行为）：
 - ProgramPack `main.py` 从 stdin 读 JSON 输入，向 stdout 写 JSON 输出
   （`if __name__ == "__main__"` 块读 stdin → 调 run() → 写 stdout）。
+  载荷形状（T11，由 router 组装）：`{task, workspace_path, input?}`——
+  程序写文件时用绝对 `workspace_path`，cwd 仍为包目录（隔离）。
   **仅依赖 Python 标准库**：执行环境为 `python -I`（isolated mode，
   不加载用户 site-packages）+ 最小 env（仅 PATH），不提供环境变量/网络
   语境；依赖三方库的程序无法在该环境运行，编译期（T3）应予保证。

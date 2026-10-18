@@ -67,6 +67,10 @@ class GeneratedProgram(BaseModel):
     version: str = "1.0.0"
     description: str = ""
     trigger_keywords: list[str] = Field(default_factory=list)
+    io_schema: dict[str, Any] = Field(
+        default_factory=dict,
+        description="输入输出 schema（T11）：inputs 含 task/workspace_path 等字段声明",
+    )
     main_py: str
     test_py: str
 
@@ -75,6 +79,27 @@ class GeneratedProgram(BaseModel):
     def _check_id(cls, v: str) -> str:
         if not PROGRAM_ID_RE.match(v):
             raise ValueError(f"invalid program_id: {v!r}")
+        return v
+
+    @field_validator("io_schema")
+    @classmethod
+    def _check_io_schema(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """T11: 校验 io_schema 形状；task 必标 required。"""
+        if not v:
+            return v
+        inputs = v.get("inputs")
+        if inputs is None:
+            return v
+        if not isinstance(inputs, dict):
+            raise ValueError("io_schema.inputs must be a mapping")
+        for name, spec in inputs.items():
+            if not isinstance(spec, dict) or "type" not in spec:
+                raise ValueError(
+                    f"io_schema.inputs.{name} must be a mapping with type"
+                )
+        task_spec = inputs.get("task")
+        if isinstance(task_spec, dict) and not task_spec.get("required", False):
+            raise ValueError("io_schema.inputs.task must declare required: true")
         return v
 
     @field_validator("main_py")
@@ -127,10 +152,19 @@ class ProgramCompiler:
 1. main_py：定义 `def run(data): ...`，**仅用标准库**；禁止依赖时间/随机数/
    环境变量/网络；程序从 stdin 读 JSON、向 stdout 写 JSON 的
    `if __name__ == "__main__"` 块必须提供。
-2. test_py：pytest 测试，导入 main 中的 run，用输出样例做断言；必须非空可运行。
-3. program_id：英文 snake_case（^[a-z0-9_][a-z0-9_-]{{0,63}}$），勿与已有重复。
-4. trigger_keywords：2-6 个用于路由匹配的中文/英文关键词。
-5. 输出的 main_py/test_py 各不超过 50KB；总体只返回一个 JSON 对象。
+2. 载荷契约（T11）：`data` 恒含 `task`（str）与 `workspace_path`（绝对路径
+   或 null）。若任务需要写文件，必须把文件写到 `workspace_path` 之下（用
+   os.path.join），禁止写其他路径；无 workspace 时不得假设路径存在。
+3. test_py：pytest 测试，导入 main 中的 run，用输出样例做断言；必须非空可运行。
+   文件副作用一律用 pytest 的 `tmp_path` fixture 作为 workspace_path，
+   禁止依赖真实磁盘上的固定目录。
+4. program_id：英文 snake_case（^[a-z0-9_][a-z0-9_-]{{0,63}}$），勿与已有重复。
+5. trigger_keywords：2-6 个用于路由匹配的中文/英文关键词。
+6. io_schema：结构化声明输入输出——`inputs` 至少含
+   `{{"task": {{"type": "string", "required": true}}}}`；产出文件的任务必须
+   增加 `{{"workspace_path": {{"type": "string", "required": true}}}}`。
+   `outputs.description` 一句话描述输出形状。
+7. 输出的 main_py/test_py 各不超过 50KB；总体只返回一个 JSON 对象。
 
 严格按以下 JSON 返回，不要包含其他内容：
 {{
@@ -138,6 +172,13 @@ class ProgramCompiler:
   "version": "1.0.0",
   "description": "一句话描述",
   "trigger_keywords": ["..."],
+  "io_schema": {{
+    "inputs": {{
+      "task": {{"type": "string", "required": true}},
+      "workspace_path": {{"type": "string", "required": false}}
+    }},
+    "outputs": {{"description": "输出形状"}}
+  }},
   "main_py": "完整 Python 源码（JSON 转义）",
   "test_py": "完整 pytest 源码（JSON 转义）"
 }}"""
@@ -180,6 +221,7 @@ class ProgramCompiler:
             version=draft.version,
             description=draft.description,
             trigger=ProgramTrigger(keywords=draft.trigger_keywords),
+            io_schema=draft.io_schema or {},
         )
         # registry.create 内部校验重复/状态机，重复 id 抛 FileExistsError
         created = self._registry.create(manifest)
