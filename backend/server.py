@@ -1161,6 +1161,7 @@ async def _program_route_fn(content: str, context: dict):
         content,
         _program_registry,
         model=(context or {}).get("model_name") or None,  # 新鲜度含模型校验
+        workspace_path=(context or {}).get("workspace_path") or None,  # T11
         review_generate=review_generate,
     )
 

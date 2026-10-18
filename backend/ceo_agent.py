@@ -247,8 +247,12 @@ class CeoAgent:
         # CEO确认收到任务
         await self._emit(send_message, f"CEO：收到任务「{content[:50]}...」，正在分析意图。")
 
-        # 0. 三分法路由（program-pivot T6）：program 路径优先于 simple/complex
+        # 0. 三分法路由（program-pivot T6/T11）：program 路径优先于 simple/complex
         if self._program_route_fn is not None:
+            # T11: 仅注入**已有**工作区（复杂路径 HITL 确认后才创建）。
+            # 首任务无 workspace → 产出文件型程序 WORKSPACE_REQUIRED 回退 LLM
+            # （LLM 路径会建工作区；后续相似任务可命中 program 路径）——宁重勿轻。
+            _ws = getattr(self._workspace, "root_path", None) or None
             outcome = await self._program_route_fn(
                 content,
                 {
@@ -256,6 +260,7 @@ class CeoAgent:
                     "provider": getattr(self._session, "provider", "") or "deepseek",
                     "base_url": getattr(self._session, "base_url", "") or "",
                     "model_name": getattr(self._session, "model_name", "") or "",
+                    "workspace_path": _ws,
                 },
             )
             if outcome.handled:

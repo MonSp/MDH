@@ -82,7 +82,15 @@ class PromoteRequest(BaseModel):
 
 
 class ExecuteRequest(BaseModel):
-    input: Any = Field(None, description="传给程序包 run() 的输入（JSON）")
+    input: Any = Field(
+        None,
+        description="结构化输入（T11：放入 payload.input）；"
+        "若已是完整载荷（含 task+workspace_path 键）则直接透传",
+    )
+    task: str = Field("", description="任务原文（payload.task）")
+    workspace_path: str | None = Field(
+        None, description="工作区绝对路径（payload.workspace_path）"
+    )
     timeout_seconds: float | None = Field(
         None, gt=0, le=300, description="执行超时（秒），默认 15"
     )
@@ -238,14 +246,27 @@ async def deprecate_program(program_id: str):
 
 @router.post("/{program_id}/execute")
 async def execute_program(program_id: str, body: ExecuteRequest | None = None):
-    """免 LLM 沙箱执行 promoted 程序包（program-pivot T2）。"""
+    """免 LLM 沙箱执行 promoted 程序包（program-pivot T2 / T11 载荷契约）。"""
     bad = _invalid_id(program_id)
     if bad:
         return bad
     req = body or ExecuteRequest()
+    from program_router import build_execution_payload
+
+    # T11: REST 执行与路由共用载荷契约——恒含 task/workspace_path；
+    # 调用方若已传完整载荷（含两保留键）则透传，否则包装。
+    raw = req.input
+    if isinstance(raw, dict) and "task" in raw and "workspace_path" in raw:
+        payload = raw
+    else:
+        payload = build_execution_payload(
+            req.task or "",
+            workspace_path=req.workspace_path,
+            input_data=raw,
+        )
     executor = ProgramExecutor(_get_registry())
     result = await executor.execute(
-        program_id, req.input, timeout_seconds=req.timeout_seconds
+        program_id, payload, timeout_seconds=req.timeout_seconds
     )
     telemetry = {
         "llm_calls": result.telemetry.llm_calls,

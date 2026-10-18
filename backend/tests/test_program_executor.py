@@ -179,13 +179,35 @@ def test_execute_endpoint_success(tmp_path, monkeypatch):
     reg.promote("echo_ep")
     monkeypatch.setattr(programs_router, "_registry", reg)
     resp = client.post(
-        "/api/programs/echo_ep/execute", json={"input": {"a": 1}}
+        "/api/programs/echo_ep/execute",
+        json={"task": "部署", "input": {"a": 1}},
     )
     body = resp.json()
     assert body["success"] is True
-    assert body["data"]["output"]["echo"] == {"a": 1}
+    # T11: REST 载荷经 build_execution_payload 包装
+    echoed = body["data"]["output"]["echo"]
+    assert echoed["task"] == "部署"
+    assert echoed["workspace_path"] is None
+    assert echoed["input"] == {"a": 1}
     assert body["data"]["telemetry"]["llm_calls"] == 0
     assert body["data"]["telemetry"]["duration_ms"] >= 0
+
+
+def test_execute_endpoint_full_payload_passthrough(tmp_path, monkeypatch):
+    """已含 task+workspace_path 的完整载荷直接透传（不二次包装）。"""
+    reg = _make_pack(tmp_path, "echo_full", _ECHO_MAIN)
+    reg.promote("echo_full")
+    monkeypatch.setattr(programs_router, "_registry", reg)
+    resp = client.post(
+        "/api/programs/echo_full/execute",
+        json={"input": {"task": "t1", "workspace_path": "/ws", "x": 1}},
+    )
+    body = resp.json()
+    assert body["success"] is True
+    echoed = body["data"]["output"]["echo"]
+    assert echoed["task"] == "t1"
+    assert echoed["workspace_path"] == "/ws"
+    assert echoed["x"] == 1
 
 
 def test_execute_endpoint_timeout_has_telemetry(tmp_path, monkeypatch):

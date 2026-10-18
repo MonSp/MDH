@@ -1,9 +1,12 @@
 """
-ProgramRouter — 三分法路由的 program 路径 (program-pivot T6)
+ProgramRouter — 三分法路由的 program 路径 (program-pivot T6 / T11 载荷)
 
-契约（spec [S2] 三分法路由、错误行为）：
+契约（spec [S2] 三分法路由、错误行为、执行载荷契约）：
 - registry 触发匹配（promoted + 新鲜 + 关键词命中）→ ProgramExecutor 免 LLM
   执行 → ProgramReviewer 审阅 → 交付 task_result(path_used="program")。
+- **载荷（T11）**：stdin JSON 恒含 `task` + `workspace_path`（绝对路径|null）；
+  调用方 `input_data` 放入 `input` 字段。`io_schema.inputs.workspace_path.
+  required=true` 且宿主无工作区 → WORKSPACE_REQUIRED 回退（非静默）。
 - **程序路径优先于 simple/complex**；未命中/执行异常/审阅 fail/审阅器不可用
   → 返回 handled=False（调用方回退 LLM 路径重执行本次任务，宁重勿轻）。
 - 审阅 fail 的意见随 outcome 带出（并入 T5 升级闭环）。
@@ -16,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
 from program_executor import ProgramExecutor
-from program_registry import ProgramRegistry
+from program_registry import ProgramManifest, ProgramRegistry
 from program_reviewer import ProgramReviewer
 
 logger = logging.getLogger(__name__)
@@ -37,12 +40,46 @@ class ProgramPathOutcome:
     telemetry: dict[str, Any] = field(default_factory=dict)
 
 
+def build_execution_payload(
+    content: str,
+    *,
+    workspace_path: str | None = None,
+    input_data: Any = None,
+) -> dict[str, Any]:
+    """按 spec 载荷契约组装 stdin JSON（T11）。
+
+    保留键 `task`/`workspace_path` 不被 input_data 覆盖；input_data 放入
+    `input` 子字段（None 时省略）。载荷形状与 io_schema 解耦——schema
+    只用于 required 判定（workspace_required），不改变键布局。
+    """
+    payload: dict[str, Any] = {
+        "task": content,
+        "workspace_path": workspace_path or None,
+    }
+    if input_data is not None:
+        payload["input"] = input_data
+    return payload
+
+
+def workspace_required(manifest: ProgramManifest) -> bool:
+    """io_schema 声明 workspace_path 为必填时返回 True（T11）。"""
+    schema = manifest.io_schema or {}
+    inputs = schema.get("inputs")
+    if not isinstance(inputs, dict):
+        return False
+    ws = inputs.get("workspace_path")
+    if not isinstance(ws, dict):
+        return False
+    return bool(ws.get("required"))
+
+
 async def try_program_path(
     content: str,
     registry: ProgramRegistry,
     *,
     model: str | None = None,
     input_data: Any = None,
+    workspace_path: str | None = None,
     review_generate: ReviewGenerate | None = None,
     executor: ProgramExecutor | None = None,
     reviewer: ProgramReviewer | None = None,
@@ -61,9 +98,23 @@ async def try_program_path(
     chosen = matches[0]
     outcome = ProgramPathOutcome(program_id=chosen.program_id)
 
+    # T11: 产出文件型程序在无工作区时结构化回退（可观测，非静默 NO_MATCH）
+    if workspace_required(chosen) and not workspace_path:
+        outcome.fallback_reason = "WORKSPACE_REQUIRED"
+        outcome.review_issues = [
+            f"program {chosen.program_id} requires workspace_path "
+            "(io_schema.inputs.workspace_path.required=true) but host has none"
+        ]
+        return outcome
+
+    payload = build_execution_payload(
+        content,
+        workspace_path=workspace_path,
+        input_data=input_data,
+    )
+
     try:
         exe = executor or ProgramExecutor(registry)
-        payload = {"task": content} if input_data is None else input_data
         exec_result = await exe.execute(
             chosen.program_id, payload, timeout_seconds=timeout_seconds
         )
@@ -92,13 +143,20 @@ async def try_program_path(
         return outcome
 
     rev = reviewer or ProgramReviewer()
+    # T11: 有工作区时期望含路径上下文，供审阅核对落盘文件
+    expectation: str | None = None
+    if workspace_path:
+        expectation = (
+            f"workspace_path={workspace_path}；若输出声明写入了文件"
+            "（如 files_written），请核对路径均位于该 workspace 之下。"
+        )
     try:
         review = await rev.review(
             chosen.program_id,
             content,
             exec_result.output,
             exec_result.error,
-            expectation=None,
+            expectation=expectation,
             generate=review_generate,
         )
     except Exception as e:
