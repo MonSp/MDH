@@ -1,25 +1,26 @@
 ---
 feature: program-pivot
-status: in-progress
+status: delivered
 updated: 2026-10-18
 branch: feature/program-t12-supply
-commits: 8e2a9c7.. # T1–T11 delivered；T12 in-progress
+commits: 8e2a9c7..eeafde2 # T1–T12 全部交付
 ---
 
 # 产品转型：经验固化为可执行程序（Program Pivot）
 
 ## Report
 
-**What was built** — program-pivot 全链（T1–T10）+ T11 载荷契约补齐。核心闭环：LLM 开放创造 → ProgramCompiler 沉淀 candidate（含 io_schema）→ PromotionGate 测试门禁自动晋升 → 三分法路由命中免 LLM 执行（stdin JSON 载荷 `{task, workspace_path, input?}`）→ ProgramReviewer 审阅 → 意见驱动 ProgramEvolver 修订/回滚/三连败降级；旧文本规则写路径 M1–M4 全部关停（存量只读）。T11 补齐产出文件型任务缺口：`workspace_path` 由宿主注入、`io_schema.inputs.workspace_path.required=true` 且无工作区时 `WORKSPACE_REQUIRED` 结构化回退（宁重勿轻，program 路径不静默建工作区）；编译器校验并落盘 io_schema；REST execute 与路由共用载荷契约。
+**What was built** — program-pivot T1–T11 全链 + **T12 程序供给与同会话二命交付**。核心闭环：LLM 成功任务 → `program_sediment` best-effort compile（T12.1）→ 落盘型 io_schema 质量门自动补 `workspace_path.required`（T12.2）→ PromotionGate → 三分法路由；同会话已有 workspace 时二命可 `path_used=program` 且文件落盘（T12.3，集成证据 `test_second_hit_same_session_writes_file`）；首任务无 workspace 仍 `WORKSPACE_REQUIRED` 回退且有可感知提示（T12.5）。证据说明见 `research/program-t12-e2e/README.md`（T12.4）。
 
-**Verification** — T11 后全量 pytest **2204 passed, 0 failed**（26 skipped）；program 相关套件 62 passed；ruff（CI 参数）PASS；server import OK。独立 review（general-1）：1 CRITICAL（io_schema 缺 task 静默通过）+ 2 MAJOR（REST execute 绕过载荷契约；首任务无 workspace）+ 3 Minor → `cc58fd0` 全部修复/澄清，原审阅者复核 **4/4 VERIFIED**。
+**Verification** — T12 后全量 pytest **2224 passed, 0 failed**（26 skipped）；ruff PASS；server import OK。T11 独立 review 4/4 VERIFIED（历史）；T12 本轮为清单驱动实施+本地套件验证。
 
 **Journey log** —
-1. F1/F4 两轮子代理曾被系统取消/挂起，实际稍后完成并覆盖了已读 findings：靠上下文留存恢复旧 F4 全文并与新产出合并——并行调研子代理状态不可尽信，落盘文件以 diff 复核为准。
-2. `docs/compose/` 在 .gitignore 中但历史 spec 均为 tracked：新 spec 需 `git add -f`，与仓库惯例一致。
-3. WebSearch 插件本环境不可用：全部子代理改走 OpenAlex API / 直取 arXiv / HN Algolia。
-4. Review 指出"审阅 fail 与执行异常的当次任务交付不对称"——设计补语义：审阅 fail 作废程序结果、降级 LLM 重执行。
-5. T11：program 路径绝不静默自动建工作区（会绕过 HITL confirm）——首任务 WORKSPACE_REQUIRED 回退是预期行为；io_schema 校验必须"声明了 inputs 就强制含 task"，空 schema 允许但声明后缺 task 必须拒绝。
+1. F1/F4 子代理状态不可尽信，落盘以 diff 复核为准。
+2. `docs/compose/` 在 .gitignore：spec 需 `git add -f`。
+3. WebSearch 插件不可用：OpenAlex/直取 arXiv。
+4. 审阅 fail = 作废结果 + 降级 LLM 重执行。
+5. T11：program 路径绝不静默建工作区；io_schema 声明 inputs 后必须含 task required。
+6. T12：沉淀必须 best-effort（绝不抛/不阻塞交付）；同会话二命的硬证据优先于实网五任务——先集成可 CI 复跑，再补 run_ab 变体。
 
 ### T1 交付（2026-10-15，9c75e7e..34b6c38）
 
@@ -308,9 +309,9 @@ T8/T11 实测：机制通但 `path_used=program` 交付为 0——根因是**程
 - [x] T9: 前端 ProgramRegistry 面板（版本/血缘/晋升历史，替换经验规则写入口） — acceptance: 面板展示程序包列表与 lineage；经验规则面板无写操作（covers: S2 迁移路径 M3； depends: T4）
 - [x] T10: 迁移收尾 M4：删除规则写入/自进化/联动进化/共享池写路径与调度 — acceptance: 相关写路径代码与调度移除，全量 pytest/vitest/ruff/eslint 绿（covers: S2 迁移路径 M4； depends: T5, T7, T9）
 - [x] T11: io_schema/workspace 载荷契约补齐 — acceptance: 路由命中的程序收到 `{task, workspace_path, input}` 载荷；`io_schema.inputs.workspace_path.required=true` 且无工作区时 `fallback_reason=WORKSPACE_REQUIRED`；编译器生成并校验 io_schema 写入 manifest；审阅期望含 workspace 上下文；单测覆盖映射/回退/编译校验（covers: S2 程序包契约·执行载荷、三分法路由； depends: T2, T3, T6）
-- [ ] T12.2: 编译器 io_schema 落盘型质量门 — acceptance: 落盘启发式触发时 manifest.io_schema.inputs.workspace_path.required=true；漏声明被自动补写或拒绝；prompt 含强制文案；单测覆盖（covers: S2 T12 程序供给； depends: T11）
-- [ ] T12.1: 成功任务沉淀接线（compile 钩子） — acceptance: 成功路径 best-effort 调 compile；失败不阻塞；无 generator 跳过；单测/集成覆盖（covers: S2 架构总览·沉淀钩子、T12； depends: T12.2）
-- [ ] T12.3: 同会话 workspace 复用 — acceptance: 本会话已有 workspace 时 program 载荷带同一路径；文件写入该目录（covers: S2 T12； depends: T11）
-- [ ] T12.4: 同会话二命 E2E harness — acceptance: 证据 JSON 含 path_used=program + files_written 或明确 fallback 码（covers: S2 T12 DoD； depends: T12.1, T12.3）
-- [ ] T12.5: WORKSPACE_REQUIRED 等回退可观测 — acceptance: 非 NO_MATCH 回退有可感知提示/日志（covers: S2 T12； depends: T11）
-- [ ] T12.6: T12 验证与 spec 收官 — acceptance: 相关套件+全量绿；spec 勾选 T12.*（covers: S2 T12； depends: T12.1–T12.5）
+- [x] T12.2: 编译器 io_schema 落盘型质量门 — acceptance: 落盘启发式触发时 manifest.io_schema.inputs.workspace_path.required=true；漏声明被自动补写或拒绝；prompt 含强制文案；单测覆盖（covers: S2 T12 程序供给； depends: T11）
+- [x] T12.1: 成功任务沉淀接线（compile 钩子） — acceptance: 成功路径 best-effort 调 compile；失败不阻塞；无 generator 跳过；单测/集成覆盖（covers: S2 架构总览·沉淀钩子、T12； depends: T12.2）
+- [x] T12.3: 同会话 workspace 复用 — acceptance: 本会话已有 workspace 时 program 载荷带同一路径；文件写入该目录（covers: S2 T12； depends: T11）
+- [x] T12.4: 同会话二命 E2E harness — acceptance: 证据 JSON 含 path_used=program + files_written 或明确 fallback 码（covers: S2 T12 DoD； depends: T12.1, T12.3）
+- [x] T12.5: WORKSPACE_REQUIRED 等回退可观测 — acceptance: 非 NO_MATCH 回退有可感知提示/日志（covers: S2 T12； depends: T11）
+- [x] T12.6: T12 验证与 spec 收官 — acceptance: 相关套件+全量绿；spec 勾选 T12.*（covers: S2 T12； depends: T12.1–T12.5）
