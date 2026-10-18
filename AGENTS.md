@@ -2,14 +2,14 @@
 
 ## 项目概述
 
-**大荒界 (MDH)** 是一个基于 React + Python FastAPI + AgentScope 的全领域智能体协作系统。用户派发任务后，CEO 智能体利用意图识别引擎拆解任务，动态组建智能体团队并行执行，并由专门的审查智能体把控开发进度与作品完成度；每个领域智能体在使用中不断总结提升自己的技能（skill），技能随用随进化。
+**大荒界 (MDH)** 是一个基于 React + Python FastAPI + AgentScope 的全领域智能体协作系统。用户派发任务后，CEO 智能体利用意图识别引擎拆解任务，动态组建智能体团队并行执行，并由专门的审查智能体把控开发进度与作品完成度；开放创造型任务由大模型完成，跑通的经验**固化为可执行程序包**（ProgramPack：确定性 Python + 自带测试），相似任务免 LLM 直接执行，结果交 LLM 审阅并驱动程序迭代（program-pivot，2026-10）。
 
 ### 核心定位
 - **意图驱动的任务派发**: 用户派发任务 → CEO 智能体利用意图识别引擎拆解任务（两层复杂度判定：规则引擎 + LLM；五维加权路由 + 自适应加成：关键词/语义/成功率/优先级/技能等级）
 - **动态团队组装**: 按拆解结果智能创建智能体团队——通过预配置的角色模板组装，或直接选取工具创建
 - **并行任务执行**: 任务派发后由团队成员并行执行；复杂任务按 DAG 工作流调度（顺序/并行/混合三种策略）
 - **审查智能体把控**: 团队中指定审查智能体全程把控开发进度与作品完成度，输出审查意见并驱动迭代
-- **技能随用随进化**: 每个领域智能体对自己使用的技能进行总结提升，技能持久进化，下次加载的是提升后的版本，而非重新加载旧技能
+- **经验固化为程序**: LLM 开放创造 → ProgramCompiler 沉淀 candidate → PromotionGate 测试门禁晋升 → 三分法路由免 LLM 执行 + LLM 审阅 → 意见驱动修订/回滚/三连败降级（旧文本规则进化已下线，存量只读）
 - **虚拟办公室可视化**: 3D 科技大厦场景，实时展示智能体状态
 - **本地/远端智能体混合执行**: 每个智能体可独立选择在用户浏览器本地(Node.js)或远端(Python Executor)执行工具调用
 
@@ -334,7 +334,14 @@ MDH/
 │   ├── minutes_workflow.py       # 会议纪要 DAG 构建
 │   ├── task_bridge.py            # 工作流↔Task 桥接
 │   ├── executor_server.py        # 远端工具执行服务 (local/docker/nfs/s3)
-│   ├── skill_evolution.py        # 技能进化接线 (反馈→经验→增量区)
+│   ├── program_registry.py       # 程序包注册中心 (program-pivot T1)
+│   ├── program_executor.py       # 免 LLM 沙箱执行 (T2)
+│   ├── program_compiler.py       # 轨迹→candidate 沉淀 (T3)
+│   ├── promotion_gate.py         # 测试门禁晋升 (T4)
+│   ├── program_reviewer.py       # LLM 只审阅 (T5)
+│   ├── program_evolver.py        # 审阅驱动升级闭环 (T5)
+│   ├── program_router.py         # 三分法路由 program 支路 (T6)
+│   ├── program_injection.py      # 任务前注入 registry 优先 (T7)
 │   ├── skill_generator.py        # AI 技能生成服务
 │   ├── skills.py                 # 浏览器自动化技能管理
 │   ├── llm_guard.py              # LLM 调用超时守卫 (v1.2.0)
@@ -618,7 +625,7 @@ CEO 智能体（意图识别引擎拆解任务）
     ↓
 审查智能体把控开发进度与作品完成度
     ↓
-各领域智能体对所用技能总结提升（技能随用随进化）
+成功任务经验固化为程序包（program-pivot：沉淀→门禁→免 LLM 复跑）
 ```
 
 | 阶段 | 负责人 | 说明 |
@@ -777,7 +784,12 @@ if result.retry_with_complex:
 
 ---
 
-## 技能进化系统
+## 技能进化系统（legacy · program-pivot 迁移说明）
+
+> **2026-10 program-pivot**：文本规则的新增写入/自进化/联动进化/共享池写路径已下线（M1–M4）。
+> 新沉淀走 **ProgramPack 程序库**（`program_registry/compiler/executor/gate/reviewer/evolver/router`），
+> 详见 `docs/compose/spec/program-pivot.md`。本章其余内容描述存量规则的只读检索与治理行为。
+
 
 ### 技能包结构
 
@@ -1205,7 +1217,9 @@ def _select_roles_for_dag(dag):
 | `discussion_utils.py` | 讨论投影共享辅助函数：STANCE 标签剥离/立场解析，消除重复实现 |
 | `minutes_workflow.py` | 会议纪要 DAG 构建（速记文本→纪要流水线） |
 | `task_bridge.py` | 工作流节点与 Task 系统的双向转换与同步 |
-| `skill_evolution.py` | 技能进化接线：审查反馈→经验规则→CoW 增量区 |
+| `program_registry.py` / `program_compiler.py` | 程序包注册中心 / 轨迹沉淀（program-pivot T1/T3） |
+| `promotion_gate.py` / `program_reviewer.py` / `program_evolver.py` | 测试门禁 / LLM 审阅 / 升级闭环（T4/T5） |
+| `program_router.py` / `program_injection.py` | 三分法路由 program 支路 / 任务前注入（T6/T7） |
 | `skill_generator.py` | AI 技能生成服务：根据用户需求描述生成技能配置 |
 
 ### 经验规则有效性追踪 (v1.3.5)
@@ -1565,7 +1579,7 @@ TS Orchestrator 内部仍保留工具路由能力：
 - 支持会议快照的保存和恢复
 - 断点续跑能力
 
-### 6. 技能随用随进化
+### 6. 经验固化为可执行程序（program-pivot）
 
 - 每个领域智能体对自己使用的技能进行总结提升，技能持久进化，下次加载提升后的版本
 - 经验提炼器从执行记录中提取可复用的经验规则，写入技能增量区
