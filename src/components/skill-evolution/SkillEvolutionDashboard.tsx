@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { SkillRegistryPanel } from './SkillRegistryPanel'
 import { ProjectListPanel } from './ProjectListPanel'
 import { ExperienceRulePanel } from './ExperienceRulePanel'
+import { ProgramRegistryPanel } from './ProgramRegistryPanel'
 import { RouteTablePanel } from './RouteTablePanel'
 import RoleConfigPanel from './RoleConfigPanel'
 import AgentProfilePanel from './AgentProfilePanel'
@@ -16,12 +17,13 @@ import EvolutionProofCard from './EvolutionProofCard'
 import QualityAnalysisPanel from './QualityAnalysisPanel'
 import RsiMonitorPanel from './RsiMonitorPanel'
 
-type TabKey = 'skills' | 'projects' | 'rules' | 'routes' | 'roles' | 'career' | 'dashboard' | 'feedback' | 'timeline' | 'lineage' | 'radar' | 'proof' | 'quality' | 'rsi'
+type TabKey = 'skills' | 'projects' | 'rules' | 'programs' | 'routes' | 'roles' | 'career' | 'dashboard' | 'feedback' | 'timeline' | 'lineage' | 'radar' | 'proof' | 'quality' | 'rsi'
 
 const tabs: Array<{ key: TabKey; label: string; icon: string }> = [
   { key: 'skills', label: '技能包', icon: '📦' },
   { key: 'projects', label: '项目', icon: '📁' },
   { key: 'rules', label: '经验规则', icon: '📋' },
+  { key: 'programs', label: '程序库', icon: '🧩' },
   { key: 'routes', label: '路由表', icon: '🧭' },
   { key: 'roles', label: '角色配置', icon: '👥' },
   { key: 'career', label: '职业发展', icon: '🚀' },
@@ -77,6 +79,7 @@ export default function SkillEvolutionDashboard() {
         {activeTab === 'skills' && <SkillRegistryPanel />}
         {activeTab === 'projects' && <ProjectListPanel />}
         {activeTab === 'rules' && <ExperienceRulePanel />}
+        {activeTab === 'programs' && <ProgramRegistryPanel />}
         {activeTab === 'routes' && <RouteTablePanel />}
         {activeTab === 'roles' && <RoleConfigPanel />}
         {activeTab === 'career' && (
