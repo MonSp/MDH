@@ -2,6 +2,8 @@
 feature: program-pivot
 status: in-progress
 updated: 2026-10-15
+branch: feature/program-promotion-gate
+commits: b4a1ffe..fd736c6 # T4 已交付；T3 在 PR #21；T5–T10 进行中
 branch: feature/program-compiler
 commits: b4a1ffe..ef2a8f7 # T3 已交付；T1/T2 已随 #20 合入 main；T4–T10 进行中
 ---
@@ -32,6 +34,16 @@ commits: b4a1ffe..ef2a8f7 # T3 已交付；T1/T2 已随 #20 合入 main；T4–T
 2. CI ruff 参数为 `--select=E,F,W --ignore=...`（ci.yml:41），与本地默认全规则集不同——本地"30 errors"多为 CI 不检的 BLE/I 规则，以 CI 参数为准。
 3. pydantic 请求体非法时 FastAPI 原生 422（先于 handler），与业务 fail 双轨并存，测试需分别覆盖。
 
+### T4 交付（2026-10-16，b4a1ffe..fd736c6）
+
+**What was built** — `backend/promotion_gate.py`：candidate 测试门禁——pytest 子进程（`start_new_session` + 最小 env + `PYTHONPATH` 注入 pack 根、超时 `killpg` 整组强杀）；通过 → `promote(validated_model)` **自动晋升**（无人工前置）；失败 → 状态不变（candidate 保持 = 保留上一版语义）。lineage 审计：`gate_passed/failed/timeout` 事件含 `test_hashes`/`main_sha256`/`output_tail`(≤2000)/`at`/`tests_modified`；**时序为 gate 事件先于 promote**。防作弊：与上次门禁哈希对比标记 `tests_modified`（DGM 伪造测试实证对策）；TOCTOU 竞态（pytest 运行中状态被改）→ `GATE_RACE` + `gate_aborted`（结构化，非 500）。`llm_calls` 恒 0。`Dockerfile.backend` 补装 pytest/pytest-timeout（生产镜像门禁可用）。`registry.append_lineage()` 公共方法。`POST /api/programs/{id}/gate`。
+
+**Verification** — T4 套件 11 passed（真跑 pytest 子进程/真改测试触发标记/超时/GATE_RACE/时序与审计字段断言）；全量 2194 passed；ruff PASS。独立 review A1–A7 全 PASS；3 Major（promote 竞态 500、生产镜像缺 pytest、审计字段缺失）+ 4 Minor 已修复，复核 **4/4 VERIFIED**；复核尾项 2 Minor（GATE_RACE 顶层码、超时 tests_modified）亦已修复。
+
+**Journey log (T4)** —
+1. 门禁子进程不能用 `python -I`（需要 pytest/站点包），与 T2 执行器 `-I` 约定相反——隔离边界按场景取舍，需在代码注释写明。
+2. "读状态→await→写状态"的长窗口 TOCTOU 必须把竞态异常转为结构化错误，否则违反仓内 fail 惯例（reviewer 实测复现 500）。
+3. 生产镜像（Dockerfile）缺测试依赖会让"依赖 pytest 的运行时功能"静默全挂——此类门禁功能必须同步改镜像。
 ### T2 交付（2026-10-15，随 PR #20 合入 main）
 
 **What was built** — `backend/program_executor.py`：asyncio 子进程沙箱（`python -I`、最小 env、cwd=包目录）、stdin/stdout JSON 契约、超时强杀 + 显式 reap、8 类结构化错误码；遥测恒定 `llm_calls=0` + `duration_ms` + `timed_out`；`POST /api/programs/{id}/execute`（成功/失败 telemetry 同在 `data`）。仅标准库依赖边界成文入契约。
@@ -170,6 +182,9 @@ program_packs/<program_id>/
 ## Tasks
 
 - [x] T1: ProgramPack 格式与 ProgramRegistry（CRUD/索引/触发匹配/新鲜度状态机/旧资产只读登记） — acceptance: `POST /api/programs` 创建通过 manifest 校验，查询返回匹配候选与 status；单测覆盖状态机与新鲜度失效（covers: S2 程序包契约、架构总览）
+- [ ] T2: ProgramExecutor 免 LLM 沙箱执行 + 遥测 — acceptance: 对 promoted 程序包执行返回结构化结果与 telemetry（llm_calls=0、耗时），超时/异常按契约报错（covers: S2 程序包契约、错误行为； depends: T1）
+- [ ] T3: ProgramCompiler 沉淀管线（任务轨迹→候选程序包含自带测试） — acceptance: 成功任务后触发产生 candidate 程序包草稿，tests/ 非空且 manifest 完整（covers: S2 架构总览； depends: T1）
+- [x] T4: promotion_gate 测试门禁自动晋升 + lineage — acceptance: 测试通过自动 promoted 并写 lineage.json；失败回滚保留上一版；tests/ 变更被标记（covers: S2 审阅—升级闭环、防作弊； depends: T1）
 - [x] T2: ProgramExecutor 免 LLM 沙箱执行 + 遥测 — acceptance: 对 promoted 程序包执行返回结构化结果与 telemetry（llm_calls=0、耗时），超时/异常按契约报错（covers: S2 程序包契约、错误行为； depends: T1）
 - [x] T3: ProgramCompiler 沉淀管线（任务轨迹→候选程序包含自带测试） — acceptance: 成功任务后触发产生 candidate 程序包草稿，tests/ 非空且 manifest 完整（covers: S2 架构总览； depends: T1）
 - [ ] T4: promotion_gate 测试门禁自动晋升 + lineage — acceptance: 测试通过自动 promoted 并写 lineage.json；失败回滚保留上一版；tests/ 变更被标记（covers: S2 审阅—升级闭环、防作弊； depends: T1）

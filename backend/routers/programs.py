@@ -1,4 +1,5 @@
 """
+Program Registry REST API (program-pivot T1/T4)
 Program Registry REST API (program-pivot T1/T3)
 
 GET    /api/programs                     列表（可按 status 过滤）
@@ -10,6 +11,7 @@ GET    /api/programs/{program_id}        详情（含 lineage）
 POST   /api/programs/{program_id}/promote    candidate -> promoted
 POST   /api/programs/{program_id}/deprecate  -> deprecated
 POST   /api/programs/{program_id}/execute    免 LLM 沙箱执行 (T2)
+POST   /api/programs/{program_id}/gate       测试门禁自动晋升 (T4)
 """
 
 from __future__ import annotations
@@ -20,13 +22,14 @@ from typing import Any
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
+from program_executor import ProgramExecutor
+from promotion_gate import PromotionGate
 from program_compiler import (
     GenerationError,
     ProgramCompiler,
     TaskTrajectory,
     llm_generate_fn,
 )
-from program_executor import ProgramExecutor
 from program_registry import PROGRAM_ID_RE, ProgramManifest, ProgramStatus
 from routers.common import fail, ok
 
@@ -245,4 +248,46 @@ async def execute_program(program_id: str, body: ExecuteRequest | None = None):
         "data": {"telemetry": telemetry, "error_code": result.error_code},
         "error": result.error,
         "code": result.error_code or "ERROR",
+    }
+
+
+class GateRequest(BaseModel):
+    model: str | None = Field(
+        None, description="晋升时记录的验证模型标识（可选）"
+    )
+
+
+@router.post("/{program_id}/gate")
+async def gate_program(program_id: str, body: GateRequest | None = None):
+    """测试门禁自动晋升 candidate（program-pivot T4）。"""
+    bad = _invalid_id(program_id)
+    if bad:
+        return bad
+    gate = PromotionGate(_get_registry())
+    result = await gate.evaluate(
+        program_id, model=body.model if body else None
+    )
+    data = {
+        "promoted": result.promoted,
+        "passed": result.passed,
+        "error_code": result.error_code,
+        "tests_modified": result.tests_modified,
+        "duration_ms": result.duration_ms,
+        "llm_calls": result.llm_calls,
+    }
+    # 顶层 code 以 error_code 优先（如 GATE_RACE：测试过但晋升被竞态中止）
+    if result.error_code:
+        return {
+            "success": False,
+            "data": data,
+            "error": result.error,
+            "code": result.error_code,
+        }
+    if result.passed:
+        return ok(data, code="GATE_PASSED")
+    return {
+        "success": False,
+        "data": data,
+        "error": result.error,
+        "code": result.error_code or "GATE_FAILED",
     }
