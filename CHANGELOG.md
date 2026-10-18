@@ -2,6 +2,24 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased] — program-pivot：经验固化为可执行程序（T1–T10）
+
+### Added
+- **ProgramPack 程序库**：manifest 校验、candidate→promoted→deprecated 状态机 + lineage 血缘、新鲜度（TTL/模型换代）、触发匹配、legacy 只读登记（T1）
+- **ProgramExecutor**：免 LLM 子进程沙箱执行 + `llm_calls=0` 遥测（T2）
+- **ProgramCompiler**：成功任务轨迹 → candidate 草稿（main.py + 自带测试，写盘失败回滚）（T3）
+- **PromotionGate**：测试门禁自动晋升 + 防作弊哈希审计（tests_modified）+ GATE_RACE 竞态结构化（T4）
+- **ProgramReviewer + ProgramEvolver**：LLM 只审阅 → fail 意见驱动修订 → 门禁晋升/回滚保留上一版/连续 3 败降级（T5）
+- **三分法路由**：program/simple/complex，命中 promoted 新鲜程序免 LLM 交付，任何不确定 fail-open 回退 LLM（T6）
+- **ProgramRegistry 前端面板**（程序包列表 + lineage 时间线，只读）（T9）
+
+### Changed
+- **迁移 M1–M2**：经验规则新增写入关停（生产默认，env 可回退）；任务前注入 registry 优先、未命中回退旧规则路径（T7）
+- **A/B 基线**：五任务双臂实测入 `research/program-pivot-ab/`（LLM 臂 2/5 vs 程序臂 3/5；E1/E5 程序命中但落盘型任务审阅如实回退）；顺带修复 `llm_review_fn/llm_generate_fn` 实网必炸 bug（T8）
+
+### Removed
+- **M4 清场**：规则写入/自进化/联动进化/共享池写路径与调度全删（`skill_evolution.py`、extractor 提取三件套+evolve_rule 链、knowledge 级联写、双份 `/api/skills/evolve`、`/api/assets/experience`、共享池 5 写端点、前端发布/Fork 经验按钮）；存量规则读/检索/状态治理保留（T10）
+
 ## [0.7.0] - 2026-10-09
 
 ### Added
