@@ -52,12 +52,8 @@ class TestA2APostProcessor:
             task_id="task-001",
         )
 
-        # 经验提炼应被调用（5 个位置参数）
-        mock_experience.extract_from_meeting.assert_called_once()
-        call_args = mock_experience.extract_from_meeting.call_args[0]
-        # call_args = (project_id, task_description, discussion_results, review_result, execution_results)
-        assert "config.ts" in call_args[1]  # task_description is 2nd arg
-        assert call_args[3]["passed"] is True  # review_result.passed
+        # program-pivot M4: A2A 结果不再提炼规则
+        mock_experience.extract_from_meeting.assert_not_called()
 
         # 记忆写入应被调用（归属于数字员工 executor，而非执行节点）
         mock_memory.add_memory.assert_called_once()

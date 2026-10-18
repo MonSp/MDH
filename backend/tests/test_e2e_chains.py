@@ -86,35 +86,6 @@ class TestEvolutionChain:
         # 应该已经进化或降级（5 success / 20 total = 0.25 < 0.3）
         assert loaded.status in ("evolved", "pending_review")
 
-    def test_evolution_chain_linkage(self, data_dir):
-        """进化链追踪"""
-        from experience_extractor import ExperienceExtractor, ExperienceRule
-
-        extractor = ExperienceExtractor(incremental_dir=os.path.join(data_dir, "experience"))
-
-        # 创建低分规则
-        rule = ExperienceRule(
-            rule_id="chain-1", trigger_condition="x", action="y", note="",
-            source_task_id="t1", source_task_type="t", rule_type="success_pattern",
-            status="approved", keywords=["a"], created_at="now",
-            effectiveness_score=0.2, usage_count=10, success_count=2,
-        )
-        extractor._save_rule(rule)
-
-        # 触发进化
-        evolved = extractor.evolve_rule("chain-1")
-        assert evolved is not None
-        assert evolved.parent_rule_id == "chain-1"
-        assert evolved.evolution_count == 1
-
-        # 检查进化链（原始 → 进化后）
-        chain = extractor.get_evolution_chain("chain-1")
-        assert len(chain) >= 2
-        # 第一条是原始规则
-        assert chain[0]["rule_id"] == "chain-1"
-        # 最后一条是进化后的规则
-        assert chain[-1]["parent_rule_id"] == "chain-1"
-
 
 class TestCollaborationChain:
     """协作链路：mentor→注入→XP→升级→路由加成"""

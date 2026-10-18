@@ -92,63 +92,6 @@ def write_task_memory(coordinator, agent_id: str, task_description: str, task_su
         logger.debug("记忆写入跳过: %s", e)
 
 
-def finalize_skill_evolution(coordinator, extractor, packager, project_id: str) -> dict[str, Any]:
-    """技能闭环自动触发：审核 pending 规则 → 写增量区 → 打包升级版技能包
-
-    Returns:
-        {"approved": int, "written": int, "packaged": List[str]}
-    """
-    result: dict[str, Any] = {"approved": 0, "written": 0, "packaged": []}
-    skill_packs_root = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skill_packs"
-    )
-
-    pending = extractor.get_pending_rules()
-    for rule in pending:
-        source = getattr(rule, "source_task_id", None)
-        if source and source != project_id:
-            continue
-        if not extractor.approve_rule(rule.rule_id):
-            continue
-        result["approved"] += 1
-        approved_rule = extractor._load_rule(rule.rule_id)
-        if approved_rule and extractor.write_to_incremental_area(approved_rule):
-            result["written"] += 1
-            log_skill_evolution(project_id, approved_rule)
-            for kw in approved_rule.keywords or []:
-                base_skill = os.path.join(skill_packs_root, kw)
-                if os.path.isdir(base_skill) and kw not in result["packaged"]:
-                    packager.full_package(
-                        base_skill_path=base_skill,
-                        incremental_path=extractor._incremental_dir,
-                        project_id=project_id,
-                        skill_name=kw,
-                    )
-                    result["packaged"].append(kw)
-    return result
-
-
-def log_skill_evolution(project_id: str, rule) -> None:
-    """将技能进化事件记录到 SQLite evolution_log 表"""
-    try:
-        from db import get_db
-        db_path = os.path.join(os.path.dirname(__file__), "data", "mdh.db")
-        conn = get_db(db_path)
-        conn.execute(
-            """INSERT INTO evolution_log
-               (original_rule_id, evolved_rule_id, trigger_condition, original_action,
-                evolved_action, original_score, usage_count, failure_reason, evolved_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (rule.rule_id, rule.rule_id, rule.trigger_condition,
-             rule.action, rule.action, rule.effectiveness_score,
-             rule.usage_count, f"meeting_finalize:{project_id}",
-             datetime.now(timezone.utc).isoformat()),
-        )
-        conn.commit()
-    except Exception as e:
-        logger.warning("记录技能进化事件失败: %s", e)
-
-
 async def inject_experience(coordinator, coordinator_id, original_description, enhanced_description, discussion_results, target_agent_id: str = ""):
     """注入历史经验到任务描述，优先注入 mentor 规则
 
@@ -220,6 +163,7 @@ async def inject_experience(coordinator, coordinator_id, original_description, e
     except Exception as e:
         logger.debug("历史经验注入跳过: %s", e)
     return enhanced_description, injected_rule_ids
+
 
 
 def log_knowledge_flow(from_agent: str, to_agent: str, rule_ids: list[str]) -> None:

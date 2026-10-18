@@ -26,6 +26,59 @@ def extractor(tmp_incremental_dir):
     return ExperienceExtractor(incremental_dir=tmp_incremental_dir)
 
 
+# ─── program-pivot M4 测试 shim ───────────────────────────────────────
+# 提取方法（extract_from_success / extract_from_meeting）已从生产代码删除；
+# 本文件剩余测试关注存量治理（检索/降级/迁移/上下文），shim 返回合成规则
+# 供其作为种子。提取语义测试已随 M4 一并删除。
+
+
+def _shim_extract_from_success(self, log):
+    import re as _re
+    import uuid as _uuid
+    words = _re.findall(r"[a-zA-Z]{4,}|[\u4e00-\u9fff]{2,}", log.task_description or "")
+    step_words = []
+    for st in (log.steps or [])[:6]:
+        step_words.extend(_re.findall(r"[a-zA-Z]{4,}", str(st.get("command", ""))))
+    base_kw = (words[:5] + step_words[:4]) or ["shim"]
+    # 用 task_id 变体保证不同日志的种子不被去重合并
+    base_kw = list(dict.fromkeys(base_kw + [log.task_id or "t"]))
+    rule = ExperienceRule(
+        rule_id=str(_uuid.uuid4())[:8],
+        trigger_condition=f"task_type is {log.task_type or 'general'}",
+        action=f"沿用成功轨迹要点: {(log.final_output or log.task_description or '')[:60]}",
+        note="m4-test-shim",
+        source_task_id=log.task_id or "task-shim",
+        source_task_type=log.task_type or "general",
+        rule_type="success_pattern",
+        status="pending_review",
+        keywords=base_kw,
+        created_at=_now_iso(),
+    )
+    return [rule]
+
+
+def _shim_extract_from_meeting(self, *args, **kwargs):
+    import uuid as _uuid
+    task_description = kwargs.get("task_description") or (args[1] if len(args) > 1 else "meeting task")
+    rule = ExperienceRule(
+        rule_id=str(_uuid.uuid4())[:8],
+        trigger_condition="from meeting",
+        action=f"会议经验: {task_description[:60]}",
+        note="m4-test-shim",
+        source_task_id=kwargs.get("project_id") or "p-shim",
+        source_task_type="general",
+        rule_type="success_pattern",
+        status="pending_review",
+        keywords=["会议", "shim"],
+        created_at=_now_iso(),
+    )
+    return [rule]
+
+
+ExperienceExtractor.extract_from_success = _shim_extract_from_success
+ExperienceExtractor.extract_from_meeting = _shim_extract_from_meeting
+
+
 def _make_success_log(**overrides) -> ExecutionLog:
     """构建成功日志"""
     defaults = dict(
@@ -93,94 +146,7 @@ def _make_failure_recovery_log(**overrides) -> ExecutionLog:
 # ──────────────────── 从成功日志提炼规则 ────────────────────
 
 
-class TestExtractFromSuccess:
-    def test_extracts_decision_point_rule(self, extractor):
-        log = _make_success_log()
-        rules = extractor.extract_from_success(log)
-
-        decision_rules = [r for r in rules if "decision" in r.trigger_condition]
-        assert len(decision_rules) >= 1
-        rule = decision_rules[0]
-        assert rule.rule_type == "success_pattern"
-        assert rule.status == "pending_review"
-        assert rule.source_task_id == "task-001"
-        assert rule.source_task_type == "web-dev"
-        assert "css selector #username" in rule.action
-
-    def test_extracts_step_pattern_rule(self, extractor):
-        log = _make_success_log()
-        rules = extractor.extract_from_success(log)
-
-        pattern_rules = [r for r in rules if "follow steps pattern" in r.action]
-        assert len(pattern_rules) >= 1
-        rule = pattern_rules[0]
-        assert rule.rule_type == "success_pattern"
-        assert "navigate" in rule.action
-
-    def test_returns_empty_for_failure_log(self, extractor):
-        log = _make_success_log(status="failure")
-        rules = extractor.extract_from_success(log)
-        assert rules == []
-
-    def test_keywords_include_task_type(self, extractor):
-        log = _make_success_log()
-        rules = extractor.extract_from_success(log)
-        assert len(rules) > 0
-        for rule in rules:
-            assert "web-dev" in rule.keywords
-
-    def test_keywords_include_commands(self, extractor):
-        log = _make_success_log()
-        rules = extractor.extract_from_success(log)
-        all_keywords = set()
-        for rule in rules:
-            all_keywords.update(rule.keywords)
-        assert "navigate" in all_keywords
-        assert "fill_field" in all_keywords
-
-
 # ──────────────────── 从失败-修正日志提炼规则 ────────────────────
-
-
-class TestExtractFromFailureRecovery:
-    def test_extracts_failure_avoidance_rule(self, extractor):
-        log = _make_failure_recovery_log()
-        rules = extractor.extract_from_failure_recovery(log)
-
-        assert len(rules) >= 1
-        rule = rules[0]
-        assert rule.rule_type == "failure_avoidance"
-        assert rule.status == "pending_review"
-        assert "MergedCellError" in rule.trigger_condition
-        assert "unmerge" in rule.action.lower()
-
-    def test_returns_empty_without_errors(self, extractor):
-        log = _make_failure_recovery_log(errors=[])
-        rules = extractor.extract_from_failure_recovery(log)
-        assert rules == []
-
-    def test_returns_empty_without_corrections(self, extractor):
-        log = _make_failure_recovery_log(corrections=[])
-        rules = extractor.extract_from_failure_recovery(log)
-        assert rules == []
-
-    def test_keywords_include_error_type(self, extractor):
-        log = _make_failure_recovery_log()
-        rules = extractor.extract_from_failure_recovery(log)
-        assert len(rules) > 0
-        all_keywords = set()
-        for rule in rules:
-            all_keywords.update(rule.keywords)
-        assert "MergedCellError" in all_keywords
-
-    def test_unmatched_corrections_produce_correction_tip(self, extractor):
-        log = _make_failure_recovery_log(
-            errors=[{"type": "SomeError", "message": "generic error", "step_index": 99}],
-            corrections=[{"action": "retry with different approach"}],
-        )
-        rules = extractor.extract_from_failure_recovery(log)
-        assert len(rules) >= 1
-        assert any(r.rule_type == "correction_tip" for r in rules)
 
 
 # ──────────────────── 审核流程 ────────────────────
@@ -628,123 +594,6 @@ class TestRuleEffectiveness:
 # ──────────────────── 规则自进化 ────────────────────
 
 
-class TestRuleEvolution:
-    def test_evolve_rule_basic(self, extractor):
-        """低分规则触发进化，产生改进版规则"""
-        log = _make_success_log()
-        rules = extractor.extract_from_success(log)
-        rule = rules[0]
-        extractor.submit_for_review(rule)
-        extractor.approve_rule(rule.rule_id)
-
-        # 模拟低分：5 次使用，1 次成功
-        for i in range(5):
-            extractor.update_rule_effectiveness(rule.rule_id, i == 0)
-
-        # 原规则被标记为 evolved
-        loaded = extractor._load_rule(rule.rule_id)
-        assert loaded.status == "evolved"
-
-        # 产生进化后的规则
-        all_rules = extractor.get_all_rules()
-        evolved = [r for r in all_rules if r.parent_rule_id == rule.rule_id]
-        assert len(evolved) == 1
-        assert evolved[0].status == "approved"
-        assert evolved[0].evolution_count == 1
-
-    def test_evolve_creates_child_rule(self, extractor):
-        """进化产生新规则，继承原规则的核心信息"""
-        log = _make_success_log()
-        rules = extractor.extract_from_success(log)
-        rule = rules[0]
-        extractor.submit_for_review(rule)
-        extractor.approve_rule(rule.rule_id)
-
-        for i in range(5):
-            extractor.update_rule_effectiveness(rule.rule_id, i == 0)
-
-        # 查找进化后的规则
-        all_rules = extractor.get_all_rules()
-        evolved = [r for r in all_rules if r.parent_rule_id == rule.rule_id]
-        assert len(evolved) == 1
-        assert evolved[0].status == "approved"
-        assert evolved[0].trigger_condition == rule.trigger_condition
-        assert evolved[0].evolution_count == 1
-
-    def test_evolve_max_count(self, extractor):
-        """单条规则最多进化 3 次"""
-        log = _make_success_log()
-        rules = extractor.extract_from_success(log)
-        rule = rules[0]
-        extractor.submit_for_review(rule)
-        extractor.approve_rule(rule.rule_id)
-
-        # 进化 3 次
-        current_id = rule.rule_id
-        for _ in range(3):
-            for i in range(5):
-                extractor.update_rule_effectiveness(current_id, i == 0)
-            # 找到进化后的规则
-            all_rules = extractor.get_all_rules()
-            evolved = [r for r in all_rules if r.parent_rule_id == current_id and r.status == "approved"]
-            if evolved:
-                current_id = evolved[0].rule_id
-
-        # 第 4 次不应该进化
-        for i in range(5):
-            extractor.update_rule_effectiveness(current_id, i == 0)
-        all_rules = extractor.get_all_rules()
-        evolved_4 = [r for r in all_rules if r.parent_rule_id == current_id]
-        assert len(evolved_4) == 0
-
-    def test_evolution_chain(self, extractor):
-        """获取完整的进化链"""
-        log = _make_success_log()
-        rules = extractor.extract_from_success(log)
-        rule = rules[0]
-        extractor.submit_for_review(rule)
-        extractor.approve_rule(rule.rule_id)
-
-        for i in range(5):
-            extractor.update_rule_effectiveness(rule.rule_id, i == 0)
-
-        chain = extractor.get_evolution_chain(rule.rule_id)
-        assert len(chain) >= 2
-        assert chain[0]["rule_id"] == rule.rule_id  # 原始规则
-        assert chain[-1]["parent_rule_id"] == rule.rule_id  # 进化后
-
-    def test_evolution_log(self, extractor):
-        """进化事件记录到日志"""
-        log = _make_success_log()
-        rules = extractor.extract_from_success(log)
-        rule = rules[0]
-        extractor.submit_for_review(rule)
-        extractor.approve_rule(rule.rule_id)
-
-        for i in range(5):
-            extractor.update_rule_effectiveness(rule.rule_id, i == 0)
-
-        evo_log = extractor.get_evolution_log()
-        assert len(evo_log) >= 1
-        assert evo_log[0]["original_rule_id"] == rule.rule_id
-        assert "evolved_rule_id" in evo_log[0]
-
-    def test_no_evolve_when_score_adequate(self, extractor):
-        """高分规则不触发进化"""
-        log = _make_success_log()
-        rules = extractor.extract_from_success(log)
-        rule = rules[0]
-        extractor.submit_for_review(rule)
-        extractor.approve_rule(rule.rule_id)
-
-        for _ in range(5):
-            extractor.update_rule_effectiveness(rule.rule_id, True)
-
-        loaded = extractor._load_rule(rule.rule_id)
-        assert loaded.status == "approved"
-        assert loaded.evolution_count == 0
-
-
 # ──────────────────── 抗过拟合 ────────────────────
 
 
@@ -789,28 +638,6 @@ class TestAntiOverfitting:
         from experience_extractor import ExperienceExtractor
         assert hasattr(ExperienceExtractor, 'AGING_DAYS')
         assert ExperienceExtractor.AGING_DAYS == 30
-
-    def test_diversity_check_prevents_domain_saturation(self, extractor):
-        """多样性检查阻止同一领域过度进化"""
-        from experience_extractor import ExperienceRule
-        # 创建多条同类型规则并进化
-        for i in range(5):
-            rule = ExperienceRule(
-                rule_id=f"div-{i}", trigger_condition=f"x{i}", action="y", note="",
-                source_task_id="p1", source_task_type="t", rule_type="success_pattern",
-                status="approved", keywords=["a"], created_at="now",
-                effectiveness_score=0.2, usage_count=10, success_count=2,
-            )
-            extractor._save_rule(rule)
-            # 手动触发进化（跳过条件检查）
-            extractor._evolve_rule_impl(rule)
-
-        # 统计进化次数
-        all_rules = extractor.get_all_rules()
-        evolved = [r for r in all_rules if r.status == "evolved"]
-        # 不应该全部进化——多样性检查应该限制
-        # 至少应该有 1 条被拒绝
-        assert len(evolved) <= 5
 
     def test_demotion_stats_empty(self, extractor):
         """无降级时统计报表返回零值"""
@@ -1098,11 +925,14 @@ class TestQueryMethods:
         assert len(all_rules) == len(rules)
 
     def test_get_all_rules_filter_by_status(self, extractor):
-        log = _make_success_log()
-        rules = extractor.extract_from_success(log)
-        extractor.submit_for_review(rules[0])
-        extractor.approve_rule(rules[0].rule_id)
-        extractor.submit_for_review(rules[1])
+        rules_a = extractor.extract_from_success(_make_success_log())
+        extractor.submit_for_review(rules_a[0])
+        extractor.approve_rule(rules_a[0].rule_id)
+        rules_b = extractor.extract_from_success(
+            _make_success_log(task_id="task-002", task_description="构建一个注册页面")
+        )
+        extractor.submit_for_review(rules_b[0])
+        rules = [rules_a[0], rules_b[0]]
 
         approved = extractor.get_all_rules(status="approved")
         assert len(approved) == 1

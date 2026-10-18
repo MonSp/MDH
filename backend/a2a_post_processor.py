@@ -61,10 +61,7 @@ class A2APostProcessor:
             dept_id: 部门 ID（用于 XP 计算和路由统计）
             xp_target: XP 授予目标（数字员工 ID，默认 executor）
         """
-        # 1. 经验提炼（归属于执行节点）
-        if self._experience and success:
-            self._distill_experience(task_description, result_text, agent_id)
-
+        # program-pivot M4: 不再从 A2A 结果提炼规则（沉淀走 ProgramCompiler）
         # 2. XP 授予（归属于数字员工，而非执行节点）
         if self._profiles:
             self._grant_xp(xp_target, task_description, success)
@@ -110,27 +107,6 @@ class A2APostProcessor:
         if any(kw in desc for kw in ['部署', 'deploy', 'docker']):
             return 'devops'
         return 'general'
-
-    def _distill_experience(self, task_description: str, result_text: str, agent_id: str):
-        """从 A2A 任务结果中提炼经验规则"""
-        try:
-            # 调用 extract_from_meeting 需要 5 个位置参数
-            project_id = f"a2a-{agent_id}"
-            discussion_results = []
-            review_result = {"passed": True, "score": 8.0}
-            execution_results = {
-                "success": True,
-                "output": result_text[:2000],
-                "tool_calls": [],
-            }
-            rules = self._experience.extract_from_meeting(
-                project_id, task_description, discussion_results,
-                review_result, execution_results,
-            )
-            if rules:
-                logger.info("A2A 任务提炼 %d 条经验规则 (agent=%s)", len(rules), agent_id)
-        except Exception as e:
-            logger.warning("A2A 经验提炼失败: %s", e)
 
     def _grant_xp(self, agent_id: str, task_description: str, success: bool):
         """为执行任务的 agent 授予 XP"""

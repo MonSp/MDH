@@ -65,23 +65,6 @@ async def api_asset_search(team_id: str, q: str = "", type: str = "", task_type:
         return fail(str(exc))
 
 
-@router.post("/api/assets/experience")
-async def api_asset_experience(body: dict):
-    try:
-        result = _srv._get_skill_evolution().evolve_from_feedback(
-            project_id=body.get("project_id", f"proj-{body['team_id']}"),
-            task_type=body.get("task_type", ""),
-            transcript=body.get("transcript", ""),
-            feedback=body.get("feedback", ""),
-            keywords=body.get("keywords", []),
-            team_id=body.get("team_id", ""),
-        )
-        return ok({"rule_id": result["rule_id"], "count": result["count"]})
-    except KeyError:
-        return fail("缺少必填字段: team_id")
-    except Exception as exc:
-        logger.warning("api_asset_experience 失败: %s", exc)
-        return fail(str(exc))
 
 
 @router.get("/api/assets")

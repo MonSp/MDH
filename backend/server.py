@@ -786,50 +786,6 @@ async def preview_package(base_skill_path: str, incremental_path: str):
         return _fail(str(e))
 
 
-@app.post("/api/skills/evolve")
-@limiter.limit(RATE_LIMITS["llm"])
-async def evolve_skills(request: Request, body: dict = Body(...)):
-    """从项目结果中提取经验规则，触发技能进化"""
-    try:
-        project_id = body.get("project_id", "")
-        task_description = body.get("task_description", "")
-        discussion_results = body.get("discussion_results", [])
-        review_result = body.get("review_result", {})
-        execution_results = body.get("execution_results", [])
-
-        if not project_id:
-            return _fail("缺少 project_id")
-
-        rules = experience_extractor.extract_from_meeting(
-            project_id=project_id,
-            task_description=task_description,
-            discussion_results=discussion_results,
-            review_result=review_result,
-            execution_results=execution_results,
-        )
-
-        return _ok({
-            "project_id": project_id,
-            "rules_count": len(rules),
-            "rules": [
-                {
-                    "rule_id": r.rule_id,
-                    "trigger_condition": r.trigger_condition,
-                    "action": r.action,
-                    "note": r.note,
-                    "rule_type": r.rule_type,
-                    "status": r.status,
-                    "keywords": r.keywords,
-                }
-                for r in rules
-            ],
-        })
-    except (KeyError, ValueError) as e:
-        logger.warning("evolve_skills 失败 预期错误: %s", e)
-        return _fail(str(e))
-    except Exception as e:
-        logger.exception("evolve_skills 失败")
-        return _fail(str(e))
 
 
 # ── Router table routes extracted to routers/monitoring.py ──
@@ -1107,7 +1063,6 @@ async def api_minutes_plan(body: dict):
 # 惰性单例组装 + monkeypatch 可测（TestClient 测试替换全局 helper）
 _asset_store: object | None = None
 _template_confirmation: object | None = None
-_skill_evolution: object | None = None
 _asset_search: object | None = None
 _asset_judge: object | None = None
 
@@ -1143,12 +1098,6 @@ def _get_template_confirmation():
     return _template_confirmation
 
 
-def _get_skill_evolution():
-    global _skill_evolution
-    if _skill_evolution is None:
-        from skill_evolution import SkillEvolution
-        _skill_evolution = SkillEvolution(experience_extractor)
-    return _skill_evolution
 
 
 def _get_asset_search():

@@ -128,7 +128,7 @@ async def run_simple_path(coordinator, user_message: str, ceo_id: str, on_messag
                                         execution_summary=exec_result.get("result", "")[:200])
 
     coordinator._update_routing_stats_safe()
-    await coordinator._run_skill_evolution(ceo_id, user_message, [], review_result, exec_results)
+    # program-pivot M4: 不再从执行链提取规则（沉淀走 ProgramCompiler）
 
     if injected_rule_ids:
         await coordinator._update_injected_rule_effectiveness(ceo_id, injected_rule_ids, review_result)
