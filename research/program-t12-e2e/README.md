@@ -1,31 +1,56 @@
 # T12 同会话二命交付证据（program-pivot T12.4）
 
-- **日期**: 2026-10-18
-- **分支**: `feature/program-t12-supply`（基于 main `8e2a9c7` + T12.1/T12.2）
-- **口径**: 单元/集成层硬证据（非实网五任务）——证明「已有 workspace 的同会话二次任务」可走 `path_used=program` 且文件落盘
+- **日期**: 2026-10-19（实网跑通）
+- **分支**: `feature/program-t12-e2e`（基于 main `39844a9`）
+- **服务**: worktree backend `MDH_PORT=8766`（rule writes disabled=True 已确认）
+- **口径**: 实网 WebSocket 双任务——单会话内任务 A 建 workspace，任务 B 命中 promoted 程序免 LLM 落盘
 
-## 结论
+## 实网结果（passed=true，EXIT=0）
 
-| 场景 | 结果 | 证据 |
+| DoD | 结果 |
+|---|---|
+| task_a_created_workspace | true（`/home/test/.agent-workspaces/71515157`） |
+| task_b_path_program | true（`path_used=program`） |
+| task_b_out_file_exists | true（`out.txt` 内容 = 完整任务文本） |
+| task_b_success | true |
+
+关键观测：
+
+| 指标 | Task A（LLM complex） | Task B（program） |
 |---|---|---|
-| 同 agent 已有 `self._workspace`，再发落盘型相似任务 | **path_used=program + 文件写入 workspace** | `tests/test_program_t12_session.py::test_second_hit_same_session_writes_file` |
-| 首任务无 workspace | WORKSPACE_REQUIRED → 回退 LLM simple；不写文件 | `test_first_hit_without_workspace_falls_back` |
-| WORKSPACE_REQUIRED 可感知 | CEO `agent_message` 含 `WORKSPACE_REQUIRED` | `test_workspace_required_emits_notice` |
-| LLM 路径成功后沉淀 | best-effort compile，candidate 入库 | `tests/test_program_sediment.py` |
+| path_used | complex | **program** |
+| success | false* | **true** |
+| elapsed | 36.1s | **0.8s** |
+| messages | 41 | 4 |
 
-## 运行
+\* Task A 复杂任务 LLM 交付未标 success（workspace 已建，不阻塞二命 DoD）。
+
+CEO wire 消息（B）：`命中成熟程序 t12_file_writer，本地执行并经审阅通过，免 LLM 交付。`
+
+种子程序：`t12_file_writer`（promoted + record_validation deepseek-chat），io_schema 要求 `workspace_path.required=true`。
+
+产物：
+
+- `same_session_e2e_result.json` — DoD 汇总
+- `task_a_messages.json` / `task_b_messages.json` — 全量 wire 消息
+- harness：`run_same_session_e2e.py`
+
+## 复现
 
 ```bash
-cd backend
-/home/test/miniconda3/envs/agentscope/bin/python -m pytest \
-  tests/test_program_t12_session.py tests/test_program_sediment.py \
-  tests/test_program_io_schema_quality.py -q --ignore=tests/legacy
+# worktree 起后端
+cd backend && set -a && source /home/test/MDH/.env && set +a \
+  && MDH_PORT=8766 setsid nohup python server.py > /tmp/mdh-8766.log 2>&1 < /dev/null & disown
+
+# 跑 E2E
+cd research/program-t12-e2e
+EVAL_WS_URL=ws://localhost:8766/ws \
+  /home/test/miniconda3/envs/agentscope/bin/python run_same_session_e2e.py
+# 期望 exit 0 且 dod.passed=true
 ```
 
-## 复现实网 E2E（后续可选）
+## 集成层补充（CI 可复跑，先前已入库）
 
-1. 起后端；seed 落盘型 promoted 程序（io_schema 要求 workspace）。
-2. 会话内任务 A：走 complex，HITL 建 workspace。
-3. 同会话任务 B：关键词命中 → 应 `path_used=program`，out.txt 在 workspace 下。
-
-本 harness 的 DoD 以集成测试为准（可 CI 复跑）；实网脚本在有稳定 8766 环境时再补 `run_ab` 变体。
+- `tests/test_program_t12_session.py::test_second_hit_same_session_writes_file`
+- `tests/test_program_sediment.py`
+- `tests/test_program_io_schema_quality.py`

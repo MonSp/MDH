@@ -1,0 +1,46 @@
+{
+ "task": "请写文件：生成 out.txt，内容为 t12-e2e-hit",
+ "messages": [
+  {
+   "type": "agent_message",
+   "agentId": "agent-ceo",
+   "content": "CEO：收到任务「请写文件：生成 out.txt，内容为 t12-e2e-hit...」，正在分析意图。",
+   "delta": "",
+   "sequence_no": 34
+  },
+  {
+   "type": "agent_message",
+   "agentId": "agent-ceo",
+   "content": "CEO：命中成熟程序 t12_file_writer，本地执行并经审阅通过，免 LLM 交付。",
+   "delta": "",
+   "sequence_no": 35
+  },
+  {
+   "type": "path_selected",
+   "path": "program"
+  },
+  {
+   "type": "task_result",
+   "path_used": "program",
+   "success": true,
+   "program_id": "t12_file_writer",
+   "version": "1.0.0",
+   "output": {
+    "ok": true,
+    "files_written": [
+     "/home/test/.agent-workspaces/71515157/out.txt"
+    ],
+    "task": "请写文件：生成 out.txt，内容为 t12-e2e-hit"
+   },
+   "review_summary": "文件已成功写入，路径位于指定 workspace 之下，内容符合要求，任务完成。",
+   "telemetry": {
+    "llm_calls": 0,
+    "duration_ms": 18,
+    "timed_out": false,
+    "program_id": "t12_file_writer",
+    "version": "1.0.0"
+   },
+   "review_llm_calls": 1
+  }
+ ]
+}
