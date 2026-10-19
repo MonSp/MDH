@@ -17,20 +17,23 @@ In MDH, digital employees form a team: a CEO analyzes requirements, an architect
 ### The Core Loop
 
 ```
-Task → Execute → Produce Assets → Distill Experience → Evolve Skills → Next Task More Efficient
+LLM open-ended creation → Compile experience into ProgramPacks (code + tests)
+  → Test-gate promotion → Similar tasks run LLM-free
+  ↑                                              │
+  └── LLM reviews the result → issues drive revision → re-gate ←┘
 ```
 
-This loop transforms digital employees from one-shot tools into continuously evolving colleagues. They carry their own memory, experience, skill trees, and career paths — and they get stronger with every task.
+This loop turns digital employees from one-shot tools into compounding capability assets: repetitive work stops burning tokens; creative work stays with the LLM. Run once, review once, pin one version — faster and cheaper with every reuse.
 
-### They Accumulate Experience
+### They Accumulate Program Assets
 
-Every task produces artifacts that are automatically stored as assets. Insights from team discussions are distilled into skill rules. When a similar task comes up next time, the system retrieves the most relevant experience and injects it into the agent's context — mistakes made once are not made twice.
+Tasks that succeed under the LLM are **compiled into ProgramPacks** (deterministic Python + built-in acceptance tests). Similar tasks prefer local program execution (`llm_calls=0`); the result is delivered only after LLM review passes. Misses or stale versions fail open back to the LLM path. Legacy experience rules remain **read-only** as retrieval context.
 
-### They Self-Purify
+### They Have Quality Gates
 
-Not all experience is good experience. Every rule carries an effectiveness score: +1 when the task succeeds after injection, -1 when it fails. Rules used 3+ times with a success rate below 40% are automatically demoted for re-review. Bad experience is eliminated; good experience stays and gets shared across teams through quality gates.
+Program packs are not "whatever the LLM said": candidates must pass a **pytest promotion gate** (subprocess + lineage audit, including hash checks that flag tampered tests) before they become routable. Review failures drive LLM revision and re-gate; three consecutive gate failures deprecate the pack and fall back to LLM. Legacy rule scoring/demotion governance is retained.
 
-Digital employees develop an immune system.
+Digital employees get a license and a circuit breaker.
 
 ### They Have Careers
 
@@ -40,11 +43,9 @@ Each of 10 departments has independent promotion criteria — engineering requir
 
 ### Evolution Is Self-Driving
 
-Rules don't just get passively demoted — low-scoring rules automatically generate improved versions (self-evolution), and improved rules cascade updates to related skill packs and assets (linked evolution). The system automatically identifies which knowledge domains need the most reflection (reflection priority queue), and prevents evolution overfitting: saturation in one domain is capped, stale rules are deprioritized, and 20% of injection time is spent exploring unknown domains.
+Sedimentation, promotion, review, and revision run without human babysitting: successful trajectories compile into candidates, the test gate promotes, review issues drive revision, failures roll back or deprecate. Text-rule self-evolution, linked evolution, and shared-pool writes were **retired** with the program-pivot migration (M1–M4); legacy rules keep read-only retrieval and score-based demotion.
 
-High-quality experience flows across teams through quality gates, while low-trust teams' rules are filtered by trust scoring (multi-team evolution federation). The system knows its own capability boundaries — which domains are high-confidence, which are blind spots (capability boundary awareness) — and proactively seeks external help when operating in unfamiliar territory.
-
-Human feedback isn't "seen and forgotten" — structured review comments are automatically converted into experience rules that directly influence the digital employee's next performance. Skill direction guidance from humans affects task assignment and XP allocation (human-in-the-loop feedback).
+The system knows its capability boundaries — which domains are high-confidence, which are blind spots — and asks for external help when needed. Human skill-direction guidance still shapes task and XP allocation; the human-feedback storage remains (the old "convert feedback into new rules" write path is gone).
 
 ---
 
@@ -57,36 +58,36 @@ MDH is exploring the feasibility of **RSI (Recursive Self-Improvement)** at the 
 Traditional AI systems have static capabilities after deployment. MDH builds a **three-layer recursive improvement loop**:
 
 ```
-Layer 1 · Skill Evolution (mature)
-  Agents distill experience rules from tasks → inject into future tasks →
-  track effectiveness → low-scoring rules auto-evolve
-  Positive feedback: better rules → higher success rate → better execution records → better rules
+Layer 1 · Program sedimentation loop (program-pivot, live-verified)
+  LLM creates and ships a task → ProgramCompiler emits a candidate
+  → test-gate promotion → similar tasks run LLM-free
+  (live same-session second hit: program 0.8s vs LLM 36s)
+  → review failures drive revision / rollback / three-strike deprecation
+  Positive feedback: more hits → lower cost → richer program library
 
-Layer 2 · Rule Evolution (implemented)
-  Rules themselves can evolve — LLM generates improved versions,
-  evolution chains are traceable, diversity checks prevent overfitting
-  This is improvement of the improvement mechanism
+Layer 2 · Legacy rule governance (read-only)
+  Text-rule writes, self-evolution, linked evolution, and shared-pool
+  writes were retired (M1–M4). Legacy rules keep read-only retrieval,
+  score-based demotion, and re-approval as context when programs miss.
 
-Layer 3 · System Self-Tuning (architecture-level RSI in progress)
+Layer 3 · System self-tuning (architecture-level RSI in progress)
   The system optimizes its own runtime parameters — 18 tunable parameters
   (routing weights, exploration rate, demotion thresholds, etc.)
   Find optimal values from A/B data → shadow validation →
   controlled deployment → auto-rollback on metric degradation
-  This is improvement of the learning strategy itself
 ```
 
 ### Implemented RSI Mechanisms
 
 | Mechanism | Description |
 |-----------|-------------|
-| **Experience Loop** | Task → distill rules → inject → track → evolve, full positive feedback cycle |
-| **Rule Self-Evolution** | LLM generates improved versions of low-scoring rules, traceable chains |
-| **Anti-Overfitting** | Diversity checks + aging decay + 20% explore/exploit balance |
-| **Auto-Approval** | LLM judge evaluates low-risk rules; high-risk still needs human review |
-| **A/B Measurement** | Quantifies success rate difference with vs without experience injection |
-| **Quality Bucketing** | Analyzes success rate impact by rule quality (low/medium/high) |
-| **Self-Tuning Engine** | Parameter registry + offline optimizer + shadow validation + auto-rollback |
-| **Capability Awareness** | System knows what it doesn't know, proactively seeks help in low-confidence domains |
+| **Program sedimentation loop** | Success → compile ProgramPack → gate promote → LLM-free re-run → review-driven revision |
+| **Gate + lineage audit** | Full promote/rollback/revision lineage, including tamper-evident test hashes |
+| **Anti-overfitting** | Diversity checks + aging decay + explore/exploit balance |
+| **Legacy rule governance** | Score demotion / re-approval retained; new rule write paths retired |
+| **A/B measurement** | Quantifies success-rate differences (program vs LLM arms included) |
+| **Self-tuning engine** | Parameter registry + offline optimizer + shadow validation + auto-rollback |
+| **Capability awareness** | System knows what it doesn't know, proactively seeks help in low-confidence domains |
 
 ### RSI Boundaries
 
@@ -132,15 +133,15 @@ open http://localhost:8080
 | 📸 Checkpoints | Save & restore task execution state |
 | 📝 Audit Logs | Operation audit trail |
 | ⚙️ Workflow Engine | DAG workflows (sequential/parallel/mixed strategies) + REST API lifecycle management |
-| 🧠 Skill Evolution | Teams accumulate experience into reusable skill packs (evolves with use) |
-| 📦 Asset Sedimentation | Artifacts stored + templates solidified (employee approval gate) + experience distilled into skill rules, team-scoped |
-| 🔍 Asset Reuse Injection | DAG nodes auto-inject team asset references (templates/knowledge/skill rules, progressive disclosure) |
+| 🧠 Program Sedimentation | Successful task trajectories compile into ProgramPacks (deterministic Python + built-in tests); similar tasks run LLM-free |
+| 🧩 Program Library | ProgramPack state machine + test-gate promotion + LLM review/revision loop (legacy rule self-evolution / linked evolution retired) |
+| 📦 Asset Sedimentation | Artifacts stored + templates solidified (employee approval gate), team-scoped |
+| 🔍 Asset Reuse Injection | DAG nodes auto-inject team asset references (templates/knowledge, progressive disclosure) |
 | 🧪 LLM Judge Gating | Templates/artifacts pass deterministic checks + LLM judge evaluation (fail-closed) + benchmark with CI gate |
 | 📊 Reuse Visibility | Injection metrics (`/api/assets/reuse-metrics`) + frontend asset browser panel (`🧠 Assets` tab) |
 | 📝 Meeting Minutes Pipeline | Intent-recognition doc mode → minutes DAG workflow (extract/draft/proofread) → artifact output + email delivery |
-| 📈 Rule Effectiveness Tracking | Injected rules auto-track task success rate, low-score rules auto-demoted |
+| 📈 Legacy Rule Governance | Read-only retrieval + score-based demotion / re-approval retained; new rule write paths retired with program-pivot |
 | 🚀 Digital Employee Careers | AgentProfile persistent archive + XP system + 42 skill trees + 10 department career paths + auto-promotion |
-| 🤝 Cross-Team Skill Sharing | Quality gates (score ≥ 0.6 + usage ≥ 2) + approval flow + shared experience pool |
 | 🧭 Routing-Aware Skill Levels | DynamicRouter 6-dimension weighted routing (keyword/semantic/success rate/priority/skill level/upgrade boost), agent skill levels influence department selection and task assignment |
 | 🎯 Promotion-Driven Assignment | Simple tasks prefer junior agents (XP accumulation), complex tasks prefer senior agents (capability matching) |
 | 🧠 Agent Persistent Memory | Cross-project personal memory + auto-summary + memory injection + aging |
