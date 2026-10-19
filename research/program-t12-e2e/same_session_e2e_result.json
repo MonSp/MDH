@@ -1,0 +1,39 @@
+{
+  "dod": {
+    "task_a_created_workspace": true,
+    "task_b_path_program": true,
+    "task_b_out_file_exists": true,
+    "task_b_success": true,
+    "passed": true
+  },
+  "seeded_program": "t12_file_writer",
+  "ws_url": "ws://localhost:8766/ws",
+  "task_a_summary": {
+    "path_used": "complex",
+    "success": false,
+    "elapsed_sec": 36.1,
+    "timeout": false,
+    "workspace": {
+      "workspace_id": "71515157",
+      "workspace_path": "/home/test/.agent-workspaces/71515157",
+      "branch_name": null
+    },
+    "total_messages": 41
+  },
+  "task_b_summary": {
+    "path_used": "program",
+    "success": true,
+    "elapsed_sec": 0.8,
+    "timeout": false,
+    "total_messages": 4,
+    "program_id": null,
+    "output": null,
+    "t12_out_file": "/home/test/.agent-workspaces/71515157/out.txt",
+    "t12_out_file_exists": true,
+    "t12_out_file_content": "请写文件：生成 out.txt，内容为 t12-e2e-hit",
+    "ceo_final_message": "CEO：命中成熟程序 t12_file_writer，本地执行并经审阅通过，免 LLM 交付。"
+  },
+  "task_b_ceo_messages": [
+    "CEO：命中成熟程序 t12_file_writer，本地执行并经审阅通过，免 LLM 交付。"
+  ]
+}
