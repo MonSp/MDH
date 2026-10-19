@@ -145,6 +145,7 @@ class CeoAgent:
         experience_extractor=None,
         ab_tracker=None,
         program_route_fn=None,
+        program_sediment_fn=None,
     ):
         self._session = session
         self._kernel = kernel_integration
@@ -158,6 +159,8 @@ class CeoAgent:
         # 三分法路由（program-pivot T6）：命中 promoted 新鲜程序走免 LLM 路径；
         # fn(content, context) -> ProgramPathOutcome（server 注入，None 则跳过）
         self._program_route_fn = program_route_fn
+        # T12.1：LLM 路径成功后 best-effort 沉淀（不阻塞交付）
+        self._program_sediment_fn = program_sediment_fn
         # 协调器创建回调：server 注入以更新 _active_coordinator，
         # 保证 CEO 对话（unified_message）路径创建的协调器可被共享引擎委托执行。
         self._on_coordinator_created = on_coordinator_created
@@ -309,9 +312,47 @@ class CeoAgent:
 
         # 2. 根据复杂度选择路径
         if complexity.level == "simple" and complexity.confidence >= 0.7:
-            return await self._execute_simple(content, send_message, execution_preference=execution_preference)
+            result = await self._execute_simple(
+                content, send_message, execution_preference=execution_preference
+            )
         else:
-            return await self._execute_complex(content, send_message, selected_roles, role_locations)
+            result = await self._execute_complex(
+                content, send_message, selected_roles, role_locations
+            )
+        # T12.1: LLM 路径成功 → best-effort 沉淀（program 命中已在上方 return）
+        await self._maybe_sediment(content, result)
+        return result
+
+    async def _maybe_sediment(
+        self, content: str, task_result: dict[str, Any] | None
+    ) -> None:
+        """T12.1：LLM 路径成功任务 best-effort 沉淀为 candidate（不阻塞）。"""
+        if self._program_sediment_fn is None:
+            return
+        if not isinstance(task_result, dict):
+            return
+        if not task_result.get("success"):
+            return
+        if task_result.get("path_used") == "program":
+            return
+        context = {
+            "api_key": getattr(self._session, "api_key", "") or "",
+            "provider": getattr(self._session, "provider", "") or "deepseek",
+            "base_url": getattr(self._session, "base_url", "") or "",
+            "model_name": getattr(self._session, "model_name", "") or "",
+            "output_example": task_result.get("result")
+            or task_result.get("output")
+            or {k: task_result.get(k) for k in ("path_used", "success", "review_passed")},
+        }
+        try:
+            outcome = await self._program_sediment_fn(content, context)
+            if isinstance(outcome, dict) and outcome.get("compiled"):
+                logger.info(
+                    "T12.1 sediment compiled program_id=%s",
+                    outcome.get("program_id"),
+                )
+        except Exception:
+            logger.exception("program sediment hook failed (non-blocking)")
 
     async def _execute_simple(
         self,
