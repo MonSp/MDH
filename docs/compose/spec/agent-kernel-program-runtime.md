@@ -1,14 +1,25 @@
 ---
 feature: agent-kernel-program-runtime
-status: in-progress
+status: delivered
 updated: 2026-10-19
-branch: feature/agent-kernel-program-runtime
-commits:
+branch: main
+commits: agent-kernel@40e0e57; MDH@c381d0e
 ---
 
 # agent-kernel Program Runtime
 
 ## Report
+
+**What was built** — C++ agent-kernel 新增 `Program::ProgramLibrary`：磁盘程序包库（manifest.json）+ 组装编译（`compileProgram` 写 candidate 包）+ 关键词/TTL/模型新鲜度匹配 + `python -I` 子进程免 LLM 执行（`llm_calls=0`）+ promote/validation/lineage。8 个 IPC 方法接入 `AgentKernelBridge`；环境变量 `AGENT_KERNEL_PROGRAM_DIR` / `PROGRAM_PYTHON`。MDH `AgentKernelClient` 补齐对应 Python 封装。**边界**：LLM 代码生成与 pytest 门禁仍在 MDH Python；kernel 负责共享运行时与元数据（Game 可复用）。
+
+**Verification** — agent-kernel `kernel_tests` 全绿（含 `test_program_library` 5 项：id/compile/list/promote+match+run/lineage）；MDH `tests/test_agent_kernel_program_client.py` 4 passed。daemon 可编译链接。
+
+**Unverified** — daemon 实网 socket 冒烟（本机未起 daemon）；Game 侧接入未做（API 已就绪）。
+
+**Journey log** —
+1. C++ 无 YAML 依赖 → kernel 以 manifest.json 为主格式，与 Python registry 目录同构共存。
+2. `compileProgram` = 组装写盘，不是 LLM 生成——避免在 C++ 重做 ProgramCompiler。
+3. 单 kernel_tests 二进制：新测试导出 `runProgramLibraryTests()` 由 `test_ecs_core` main 调用。
 
 ## [S1] Problem
 
@@ -76,6 +87,6 @@ program-pivot 的程序库与免 LLM 执行完全在 MDH Python 侧（`program_r
 
 ## Tasks
 
-- [ ] T1: ProgramLibrary + ProgramRuntime C++ 模块 — acceptance: 单测覆盖 compile/list/get/promote/match/run/lineage（covers: S2）
-- [ ] T2: IPC 协议与 AgentKernelBridge 接线 — acceptance: daemon 可通过 socket 调用全部 program 方法；e2e 冒烟（covers: S2; depends: T1）
-- [ ] T3: MDH Python 客户端扩展 — acceptance: `AgentKernelClient` program_* 方法 + 单测（covers: S2; depends: T2）
+- [x] T1: ProgramLibrary + ProgramRuntime C++ 模块 — acceptance: 单测覆盖 compile/list/get/promote/match/run/lineage（covers: S2）
+- [x] T2: IPC 协议与 AgentKernelBridge 接线 — acceptance: 方法常量 + handler + library 链接；daemon 可编译（covers: S2; depends: T1）
+- [x] T3: MDH Python 客户端扩展 — acceptance: `AgentKernelClient` program_* 方法 + 单测（covers: S2; depends: T2）
