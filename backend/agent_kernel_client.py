@@ -298,6 +298,95 @@ class AgentKernelClient:
         result = self._send("runSimulation", params)
         return result.get("data", {})
 
+    # ── Program runtime (program-pivot shared kernel) ──────────────
+
+    def list_programs(self, status: str = "") -> list[dict]:
+        """List program packs in the kernel library."""
+        result = self._send("listPrograms", {"status": status})
+        return result.get("data", {}).get("programs", [])
+
+    def get_program(self, program_id: str) -> dict:
+        result = self._send("getProgram", {"programId": program_id})
+        return result.get("data", {})
+
+    def compile_program(
+        self,
+        program_id: str,
+        version: str,
+        main_py: str,
+        test_py: str,
+        description: str = "",
+        keywords: list[str] | None = None,
+        model_dependency: str = "",
+    ) -> dict:
+        """Assemble a candidate ProgramPack on the kernel disk library.
+
+        LLM code generation stays in MDH Python (ProgramCompiler); this only
+        writes/validates the pack (status=candidate).
+        """
+        result = self._send(
+            "compileProgram",
+            {
+                "programId": program_id,
+                "version": version,
+                "description": description,
+                "keywords": keywords or [],
+                "mainPy": main_py,
+                "testPy": test_py,
+                "modelDependency": model_dependency,
+            },
+        )
+        return result.get("data", {})
+
+    def match_program(
+        self, task: str, model: str = "", max_age_days: int = 30
+    ) -> dict | None:
+        """Match task against promoted fresh programs; None if no hit."""
+        result = self._send(
+            "matchProgram",
+            {"task": task, "model": model, "maxAgeDays": max_age_days},
+        )
+        data = result.get("data", {})
+        if data.get("matched"):
+            return data.get("program")
+        return None
+
+    def run_program(
+        self,
+        program_id: str,
+        payload: dict | None = None,
+        timeout_ms: int = 15000,
+    ) -> dict:
+        """Execute a program pack (llm_calls=0). Returns telemetry + stdout."""
+        result = self._send(
+            "runProgram",
+            {
+                "programId": program_id,
+                "payload": payload or {},
+                "timeoutMs": timeout_ms,
+            },
+        )
+        return result.get("data", {})
+
+    def promote_program(self, program_id: str, validated_model: str = "") -> dict:
+        result = self._send(
+            "promoteProgram",
+            {"programId": program_id, "validatedModel": validated_model},
+        )
+        return result.get("data", {})
+
+    def record_program_validation(self, program_id: str, model: str) -> dict:
+        result = self._send(
+            "recordProgramValidation", {"programId": program_id, "model": model}
+        )
+        return result.get("data", {})
+
+    def append_program_lineage(self, program_id: str, event: dict) -> bool:
+        result = self._send(
+            "appendProgramLineage", {"programId": program_id, "event": event}
+        )
+        return bool(result.get("data", {}).get("appended"))
+
     # ── parsing helpers ────────────────────────────────────────────
 
     def _parse_agent(self, data: dict) -> KernelAgent:
