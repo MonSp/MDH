@@ -26,6 +26,23 @@ jobs:
         working-directory: backend
         run: python -m pytest tests/ --timeout=60 --ignore=tests/legacy --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=75
 
+      # ── agent-kernel program IPC smoke (all 8 methods) ──────────
+      - name: Checkout agent-kernel
+        uses: actions/checkout@v4
+        with:
+          repository: MonSp/agent-kernel
+          path: agent-kernel-src
+      - name: Install CMake toolchain
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends cmake g++
+      - name: Build agent-kernel daemon
+        run: |
+          cmake -S agent-kernel-src -B agent-kernel-src/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build agent-kernel-src/build -j"$(nproc)" --target agent-kernel-daemon
+      - name: Kernel program IPC smoke (8 methods)
+        env:
+          AGENT_KERNEL_DAEMON: ${{ github.workspace }}/agent-kernel-src/build/agent-kernel-daemon
+        run: python scripts/ci/kernel_program_ipc_smoke.py
+
   backend-lint:
     name: Backend lint (ruff)
     runs-on: ubuntu-latest
