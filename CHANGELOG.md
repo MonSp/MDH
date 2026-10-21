@@ -2,6 +2,11 @@
 
 本项目所有值得记录的改动。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Added
+- **M2.5 Skill→ProgramCompiler**：技能包确定性步骤（非语义建议）经 ProgramCompiler 固化为 candidate；`POST /api/programs/compile-skill`；不自动晋升
+
 ## [0.8.0] - 2026-10-19
 
 ### program-pivot：经验固化为可执行程序（T1–T12 收官）
