@@ -1132,11 +1132,29 @@ programs_router.init(
 )
 
 
+_program_executor_cache: object = None
+
+
+def _get_program_executor():
+    """执行后端：AGENT_KERNEL_SOCKET 可达 → kernel（本地 fallback），否则本地。
+
+    首次解析后缓存；kernel 断连时 KernelProgramExecutor 内部仍会逐次回退本地。
+    """
+    global _program_executor_cache
+    if _program_executor_cache is not None:
+        return _program_executor_cache
+    from kernel_program_executor import resolve_executor
+
+    _program_executor_cache = resolve_executor(_program_registry)
+    return _program_executor_cache
+
+
 async def _program_route_fn(content: str, context: dict):
     """三分法路由 program 路径（T6）：registry 命中 → 免 LLM 执行 → LLM 审阅。
 
     审阅生成器按会话 api_key 构建；无 key 时 try_program_path 会以
     REVIEW_UNAVAILABLE 回退 LLM 路径（宁重勿轻）。
+    执行器可选 agent-kernel（env AGENT_KERNEL_SOCKET）。
     """
     from program_reviewer import llm_review_fn as _llm_review
     from program_router import try_program_path
@@ -1163,6 +1181,7 @@ async def _program_route_fn(content: str, context: dict):
         model=(context or {}).get("model_name") or None,  # 新鲜度含模型校验
         workspace_path=(context or {}).get("workspace_path") or None,  # T11
         review_generate=review_generate,
+        executor=_get_program_executor(),
     )
 
 
