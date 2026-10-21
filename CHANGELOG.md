@@ -17,6 +17,7 @@
 - **io_schema/workspace 载荷契约**：路由命中程序收到 `{task, workspace_path, input}`；`workspace_path.required` 且无工作区时 `WORKSPACE_REQUIRED` 回退；编译器强制校验 io_schema（T11）
 - **成功任务沉淀接线**：LLM 路径成功后 best-effort compile；同会话 workspace 复用；回退可观测（T12）
 - **实网同会话二命 E2E**：`research/program-t12-e2e/`（PR #31）——A complex 建 workspace 36.1s → B `path_used=program` 0.8s 落盘 `out.txt`；CEO wire「命中成熟程序免 LLM 交付」
+- **agent-kernel ProgramRuntime**（`MonSp/agent-kernel@40e0e57`）：C++ 程序包库 + 免 LLM 子进程执行 + 8 个 IPC 方法；`AgentKernelClient` 封装；CI `backend-tests` 内嵌 kernel program IPC 冒烟（8 方法全过）
 
 #### Changed
 - **迁移 M1–M2**：经验规则新增写入关停（生产默认，env 可回退）；任务前注入 registry 优先、未命中回退旧规则路径（T7）
