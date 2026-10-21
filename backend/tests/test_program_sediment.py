@@ -228,3 +228,102 @@ def test_server_sediment_fn_uses_override(tmp_path, monkeypatch):
     )
     assert out["compiled"] is True
     assert out["program_id"] == "sediment_ok"
+
+
+# ── M2.5 skill sediment ──────────────────────────────
+
+
+def _write_skill_pack(base, name="testing"):
+    import os
+
+    pack = os.path.join(base, name)
+    os.makedirs(os.path.join(pack, "rules"), exist_ok=True)
+    with open(os.path.join(pack, "manifest.yaml"), "w") as f:
+        f.write(
+            f"name: {name}\n"
+            'version: "1.0.0"\n'
+            "description: 测试驱动开发，单元，集成\n"
+            "category: dev\n"
+            "trigger: 测试, 单元测试, pytest\n"
+        )
+    with open(os.path.join(pack, "SKILL.md"), "w") as f:
+        f.write("---\nname: testing\n---\n\n# T\n\n- 必须用 pytest 编写可运行测试\n")
+    with open(os.path.join(pack, "rules", "r.yaml"), "w") as f:
+        f.write("action: 必须覆盖边界分支并用 tmp_path 做文件断言\n")
+
+
+def test_match_skills_for_task(tmp_path):
+    from program_sediment import match_skills_for_task
+
+    _write_skill_pack(str(tmp_path))
+    names = match_skills_for_task("请补充单元测试和 pytest 用例", str(tmp_path), limit=1)
+    assert names == ["testing"]
+    assert match_skills_for_task("写一首诗", str(tmp_path), limit=1) == []
+
+
+async def _gen_skill_ok(prompt: str) -> str:
+    # 轨迹 compile 与 skill compile 共用生成器——用不同 id 防撞
+    import re as _re
+
+    m = _re.search(r"技能包「(\w+)」", prompt)
+    pid = f"skill_{m.group(1)}" if m else "traj_sediment_skill"
+    return json.dumps(
+        {
+            "program_id": pid,
+            "version": "1.0.0",
+            "description": "x",
+            "trigger_keywords": ["测试"],
+            "io_schema": {
+                "inputs": {"task": {"type": "string", "required": True}}
+            },
+            "main_py": (
+                "import json,sys\n"
+                "def run(data):\n"
+                "    return {'ok': True}\n"
+                "if __name__ == '__main__':\n"
+                "    json.dump(run(json.load(sys.stdin)), sys.stdout)\n"
+            ),
+            "test_py": "import main\ndef test_r():\n    assert main.run({})['ok']\n",
+        },
+        ensure_ascii=False,
+    )
+
+
+def test_sediment_with_skill_m25(tmp_path):
+    packs = tmp_path / "skills"
+    packs.mkdir()
+    _write_skill_pack(str(packs))
+    reg = ProgramRegistry(str(tmp_path / "program_packs"))
+    out = _run(
+        sediment_successful_task(
+            "为项目补充单元测试与 pytest 覆盖",
+            registry=reg,
+            generate=_gen_skill_ok,
+            steps=["写测试"],
+            skill_packs_dir=str(packs),
+            max_skill_compiles=1,
+        )
+    )
+    assert out["compiled"] is True
+    ss = out["skill_sediment"]
+    assert ss["matched"] == ["testing"]
+    assert any(x["skill"] == "testing" for x in ss["compiled"])
+    assert reg.get(ss["compiled"][0]["program_id"]) is not None
+
+
+def test_sediment_skill_no_match(tmp_path):
+    packs = tmp_path / "skills"
+    packs.mkdir()
+    _write_skill_pack(str(packs))
+    reg = ProgramRegistry(str(tmp_path / "program_packs"))
+    out = _run(
+        sediment_successful_task(
+            "完全无关的创意写作任务",
+            registry=reg,
+            generate=_gen_ok,
+            skill_packs_dir=str(packs),
+        )
+    )
+    assert out["compiled"] is True
+    assert out["skill_sediment"]["matched"] == []
+    assert out["skill_sediment"]["compiled"] == []

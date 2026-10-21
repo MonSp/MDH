@@ -6,6 +6,7 @@
 
 ### Added
 - **M2.5 Skill→ProgramCompiler**：技能包确定性步骤（非语义建议）经 ProgramCompiler 固化为 candidate；`POST /api/programs/compile-skill`；不自动晋升
+- **M2.5 沉淀钩子**：成功任务后按触发词匹配 skill_packs，自动 compile-skill（默认最多 1 个技能，`PROGRAM_SKILL_SEDIMENT_MAX` 可调）；结果在 `skill_sediment` 字段，best-effort 不阻塞
 
 ## [0.8.0] - 2026-10-19
 

@@ -1225,6 +1225,9 @@ async def _program_sediment_fn(content: str, context: dict):
         steps=(context or {}).get("steps"),
         input_example=(context or {}).get("input_example"),
         output_example=(context or {}).get("output_example"),
+        # M2.5：任务成功后自动对匹配技能跑 Skill→ProgramCompiler
+        skill_packs_dir=getattr(_programs_router, "_skill_packs_dir", "skill_packs"),
+        max_skill_compiles=int(os.environ.get("PROGRAM_SKILL_SEDIMENT_MAX", "1")),
     )
 
 
