@@ -68,6 +68,9 @@ class TaskTrajectory(BaseModel):
     input_example: Any = Field(None, description="任务输入样例（JSON）")
     output_example: Any = Field(None, description="任务输出样例（JSON）")
     success: bool = Field(True, description="任务是否成功（仅成功轨迹可沉淀）")
+    source_skill: str = Field(
+        "", description="M2.5：来源技能包名（skill→program 时非空）"
+    )
 
     @field_validator("task_description")
     @classmethod
@@ -213,10 +216,15 @@ class ProgramCompiler:
             if file_hint
             else ""
         )
+        skill_note = (
+            f"\n**来源**：技能包 `{trajectory.source_skill}` 的确定性步骤"
+            "（非整技能语义；仅固化可单测的检查/生成逻辑）。\n"
+            if trajectory.source_skill
+            else ""
+        )
         return f"""你是一位程序合成专家。请把下面一次**成功**的任务执行轨迹，
 固化为一个可复用的确定性 Python 程序包（candidate 草稿）。
-{file_note}
-
+{file_note}{skill_note}
 ## 任务描述
 {desc}
 

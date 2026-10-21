@@ -110,6 +110,16 @@ class CompileRequest(BaseModel):
     model_name: str = ""
 
 
+class CompileSkillRequest(BaseModel):
+    """M2.5：技能包确定性步骤 → candidate（不自动晋升）。"""
+
+    skill_name: str
+    provider: str = "deepseek"
+    api_key: str = ""
+    base_url: str = ""
+    model_name: str = ""
+
+
 @router.get("")
 async def list_programs(status: str | None = Query(None, description="candidate|promoted|deprecated")):
     try:
@@ -193,6 +203,63 @@ async def compile_trajectory(body: CompileRequest):
         logger.exception("compile failed")
         return fail("compile failed", code="COMPILE_FAILED")
     return ok(manifest.model_dump(mode="json"), code="COMPILED")
+
+
+@router.post("/compile-skill")
+async def compile_skill(body: CompileSkillRequest):
+    """M2.5：技能包确定性步骤 → candidate ProgramPack。"""
+    from skill_to_program import compile_skill_to_program
+
+    if _generate_override is not None:
+        generate = _generate_override
+    elif body.api_key:
+
+        async def generate(prompt: str) -> str:
+            return await llm_generate_fn(
+                prompt,
+                provider=body.provider,
+                api_key=body.api_key,
+                base_url=body.base_url,
+                model_name=body.model_name,
+            )
+    else:
+        return fail("未配置生成器（无 api_key 且无注入生成器）", code="NO_GENERATOR")
+
+    try:
+        material_info = None
+        from skill_to_program import load_skill_material
+
+        mat = load_skill_material(body.skill_name, _skill_packs_dir)
+        material_info = {
+            "deterministic_steps": len(mat.deterministic_steps),
+            "dropped_semantic": len(mat.dropped_semantic),
+        }
+        if not mat.deterministic_steps:
+            return fail(
+                f"skill {body.skill_name!r} has no deterministic steps",
+                code="NO_DETERMINISTIC_STEPS",
+            )
+        manifest = await compile_skill_to_program(
+            body.skill_name,
+            _get_registry(),
+            generate,
+            skill_packs_dir=_skill_packs_dir,
+        )
+    except FileNotFoundError as e:
+        return fail(str(e), code="SKILL_NOT_FOUND")
+    except ValueError as e:
+        return fail(str(e), code="NO_DETERMINISTIC_STEPS")
+    except GenerationError as e:
+        return fail(str(e), code="GENERATION_FAILED")
+    except FileExistsError as e:
+        return fail(str(e), code="ALREADY_EXISTS")
+    except Exception:
+        logger.exception("compile-skill failed")
+        return fail("compile-skill failed", code="COMPILE_FAILED")
+    data = manifest.model_dump(mode="json")
+    data["skill_source"] = body.skill_name
+    data["skill_material"] = material_info
+    return ok(data, code="COMPILED")
 
 
 @router.get("/{program_id}")
